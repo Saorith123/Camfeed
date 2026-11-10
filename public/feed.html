@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camfeed - News Feed</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; }
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
+        .top-left { display: flex; align-items: center; gap: 10px; position: relative; }
+        .menu-icon-btn { font-size: 20px; background: #e4e6eb; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
+        .menu-icon-btn:hover { background: #d8dadf; }
+        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        
+        .dropdown-menu { position: absolute; top: 50px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .dropdown-item:hover { background: #f2f2f2; }
+
+        /* Notification Dropdown */
+        .notification-dropdown { position: absolute; right: 50px; top: 50px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 340px; max-height: 400px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
+        .notification-item { padding: 10px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: center; cursor: pointer; }
+        .notification-item:hover { background: #f2f2f2; }
+
+        .search-box-wrapper { position: relative; display: flex; align-items: center; }
+        .search-input { padding: 8px 12px 8px 32px; border-radius: 20px; border: none; background: #f0f2f5; outline: none; font-size: 14px; width: 180px; transition: width 0.3s; }
+        .search-input:focus { width: 240px; background: white; border: 1px solid #1877f2; }
+        .search-icon-abs { position: absolute; left: 10px; font-size: 14px; color: #65676b; }
+
+        .nav-menus { display: flex; gap: 5px; }
+        .menu-btn { padding: 8px 22px; background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; border-radius: 8px; position: relative; }
+        .menu-btn:hover { background: #f2f2f2; }
+        .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; border-radius: 0; }
+
+        .nav-right { display: flex; align-items: center; gap: 8px; position: relative; }
+        .icon-circle-btn { width: 40px; height: 40px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; position: relative; }
+        .icon-circle-btn:hover { background: #d8dadf; }
+        .notif-badge { position: absolute; top: 2px; right: 2px; background: #fa383e; color: white; font-size: 10px; padding: 2px 5px; border-radius: 10px; font-weight: bold; }
+
+        .user-profile-link { display: flex; align-items: center; cursor: pointer; border-radius: 50%; padding: 2px; }
+        .user-profile-link:hover { background: #f2f2f2; }
+
+        #pullRefreshIndicator { text-align: center; color: #65676b; font-size: 13px; font-weight: bold; padding: 10px; display: none; background: #e4e6eb; border-radius: 20px; width: fit-content; margin: 0 auto 10px auto; }
+
+        .main-container { max-width: 680px; margin: 20px auto; padding: 0 15px; }
+        .card { background: white; padding: 12px 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        
+        input, textarea, select { width: 100%; padding: 10px 14px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; font-family: inherit; background: #fff; }
+        textarea:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
+
+        .btn-primary { width: 100%; padding: 10px; background: #1877f2; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 5px; }
+        .btn-primary:hover { background: #166fe5; }
+        .btn-primary:disabled { background: #b0d3f8; cursor: not-allowed; }
+
+        /* Upload Progress Bar Styling */
+        #uploadProgressContainer { margin-top: 10px; display: none; }
+        .progress-bar-bg { width: 100%; background-color: #e4e6eb; border-radius: 10px; overflow: hidden; height: 12px; }
+        .progress-bar-fill { width: 0%; height: 100%; background-color: #1877f2; transition: width 0.2s; }
+        .progress-text { font-size: 12px; font-weight: bold; color: #65676b; text-align: right; margin-top: 4px; }
+
+        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; transition: all 0.5s; }
+        .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
+        .post-author { font-weight: bold; color: #050505; }
+        .post-author:hover { text-decoration: underline; }
+        .post-time { font-size: 11px; color: #90949c; }
+        .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
+        
+        .post-media { width: 100%; max-height: 400px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
+
+        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 5px 0; margin-top: 10px; justify-content: space-around; position: relative; }
+        .action-btn { background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 6px 15px; border-radius: 4px; display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .action-btn:hover { background: #f2f2f2; }
+        .action-btn.liked { color: #1877f2; }
+
+        .reaction-popup { position: absolute; bottom: 40px; left: 0; background: white; border-radius: 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); padding: 6px 12px; display: flex; gap: 10px; z-index: 100; border: 1px solid #dddfe2; display: none; }
+        .reaction-emoji { font-size: 24px; cursor: pointer; transition: transform 0.2s; }
+        .reaction-emoji:hover { transform: scale(1.35); }
+
+        /* Comments Section & Bubbles */
+        .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; background: #f9f9f9; padding: 10px 12px; border-radius: 0 0 8px 8px; }
+        .comment-item { display: flex; gap: 8px; margin-bottom: 10px; font-size: 13px; align-items: flex-start; }
+        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; }
+        .comment-avatar:hover { opacity: 0.85; }
+        .comment-bubble-wrap { display: flex; flex-direction: column; max-width: 82%; }
+        .comment-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; word-break: break-word; transition: background 0.5s; }
+        .comment-author { font-weight: bold; color: #050505; cursor: pointer; font-size: 12.5px; margin-bottom: 2px; display: inline-block; }
+        .comment-author:hover { text-decoration: underline; color: #1877f2; }
+        .comment-footer-actions { display: flex; gap: 10px; margin-top: 2px; margin-left: 10px; font-size: 11.5px; color: #65676b; }
+        .reply-btn { font-weight: bold; cursor: pointer; color: #65676b; }
+        .reply-btn:hover { text-decoration: underline; color: #1877f2; }
+
+        .highlight-post { box-shadow: 0 0 0 3px #1877f2 !important; }
+        .highlight-comment { background-color: #e7f3ff !important; border: 1px solid #1877f2; }
+
+        .user-row { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 10px; }
+        .btn-follow { padding: 6px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-follow:hover { background: #166fe5; }
+        .btn-unfollow { background: #e4e6eb; color: #050505; }
+        .btn-unfollow:hover { background: #d8dadf; }
+
+        .chat-layout { display: flex; background: white; height: 500px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; }
+        .chat-sidebar { width: 300px; border-right: 1px solid #e4e6eb; overflow-y: auto; }
+        .chat-box-area { flex: 1; display: flex; flex-direction: column; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5; display: flex; flex-direction: column; gap: 8px; }
+        .msg-bubble { padding: 8px 12px; border-radius: 12px; max-width: 60%; font-size: 14px; }
+        .msg-sent { background: #1877f2; color: white; align-self: flex-end; }
+        .msg-received { background: white; color: #050505; align-self: flex-start; border: 1px solid #dddfe2; }
+        .chat-user-item { display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
+        .chat-user-item:hover { background: #f2f2f2; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="top-left">
+            <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
+            <div class="dropdown-menu" id="menuDropdown">
+                <div class="dropdown-item" onclick="alert('Settings & Privacy clicked')">⚙️ Settings & Privacy</div>
+                <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
+            </div>
+            
+            <div class="logo-nav" onclick="switchTab('feed')">camfeed</div>
+        </div>
+        
+        <!-- Navigation Tabs -->
+        <div class="nav-menus">
+            <button class="menu-btn active" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
+            <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
+            <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
+            <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat">💬</button>
+        </div>
+
+        <div class="nav-right">
+            <div class="search-box-wrapper">
+                <span class="search-icon-abs">🔍</span>
+                <input type="text" id="searchInput" class="search-input" placeholder="Search Camfeed..." oninput="searchUsers(this.value)">
+            </div>
+
+            <button class="icon-circle-btn" onclick="toggleNotifications(event)">
+                🔔
+                <span id="notifBadge" class="notif-badge hidden">0</span>
+            </button>
+            <div class="notification-dropdown" id="notifDropdown" onclick="event.stopPropagation()">
+                <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
+                <div id="notifList">
+                    <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
+                </div>
+            </div>
+
+            <a class="user-profile-link" href="profile.html" title="My Profile">
+                <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:38px; height:38px; border-radius:50%; object-fit:cover;">
+            </a>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="pullRefreshIndicator">🔄 Refreshing feed...</div>
+
+        <!-- 1. NEWS FEED TAB -->
+        <div id="tabContentFeed">
+            <div class="card">
+                <div style="display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #e4e6eb; padding-bottom: 10px;">
+                    <img src="https://via.placeholder.com/40" id="feedUserAvatar" class="avatar">
+                    <textarea id="postContent" rows="2" placeholder="What's on your mind?" style="border: none; background: #f0f2f5; border-radius: 20px; padding: 10px 15px; resize: none; margin: 0; outline: none;"></textarea>
+                </div>
+                
+                <div id="mediaPreviewContainer" class="hidden" style="margin-top: 10px; position: relative; text-align: center;">
+                    <img id="imagePreview" class="hidden" style="max-width: 100%; max-height: 250px; border-radius: 6px; object-fit: cover;">
+                    <video id="videoPreview" class="hidden" style="max-width: 100%; max-height: 250px; border-radius: 6px; background: black;" controls></video>
+                    <button onclick="removeMedia()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
+                </div>
+
+                <!-- Upload Progress Bar Container -->
+                <div id="uploadProgressContainer">
+                    <div class="progress-bar-bg">
+                        <div id="progressBarFill" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="progressText" class="progress-text">Uploading... 0%</div>
+                </div>
+
+                <!-- Privacy Selector for Post -->
+                <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                    <label style="font-size: 13px; font-weight: bold; color: #65676b;">Privacy:</label>
+                    <select id="postPrivacy" style="width: 140px; padding: 6px; font-size: 13px; margin: 0;">
+                        <option value="public">🌐 Public</option>
+                        <option value="private">🔒 Private (Only me)</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: 600; color: #65676b; padding: 8px; border-radius: 6px; flex: 1; justify-content: center;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size: 18px;">📷</span> Photo / Video
+                        <input type="file" id="mediaFile" accept="image/*,video/*" class="hidden" onchange="previewMedia(event)">
+                    </label>
+                    <button id="postSubmitBtn" onclick="createPost()" class="btn-primary" style="width: 100px; padding: 8px; margin: 0; border-radius: 6px;">Post</button>
+                </div>
+                <div class="msg" id="postMsg" style="color: red; font-size: 13px; text-align: center; margin-top: 5px;"></div>
+            </div>
+            <div id="postsContainer"></div>
+        </div>
+
+        <!-- 2. VIDEOS TAB (តំណភ្ជាប់ទៅកាន់ videos.html ឬเปิด Reel Viewer) -->
+        <div id="tabContentVideos" class="hidden"></div>
+
+        <!-- 3. FOLLOW FRIEND TAB -->
+        <div id="tabContentFriends" class="hidden">
+            <h3 style="color: #050505;" id="friendsHeaderTitle">👥 People You May Follow</h3>
+            <div id="usersListContainer"></div>
+        </div>
+
+        <!-- 4. CHAT / MESSAGES TAB -->
+        <div id="tabContentChat" class="hidden">
+            <div class="chat-layout">
+                <div class="chat-sidebar" id="chatUserList"></div>
+                <div class="chat-box-area">
+                    <div id="chatHeader" style="padding: 12px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; background: #fff;">Select a friend to chat</div>
+                    <div class="chat-messages" id="chatMessagesContainer"></div>
+                    <div style="display: flex; padding: 10px; background: white; border-top: 1px solid #e4e6eb;">
+                        <input type="text" id="chatInput" placeholder="Type a message..." style="margin:0; flex:1; padding: 8px 12px;" onkeypress="if(event.key==='Enter') sendMessage()">
+                        <button onclick="sendMessage()" class="btn-primary" style="margin:0; width: 90px; margin-left: 8px;">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🎯 ភ្ជាប់ File JavaScript Lightbox Modal ខាងក្រៅ -->
+    <script src="imageModal.js"></script>
+
+    <script>
+        let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let activeChatEmail = null;
+
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            if(currentUser.profile_pic) {
+                document.getElementById('navUserAvatar').src = currentUser.profile_pic;
+                document.getElementById('feedUserAvatar').src = currentUser.profile_pic;
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetPostId = urlParams.get('post');
+            const targetCommentId = urlParams.get('comment');
+
+            if (targetPostId) {
+                fetch(`/api/posts/${targetPostId}?email=${currentUser.email}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success && data.post) {
+                            renderPosts([data.post], 'postsContainer');
+                            setTimeout(() => {
+                                jumpToComment(targetPostId, targetCommentId ? parseInt(targetCommentId) : 0);
+                            }, 400);
+                        } else {
+                            loadPosts();
+                        }
+                    })
+                    .catch(() => loadPosts());
+            } else {
+                loadPosts();
+            }
+
+            loadNotifications();
+        }
+
+        function toggleMenuDropdown(event) {
+            event.stopPropagation();
+            document.getElementById('notifDropdown').style.display = 'none';
+            const dropdown = document.getElementById('menuDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleNotifications(event) {
+            event.stopPropagation();
+            document.getElementById('menuDropdown').style.display = 'none';
+            const dropdown = document.getElementById('notifDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        window.onclick = function() {
+            document.getElementById('menuDropdown').style.display = 'none';
+            document.getElementById('notifDropdown').style.display = 'none';
+            if(typeof closeImageMenu === 'function') closeImageMenu();
+        }
+
+        function switchTab(tab) {
+            if (tab === 'videos') {
+                window.location.href = 'videos.html'; // 🚀 បើកទៅកាន់ទំព័រ Videos ពេញអេក្រង់ແບບ TikTok
+                return;
+            }
+
+            ['Feed', 'Videos', 'Friends', 'Chat'].forEach(t => {
+                const elem = document.getElementById(`tabContent${t}`);
+                const menuElem = document.getElementById(`menu${t}`);
+                if (elem) elem.classList.add('hidden');
+                if (menuElem) menuElem.classList.remove('active');
+            });
+
+            const activeTabElem = document.getElementById(`tabContent${tab}`);
+            const activeMenuElem = document.getElementById(`menu${tab}`);
+            if (activeTabElem) activeTabElem.classList.remove('hidden');
+            if (activeMenuElem) activeMenuElem.classList.add('active');
+
+            if (tab === 'feed') {
+                if (window.location.search) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+                loadPosts();
+            }
+            if (tab === 'friends') {
+                const headerTitle = document.getElementById('friendsHeaderTitle');
+                if (headerTitle) headerTitle.innerText = '👥 People You May Follow';
+                loadUsersToFollow();
+            }
+            if (tab === 'chat') loadChatUsers();
+        }
+
+        let touchstartY = 0;
+        window.addEventListener('touchstart', e => { touchstartY = e.touches[0].clientY; });
+        window.addEventListener('touchmove', e => {
+            if (window.scrollY === 0 && e.touches[0].clientY - touchstartY > 80) {
+                document.getElementById('pullRefreshIndicator').style.display = 'block';
+            }
+        });
+        window.addEventListener('touchend', e => {
+            if (window.scrollY === 0 && e.changedTouches[0].clientY - touchstartY > 80) {
+                location.reload();
+            } else {
+                document.getElementById('pullRefreshIndicator').style.display = 'none';
+            }
+        });
+
+        async function searchUsers(keyword) {
+            if (!keyword.trim()) {
+                if(document.getElementById('menuFeed').classList.contains('active')) loadPosts();
+                return;
+            }
+            try {
+                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const filtered = data.users.filter(u => `${u.first_name} ${u.last_name}`.toLowerCase().includes(keyword.toLowerCase()) || u.email.toLowerCase().includes(keyword.toLowerCase()));
+                    switchTab('friends');
+                    const headerTitle = document.getElementById('friendsHeaderTitle');
+                    if (headerTitle) headerTitle.innerText = `Search Results for "${keyword}"`;
+                    const container = document.getElementById('usersListContainer');
+                    container.innerHTML = '';
+                    
+                    if(filtered.length === 0) {
+                        container.innerHTML = '<p style="text-align:center; color:#65676b; padding: 20px;">No users found.</p>';
+                        return;
+                    }
+
+                    filtered.forEach(u => {
+                        const div = document.createElement('div');
+                        div.className = 'user-row';
+                        div.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="window.location.href='profile.html?email=${u.email}'">
+                                <img src="${u.profile_pic || 'https://via.placeholder.com/50'}" style="width:50px; height:50px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight: bold; font-size: 15px; color: #050505;">${u.first_name} ${u.last_name}</div>
+                                    <div style="font-size: 12px; color: #65676b; margin-top: 2px;">${u.email}</div>
+                                </div>
+                            </div>
+                            <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowSearch('${u.email}', ${u.is_following}, '${keyword}')">
+                                ${u.is_following ? 'Following' : 'Follow'}
+                            </button>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            } catch(err) { console.error(err); }
+        }
+
+        async function toggleFollowSearch(targetEmail, isFollowing, keyword) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            searchUsers(keyword);
+        }
+
+        function previewMedia(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const container = document.getElementById('mediaPreviewContainer');
+            const img = document.getElementById('imagePreview');
+            const vid = document.getElementById('videoPreview');
+
+            container.classList.remove('hidden');
+            const url = URL.createObjectURL(file);
+
+            if (file.type.startsWith('video')) {
+                vid.src = url;
+                vid.classList.remove('hidden');
+                img.classList.add('hidden');
+            } else {
+                img.src = url;
+                img.classList.remove('hidden');
+                vid.classList.add('hidden');
+            }
+        }
+
+        function removeMedia() {
+            document.getElementById('mediaFile').value = '';
+            document.getElementById('mediaPreviewContainer').classList.add('hidden');
+            document.getElementById('imagePreview').src = '';
+            document.getElementById('videoPreview').src = '';
+        }
+
+        function createPost() {
+            const content = document.getElementById('postContent').value;
+            const privacy = document.getElementById('postPrivacy').value;
+            const fileInput = document.getElementById('mediaFile').files[0];
+            const msg = document.getElementById('postMsg');
+            const submitBtn = document.getElementById('postSubmitBtn');
+            const progressContainer = document.getElementById('uploadProgressContainer');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressText = document.getElementById('progressText');
+
+            if (!content.trim() && !fileInput) {
+                msg.innerText = 'Please write something or select a file!';
+                return;
+            }
+            msg.innerText = '';
+
+            const formData = new FormData();
+            formData.append('email', currentUser.email);
+            formData.append('content', content);
+            formData.append('privacy', privacy);
+            if (fileInput) formData.append('mediaFile', fileInput);
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Posting...';
+            progressContainer.style.display = 'block';
+            progressBarFill.style.width = '0%';
+            progressText.innerText = 'Uploading... 0%';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/posts', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBarFill.style.width = percentComplete + '%';
+                    progressText.innerText = `Uploading... ${percentComplete}%`;
+                }
+            };
+
+            xhr.onload = function() {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Post';
+                progressContainer.style.display = 'none';
+
+                if (xhr.status === 201 || xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            document.getElementById('postContent').value = '';
+                            removeMedia();
+                            loadPosts();
+                        } else {
+                            msg.innerText = 'Error: ' + (data.error || 'Failed to upload.');
+                        }
+                    } catch (e) {
+                        msg.innerText = 'Invalid server response.';
+                    }
+                } else {
+                    try {
+                        const errData = JSON.parse(xhr.responseText);
+                        msg.innerText = 'Error: ' + (errData.error || 'Server error occurred.');
+                    } catch (err) {
+                        msg.innerText = 'Failed to upload post. Status: ' + xhr.status;
+                    }
+                }
+            };
+
+            xhr.onerror = function() {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'Post';
+                progressContainer.style.display = 'none';
+                msg.innerText = 'Network error occurred. Please check your connection.';
+            };
+
+            xhr.send(formData);
+        }
+
+        async function loadPosts() {
+            try {
+                const res = await fetch(`/api/posts?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderPosts(data.posts, 'postsContainer');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // 🎬 មុខងារ Render Post ព្រមទាំងដាក់ Event ពេលចុចលើវីដេអូក្នុង Feed ឱ្យលោតចូល Reels Viewer Fullscreen ស្វ័យប្រវត្តិ
+        function renderPosts(posts, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            if (posts.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #65676b;">No posts found.</p>';
+                return;
+            }
+
+            posts.forEach(post => {
+                const dateStr = new Date(post.created_at).toLocaleString();
+                const div = document.createElement('div');
+                div.className = 'post-item';
+                div.id = `post-${post.id}`;
+
+                let mediaHtml = '';
+                if (post.media_url) {
+                    if (post.media_type === 'video') {
+                        // 🎯 ពេលចុចលើវីដេអូ វានឹងបើកចូលទៅកាន់ videos.html ជាមួយ ?v=ID ដូច Facebook
+                        mediaHtml = `<video src="${post.media_url}" class="post-media autoplay-video" onclick="window.location.href='videos.html?v=${post.id}'" controls muted loop playsinline style="cursor: pointer;"></video>`;
+                    } else {
+                        mediaHtml = `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
+                    }
+                }
+
+                let currentReactionIcon = post.user_reaction ? post.user_reaction : '👍 Like';
+
+                div.innerHTML = `
+                    <div class="post-header" onclick="window.location.href='profile.html?email=${post.user_email}'">
+                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
+                        <div>
+                            <div class="post-author">${post.first_name} ${post.last_name}</div>
+                            <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
+                        </div>
+                    </div>
+                    <div class="post-content">${post.content}</div>
+                    ${mediaHtml}
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #65676b; margin-bottom: 5px; padding: 0 5px;">
+                        <span id="likeCount-${post.id}">👍 ${post.likes_count} Reactions</span>
+                        <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} Comments</span>
+                    </div>
+                    <div class="post-actions">
+                        <div style="position: relative;" onmouseenter="showReactionPopup(${post.id})" onmouseleave="hideReactionPopup(${post.id})">
+                            <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="sendReaction(${post.id}, '👍')">${currentReactionIcon}</button>
+                            <div id="reactionPopup-${post.id}" class="reaction-popup" onmouseenter="showReactionPopup(${post.id})" onmouseleave="hideReactionPopup(${post.id})">
+                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '👍')">👍</span>
+                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '❤️')">❤️</span>
+                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😂')">😂</span>
+                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😮')">😮</span>
+                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😢')">😢</span>
+                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😡')">😡</span>
+                            </div>
+                        </div>
+                        <button class="action-btn" onclick="toggleCommentBox(${post.id})">💬 Comment</button>
+                        <button class="action-btn" onclick="openShareMenu(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on Camfeed!')}')" title="Share Link">🔗 Share</button>
+                    </div>
+                    <div id="commentsSection-${post.id}" class="comments-section hidden">
+                        <div id="commentList-${post.id}"></div>
+                        <div style="display: flex; gap: 5px; margin-top: 8px;">
+                            <input type="text" id="commentInput-${post.id}" placeholder="Write a comment..." style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
+                            <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">Send</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            initAutoPlayVideos();
+        }
+
+        function copyPostLink(postId) {
+            const link = `${window.location.origin}/feed.html?post=${postId}`;
+            navigator.clipboard.writeText(link).then(() => {
+                alert('Post link copied to clipboard!');
+            });
+        }
+
+        function openShareMenu(postId, encodedContent) {
+            const shareUrl = `${window.location.origin}/feed.html?post=${postId}`;
+            const postText = decodeURIComponent(encodedContent);
+            
+            const choice = confirm("ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!");
+            if (choice) {
+                const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`;
+                window.open(telegramUrl, '_blank');
+            } else {
+                copyPostLink(postId);
+            }
+        }
+
+        let popupTimeout = null;
+        function showReactionPopup(postId) {
+            clearTimeout(popupTimeout);
+            document.getElementById(`reactionPopup-${postId}`).style.display = 'flex';
+        }
+
+        function hideReactionPopup(postId) {
+            popupTimeout = setTimeout(() => {
+                document.getElementById(`reactionPopup-${postId}`).style.display = 'none';
+            }, 300);
+        }
+
+        async function sendReaction(postId, emoji) {
+            hideReactionPopup(postId);
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const btn = document.getElementById(`likeBtn-${postId}`);
+                    const countElem = document.getElementById(`likeCount-${postId}`);
+                    
+                    btn.innerText = emoji;
+                    if (data.reacted) {
+                        btn.classList.add('liked');
+                    } else {
+                        btn.classList.remove('liked');
+                        btn.innerText = '👍 Like';
+                    }
+                    countElem.innerText = `👍 ${data.likes_count} Reactions`;
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function initAutoPlayVideos() {
+            const videoElements = document.querySelectorAll('.autoplay-video');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target;
+                    if (entry.isIntersecting) {
+                        video.play().catch(err => console.log("Autoplay prevented:", err));
+                    } else {
+                        video.pause();
+                    }
+                });
+            }, { threshold: 0.6 });
+            videoElements.forEach(video => observer.observe(video));
+        }
+
+        async function toggleCommentBox(postId) {
+            const sec = document.getElementById(`commentsSection-${postId}`);
+            if (!sec) return;
+            sec.classList.toggle('hidden');
+            if (!sec.classList.contains('hidden')) {
+                loadComments(postId);
+            }
+        }
+
+        async function loadComments(postId) {
+            try {
+                const res = await fetch(`/api/comments/${postId}`);
+                const data = await res.json();
+                if (data.success) {
+                    const list = document.getElementById(`commentList-${postId}`);
+                    if (!list) return;
+                    list.innerHTML = data.comments.map(c => `
+                        <div class="comment-item" id="comment-${c.id}">
+                            <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${c.user_email}'" title="View Profile">
+                            <div class="comment-bubble-wrap">
+                                <div class="comment-bubble" id="bubble-${c.id}">
+                                    <span class="comment-author" onclick="window.location.href='profile.html?email=${c.user_email}'">${c.first_name} ${c.last_name}</span>
+                                    <div>${c.content}</div>
+                                </div>
+                                <div class="comment-footer-actions">
+                                    <span class="reply-btn" onclick="setReplyTarget(${postId}, '${c.first_name} ${c.last_name}', ${c.id})">Reply</span>
+                                    <span style="font-size: 10px; color: #90949c;">${new Date(c.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        let replyTargetCommentIds = {};
+
+        function setReplyTarget(postId, authorName, commentId) {
+            const input = document.getElementById(`commentInput-${postId}`);
+            if (input) {
+                input.value = `@${authorName} `;
+                input.focus();
+            }
+            replyTargetCommentIds[postId] = commentId;
+        }
+
+        async function addComment(postId) {
+            const input = document.getElementById(`commentInput-${postId}`);
+            if (!input || !input.value.trim()) return;
+            const content = input.value;
+            const replyToCommentId = replyTargetCommentIds[postId] || null;
+
+            await fetch('/api/comments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId, email: currentUser.email, content, replyToCommentId })
+            });
+            input.value = '';
+            replyTargetCommentIds[postId] = null;
+            loadComments(postId);
+
+            const commentCountElem = document.getElementById(`commentCount-${postId}`);
+            if (commentCountElem) {
+                let parts = commentCountElem.innerText.split(' ');
+                let currentComments = parseInt(parts[0]) || 0;
+                commentCountElem.innerText = `${currentComments + 1} Comments`;
+            }
+        }
+
+        async function jumpToComment(postId, commentId) {
+            const notifDropdown = document.getElementById('notifDropdown');
+            if (notifDropdown) notifDropdown.style.display = 'none';
+            
+            switchTab('feed');
+
+            setTimeout(() => {
+                const postElem = document.getElementById(`post-${postId}`);
+                if (postElem) {
+                    postElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    postElem.classList.add('highlight-post');
+                    setTimeout(() => postElem.classList.remove('highlight-post'), 2500);
+
+                    const sec = document.getElementById(`commentsSection-${postId}`);
+                    if (sec && sec.classList.contains('hidden')) {
+                        toggleCommentBox(postId);
+                    }
+
+                    if (commentId && commentId !== 0) {
+                        setTimeout(() => {
+                            const bubble = document.getElementById(`bubble-${commentId}`);
+                            if (bubble) {
+                                bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                bubble.classList.add('highlight-comment');
+                                setTimeout(() => bubble.classList.remove('highlight-comment'), 3000);
+                            }
+                        }, 600);
+                    }
+                }
+            }, 300);
+        }
+
+        async function loadNotifications() {
+            try {
+                const res = await fetch(`/api/notifications?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const badge = document.getElementById('notifBadge');
+                    const list = document.getElementById('notifList');
+                    const notifs = data.notifications;
+
+                    if (notifs.length > 0) {
+                        if (badge) {
+                            badge.innerText = notifs.length;
+                            badge.classList.remove('hidden');
+                        }
+                        if (list) {
+                            list.innerHTML = notifs.map(n => {
+                                let clickAction = n.post_id ? `jumpToComment(${n.post_id}, ${n.comment_id || 0})` : `window.location.href='profile.html?email=${n.sender_email}'`;
+                                return `
+                                    <div class="notification-item" onclick="${clickAction}">
+                                        <img src="${n.profile_pic || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%;">
+                                        <div>
+                                            <div>${n.message}</div>
+                                            <div style="font-size: 10px; color: #90949c; margin-top: 2px;">${new Date(n.created_at).toLocaleString()}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('');
+                        }
+                    } else {
+                        if (list) list.innerHTML = `<div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>`;
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadUsersToFollow() {
+            try {
+                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const container = document.getElementById('usersListContainer');
+                    if (container) {
+                        container.innerHTML = data.users.map(u => `
+                            <div class="user-row">
+                                <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${u.email}'">
+                                    <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%;">
+                                    <span style="font-weight:bold;">${u.first_name} ${u.last_name}</span>
+                                </div>
+                                <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollow('${u.email}', ${u.is_following})">
+                                    ${u.is_following ? 'Following' : 'Follow'}
+                                </button>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function toggleFollow(targetEmail, isFollowing) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            loadUsersToFollow();
+        }
+
+        async function loadChatUsers() {
+            try {
+                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const chatUserList = document.getElementById('chatUserList');
+                    if (chatUserList) {
+                        chatUserList.innerHTML = data.users.map(u => `
+                            <div class="chat-user-item" onclick="openChat('${u.email}', '${u.first_name} ${u.last_name}')">
+                                <img src="${u.profile_pic || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%;">
+                                <span style="font-weight:bold; font-size:14px;">${u.first_name} ${u.last_name}</span>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        openChat = function(email, name) {
+            agent = email;
+            activeChatEmail = email;
+            const chatHeader = document.getElementById('chatHeader');
+            if (chatHeader) chatHeader.innerText = `Chat with ${name}`;
+            loadMessages();
+        };
+
+        async function loadMessages() {
+            if (!activeChatEmail) return;
+            try {
+                const res = await fetch(`/api/messages?user1=${currentUser.email}&user2=${activeChatEmail}`);
+                const data = await res.json();
+                if (data.success) {
+                    const chatMessagesContainer = document.getElementById('chatMessagesContainer');
+                    if (chatMessagesContainer) {
+                        chatMessagesContainer.innerHTML = data.messages.map(m => `
+                            <div class="msg-bubble ${m.sender_email === currentUser.email ? 'msg-sent' : 'msg-received'}">${m.message}</div>
+                        `).join('');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            if (!input || !input.value.trim() || !activeChatEmail) return;
+            await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sender: currentUser.email, receiver: activeChatEmail, message: input.value })
+            });
+            input.value = '';
+            loadMessages();
+        }
+
+        function logout() {
+            localStorage.removeItem('camfeed_user');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

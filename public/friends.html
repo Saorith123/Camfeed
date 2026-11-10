@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camfeed - Friends</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
+        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .back-btn { padding: 6px 14px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+        .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
+        .friends-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        
+        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
+        .user-card { background: #fff; border: 1px solid #e4e6eb; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; background: #ccc; margin-bottom: 10px; cursor: pointer; }
+        .user-name { font-weight: bold; color: #050505; margin-bottom: 10px; cursor: pointer; }
+        
+        .btn-follow { width: 100%; padding: 8px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-unfollow { background: #e4e6eb; color: #050505; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
+        <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
+    </div>
+
+    <div class="container">
+        <div class="friends-card">
+            <h2 style="margin-top: 0; color: #050505;">👥 People You May Follow</h2>
+            <div id="friendsContainer" class="user-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            loadUsers();
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const container = document.getElementById('friendsContainer');
+                    container.innerHTML = '';
+
+                    if (data.users.length === 0) {
+                        container.innerHTML = '<p style="color: #65676b;">No other users found.</p>';
+                        return;
+                    }
+
+                    data.users.forEach(u => {
+                        const div = document.createElement('div');
+                        div.className = 'user-card';
+                        div.innerHTML = `
+                            <img src="${u.profile_pic || 'https://via.placeholder.com/90'}" class="avatar" onclick="window.location.href='profile.html?email=${u.email}'">
+                            <div class="user-name" onclick="window.location.href='profile.html?email=${u.email}'">${u.first_name} ${u.last_name}</div>
+                            <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollow('${u.email}', ${u.is_following})">
+                                ${u.is_following ? 'Following' : 'Follow'}
+                            </button>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function toggleFollow(targetEmail, isFollowing) {
+            const action = isFollowing ? 'unfollow' : 'follow';
+            try {
+                await fetch('/api/follow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
+                });
+                loadUsers();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

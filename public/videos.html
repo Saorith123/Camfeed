@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camfeed - Reels Videos</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100vh; background-color: black; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+
+        .reels-top-bar { position: fixed; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
+        .back-btn { background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+
+        .reels-container { width: 100vw; height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; }
+        .reels-container::-webkit-scrollbar { display: none; }
+
+        .reel-item { width: 100vw; height: 100vh; scroll-snap-align: start; position: relative; display: flex; align-items: center; justify-content: center; background: black; }
+        .reel-video { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
+
+        .reel-overlay { position: absolute; bottom: 30px; left: 15px; right: 70px; z-index: 10; color: white; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+        .reel-author-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+        .reel-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid white; }
+        .reel-caption { font-size: 14px; color: #f1f1f1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        .reel-actions { position: absolute; bottom: 30px; right: 15px; z-index: 10; display: flex; flex-direction: column; gap: 20px; align-items: center; color: white; }
+        .action-icon-btn { background: rgba(0,0,0,0.4); border: none; color: white; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; backdrop-filter: blur(4px); }
+        .action-count { font-size: 12px; font-weight: bold; text-align: center; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+    <div class="reels-top-bar">
+        <button class="back-btn" onclick="window.location.href='feed.html'">❮</button>
+        <div style="font-weight: bold; font-size: 18px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Reels</div>
+        <div style="width: 40px;"></div>
+    </div>
+
+    <div class="reels-container" id="reelsFeedContainer">
+        <div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Loading Reels...</div>
+    </div>
+
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            loadReelsFeed();
+        }
+
+        async function loadReelsFeed() {
+            try {
+                const res = await fetch(`/api/posts?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const container = document.getElementById('reelsFeedContainer');
+                    container.innerHTML = '';
+                    const videoPosts = data.posts.filter(p => p.media_type === 'video');
+
+                    if (videoPosts.length === 0) {
+                        container.innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh;">No reels available.</div>';
+                        return;
+                    }
+
+                    container.innerHTML = videoPosts.map(video => `
+                        <div class="reel-item" id="reel-${video.id}">
+                            <video src="${video.media_url}" class="reel-video" loop playsinline controls></video>
+                            
+                            <div class="reel-overlay">
+                                <div class="reel-author-row" onclick="window.location.href='profile.html?email=${video.user_email}'">
+                                    <img src="${video.profile_pic || 'https://via.placeholder.com/40'}" class="reel-avatar">
+                                    <div style="font-weight: bold; font-size: 15px;">${video.first_name} ${video.last_name}</div>
+                                </div>
+                                <div class="reel-caption">${video.content || ''}</div>
+                            </div>
+
+                            <div class="reel-actions">
+                                <div>
+                                    <button class="action-icon-btn" onclick="sendReaction(${video.id}, '👍')">👍</button>
+                                    <div class="action-count" id="likeCount-${video.id}">${video.likes_count || 0}</div>
+                                </div>
+                                <div>
+                                    <button class="action-icon-btn" onclick="alert('Open comments')">💬</button>
+                                    <div class="action-count">${video.comments_count || 0}</div>
+                                </div>
+                                <div>
+                                    <button class="action-icon-btn" onclick="navigator.clipboard.writeText(window.location.origin + '${video.media_url}'); alert('Link copied!');">↗️</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+
+                    initReelsAutoplay();
+
+                    // 🎯 ពិនិត្យមើល URL បើមាន ?v=ID គឺ Scroll ឱ្យចំវីដេអូនោះភ្លាម
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const targetVideoId = urlParams.get('v');
+                    if (targetVideoId) {
+                        setTimeout(() => {
+                            const targetEl = document.getElementById(`reel-${targetVideoId}`);
+                            if (targetEl) {
+                                targetEl.scrollIntoView({ behavior: 'auto' });
+                            }
+                        }, 100);
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function sendReaction(postId, emoji) {
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const countElem = document.getElementById(`likeCount-${postId}`);
+                    if (countElem) countElem.innerText = data.likes_count;
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function initReelsAutoplay() {
+            const videoItems = document.querySelectorAll('.reel-video');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target;
+                    if (entry.isIntersecting) {
+                        video.play().catch(err => console.log("Autoplay blocked:", err));
+                    } else {
+                        video.pause();
+                        video.currentTime = 0;
+                    }
+                });
+            }, { threshold: 0.7 });
+
+            videoItems.forEach(vid => observer.observe(vid));
+        }
+    </script>
+</body>
+</html>

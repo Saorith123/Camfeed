@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camfeed - Messages</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .back-btn { padding: 6px 14px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+        .chat-container { flex: 1; display: flex; max-width: 1000px; width: 100%; margin: 15px auto; background: white; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; }
+        .chat-sidebar { width: 320px; border-right: 1px solid #e4e6eb; overflow-y: auto; background: #fff; }
+        .chat-main { flex: 1; display: flex; flex-direction: column; background: #fff; }
+        
+        .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
+        .chat-user-item:hover, .chat-user-item.active { background: #f2f2f2; }
+        .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; }
+        
+        .messages-list { flex: 1; padding: 20px; overflow-y: auto; background: #f7f8fa; display: flex; flex-direction: column; gap: 10px; }
+        .msg-bubble { padding: 10px 14px; border-radius: 18px; max-width: 65%; font-size: 14px; line-height: 1.4; word-break: break-word; }
+        .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
+        
+        .chat-input-area { display: flex; padding: 15px; background: white; border-top: 1px solid #e4e6eb; gap: 10px; align-items: center; }
+        input[type="text"] { flex: 1; padding: 12px 16px; border: 1px solid #ccd0d5; border-radius: 20px; outline: none; font-size: 14px; }
+        input[type="text"]:focus { border-color: #1877f2; }
+        .send-btn { padding: 10px 20px; background: #1877f2; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        .send-btn:hover { background: #166fe5; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
+        <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-sidebar" id="sidebarUsersList"></div>
+        <div class="chat-main">
+            <div id="chatHeader" style="padding: 15px 20px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; background: #fff; color: #65676b;">
+                Select a conversation to start chatting
+            </div>
+            <div class="messages-list" id="messagesListContainer">
+                <p style="text-align: center; color: #90949c; margin-top: 50px;">No chat selected</p>
+            </div>
+            <div class="chat-input-area hidden" id="chatInputArea">
+                <input type="text" id="messageInput" placeholder="Aa..." onkeypress="handleKeyPress(event)">
+                <button class="send-btn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let activeChatEmail = null;
+        let activeChatName = null;
+
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            loadChatSidebar();
+        }
+
+        async function loadChatSidebar() {
+            try {
+                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const sidebar = document.getElementById('sidebarUsersList');
+                    sidebar.innerHTML = '<h3 style="padding: 10px 15px; margin: 0; color: #050505;">Chats</h3>';
+
+                    if (data.users.length === 0) {
+                        sidebar.innerHTML += '<p style="padding: 15px; color: #65676b;">No friends found.</p>';
+                        return;
+                    }
+
+                    data.users.forEach(u => {
+                        const div = document.createElement('div');
+                        div.className = 'chat-user-item';
+                        div.id = `user-item-${u.email}`;
+                        div.innerHTML = `
+                            <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
+                            <div>
+                                <div style="font-weight: bold; color: #050505; font-size: 15px;">${u.first_name} ${u.last_name}</div>
+                                <div style="font-size: 12px; color: #65676b;">Click to chat</div>
+                            </div>
+                        `;
+                        div.onclick = () => selectChat(u.email, `${u.first_name} ${u.last_name}`);
+                        sidebar.appendChild(div);
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function selectChat(email, name) {
+            activeChatEmail = email;
+            activeChatName = name;
+            
+            // Highlight active user
+            document.querySelectorAll('.chat-user-item').forEach(el => el.classList.remove('active'));
+            const activeEl = document.getElementById(`user-item-${email}`);
+            if (activeEl) activeEl.classList.add('active');
+
+            document.getElementById('chatHeader').innerText = name;
+            document.getElementById('chatInputArea').classList.remove('hidden');
+            loadMessages();
+        }
+
+        async function loadMessages() {
+            if (!activeChatEmail) return;
+            try {
+                const res = await fetch(`/api/messages?user1=${currentUser.email}&user2=${activeChatEmail}`);
+                const data = await res.json();
+                if (data.success) {
+                    const container = document.getElementById('messagesListContainer');
+                    container.innerHTML = '';
+
+                    if (data.messages.length === 0) {
+                        container.innerHTML = '<p style="text-align: center; color: #90949c; font-size: 13px;">Say hello to start the conversation!</p>';
+                        return;
+                    }
+
+                    data.messages.forEach(m => {
+                        const div = document.createElement('div');
+                        div.className = `msg-bubble ${m.sender_email === currentUser.email ? 'msg-sent' : 'msg-received'}`;
+                        div.innerText = m.message;
+                        container.appendChild(div);
+                    });
+                    container.scrollTop = container.scrollHeight;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message || !activeChatEmail) return;
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender: currentUser.email, receiver: activeChatEmail, message })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    input.value = '';
+                    loadMessages();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>
