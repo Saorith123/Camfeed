@@ -7,39 +7,45 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; justify-content: center; align-items: center; }
 
-        .container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 420px; padding: 20px; box-sizing: border-box; }
+        .container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 440px; padding: 20px; box-sizing: border-box; }
         
         .logo-container { text-align: center; margin-bottom: 20px; }
         .logo { font-size: 52px; font-weight: bold; color: #1877f2; letter-spacing: -1px; margin-bottom: 8px; }
         .logo-tagline { font-size: 18px; color: #606770; line-height: 1.2; text-align: center; }
         
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 8px 16px rgba(0, 0, 0, .1); width: 100%; box-sizing: border-box; }
+        .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1); width: 100%; box-sizing: border-box; }
         
-        input, select { width: 100%; padding: 12px 16px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 15px; outline: none; font-family: inherit; background: #fff; }
+        input, select { width: 100%; padding: 12px 16px; margin: 6px 0; border: 1px solid #ccd0d5; border-radius: 8px; box-sizing: border-box; font-size: 15px; outline: none; font-family: inherit; background: #fff; }
         input:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
         
         .row { display: flex; gap: 10px; }
-        .row input { flex: 1; }
+        .row input, .row select { flex: 1; }
 
         .password-container { position: relative; width: 100%; }
         .password-container input { width: 100%; padding-right: 40px; }
         .eye-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 18px; color: #606770; user-select: none; }
 
-        .btn-primary { width: 100%; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-primary { width: 100%; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .btn-primary:hover { background: #166fe5; }
         
-        .btn-create { width: 100%; padding: 12px; background: #42b72a; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center; display: block; text-decoration: none; box-sizing: border-box; }
+        .btn-create { width: 100%; padding: 12px; background: #42b72a; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center; display: block; text-decoration: none; box-sizing: border-box; }
         .btn-create:hover { background: #36a420; }
 
         .divider { border-bottom: 1px solid #dadde1; margin: 20px 0; }
         .msg { text-align: center; margin-top: 12px; font-size: 14px; font-weight: 500; }
         .hidden { display: none !important; }
-        label { font-size: 12px; color: #606770; display: block; margin-top: 6px; text-align: left; }
+        label { font-size: 13px; font-weight: 600; color: #606770; display: block; margin-top: 10px; text-align: left; }
 
         .lang-container { margin-top: 20px; text-align: center; }
-        .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 4px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
+        .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
         
-        .preview-avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); margin: 0 auto; display: block; background: #ccc; }
+        /* 🎨 Modern Facebook Style Profile & Cover Upload Box */
+        .upload-section { background: #f7f8fa; border: 2px dashed #ccd0d5; border-radius: 10px; padding: 15px; margin-top: 10px; text-align: center; transition: all 0.3s; }
+        .upload-section:hover { border-color: #1877f2; background: #e7f3ff55; }
+        .preview-avatar-container { position: relative; width: 90px; height: 90px; margin: 0 auto 10px auto; }
+        .preview-avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); background: #ccc; }
+        .file-upload-label { display: inline-block; padding: 6px 14px; background: #e4e6eb; color: #050505; font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 5px; }
+        .file-upload-label:hover { background: #d8dadf; }
     </style>
 </head>
 <body>
@@ -92,12 +98,27 @@
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
                 </div>
 
-                <label id="lblDob">Date of birth (e.g., 01-07-2000)</label>
-                <input type="text" id="birthdate" placeholder="01-07-2000" required>
+                <!-- 🎯 ថ្ងៃខែឆ្នាំកំណើត បែងចែកជា ៣ ប្រអប់ដាច់ពីគ្នា (Day, Month, Year) -->
+                <label id="lblDob">Date of birth</label>
+                <div class="row">
+                    <select id="dobDay" required>
+                        <option value="" disabled selected>Day</option>
+                    </select>
+                    <select id="dobMonth" required>
+                        <option value="" disabled selected>Month</option>
+                        <option value="01">Jan</option><option value="02">Feb</option><option value="03">Mar</option>
+                        <option value="04">Apr</option><option value="05">May</option><option value="06">Jun</option>
+                        <option value="07">Jul</option><option value="08">Aug</option><option value="09">Sep</option>
+                        <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                    </select>
+                    <select id="dobYear" required>
+                        <option value="" disabled selected>Year</option>
+                    </select>
+                </div>
 
                 <label id="lblGender">Gender</label>
                 <select id="gender" required>
-                    <option value="" id="optGenderDefault">Select gender</option>
+                    <option value="" id="optGenderDefault" disabled selected>Select gender</option>
                     <option value="Male" id="optMale">Male</option>
                     <option value="Female" id="optFemale">Female</option>
                     <option value="Custom" id="optCustom">Custom</option>
@@ -105,7 +126,7 @@
 
                 <label id="lblCountry">Country</label>
                 <select id="country" required>
-                    <option value="">Select Country</option>
+                    <option value="" disabled selected>Select Country</option>
                     <option value="Cambodia">Cambodia</option>
                     <option value="United States">United States</option>
                     <option value="Thailand">Thailand</option>
@@ -137,14 +158,29 @@
             <div class="divider"></div>
             
             <form onsubmit="event.preventDefault(); finalizeRegistration();">
-                <label id="lblProfilePic" style="font-weight: bold;">Upload Profile Picture</label>
-                <input type="file" id="regProfileFile" accept="image/*" onchange="previewAvatar(event)">
-                <img id="avatarPreviewImg" class="preview-avatar" src="https://via.placeholder.com/90" style="margin-top: 8px; margin-bottom: 12px;">
+                <!-- 🎨 Modern Upload Profile Box -->
+                <label id="lblProfilePic" style="font-weight: bold; margin-bottom: 5px;">Profile Picture</label>
+                <div class="upload-section">
+                    <div class="preview-avatar-container">
+                        <img id="avatarPreviewImg" class="preview-avatar" src="https://via.placeholder.com/90">
+                    </div>
+                    <label class="file-upload-label">
+                        📁 Choose Profile Photo
+                        <input type="file" id="regProfileFile" accept="image/*" class="hidden" onchange="previewAvatar(event)">
+                    </label>
+                </div>
 
-                <label id="lblCoverPic" style="font-weight: bold;">Upload Cover Picture</label>
-                <input type="file" id="regCoverFile" accept="image/*">
+                <!-- 🎨 Modern Upload Cover Box -->
+                <label id="lblCoverPic" style="font-weight: bold; margin-top: 15px; margin-bottom: 5px;">Cover Photo</label>
+                <div class="upload-section">
+                    <div id="coverFileName" style="font-size: 13px; color: #65676b; margin-bottom: 6px;">No cover photo chosen</div>
+                    <label class="file-upload-label">
+                        🖼️ Choose Cover Photo
+                        <input type="file" id="regCoverFile" accept="image/*" class="hidden" onchange="previewCoverName(event)">
+                    </label>
+                </div>
 
-                <button type="submit" class="btn-primary" style="margin-top: 15px;" id="btnFinishReg">Get Started & Finish</button>
+                <button type="submit" class="btn-primary" style="margin-top: 20px;" id="btnFinishReg">Get Started & Finish</button>
             </form>
             <div class="msg" id="wizardMsg"></div>
         </div>
@@ -158,8 +194,25 @@
     </div>
 
     <script>
-        // Set initial language from localStorage
+        // Populate Date of Birth Select Dropdowns (Days 1-31, Years current down to 100 years back)
         window.addEventListener('DOMContentLoaded', () => {
+            const daySelect = document.getElementById('dobDay');
+            for (let i = 1; i <= 31; i++) {
+                let opt = document.createElement('option');
+                opt.value = i < 10 ? '0' + i : i;
+                opt.innerText = i;
+                daySelect.appendChild(opt);
+            }
+
+            const yearSelect = document.getElementById('dobYear');
+            const currentYear = new Date().getFullYear();
+            for (let i = currentYear; i >= currentYear - 100; i--) {
+                let opt = document.createElement('option');
+                opt.value = i;
+                opt.innerText = i;
+                yearSelect.appendChild(opt);
+            }
+
             const savedLang = localStorage.getItem('camfeed_lang') || 'en';
             document.getElementById('langSwitch').value = savedLang;
             changeLanguage();
@@ -176,24 +229,24 @@
                 loginEmail: "Mobile number or email", password: "Password", btnLoginText: "Log In",
                 forgotText: "Forgot password?", btnCreateText: "Create new account", regTitle: "Sign Up",
                 regSubtitle: "It's quick and easy.", firstName: "First name", lastName: "Surname",
-                regEmail: "Mobile number or email", regPassword: "New password", lblDob: "Date of birth (e.g., 01-07-2000)",
+                regEmail: "Mobile number or email", regPassword: "New password", lblDob: "Date of birth",
                 lblGender: "Gender", optGenderDefault: "Select gender", optMale: "Male", optFemale: "Female",
                 optCustom: "Custom", lblCountry: "Country", btnNextStep: "Next", haveAccText: "Already have an account?",
                 welcomeTitle: "Welcome to Camfeed!",
                 welcomeDesc: "Camfeed is an amazing community platform designed to help you connect with friends, family, and share your daily life stories with the world.",
-                lblProfilePic: "Upload Profile Picture", lblCoverPic: "Upload Cover Picture", btnFinishReg: "Get Started & Finish"
+                lblProfilePic: "Profile Picture", lblCoverPic: "Cover Photo", btnFinishReg: "Get Started & Finish"
             },
             km: {
                 logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ Camfeed។",
                 loginEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", password: "ពាក្យសម្ងាត់", btnLoginText: "ចូលគណនី",
                 forgotText: "ភ្លេចពាក្យសម្ងាត់?", btnCreateText: "បង្កើតគណនីថ្មី", regTitle: "ចុះឈ្មោះ",
                 regSubtitle: "រហ័ស និងងាយស្រួល។", firstName: "នាមខ្លួន", lastName: "នាមត្រកូល",
-                regEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត (ឧ. 01-07-2000)",
+                regEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
                 lblGender: "ភេទ", optGenderDefault: "ជ្រើសរើសភេទ", optMale: "ប្រុស", optFemale: "ស្រី",
                 optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnNextStep: "បន្ទាប់", haveAccText: "មានគណនីរួចហើយ?",
                 welcomeTitle: "សូមស្វាគមន៍មកកាន់ Camfeed!",
                 welcomeDesc: "Camfeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។",
-                lblProfilePic: "ដាក់រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "ដាក់រូបភាពគម្រប (Cover Picture)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់"
+                lblProfilePic: "រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "រូបភាពគម្រប (Cover Photo)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់"
             }
         };
 
@@ -260,15 +313,17 @@
             const lastName = document.getElementById('lastName').value;
             const email = document.getElementById('regEmail').value;
             const password = document.getElementById('regPassword').value;
-            const birthdate = document.getElementById('birthdate').value;
+            
+            const day = document.getElementById('dobDay').value;
+            const month = document.getElementById('dobMonth').value;
+            const year = document.getElementById('dobYear').value;
+            const birthdate = `${day}-${month}-${year}`;
+
             const gender = document.getElementById('gender').value;
             const country = document.getElementById('country').value;
-            const msg = document.getElementById('regMsg');
 
-            // Save temp data to push on final step
             tempUserData = { firstName, lastName, email, password, birthdate, gender, country };
 
-            // Move to Step 2 (Welcome Wizard)
             document.getElementById('registerCard').classList.add('hidden');
             document.getElementById('welcomeWizardCard').classList.remove('hidden');
         }
@@ -277,6 +332,15 @@
             const file = event.target.files[0];
             if (file) {
                 document.getElementById('avatarPreviewImg').src = URL.createObjectURL(file);
+            }
+        }
+
+        function previewCoverName(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('coverFileName').innerText = `Selected: ${file.name}`;
+                document.getElementById('coverFileName').style.color = '#31a24c';
+                document.getElementById('coverFileName').style.fontWeight = 'bold';
             }
         }
 
@@ -290,7 +354,6 @@
             finishBtn.innerText = "Creating account...";
 
             try {
-                // 1. Register User in Database
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -301,7 +364,6 @@
                 if (data.success) {
                     let user = data.user;
 
-                    // 2. If profile or cover pictures are selected, upload them
                     if (profileFile || coverFile) {
                         const formData = new FormData();
                         formData.append('email', user.email);
@@ -319,7 +381,6 @@
                         }
                     }
 
-                    // 3. Save to localStorage and Auto-Login redirect to feed.html
                     localStorage.setItem('camfeed_remembered_email', user.email);
                     localStorage.setItem('camfeed_user', JSON.stringify(user));
                     window.location.href = 'feed.html';

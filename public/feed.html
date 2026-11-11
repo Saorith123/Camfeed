@@ -23,9 +23,6 @@
         .notification-item { padding: 10px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: center; cursor: pointer; }
         .notification-item:hover { background: #f2f2f2; }
 
-        /* Messenger Dropdown from Bottom Tab */
-        .messenger-dropdown-bottom { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 280px; max-height: 350px; overflow-y: auto; display: none; z-index: 1200; border: 1px solid #e4e6eb; }
-
         /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
         .search-input { padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 120px; transition: width 0.3s, border-color 0.3s; }
@@ -155,22 +152,16 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs (ផ្នែកខាងក្រោមមានប៊ូតុង Chat 💬 ជាមួយ Messenger Dropdown & Badge លេខក្រហម) -->
+        <!-- Navigation Tabs (ផ្នែកខាងក្រោមមានប៊ូតុង Chat 💬 ជាមួយ Unread Badge លេខក្រហម និងចុចចូល messages.html ផ្ទាល់) -->
         <div class="nav-menus">
             <button class="menu-btn active" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
             <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
             <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
             
-            <!-- 💬 Chat Tab with Dropdown & Unread Badge -->
-            <button class="menu-btn" id="menuChat" onclick="toggleMessengerDropdown(event)" title="Chat" style="position: relative;">
+            <!-- 💬 Chat Tab with Unread Badge & Direct Navigation to messages.html -->
+            <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat" style="position: relative;">
                 💬
                 <span id="feedUnreadBadge" class="notif-badge hidden" style="top: 8px; right: 18px;">0</span>
-                <div class="messenger-dropdown-bottom" id="messengerDropdown" onclick="event.stopPropagation()">
-                    <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; font-size: 14px;">Messenger Chats</div>
-                    <div id="feedMessengerList">
-                        <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No new messages</div>
-                    </div>
-                </div>
             </button>
         </div>
     </div>
@@ -311,10 +302,10 @@
             applyLanguage();
             loadPosts();
             loadNotifications();
-            loadFeedMessengerNotifications();
+            loadFeedMessengerBadge();
 
-            // 🔄 Poll unread messages every 3 seconds for feed Messenger badge
-            setInterval(loadFeedMessengerNotifications, 3000);
+            // 🔄 Poll unread messages every 3 seconds to update the Chat tab badge
+            setInterval(loadFeedMessengerBadge, 3000);
         }
 
         function focusSearchInput() {
@@ -324,7 +315,6 @@
         function toggleMenuDropdown(event) {
             event.stopPropagation();
             document.getElementById('notifDropdown').style.display = 'none';
-            document.getElementById('messengerDropdown').style.display = 'none';
             const dropdown = document.getElementById('menuDropdown');
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
@@ -332,20 +322,12 @@
         function toggleNotifications(event) {
             event.stopPropagation();
             document.getElementById('menuDropdown').style.display = 'none';
-            document.getElementById('messengerDropdown').style.display = 'none';
             const dropdown = document.getElementById('notifDropdown');
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
 
-        function toggleMessengerDropdown(event) {
-            event.stopPropagation();
-            document.getElementById('menuDropdown').style.display = 'none';
-            document.getElementById('notifDropdown').style.display = 'none';
-            const dropdown = document.getElementById('messengerDropdown');
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-        }
-
-        async function loadFeedMessengerNotifications() {
+        // 🎯 មុខងារឆែកមើលសារមិនទាន់អាន ដើម្បីបង្ហាញចំនួន Badge លេខក្រហមលើប៊ូតុង Chat ខាងក្រោម
+        async function loadFeedMessengerBadge() {
             if (!currentUser) return;
             try {
                 const res = await fetch(`/api/chat-notifications?email=${currentUser.email}`);
@@ -353,50 +335,20 @@
                 if (data.success) {
                     const unreadList = data.unreadMessages;
                     const badge = document.getElementById('feedUnreadBadge');
-                    const listContainer = document.getElementById('feedMessengerList');
                     
                     if (unreadList.length > 0) {
                         badge.innerText = unreadList.length;
                         badge.classList.remove('hidden');
-
-                        const uniqueSenders = {};
-                        unreadList.forEach(m => {
-                            if (!uniqueSenders[m.sender_email]) uniqueSenders[m.sender_email] = m;
-                        });
-
-                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                        listContainer.innerHTML = Object.values(uniqueSenders).map(m => `
-                            <div onclick="openChatFromFeed('${m.sender_email}')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='white'">
-                                <img src="${m.profile_pic || 'https://via.placeholder.com/40'}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
-                                <div style="flex: 1; min-width: 0;">
-                                    <div style="font-weight: bold; font-size: 13px; color: #050505;">${m.first_name} ${m.last_name}</div>
-                                    <div style="font-size: 11px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.message || (currentLang === 'km' ? 'បានផ្ញើសារសំឡេង' : 'Sent a voice message')}</div>
-                                </div>
-                                <div style="width: 8px; height: 8px; background: #1877f2; border-radius: 50%;"></div>
-                            </div>
-                        `).join('');
                     } else {
                         badge.classList.add('hidden');
-                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                        listContainer.innerHTML = `<div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">${currentLang === 'km' ? 'គ្មានសារថ្មីទេ' : 'No new messages'}</div>`;
                     }
                 }
             } catch (err) { console.error(err); }
         }
 
-        async function openChatFromFeed(senderEmail) {
-            await fetch('/api/mark-read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userEmail: currentUser.email, senderEmail: senderEmail })
-            });
-            window.location.href = `messages.html?chat=${senderEmail}`;
-        }
-
         window.onclick = function() {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
-            document.getElementById('messengerDropdown').style.display = 'none';
             document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
         }
 
