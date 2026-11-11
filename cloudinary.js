@@ -14,7 +14,8 @@ const storage = new CloudinaryStorage({
   params: {
     folder: 'camfeed_uploads',
     resource_type: 'auto',
-    allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov']
+    // 🎯 បន្ថែម webm, ogg, wav ចូលទីនេះ ដើម្បីអនុញ្ញាតឱ្យ Cloudinary ទទួលយកសារសំឡេង (Voice Messages)
+    allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webm', 'ogg', 'wav', 'mp3']
   }
 });
 
