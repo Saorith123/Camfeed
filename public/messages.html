@@ -14,16 +14,20 @@
 
         .chat-container { flex: 1; display: flex; max-width: 1000px; width: 100%; margin: 10px auto; background: white; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; height: calc(100dvh - 70px); }
         
-        .chat-sidebar { width: 320px; border-right: 1px solid #e4e6eb; overflow-y: auto; background: #fff; flex-shrink: 0; }
-        .chat-main { flex: 1; display: flex; flex-direction: column; background: #fff; min-width: 0; position: relative; }
-        
+        .chat-sidebar { width: 340px; border-right: 1px solid #e4e6eb; display: flex; flex-direction: column; background: #fff; flex-shrink: 0; }
+        .sidebar-header { padding: 15px; border-bottom: 1px solid #f0f2f5; display: flex; flex-direction: column; gap: 10px; }
+        .search-input { width: 100%; padding: 8px 12px; border: 1px solid #ccd0d5; border-radius: 20px; background: #f0f2f5; outline: none; font-size: 13px; }
+
+        .sidebar-user-list { flex: 1; overflow-y: auto; }
         .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.2s; }
         .chat-user-item:hover { background: #f2f2f2; }
         .chat-user-item.active { background: #e7f3ff; border-left: 4px solid #1877f2; }
         
         .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; flex-shrink: 0; }
         
+        .chat-main { flex: 1; display: flex; flex-direction: column; background: #fff; min-width: 0; position: relative; }
         .messages-list { flex: 1; padding: 15px; overflow-y: auto; background: #f7f8fa; display: flex; flex-direction: column; gap: 10px; }
+        
         .msg-bubble { padding: 10px 14px; border-radius: 18px; max-width: 75%; font-size: 14px; line-height: 1.4; word-break: break-word; }
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
@@ -31,23 +35,23 @@
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
         .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
         
-        input[type="text"] { flex: 1; padding: 10px 14px; border: 1px solid #ccd0d5; border-radius: 20px; outline: none; font-size: 14px; }
-        input[type="text"]:focus { border-color: #1877f2; }
+        input[type="text"].msg-text { flex: 1; padding: 10px 14px; border: 1px solid #ccd0d5; border-radius: 20px; outline: none; font-size: 14px; }
         
         .action-icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #1877f2; }
         .action-icon-btn:hover { background: #f2f2f2; }
         .recording { color: red !important; animation: pulse 1s infinite; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
 
-        .send-btn { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .send-btn { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; }
         .send-btn:hover { background: #166fe5; }
+        .cancel-btn { padding: 8px 12px; background: #e4e6eb; color: #fa383e; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; }
 
-        /* Voice Preview Box */
-        #voicePreviewContainer { display: none; align-items: center; justify-content: space-between; background: #e7f3ff; padding: 10px 15px; border-top: 1px solid #b0d3f8; }
+        /* 🎙️ Voice Preview Container (រចនាថ្មីមិនឱ្យបាំងប៊ូតុង និងបង្ហាញវិនាទី) */
+        #voicePreviewContainer { display: none; align-items: center; justify-content: space-between; background: #e7f3ff; padding: 10px 15px; border-top: 1px solid #b0d3f8; gap: 8px; }
 
         @media (max-width: 768px) {
             .chat-container { width: 100%; margin: 0; border-radius: 0; height: calc(100dvh - 60px); }
-            .chat-sidebar { width: 100%; display: flex; flex-direction: column; }
+            .chat-sidebar { width: 100%; }
             .chat-sidebar.hidden-mobile { display: none !important; }
             .chat-main.hidden-mobile { display: none !important; }
             .chat-main { width: 100%; }
@@ -68,37 +72,51 @@
     </div>
 
     <div class="chat-container">
-        <div class="chat-sidebar" id="sidebarUsersList"></div>
+        <!-- Sidebar -->
+        <div class="chat-sidebar" id="sidebarSection">
+            <div class="sidebar-header">
+                <h3 style="margin: 0; font-size: 20px; color: #050505;">Chats</h3>
+                <input type="text" id="userSearchInput" class="search-input" placeholder="Search Messenger..." oninput="searchUsers(this.value)">
+            </div>
+            <div class="sidebar-user-list" id="sidebarUsersList">
+                <p style="text-align: center; color: #65676b; padding: 20px; font-size: 13px;">No conversations yet.</p>
+            </div>
+        </div>
+
+        <!-- Chat Main Area -->
         <div class="chat-main hidden-mobile" id="chatMainArea">
             <div id="chatHeader" style="padding: 12px 15px; font-weight: bold; font-size: 15px; border-bottom: 1px solid #e4e6eb; background: #fff; color: #65676b; display: flex; align-items: center;">
-                Select a conversation to start chatting
+                Select a conversation
             </div>
             <div class="messages-list" id="messagesListContainer">
                 <div style="text-align: center; color: #90949c; margin-top: 60px;">
                     <p style="font-size: 40px; margin: 0;">💬</p>
-                    <p style="font-size: 14px; font-weight: 500; margin-top: 10px;">No conversation selected</p>
-                    <p style="font-size: 12px; color: #b0b3b8;">Choose a friend from the list to start messaging.</p>
+                    <p style="font-size: 14px; font-weight: 500; margin-top: 10px;">Your Messages</p>
+                    <p style="font-size: 12px; color: #b0b3b8;">Send private photos and messages to a friend.</p>
                 </div>
             </div>
 
-            <!-- Chat Input Area with Voice Preview -->
+            <!-- Chat Input Area -->
             <div class="chat-input-area hidden" id="chatInputArea">
-                <!-- Voice Preview Box (បង្ហាញពេលថតសំឡេងរួច ដើម្បីឱ្យចុចស្តាប់/លុប/ផ្ញើ) -->
+                <!-- Voice Preview Box (បង្ហាញវិនាទី និងប៊ូតុង Cancel / Send ល្មមលើទូរស័ព្ទ) -->
                 <div id="voicePreviewContainer">
-                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
-                        <span style="font-size: 18px;">🎙️</span>
-                        <audio id="previewAudioPlayer" controls style="height: 32px; flex: 1;"></audio>
+                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                        <button id="previewPlayBtn" onclick="togglePreviewAudio()" style="background: #1877f2; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">▶</button>
+                        <span id="previewTimer" style="font-size: 13px; font-weight: bold; color: #050505; flex-shrink: 0;">0:00 / 0:00</span>
+                        <div style="background: #ccd0d5; height: 4px; flex: 1; border-radius: 2px; position: relative;">
+                            <div id="previewProgressBar" style="background: #1877f2; width: 0%; height: 100%; border-radius: 2px;"></div>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button onclick="cancelVoicePreview()" style="background: #e4e6eb; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #fa383e;">Cancel</button>
-                        <button onclick="sendVoiceMessage()" class="send-btn">Send Voice</button>
+                    <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                        <button onclick="cancelVoicePreview()" class="cancel-btn">Cancel</button>
+                        <button onclick="sendVoiceMessage()" class="send-btn">Send</button>
                     </div>
                 </div>
 
                 <!-- Normal Chat Input Row -->
                 <div class="chat-input-row" id="normalInputRow">
                     <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice">🎙️</button>
-                    <input type="text" id="messageInput" placeholder="Aa..." onkeypress="handleKeyPress(event)">
+                    <input type="text" id="messageInput" class="msg-text" placeholder="Aa..." onkeypress="handleKeyPress(event)">
                     <button class="send-btn" onclick="sendMessage()">Send</button>
                 </div>
             </div>
@@ -115,40 +133,52 @@
         let audioChunks = [];
         let recordedAudioBlob = null;
         let isRecording = false;
+        let previewAudio = null;
 
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            loadChatSidebar();
+            loadConversations();
         }
 
-        async function loadChatSidebar() {
+        async function loadConversations() {
             try {
-                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const res = await fetch(`/api/chat-conversations?email=${currentUser.email}`);
                 const data = await res.json();
                 if (data.success) {
-                    const sidebar = document.getElementById('sidebarUsersList');
-                    sidebar.innerHTML = '<h3 style="padding: 15px; margin: 0; color: #050505; border-bottom: 1px solid #f0f2f5;">Chats</h3>';
+                    renderSidebarList(data.conversations);
+                }
+            } catch (err) { console.error(err); }
+        }
 
-                    if (data.users.length === 0) {
-                        sidebar.innerHTML += '<p style="padding: 15px; color: #65676b; text-align: center; font-size: 13px;">No friends found to chat.</p>';
-                        return;
-                    }
+        function renderSidebarList(users) {
+            const sidebar = document.getElementById('sidebarUsersList');
+            if (users.length === 0) {
+                sidebar.innerHTML = '<p style="text-align: center; color: #65676b; padding: 20px; font-size: 13px;">No conversations yet. Search someone to chat!</p>';
+                return;
+            }
 
-                    data.users.forEach(u => {
-                        const div = document.createElement('div');
-                        div.className = 'chat-user-item';
-                        div.id = `user-item-${u.email}`;
-                        div.innerHTML = `
-                            <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
-                            <div>
-                                <div style="font-weight: bold; color: #050505; font-size: 15px;">${u.first_name} ${u.last_name}</div>
-                                <div style="font-size: 12px; color: #65676b;">Click to open chat</div>
-                            </div>
-                        `;
-                        div.onclick = () => selectChat(u.email, `${u.first_name} ${u.last_name}`);
-                        sidebar.appendChild(div);
-                    });
+            sidebar.innerHTML = users.map(u => `
+                <div class="chat-user-item" id="user-item-${u.email}" onclick="selectChat('${u.email}', '${u.first_name} ${u.last_name}')">
+                    <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: bold; color: #050505; font-size: 14px;">${u.first_name} ${u.last_name}</div>
+                        <div style="font-size: 12px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${u.last_message || 'Started a conversation'}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function searchUsers(keyword) {
+            if (!keyword.trim()) {
+                loadConversations();
+                return;
+            }
+            try {
+                const res = await fetch(`/api/search-users?email=${currentUser.email}&keyword=${encodeURIComponent(keyword)}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderSidebarList(data.users);
                 }
             } catch (err) { console.error(err); }
         }
@@ -165,7 +195,7 @@
             document.getElementById('chatInputArea').classList.remove('hidden');
             
             if (window.innerWidth <= 768) {
-                document.getElementById('sidebarUsersList').classList.add('hidden-mobile');
+                document.getElementById('sidebarSection').classList.add('hidden-mobile');
                 document.getElementById('chatMainArea').classList.remove('hidden-mobile');
                 document.getElementById('mobileBackBtn').style.display = 'flex';
             }
@@ -179,11 +209,12 @@
         }
 
         function backToSidebar() {
-            document.getElementById('sidebarUsersList').classList.remove('hidden-mobile');
+            document.getElementById('sidebarSection').classList.remove('hidden-mobile');
             document.getElementById('chatMainArea').classList.add('hidden-mobile');
             document.getElementById('mobileBackBtn').style.display = 'none';
             activeChatEmail = null;
             if (messagePollingInterval) clearInterval(messagePollingInterval);
+            loadConversations();
         }
 
         async function loadMessages(isPolling = false) {
@@ -198,8 +229,7 @@
                         if (!isPolling) {
                             container.innerHTML = `
                                 <div style="text-align: center; color: #90949c; margin-top: 50px;">
-                                    <p style="font-size: 14px;">No messages with ${activeChatName} yet.</p>
-                                    <p style="font-size: 13px; color: #1877f2;">Say hello or send a voice note!</p>
+                                    <p style="font-size: 14px;">Say hello to ${activeChatName}!</p>
                                 </div>
                             `;
                         }
@@ -209,7 +239,7 @@
                     const messagesHtml = data.messages.map(m => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            contentHtml = `<audio src="${m.media_url}" controls style="max-width: 200px; height: 35px;"></audio>`;
+                            contentHtml = `<audio src="${m.media_url}" controls style="max-width: 180px; height: 32px;"></audio>`;
                         } else {
                             contentHtml = `<span>${m.message}</span>`;
                         }
@@ -224,7 +254,7 @@
             } catch (err) { console.error(err); }
         }
 
-        // 🎙️ ថតសំឡេង និងស្តាប់ឡើងវិញមុនផ្ញើ
+        // 🎙️ មុខងារថតសំឡេង និងបង្កើត Timer វិនាទីត្រឹមត្រូវ
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             if (!isRecording) {
@@ -238,8 +268,22 @@
                         recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                         const audioUrl = URL.createObjectURL(recordedAudioBlob);
                         
-                        // បង្ហាញ Voice Preview Container ឱ្យចុចស្តាប់
-                        document.getElementById('previewAudioPlayer').src = audioUrl;
+                        previewAudio = new Audio(audioUrl);
+                        previewAudio.onloadedmetadata = () => {
+                            document.getElementById('previewTimer').innerText = `0:00 / ${formatTime(previewAudio.duration)}`;
+                        };
+
+                        previewAudio.ontimeupdate = () => {
+                            const progress = (previewAudio.currentTime / previewAudio.duration) * 100;
+                            document.getElementById('previewProgressBar').style.width = `${progress}%`;
+                            document.getElementById('previewTimer').innerText = `${formatTime(previewAudio.currentTime)} / ${formatTime(previewAudio.duration)}`;
+                        };
+
+                        previewAudio.onended = () => {
+                            document.getElementById('previewPlayBtn').innerText = '▶';
+                            document.getElementById('previewProgressBar').style.width = '0%';
+                        };
+
                         document.getElementById('voicePreviewContainer').style.display = 'flex';
                         document.getElementById('normalInputRow').style.display = 'none';
                     };
@@ -247,19 +291,34 @@
                     mediaRecorder.start();
                     isRecording = true;
                     recordBtn.classList.add('recording');
-                    recordBtn.title = "Recording... Click to Stop";
-                } catch (err) {
-                    alert("Microphone access denied or not supported.");
-                }
+                } catch (err) { alert("Microphone access denied."); }
             } else {
                 mediaRecorder.stop();
                 isRecording = false;
                 recordBtn.classList.remove('recording');
-                recordBtn.title = "Record Voice";
             }
         }
 
+        function togglePreviewAudio() {
+            if (!previewAudio) return;
+            const playBtn = document.getElementById('previewPlayBtn');
+            if (previewAudio.paused) {
+                previewAudio.play();
+                playBtn.innerText = '⏸';
+            } else {
+                previewAudio.pause();
+                playBtn.innerText = '▶';
+            }
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
         function cancelVoicePreview() {
+            if (previewAudio) { previewAudio.pause(); previewAudio = null; }
             recordedAudioBlob = null;
             document.getElementById('voicePreviewContainer').style.display = 'none';
             document.getElementById('normalInputRow').style.display = 'flex';
@@ -267,6 +326,7 @@
 
         async function sendVoiceMessage() {
             if (!recordedAudioBlob) return;
+            if (previewAudio) { previewAudio.pause(); previewAudio = null; }
 
             const formData = new FormData();
             formData.append('sender', currentUser.email);
@@ -280,6 +340,7 @@
                 if (data.success) {
                     cancelVoicePreview();
                     loadMessages();
+                    loadConversations();
                 }
             } catch (err) { console.error(err); }
         }
@@ -299,6 +360,7 @@
                 if (data.success) {
                     input.value = '';
                     loadMessages();
+                    loadConversations();
                 }
             } catch (err) { console.error(err); }
         }
