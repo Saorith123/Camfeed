@@ -37,17 +37,8 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* 🎨 Custom Audio Player Styling (Messenger Style) */
-        .custom-audio-player { display: flex; align-items: center; gap: 10px; width: 210px; padding: 4px 0; }
-        .audio-play-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; font-weight: bold; }
-        .msg-sent .audio-play-btn { background: rgba(255,255,255,0.25); color: white; }
-        .msg-received .audio-play-btn { background: #cbd2d9; color: #050505; }
-        
-        .audio-progress-bg { flex: 1; height: 6px; background: rgba(0,0,0,0.15); border-radius: 3px; position: relative; cursor: pointer; overflow: hidden; }
-        .msg-sent .audio-progress-bg { background: rgba(255,255,255,0.35); }
-        .audio-progress-fill { height: 100%; width: 0%; background: #050505; border-radius: 3px; }
-        .msg-sent .audio-progress-fill { background: white; }
-        .audio-time { font-size: 11px; opacity: 0.85; flex-shrink: 0; min-width: 32px; text-align: right; }
+        /* 🎨 Native Audio Styling for smooth playback */
+        audio { max-width: 200px; height: 36px; outline: none; }
 
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
         .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
@@ -170,9 +161,6 @@
         let previewAudio = null;
         let recTimerInterval = null;
         let recSecondsCount = 0;
-
-        let currentPlayingAudio = null;
-        let currentPlayingBtn = null;
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -298,24 +286,11 @@
                         return;
                     }
 
-                    const messagesHtml = data.messages.map((m, index) => {
+                    const messagesHtml = data.messages.map(m => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            const audioId = `audio-${m.id || index}`;
-                            const btnId = `btn-${m.id || index}`;
-                            const progressId = `progress-${m.id || index}`;
-                            const timeId = `time-${m.id || index}`;
-
-                            contentHtml = `
-                                <div class="custom-audio-player">
-                                    <audio id="${audioId}" src="${m.media_url}" preload="auto"></audio>
-                                    <button id="${btnId}" class="audio-play-btn" onclick="toggleCustomAudio('${audioId}', '${btnId}', '${progressId}')">▶</button>
-                                    <div class="audio-progress-bg" onclick="seekCustomAudio(event, '${audioId}', '${progressId}')">
-                                        <div id="${progressId}" class="audio-progress-fill"></div>
-                                    </div>
-                                    <span id="${timeId}" class="audio-time">0:00</span>
-                                </div>
-                            `;
+                            // 🎯 ប្រើប្រាស់ Native HTML5 audio controls រលូនល្អ ១០០% មិនមានអាការញាក់ ឬ NaN
+                            contentHtml = `<audio src="${m.media_url}" controls preload="metadata"></audio>`;
                         } else {
                             contentHtml = `<span>${m.message}</span>`;
                         }
@@ -337,82 +312,9 @@
                     if (container.innerHTML !== messagesHtml) {
                         container.innerHTML = messagesHtml;
                         container.scrollTop = container.scrollHeight;
-                        attachAudioListeners();
                     }
                 }
             } catch (err) { console.error(err); }
-        }
-
-        function attachAudioListeners() {
-            document.querySelectorAll('.custom-audio-player audio').forEach(audio => {
-                const parent = audio.parentElement;
-                const timeSpan = parent.querySelector('.audio-time');
-                const progressFill = parent.querySelector('.audio-progress-fill');
-                const playBtn = parent.querySelector('.audio-play-btn');
-
-                // Ensure duration is fetched cleanly
-                if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                    timeSpan.innerText = formatTime(audio.duration);
-                }
-
-                audio.addEventListener('loadedmetadata', () => {
-                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                        timeSpan.innerText = formatTime(audio.duration);
-                    }
-                });
-
-                audio.addEventListener('timeupdate', () => {
-                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                        const percent = (audio.currentTime / audio.duration) * 100;
-                        progressFill.style.width = `${percent}%`;
-                        timeSpan.innerText = formatTime(audio.currentTime);
-                    }
-                });
-
-                audio.addEventListener('ended', () => {
-                    playBtn.innerText = '▶';
-                    progressFill.style.width = '0%';
-                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                        timeSpan.innerText = formatTime(audio.duration);
-                    }
-                    currentPlayingAudio = null;
-                    currentPlayingBtn = null;
-                });
-            });
-        }
-
-        function toggleCustomAudio(audioId, btnId, progressId) {
-            const audio = document.getElementById(audioId);
-            const btn = document.getElementById(btnId);
-
-            if (currentPlayingAudio && currentPlayingAudio !== audio) {
-                currentPlayingAudio.pause();
-                if (currentPlayingBtn) currentPlayingBtn.innerText = '▶';
-            }
-
-            if (audio.paused) {
-                audio.play().then(() => {
-                    btn.innerText = '⏸';
-                    currentPlayingAudio = audio;
-                    currentPlayingBtn = btn;
-                }).catch(err => console.error("Playback error:", err));
-            } else {
-                audio.pause();
-                btn.innerText = '▶';
-                currentPlayingAudio = null;
-                currentPlayingBtn = null;
-            }
-        }
-
-        function seekCustomAudio(event, audioId, progressId) {
-            const audio = document.getElementById(audioId);
-            const progressBg = event.currentTarget;
-            const rect = progressBg.getBoundingClientRect();
-            const clickX = event.clientX - rect.left;
-            const width = rect.width;
-            if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                audio.currentTime = (clickX / width) * audio.duration;
-            }
         }
 
         async function checkUnreadMessages() {
