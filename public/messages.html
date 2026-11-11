@@ -37,7 +37,7 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* 🎨 Custom Smooth Audio Player UI */
+        /* 🎨 Custom Audio Player UI */
         .custom-audio-player { display: flex; align-items: center; gap: 10px; width: 210px; padding: 2px 0; }
         .audio-play-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; font-weight: bold; }
         .msg-sent .audio-play-btn { background: rgba(255,255,255,0.25); color: white; }
@@ -48,6 +48,15 @@
         .audio-progress-fill { height: 100%; width: 0%; background: #050505; border-radius: 3px; }
         .msg-sent .audio-progress-fill { background: white; }
         .audio-time { font-size: 11px; opacity: 0.9; flex-shrink: 0; min-width: 32px; text-align: right; }
+
+        /* 🔍 Lightbox Modal for Image & Video Preview */
+        #mediaModal { display: none; position: fixed; z-index: 9999; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        #mediaModalContent { max-width: 90%; max-height: 90%; border-radius: 8px; object-fit: contain; }
+        #closeModalBtn { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; font-weight: bold; cursor: pointer; background: none; border: none; }
+
+        /* 💬 Messenger Notification Popup Banner */
+        #chatNotificationBanner { display: none; position: fixed; top: 20px; right: 20px; background: white; padding: 12px 18px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 10000; align-items: center; gap: 12px; animation: slideIn 0.3s ease; cursor: pointer; max-width: 320px; border-left: 4px solid #1877f2; }
+        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
         .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
@@ -77,6 +86,21 @@
     </style>
 </head>
 <body>
+
+    <!-- Lightbox Modal Container -->
+    <div id="mediaModal" onclick="closeMediaModal()">
+        <button id="closeModalBtn" onclick="closeMediaModal()">&times;</button>
+        <div id="modalContainer" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;"></div>
+    </div>
+
+    <!-- Messenger Chat Notification Popup Banner -->
+    <div id="chatNotificationBanner" onclick="clickBanner()">
+        <img id="bannerAvatar" src="" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover;">
+        <div style="flex: 1; min-width: 0;">
+            <div id="bannerName" style="font-weight: bold; font-size: 14px; color: #050505;"></div>
+            <div id="bannerText" style="font-size: 12px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+        </div>
+    </div>
 
     <div class="top-bar">
         <div style="display: flex; align-items: center;">
@@ -179,6 +203,9 @@
         let currentPlayBtn = null;
         let currentAnimFrame = null;
         const audioBlobCache = {};
+
+        let lastUnreadCount = 0;
+        let lastNotifSender = null;
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -323,9 +350,9 @@
                                 </div>
                             `;
                         } else if (m.message_type === 'image' && m.media_url) {
-                            contentHtml = `<img src="${m.media_url}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover; cursor: pointer;" onclick="window.open('${m.media_url}', '_blank')">`;
+                            contentHtml = `<img src="${m.media_url}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover; cursor: pointer;" onclick="openMediaModal('image', '${m.media_url}')">`;
                         } else if (m.message_type === 'video' && m.media_url) {
-                            contentHtml = `<video src="${m.media_url}" controls style="max-width: 200px; max-height: 200px; border-radius: 8px; background: black;" playsinline></video>`;
+                            contentHtml = `<video src="${m.media_url}" style="max-width: 200px; max-height: 200px; border-radius: 8px; background: black; object-fit: cover; cursor: pointer;" onclick="openMediaModal('video', '${m.media_url}')" playsinline></video>`;
                         } else {
                             contentHtml = `<span>${m.message}</span>`;
                         }
@@ -352,7 +379,46 @@
             } catch (err) { console.error(err); }
         }
 
-        // 🎯 មុខងារ Play ជាមួយ requestAnimationFrame ធានាថា Progress Bar រត់ទន្ទឹមគ្នាស្របតាមសំឡេងយ៉ាងរលូន (Smooth)
+        // 🔍 Lightbox Modal Functions
+        function openMediaModal(type, url) {
+            const modal = document.getElementById('mediaModal');
+            const container = document.getElementById('modalContainer');
+            if (type === 'image') {
+                container.innerHTML = `<img src="${url}" id="mediaModalContent">`;
+            } else if (type === 'video') {
+                container.innerHTML = `<video src="${url}" controls autoplay id="mediaModalContent" playsinline></video>`;
+            }
+            modal.style.display = 'flex';
+        }
+
+        function closeMediaModal() {
+            const modal = document.getElementById('mediaModal');
+            const container = document.getElementById('modalContainer');
+            modal.style.display = 'none';
+            container.innerHTML = '';
+        }
+
+        // 💬 Messenger Notification Popup Banner Logic
+        function showNotificationBanner(senderName, senderPic, messageText) {
+            const banner = document.getElementById('chatNotificationBanner');
+            document.getElementById('bannerName').innerText = senderName;
+            document.getElementById('bannerAvatar').src = senderPic || 'https://via.placeholder.com/40';
+            document.getElementById('bannerText').innerText = messageText || 'Sent a message';
+            
+            banner.style.display = 'flex';
+            setTimeout(() => {
+                banner.style.display = 'none';
+            }, 4000);
+        }
+
+        function clickBanner() {
+            if (lastNotifSender) {
+                selectChat(lastNotifSender.email, `${lastNotifSender.first_name} ${lastNotifSender.last_name}`);
+                document.getElementById('chatNotificationBanner').style.display = 'none';
+            }
+        }
+
+        // 🎯 មុខងារ Preload 100% មុន Play
         async function handlePreloadedPlay(mediaUrl, btnId, progressId, timeId) {
             const playBtn = document.getElementById(btnId);
             const progressFill = document.getElementById(progressId);
@@ -445,10 +511,17 @@
                         badge.innerText = unreadList.length;
                         badge.style.display = 'inline-block';
                         renderDropdownList(unreadList);
+
+                        if (unreadList.length > lastUnreadCount) {
+                            const latest = unreadList[0];
+                            lastNotifSender = { email: latest.sender_email, first_name: latest.first_name, last_name: latest.last_name };
+                            showNotificationBanner(`${latest.first_name} ${latest.last_name}`, latest.profile_pic, latest.message);
+                        }
                     } else {
                         badge.style.display = 'none';
                         document.getElementById('dropdownChatList').innerHTML = '<p style="text-align: center; color: #65676b; padding: 15px; font-size: 12px;">No new messages</p>';
                     }
+                    lastUnreadCount = unreadList.length;
                 }
             } catch (err) { console.error(err); }
         }
