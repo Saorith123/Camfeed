@@ -40,17 +40,24 @@
         .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
         
         /* 🎨 Modern Facebook Style Profile & Cover Upload Box */
-        .upload-section { background: #f7f8fa; border: 2px dashed #ccd0d5; border-radius: 10px; padding: 15px; margin-top: 10px; text-align: center; transition: all 0.3s; }
+        .upload-section { background: #f7f8fa; border: 2px dashed #ccd0d5; border-radius: 10px; padding: 15px; margin-top: 10px; text-align: center; transition: all 0.3s; position: relative; }
         .upload-section:hover { border-color: #1877f2; background: #e7f3ff55; }
+        
         .preview-avatar-container { position: relative; width: 90px; height: 90px; margin: 0 auto 10px auto; }
         .preview-avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); background: #ccc; }
+        
+        .preview-cover-container { position: relative; width: 100%; height: 120px; margin: 0 auto 10px auto; border-radius: 6px; overflow: hidden; background: #ccc; display: none; }
+        .preview-cover { width: 100%; height: 100%; object-fit: cover; }
+
         .file-upload-label { display: inline-block; padding: 6px 14px; background: #e4e6eb; color: #050505; font-size: 13px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 5px; }
         .file-upload-label:hover { background: #d8dadf; }
+
+        .remove-media-btn { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center; z-index: 10; }
+        .remove-media-btn:hover { background: rgba(250,56,62,0.9); }
     </style>
 </head>
 <body>
 
-    <!-- 🎯 ឆែកមើលជាមុន៖ ប្រសិនបើធ្លាប់ Login រួចហើយ នឹងបញ្ជូនចូល Feed ភ្លាមៗដោយស្វ័យប្រវត្តិ -->
     <script>
         const existingUser = localStorage.getItem('camfeed_user');
         if (existingUser) {
@@ -98,7 +105,6 @@
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
                 </div>
 
-                <!-- 🎯 ថ្ងៃខែឆ្នាំកំណើត បែងចែកជា ៣ ប្រអប់ដាច់ពីគ្នា (Day, Month, Year) -->
                 <label id="lblDob">Date of birth</label>
                 <div class="row">
                     <select id="dobDay" required>
@@ -158,25 +164,30 @@
             <div class="divider"></div>
             
             <form onsubmit="event.preventDefault(); finalizeRegistration();">
-                <!-- 🎨 Modern Upload Profile Box -->
+                <!-- 🎨 Upload Profile Box with Preview & Delete -->
                 <label id="lblProfilePic" style="font-weight: bold; margin-bottom: 5px;">Profile Picture</label>
                 <div class="upload-section">
                     <div class="preview-avatar-container">
                         <img id="avatarPreviewImg" class="preview-avatar" src="https://via.placeholder.com/90">
+                        <button type="button" id="removeAvatarBtn" class="remove-media-btn hidden" onclick="removeAvatarImage()" title="Remove">×</button>
                     </div>
-                    <label class="file-upload-label">
+                    <label class="file-upload-label" id="avatarUploadLabel">
                         📁 Choose Profile Photo
                         <input type="file" id="regProfileFile" accept="image/*" class="hidden" onchange="previewAvatar(event)">
                     </label>
                 </div>
 
-                <!-- 🎨 Modern Upload Cover Box -->
+                <!-- 🎨 Upload Cover Box with Preview, Delete & Change -->
                 <label id="lblCoverPic" style="font-weight: bold; margin-top: 15px; margin-bottom: 5px;">Cover Photo</label>
                 <div class="upload-section">
-                    <div id="coverFileName" style="font-size: 13px; color: #65676b; margin-bottom: 6px;">No cover photo chosen</div>
-                    <label class="file-upload-label">
+                    <div id="previewCoverContainer" class="preview-cover-container">
+                        <img id="coverPreviewImg" class="preview-cover" src="">
+                        <button type="button" class="remove-media-btn" onclick="removeCoverImage()" title="Remove">×</button>
+                    </div>
+                    <div id="coverPlaceholderText" style="font-size: 13px; color: #65676b; margin-bottom: 6px;">No cover photo chosen</div>
+                    <label class="file-upload-label" id="coverUploadLabel">
                         🖼️ Choose Cover Photo
-                        <input type="file" id="regCoverFile" accept="image/*" class="hidden" onchange="previewCoverName(event)">
+                        <input type="file" id="regCoverFile" accept="image/*" class="hidden" onchange="previewCover(event)">
                     </label>
                 </div>
 
@@ -194,7 +205,6 @@
     </div>
 
     <script>
-        // Populate Date of Birth Select Dropdowns (Days 1-31, Years current down to 100 years back)
         window.addEventListener('DOMContentLoaded', () => {
             const daySelect = document.getElementById('dobDay');
             for (let i = 1; i <= 31; i++) {
@@ -234,7 +244,8 @@
                 optCustom: "Custom", lblCountry: "Country", btnNextStep: "Next", haveAccText: "Already have an account?",
                 welcomeTitle: "Welcome to Camfeed!",
                 welcomeDesc: "Camfeed is an amazing community platform designed to help you connect with friends, family, and share your daily life stories with the world.",
-                lblProfilePic: "Profile Picture", lblCoverPic: "Cover Photo", btnFinishReg: "Get Started & Finish"
+                lblProfilePic: "Profile Picture", lblCoverPic: "Cover Photo", btnFinishReg: "Get Started & Finish",
+                chooseProfile: "📁 Choose Profile Photo", chooseCover: "🖼️ Choose Cover Photo", noCover: "No cover photo chosen"
             },
             km: {
                 logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ Camfeed។",
@@ -246,7 +257,8 @@
                 optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnNextStep: "បន្ទាប់", haveAccText: "មានគណនីរួចហើយ?",
                 welcomeTitle: "សូមស្វាគមន៍មកកាន់ Camfeed!",
                 welcomeDesc: "Camfeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។",
-                lblProfilePic: "រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "រូបភាពគម្រប (Cover Photo)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់"
+                lblProfilePic: "រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "រូបភាពគម្រប (Cover Photo)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់",
+                chooseProfile: "📁 ជ្រើសរើសរូបប្រវត្តិរូប", chooseCover: "🖼️ ជ្រើសរើសរូបគម្រប", noCover: "មិនទាន់បានជ្រើសរើសរូបគម្របទេ"
             }
         };
 
@@ -282,6 +294,14 @@
             document.getElementById('lblProfilePic').innerText = t.lblProfilePic;
             document.getElementById('lblCoverPic').innerText = t.lblCoverPic;
             document.getElementById('btnFinishReg').innerText = t.btnFinishReg;
+            
+            document.getElementById('avatarUploadLabel').childNodes[0].nodeValue = t.chooseProfile + " ";
+            document.getElementById('coverUploadLabel').childNodes[0].nodeValue = t.chooseCover + " ";
+            
+            const coverImg = document.getElementById('coverPreviewImg');
+            if (!coverImg.src || coverImg.src === window.location.href) {
+                document.getElementById('coverPlaceholderText').innerText = t.noCover;
+            }
         }
 
         function togglePassword(fieldId, iconElement) {
@@ -328,20 +348,43 @@
             document.getElementById('welcomeWizardCard').classList.remove('hidden');
         }
 
+        /* 🖼️ Profile Picture Preview & Management */
         function previewAvatar(event) {
             const file = event.target.files[0];
             if (file) {
                 document.getElementById('avatarPreviewImg').src = URL.createObjectURL(file);
+                document.getElementById('removeAvatarBtn').classList.remove('hidden');
             }
         }
 
-        function previewCoverName(event) {
+        function removeAvatarImage() {
+            document.getElementById('regProfileFile').value = '';
+            document.getElementById('avatarPreviewImg').src = 'https://via.placeholder.com/90';
+            document.getElementById('removeAvatarBtn').classList.add('hidden');
+        }
+
+        /* 🖼️ Cover Photo Preview, Delete & Change Management */
+        function previewCover(event) {
             const file = event.target.files[0];
             if (file) {
-                document.getElementById('coverFileName').innerText = `Selected: ${file.name}`;
-                document.getElementById('coverFileName').style.color = '#31a24c';
-                document.getElementById('coverFileName').style.fontWeight = 'bold';
+                document.getElementById('coverPreviewImg').src = URL.createObjectURL(file);
+                document.getElementById('previewCoverContainer').style.display = 'block';
+                document.getElementById('coverPlaceholderText').style.display = 'none';
+                
+                const lang = localStorage.getItem('camfeed_lang') || 'en';
+                document.getElementById('coverUploadLabel').childNodes[0].nodeValue = (lang === 'km' ? "🖼️ ផ្លាស់ប្តូររូបគម្រប" : "🖼️ Change Cover Photo") + " ";
             }
+        }
+
+        function removeCoverImage() {
+            document.getElementById('regCoverFile').value = '';
+            document.getElementById('coverPreviewImg').src = '';
+            document.getElementById('previewCoverContainer').style.display = 'none';
+            document.getElementById('coverPlaceholderText').style.display = 'block';
+            
+            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            document.getElementById('coverPlaceholderText').innerText = texts[lang].noCover;
+            document.getElementById('coverUploadLabel').childNodes[0].nodeValue = texts[lang].chooseCover + " ";
         }
 
         async function finalizeRegistration() {
