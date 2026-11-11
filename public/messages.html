@@ -372,6 +372,7 @@
             }
         }
 
+        // 🎯 កែសម្រួលការថតសំឡេង (Voice Recording) ឱ្យប៊ូសកម្រិតសម្លេងខ្លាំងច្បាស់ល្អ ១០០%
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -380,13 +381,18 @@
             if (!isRecording) {
                 try {
                     mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+                        audio: { 
+                            echoCancellation: true, 
+                            noiseSuppression: true, 
+                            autoGainControl: true,
+                            channelCount: 1 
+                        } 
                     });
                     
-                    let options = { mimeType: 'audio/webm' };
-                    if (!MediaRecorder.isTypeSupported('audio/webm')) {
-                        if (MediaRecorder.isTypeSupported('audio/ogg')) {
-                            options = { mimeType: 'audio/ogg' };
+                    let options = { mimeType: 'audio/webm;codecs=opus' };
+                    if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                        if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                            options = { mimeType: 'audio/ogg;codecs=opus' };
                         } else {
                             options = {};
                         }
@@ -487,12 +493,13 @@
             document.getElementById('normalInputRow').style.display = 'flex';
         }
 
+        // 🎯 ដាក់អត្ថបទ "Sending voice..." ឱ្យស្ថិតនៅក្នុង Preview Box ផ្ទាល់ មិនបាំងកន្លែងប្រអប់វាយអក្សរឡើយ
         async function sendVoiceMessage() {
             if (!recordedAudioBlob) return;
             if (previewAudio) { previewAudio.pause(); previewAudio = null; }
 
             const previewContainer = document.getElementById('voicePreviewContainer');
-            previewContainer.innerHTML = `<div style="display:flex; align-items:center; gap:8px; margin:auto; color:#1877f2; font-weight:bold;"><div class="spinner" style="width:16px; height:16px; border:2px solid #1877f2; border-top:transparent; border-radius:50%; animation: spin 0.8s linear infinite;"></div> Sending voice...</div>`;
+            previewContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; color:#1877f2; font-weight:bold; padding: 5px;"><div class="spinner" style="width:16px; height:16px; border:2px solid #1877f2; border-top:transparent; border-radius:50%; animation: spin 0.8s linear infinite;"></div> Sending voice message...</div>`;
 
             let fileExtension = 'webm';
             if (recordedAudioBlob.type.includes('ogg')) fileExtension = 'ogg';
@@ -531,7 +538,6 @@
 
             input.value = '';
             
-            // 🎯 ផ្ញើសារអត្ថបទជា JSON ធម្មតា ទៅកាន់ Server ដើម្បីធានាថាដំណើរការបានរលូន ១០០% មិន Error
             try {
                 const res = await fetch('/api/messages', {
                     method: 'POST',

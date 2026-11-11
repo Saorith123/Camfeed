@@ -23,6 +23,9 @@
         .notification-item { padding: 10px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: center; cursor: pointer; }
         .notification-item:hover { background: #f2f2f2; }
 
+        /* Messenger Dropdown */
+        .messenger-dropdown { position: absolute; right: 50px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 280px; max-height: 350px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
+
         /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
         .search-input { padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 120px; transition: width 0.3s, border-color 0.3s; }
@@ -112,16 +115,6 @@
         .btn-unfollow { background: #e4e6eb; color: #050505; }
         .btn-unfollow:hover { background: #d8dadf; }
 
-        .chat-layout { display: flex; background: white; height: 500px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; }
-        .chat-sidebar { width: 260px; border-right: 1px solid #e4e6eb; overflow-y: auto; }
-        .chat-box-area { flex: 1; display: flex; flex-direction: column; }
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5; display: flex; flex-direction: column; gap: 8px; }
-        .msg-bubble { padding: 8px 12px; border-radius: 12px; max-width: 70%; font-size: 14px; }
-        .msg-sent { background: #1877f2; color: white; align-self: flex-end; }
-        .msg-received { background: white; color: #050505; align-self: flex-start; border: 1px solid #dddfe2; }
-        .chat-user-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
-        .chat-user-item:hover { background: #f2f2f2; }
-
         .hidden { display: none !important; }
     </style>
 </head>
@@ -142,6 +135,20 @@
                 <div class="search-box-wrapper">
                     <span class="search-icon-abs" onclick="focusSearchInput()">🔍</span>
                     <input type="text" id="searchInput" class="search-input" placeholder="Search..." oninput="searchUsers(this.value)">
+                </div>
+
+                <!-- 💬 Messenger Icon with Unread Badge on Feed -->
+                <div style="position: relative; display: inline-block;">
+                    <button class="icon-circle-btn" onclick="toggleMessengerDropdown(event)">
+                        💬
+                        <span id="feedUnreadBadge" class="notif-badge hidden">0</span>
+                    </button>
+                    <div class="messenger-dropdown" id="messengerDropdown" onclick="event.stopPropagation()">
+                        <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; font-size: 14px;">Messenger Chats</div>
+                        <div id="feedMessengerList">
+                            <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No new messages</div>
+                        </div>
+                    </div>
                 </div>
 
                 <button class="icon-circle-btn" onclick="toggleNotifications(event)">
@@ -177,9 +184,7 @@
                 <span id="modalReactorTitle">People who reacted</span>
                 <span style="cursor: pointer; font-size: 18px;" onclick="closeReactionsModal()">×</span>
             </div>
-            <div class="modal-body" id="reactionsModalList">
-                <!-- Reactor list injected here -->
-            </div>
+            <div class="modal-body" id="reactionsModalList"></div>
         </div>
     </div>
 
@@ -228,30 +233,6 @@
             </div>
             <div id="postsContainer"></div>
         </div>
-
-        <!-- 2. VIDEOS TAB -->
-        <div id="tabContentVideos" class="hidden"></div>
-
-        <!-- 3. FOLLOW FRIEND TAB -->
-        <div id="tabContentFriends" class="hidden">
-            <h3 style="color: #050505;" id="friendsHeaderTitle">👥 People You May Follow</h3>
-            <div id="usersListContainer"></div>
-        </div>
-
-        <!-- 4. CHAT / MESSAGES TAB -->
-        <div id="tabContentChat" class="hidden">
-            <div class="chat-layout">
-                <div class="chat-sidebar" id="chatUserList"></div>
-                <div class="chat-box-area">
-                    <div id="chatHeader" style="padding: 12px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; background: #fff;">Select a friend to chat</div>
-                    <div class="chat-messages" id="chatMessagesContainer"></div>
-                    <div style="display: flex; padding: 10px; background: white; border-top: 1px solid #e4e6eb;">
-                        <input type="text" id="chatInput" placeholder="Type a message..." style="margin:0; flex:1; padding: 8px 12px;" onkeypress="if(event.key==='Enter') sendMessage()">
-                        <button onclick="sendMessage()" class="btn-primary" style="margin:0; width: 90px; margin-left: 8px;" id="sendChatBtn">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- 🎯 ភ្ជាប់ File JavaScript Lightbox Modal ខាងក្រៅ -->
@@ -259,7 +240,6 @@
 
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        let activeChatEmail = null;
         let globalVideoUnmuted = false;
 
         const uiTexts = {
@@ -273,14 +253,6 @@
                 optPrivate: "🔒 Private (Only me)",
                 photoVideoLabel: "Photo / Video",
                 postBtn: "Post",
-                friendsHeader: "👥 People You May Follow",
-                chatSelect: "Select a friend to chat",
-                chatInputPlaceholder: "Type a message...",
-                sendBtn: "Send",
-                commentPlaceholder: "Write a comment...",
-                commentBtn: "Send",
-                menuSettings: "⚙️ Settings & Privacy",
-                menuLogout: "🚪 Log Out",
                 reactionsModalTitle: "People who reacted",
                 commentsTitle: "Comments",
                 sortRelevant: "More relevant",
@@ -300,14 +272,6 @@
                 optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
                 photoVideoLabel: "រូបថត / វីដេអូ",
                 postBtn: "បង្ហោះ",
-                friendsHeader: "👥 មនុស្សដែលអ្នកអាចតាមដាន",
-                chatSelect: "ជ្រើសរើសមិត្តភក្តិដើម្បីជជែកកំសាន្ត",
-                chatInputPlaceholder: "វាយសារ...",
-                sendBtn: "បញ្ជូន",
-                commentPlaceholder: "សរសេរមតិយោបល់...",
-                commentBtn: "ផ្ញើ",
-                menuSettings: "⚙️ ការកំណត់ និងភាពឯកជន",
-                menuLogout: "🚪 ចេញពីគណនី",
                 reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
                 commentsTitle: "មតិយោបល់",
                 sortRelevant: "ពាក់ព័ន្ធបំផុត",
@@ -333,12 +297,8 @@
             document.getElementById('optPrivate').innerText = t.optPrivate;
             document.getElementById('photoVideoLabel').innerText = t.photoVideoLabel;
             document.getElementById('postSubmitBtn').innerText = t.postBtn;
-            document.getElementById('friendsHeaderTitle').innerText = t.friendsHeader;
-            document.getElementById('chatHeader').innerText = t.chatSelect;
-            document.getElementById('chatInput').placeholder = t.chatInputPlaceholder;
-            document.getElementById('sendChatBtn').innerText = t.sendBtn;
-            document.getElementById('menuSettingsText').innerText = t.menuSettings;
-            document.getElementById('menuLogoutText').innerText = t.menuLogout;
+            document.getElementById('menuSettingsText').innerText = t.menuSettings || '⚙️ Settings & Privacy';
+            document.getElementById('menuLogoutText').innerText = t.menuLogout || '🚪 Log Out';
             document.getElementById('modalReactorTitle').innerText = t.reactionsModalTitle;
         }
 
@@ -351,40 +311,22 @@
             }
             
             applyLanguage();
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const targetPostId = urlParams.get('post');
-            const targetCommentId = urlParams.get('comment');
-
-            if (targetPostId) {
-                fetch(`/api/posts/${targetPostId}?email=${currentUser.email}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success && data.post) {
-                            renderPosts([data.post], 'postsContainer');
-                            setTimeout(() => {
-                                jumpToComment(targetPostId, targetCommentId ? parseInt(targetCommentId) : 0);
-                            }, 400);
-                        } else {
-                            loadPosts();
-                        }
-                    })
-                    .catch(() => loadPosts());
-            } else {
-                loadPosts();
-            }
-
+            loadPosts();
             loadNotifications();
+            loadFeedMessengerNotifications();
+
+            // 🔄 Poll unread messages every 3 seconds for feed Messenger badge
+            setInterval(loadFeedMessengerNotifications, 3000);
         }
 
         function focusSearchInput() {
-            const input = document.getElementById('searchInput');
-            input.focus();
+            document.getElementById('searchInput').focus();
         }
 
         function toggleMenuDropdown(event) {
             event.stopPropagation();
             document.getElementById('notifDropdown').style.display = 'none';
+            document.getElementById('messengerDropdown').style.display = 'none';
             const dropdown = document.getElementById('menuDropdown');
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
@@ -392,115 +334,91 @@
         function toggleNotifications(event) {
             event.stopPropagation();
             document.getElementById('menuDropdown').style.display = 'none';
+            document.getElementById('messengerDropdown').style.display = 'none';
             const dropdown = document.getElementById('notifDropdown');
-            
-            const badge = document.getElementById('notifBadge');
-            if (badge) {
-                badge.classList.add('hidden');
-                badge.innerText = '0';
-            }
-
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleMessengerDropdown(event) {
+            event.stopPropagation();
+            document.getElementById('menuDropdown').style.display = 'none';
+            document.getElementById('notifDropdown').style.display = 'none';
+            const dropdown = document.getElementById('messengerDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function loadFeedMessengerNotifications() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`/api/chat-notifications?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const unreadList = data.unreadMessages;
+                    const badge = document.getElementById('feedUnreadBadge');
+                    const listContainer = document.getElementById('feedMessengerList');
+                    
+                    if (unreadList.length > 0) {
+                        badge.innerText = unreadList.length;
+                        badge.classList.remove('hidden');
+
+                        const uniqueSenders = {};
+                        unreadList.forEach(m => {
+                            if (!uniqueSenders[m.sender_email]) uniqueSenders[m.sender_email] = m;
+                        });
+
+                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                        listContainer.innerHTML = Object.values(uniqueSenders).map(m => `
+                            <div onclick="openChatFromFeed('${m.sender_email}')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='white'">
+                                <img src="${m.profile_pic || 'https://via.placeholder.com/40'}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: bold; font-size: 13px; color: #050505;">${m.first_name} ${m.last_name}</div>
+                                    <div style="font-size: 11px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.message || (currentLang === 'km' ? 'បានផ្ញើសារសំឡេង' : 'Sent a voice message')}</div>
+                                </div>
+                                <div style="width: 8px; height: 8px; background: #1877f2; border-radius: 50%;"></div>
+                            </div>
+                        `).join('');
+                    } else {
+                        badge.classList.add('hidden');
+                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                        listContainer.innerHTML = `<div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">${currentLang === 'km' ? 'គ្មានសារថ្មីទេ' : 'No new messages'}</div>`;
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function openChatFromFeed(senderEmail) {
+            await fetch('/api/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail: currentUser.email, senderEmail: senderEmail })
+            });
+            window.location.href = `messages.html?chat=${senderEmail}`;
         }
 
         window.onclick = function() {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
+            document.getElementById('messengerDropdown').style.display = 'none';
             document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
-            if(typeof closeImageMenu === 'function') closeImageMenu();
         }
 
-        // 🎯 កែសម្រួល switchTab ឱ្យប៊ូតុង Home, Friends, Chat ដំណើរការយ៉ាងត្រឹមត្រូវ
         function switchTab(tab) {
-            if (tab === 'videos') {
-                window.location.href = 'videos.html'; 
-                return;
-            }
-            if (tab === 'friends') {
-                window.location.href = 'friends.html';
-                return;
-            }
-            if (tab === 'chat') {
-                window.location.href = 'messages.html';
-                return;
-            }
-
-            // Default tab: feed / home
+            if (tab === 'videos') { window.location.href = 'videos.html'; return; }
+            if (tab === 'friends') { window.location.href = 'friends.html'; return; }
+            if (tab === 'chat') { window.location.href = 'messages.html'; return; }
             window.location.href = 'feed.html';
         }
 
-        let touchstartY = 0;
-        window.addEventListener('touchstart', e => { touchstartY = e.touches[0].clientY; });
-        window.addEventListener('touchmove', e => {
-            if (window.scrollY === 0 && e.touches[0].clientY - touchstartY > 80) {
-                document.getElementById('pullRefreshIndicator').style.display = 'block';
-            }
-        });
-        window.addEventListener('touchend', e => {
-            if (window.scrollY === 0 && e.changedTouches[0].clientY - touchstartY > 80) {
-                location.reload();
-            } else {
-                document.getElementById('pullRefreshIndicator').style.display = 'none';
-            }
-        });
-
         async function searchUsers(keyword) {
-            if (!keyword.trim()) {
-                loadPosts();
-                return;
-            }
+            if (!keyword.trim()) { loadPosts(); return; }
             try {
                 const res = await fetch(`/api/users?email=${currentUser.email}`);
                 const data = await res.json();
                 if (data.success) {
                     const filtered = data.users.filter(u => `${u.first_name} ${u.last_name}`.toLowerCase().includes(keyword.toLowerCase()) || u.email.toLowerCase().includes(keyword.toLowerCase()));
-                    
-                    ['Feed', 'Videos', 'Friends', 'Chat'].forEach(t => {
-                        const elem = document.getElementById(`tabContent${t}`);
-                        if (elem) elem.classList.add('hidden');
-                    });
-                    document.getElementById('tabContentFriends').classList.remove('hidden');
-                    document.getElementById('menuFriends').classList.add('active');
-                    document.getElementById('menuFeed').classList.remove('active');
-
-                    const headerTitle = document.getElementById('friendsHeaderTitle');
-                    if (headerTitle) headerTitle.innerText = `Search Results for "${keyword}"`;
-                    const container = document.getElementById('usersListContainer');
-                    container.innerHTML = '';
-                    
-                    if(filtered.length === 0) {
-                        container.innerHTML = '<p style="text-align:center; color:#65676b; padding: 20px;">No users found.</p>';
-                        return;
-                    }
-
-                    filtered.forEach(u => {
-                        const div = document.createElement('div');
-                        div.className = 'user-row';
-                        div.innerHTML = `
-                            <div style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="window.location.href='profile.html?email=${u.email}'">
-                                <img src="${u.profile_pic || 'https://via.placeholder.com/50'}" style="width:50px; height:50px; border-radius:50%; object-fit:cover;">
-                                <div>
-                                    <div style="font-weight: bold; font-size: 15px; color: #050505;">${u.first_name} ${u.last_name}</div>
-                                    <div style="font-size: 12px; color: #65676b; margin-top: 2px;">${u.email}</div>
-                                </div>
-                            </div>
-                            <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowSearch('${u.email}', ${u.is_following}, '${keyword}')">
-                                ${u.is_following ? 'Following' : 'Follow'}
-                            </button>
-                        `;
-                        container.appendChild(div);
-                    });
+                    window.location.href = `friends.html?search=${encodeURIComponent(keyword)}`;
                 }
             } catch(err) { console.error(err); }
-        }
-
-        async function toggleFollowSearch(targetEmail, isFollowing, keyword) {
-            await fetch('/api/follow', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
-            });
-            searchUsers(keyword);
         }
 
         function previewMedia(event) {
@@ -585,24 +503,10 @@
                         } else {
                             msg.innerText = 'Error: ' + (data.error || 'Failed to upload.');
                         }
-                    } catch (e) {
-                        msg.innerText = 'Invalid server response.';
-                    }
+                    } catch (e) { msg.innerText = 'Invalid server response.'; }
                 } else {
-                    try {
-                        const errData = JSON.parse(xhr.responseText);
-                        msg.innerText = 'Error: ' + (errData.error || 'Server error occurred.');
-                    } catch (err) {
-                        msg.innerText = 'Failed to upload post. Status: ' + xhr.status;
-                    }
+                    msg.innerText = 'Failed to upload post.';
                 }
-            };
-
-            xhr.onerror = function() {
-                submitBtn.disabled = false;
-                submitBtn.innerText = 'Post';
-                progressContainer.style.display = 'none';
-                msg.innerText = 'Network error occurred. Please check your connection.';
             };
 
             xhr.send(formData);
@@ -695,23 +599,20 @@
                         </div>
                         <div id="commentList-${post.id}"></div>
                         <div style="display: flex; gap: 5px; margin-top: 10px;">
-                            <input type="text" id="commentInput-${post.id}" placeholder="${t.commentPlaceholder}" style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
-                            <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">${t.commentBtn}</button>
+                            <input type="text" id="commentInput-${post.id}" placeholder="${currentLang === 'km' ? 'សរសេរមតិយោបល់...' : 'Write a comment...'}" style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
+                            <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">${currentLang === 'km' ? 'ផ្ញើ' : 'Send'}</button>
                         </div>
                     </div>
                 `;
                 container.appendChild(div);
             });
-
             initAutoPlayVideos();
         }
 
         function handleVideoVolumeChange(videoElem) {
             if (!videoElem.muted && videoElem.volume > 0) {
                 globalVideoUnmuted = true;
-                document.querySelectorAll('.autoplay-video').forEach(v => {
-                    v.muted = false;
-                });
+                document.querySelectorAll('.autoplay-video').forEach(v => { v.muted = false; });
             }
         }
 
@@ -745,14 +646,10 @@
                 } else {
                     listContainer.innerHTML = `<p style="text-align:center; color:#65676b; padding:15px;">${currentLang === 'km' ? 'មិនទាន់មានប្រតិកម្មនៅឡើយទេ។' : 'No reactions yet.'}</p>`;
                 }
-            } catch (err) {
-                listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load reactions.</p>';
-            }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load reactions.</p>'; }
         }
 
-        function closeReactionsModal() {
-            document.getElementById('reactionsModal').style.display = 'none';
-        }
+        function closeReactionsModal() { document.getElementById('reactionsModal').style.display = 'none'; }
 
         async function toggleFollowReactor(targetEmail, isFollowing, postId) {
             await fetch('/api/follow', {
@@ -765,31 +662,24 @@
 
         function toggleReactionPopup(event, postId) {
             event.stopPropagation();
-            document.querySelectorAll('.reaction-popup').forEach(p => {
-                if (p.id !== `reactionPopup-${postId}`) p.style.display = 'none';
-            });
+            document.querySelectorAll('.reaction-popup').forEach(p => { if (p.id !== `reactionPopup-${postId}`) p.style.display = 'none'; });
             const popup = document.getElementById(`reactionPopup-${postId}`);
             popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
         }
 
         function copyPostLink(postId) {
             const link = `${window.location.origin}/feed.html?post=${postId}`;
-            navigator.clipboard.writeText(link).then(() => {
-                alert('Post link copied to clipboard!');
-            });
+            navigator.clipboard.writeText(link).then(() => { alert('Post link copied to clipboard!'); });
         }
 
         function openShareMenu(postId, encodedContent) {
             const shareUrl = `${window.location.origin}/feed.html?post=${postId}`;
             const postText = decodeURIComponent(encodedContent);
             const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            
             const msgConfirm = currentLang === 'km' ? "ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!" : "Click 'OK' to share to Telegram or 'Cancel' to Copy Link!";
             if (confirm(msgConfirm)) {
                 window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`, '_blank');
-            } else {
-                copyPostLink(postId);
-            }
+            } else { copyPostLink(postId); }
         }
 
         async function sendReaction(postId, emoji) {
@@ -804,11 +694,9 @@
                 if (data.success) {
                     const btn = document.getElementById(`likeBtn-${postId}`);
                     const countElem = document.getElementById(`likeCount-${postId}`);
-                    
                     btn.innerText = emoji;
-                    if (data.reacted) {
-                        btn.classList.add('liked');
-                    } else {
+                    if (data.reacted) { btn.classList.add('liked'); } 
+                    else {
                         btn.classList.remove('liked');
                         const currentLang = localStorage.getItem('camfeed_lang') || 'en';
                         btn.innerText = uiTexts[currentLang].likeBtn;
@@ -824,12 +712,8 @@
                 entries.forEach(entry => {
                     const video = entry.target;
                     video.muted = !globalVideoUnmuted;
-
-                    if (entry.isIntersecting) {
-                        video.play().catch(err => console.log("Autoplay prevented:", err));
-                    } else {
-                        video.pause();
-                    }
+                    if (entry.isIntersecting) { video.play().catch(err => console.log("Autoplay prevented:", err)); } 
+                    else { video.pause(); }
                 });
             }, { threshold: 0.6 });
             videoElements.forEach(video => observer.observe(video));
@@ -839,14 +723,10 @@
             const sec = document.getElementById(`commentsSection-${postId}`);
             if (!sec) return;
             sec.classList.toggle('open');
-            if (sec.classList.contains('open')) {
-                loadComments(postId);
-            }
+            if (sec.classList.contains('open')) { loadComments(postId); }
         }
 
-        function sortComments(postId, sortType) {
-            loadComments(postId);
-        }
+        function sortComments(postId, sortType) { loadComments(postId); }
 
         async function loadComments(postId) {
             try {
@@ -875,13 +755,9 @@
         }
 
         let replyTargetCommentIds = {};
-
         function setReplyTarget(postId, authorName, commentId) {
             const input = document.getElementById(`commentInput-${postId}`);
-            if (input) {
-                input.value = `@${authorName} `;
-                input.focus();
-            }
+            if (input) { input.value = `@${authorName} `; input.focus(); }
             replyTargetCommentIds[postId] = commentId;
         }
 
@@ -899,46 +775,6 @@
             input.value = '';
             replyTargetCommentIds[postId] = null;
             loadComments(postId);
-
-            const commentCountElem = document.getElementById(`commentCount-${postId}`);
-            if (commentCountElem) {
-                let parts = commentCountElem.innerText.split(' ');
-                let currentComments = parseInt(parts[0]) || 0;
-                const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                commentCountElem.innerText = `${currentComments + 1} ${currentLang === 'km' ? 'មតិយោបល់' : 'Comments'}`;
-            }
-        }
-
-        async function jumpToComment(postId, commentId) {
-            const notifDropdown = document.getElementById('notifDropdown');
-            if (notifDropdown) notifDropdown.style.display = 'none';
-            
-            switchTab('feed');
-
-            setTimeout(() => {
-                const postElem = document.getElementById(`post-${postId}`);
-                if (postElem) {
-                    postElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    postElem.classList.add('highlight-post');
-                    setTimeout(() => postElem.classList.remove('highlight-post'), 2500);
-
-                    const sec = document.getElementById(`commentsSection-${postId}`);
-                    if (sec && !sec.classList.contains('open')) {
-                        toggleCommentBox(postId);
-                    }
-
-                    if (commentId && commentId !== 0) {
-                        setTimeout(() => {
-                            const bubble = document.getElementById(`bubble-${commentId}`);
-                            if (bubble) {
-                                bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                bubble.classList.add('highlight-comment');
-                                setTimeout(() => bubble.classList.remove('highlight-comment'), 3000);
-                            }
-                        }, 600);
-                    }
-                }
-            }, 300);
         }
 
         async function loadNotifications() {
@@ -949,29 +785,18 @@
                     const badge = document.getElementById('notifBadge');
                     const list = document.getElementById('notifList');
                     const notifs = data.notifications;
-
                     if (notifs.length > 0) {
-                        if (badge) {
-                            badge.innerText = notifs.length;
-                            badge.classList.remove('hidden');
-                        }
-                        if (list) {
-                            list.innerHTML = notifs.map(n => {
-                                let clickAction = n.post_id ? `jumpToComment(${n.post_id}, ${n.comment_id || 0})` : `window.location.href='profile.html?email=${n.sender_email}'`;
-                                return `
-                                    <div class="notification-item" onclick="${clickAction}">
-                                        <img src="${n.profile_pic || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%;">
-                                        <div>
-                                            <div>${n.message}</div>
-                                            <div style="font-size: 10px; color: #90949c; margin-top: 2px;">${new Date(n.created_at).toLocaleString()}</div>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('');
-                        }
-                    } else {
-                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                        if (list) list.innerHTML = `<div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">${currentLang === 'km' ? 'មិនទាន់មានការជូនដំណឹងនៅឡើយទេ' : 'No notifications yet'}</div>`;
+                        badge.innerText = notifs.length;
+                        badge.classList.remove('hidden');
+                        list.innerHTML = notifs.map(n => `
+                            <div class="notification-item" onclick="window.location.href='profile.html?email=${n.sender_email}'">
+                                <img src="${n.profile_pic || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%;">
+                                <div>
+                                    <div>${n.message}</div>
+                                    <div style="font-size: 10px; color: #90949c; margin-top: 2px;">${new Date(n.created_at).toLocaleString()}</div>
+                                </div>
+                            </div>
+                        `).join('');
                     }
                 }
             } catch (err) { console.error(err); }
