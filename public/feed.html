@@ -202,7 +202,7 @@
             <div id="postsContainer"></div>
         </div>
 
-        <!-- 2. VIDEOS TAB (តំណភ្ជាប់ទៅកាន់ videos.html ឬเปิด Reel Viewer) -->
+        <!-- 2. VIDEOS TAB -->
         <div id="tabContentVideos" class="hidden"></div>
 
         <!-- 3. FOLLOW FRIEND TAB -->
@@ -278,6 +278,13 @@
             event.stopPropagation();
             document.getElementById('menuDropdown').style.display = 'none';
             const dropdown = document.getElementById('notifDropdown');
+            
+            const badge = document.getElementById('notifBadge');
+            if (badge) {
+                badge.classList.add('hidden');
+                badge.innerText = '0';
+            }
+
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
 
@@ -289,7 +296,7 @@
 
         function switchTab(tab) {
             if (tab === 'videos') {
-                window.location.href = 'videos.html'; // 🚀 បើកទៅកាន់ទំព័រ Videos ពេញអេក្រង់ແບບ TikTok
+                window.location.href = 'videos.html'; 
                 return;
             }
 
@@ -344,7 +351,16 @@
                 const data = await res.json();
                 if (data.success) {
                     const filtered = data.users.filter(u => `${u.first_name} ${u.last_name}`.toLowerCase().includes(keyword.toLowerCase()) || u.email.toLowerCase().includes(keyword.toLowerCase()));
-                    switchTab('friends');
+                    
+                    ['Feed', 'Videos', 'Friends', 'Chat'].forEach(t => {
+                        const elem = document.getElementById(`tabContent${t}`);
+                        const menuElem = document.getElementById(`menu${t}`);
+                        if (elem) elem.classList.add('hidden');
+                        if (menuElem) menuElem.classList.remove('active');
+                    });
+                    document.getElementById('tabContentFriends').classList.remove('hidden');
+                    document.getElementById('menuFriends').classList.add('active');
+
                     const headerTitle = document.getElementById('friendsHeaderTitle');
                     if (headerTitle) headerTitle.innerText = `Search Results for "${keyword}"`;
                     const container = document.getElementById('usersListContainer');
@@ -500,7 +516,6 @@
             } catch (err) { console.error(err); }
         }
 
-        // 🎬 មុខងារ Render Post ព្រមទាំងដាក់ Event ពេលចុចលើវីដេអូក្នុង Feed ឱ្យលោតចូល Reels Viewer Fullscreen ស្វ័យប្រវត្តិ
         function renderPosts(posts, containerId) {
             const container = document.getElementById(containerId);
             if (!container) return;
@@ -519,7 +534,6 @@
                 let mediaHtml = '';
                 if (post.media_url) {
                     if (post.media_type === 'video') {
-                        // 🎯 ពេលចុចលើវីដេអូ វានឹងបើកចូលទៅកាន់ videos.html ជាមួយ ?v=ID ដូច Facebook
                         mediaHtml = `<video src="${post.media_url}" class="post-media autoplay-video" onclick="window.location.href='videos.html?v=${post.id}'" controls muted loop playsinline style="cursor: pointer;"></video>`;
                     } else {
                         mediaHtml = `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
@@ -830,7 +844,6 @@
         }
 
         openChat = function(email, name) {
-            agent = email;
             activeChatEmail = email;
             const chatHeader = document.getElementById('chatHeader');
             if (chatHeader) chatHeader.innerText = `Chat with ${name}`;
