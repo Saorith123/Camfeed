@@ -19,12 +19,16 @@
         .search-input { width: 100%; padding: 8px 12px; border: 1px solid #ccd0d5; border-radius: 20px; background: #f0f2f5; outline: none; font-size: 13px; }
 
         .sidebar-user-list { flex: 1; overflow-y: auto; }
-        .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.2s; }
+        .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.2s; position: relative; }
         .chat-user-item:hover { background: #f2f2f2; }
         .chat-user-item.active { background: #e7f3ff; border-left: 4px solid #1877f2; }
         
-        .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; flex-shrink: 0; }
+        .avatar-wrapper { position: relative; flex-shrink: 0; }
+        .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; }
         
+        /* 🟢 Online Status Dot */
+        .online-dot { position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; background: #31a24c; border: 2px solid white; border-radius: 50%; }
+
         .chat-main { flex: 1; display: flex; flex-direction: column; background: #fff; min-width: 0; position: relative; }
         .messages-list { flex: 1; padding: 15px; overflow-y: auto; background: #f7f8fa; display: flex; flex-direction: column; gap: 10px; }
         
@@ -46,7 +50,6 @@
         .send-btn:hover { background: #166fe5; }
         .cancel-btn { padding: 8px 12px; background: #e4e6eb; color: #fa383e; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; }
 
-        /* 🎙️ Voice Preview Container (រចនាថ្មីមិនឱ្យបាំងប៊ូតុង និងបង្ហាញវិនាទី) */
         #voicePreviewContainer { display: none; align-items: center; justify-content: space-between; background: #e7f3ff; padding: 10px 15px; border-top: 1px solid #b0d3f8; gap: 8px; }
 
         @media (max-width: 768px) {
@@ -72,14 +75,14 @@
     </div>
 
     <div class="chat-container">
-        <!-- Sidebar -->
+        <!-- Sidebar: Messenger Style (Conversations & Search Followers) -->
         <div class="chat-sidebar" id="sidebarSection">
             <div class="sidebar-header">
                 <h3 style="margin: 0; font-size: 20px; color: #050505;">Chats</h3>
-                <input type="text" id="userSearchInput" class="search-input" placeholder="Search Messenger..." oninput="searchUsers(this.value)">
+                <input type="text" id="userSearchInput" class="search-input" placeholder="Search friends or followers..." oninput="searchConversationsOrFriends(this.value)">
             </div>
             <div class="sidebar-user-list" id="sidebarUsersList">
-                <p style="text-align: center; color: #65676b; padding: 20px; font-size: 13px;">No conversations yet.</p>
+                <p style="text-align: center; color: #65676b; padding: 20px; font-size: 13px;">Loading chats...</p>
             </div>
         </div>
 
@@ -92,13 +95,11 @@
                 <div style="text-align: center; color: #90949c; margin-top: 60px;">
                     <p style="font-size: 40px; margin: 0;">💬</p>
                     <p style="font-size: 14px; font-weight: 500; margin-top: 10px;">Your Messages</p>
-                    <p style="font-size: 12px; color: #b0b3b8;">Send private photos and messages to a friend.</p>
+                    <p style="font-size: 12px; color: #b0b3b8;">Select a friend from the left sidebar or profile to chat.</p>
                 </div>
             </div>
 
-            <!-- Chat Input Area -->
             <div class="chat-input-area hidden" id="chatInputArea">
-                <!-- Voice Preview Box (បង្ហាញវិនាទី និងប៊ូតុង Cancel / Send ល្មមលើទូរស័ព្ទ) -->
                 <div id="voicePreviewContainer">
                     <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
                         <button id="previewPlayBtn" onclick="togglePreviewAudio()" style="background: #1877f2; color: white; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;">▶</button>
@@ -113,7 +114,6 @@
                     </div>
                 </div>
 
-                <!-- Normal Chat Input Row -->
                 <div class="chat-input-row" id="normalInputRow">
                     <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice">🎙️</button>
                     <input type="text" id="messageInput" class="msg-text" placeholder="Aa..." onkeypress="handleKeyPress(event)">
@@ -138,9 +138,28 @@
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            loadConversations();
+            initMessenger();
         }
 
+        async function initMessenger() {
+            await loadConversations();
+
+            // 🎯 ពិនិត្យមើល URL Parameter (?chat=email) ប្រសិនបើមាន គឺបើកបន្ទប់ឆាតជាមួយ User នោះភ្លាមៗ
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetChatEmail = urlParams.get('chat');
+            if (targetChatEmail) {
+                // ទាញយកឈ្មោះ User នោះដើម្បីបង្ហាញ
+                try {
+                    const res = await fetch(`/api/user-profile?email=${targetChatEmail}&viewerEmail=${currentUser.email}`);
+                    const data = await res.json();
+                    if (data.success && data.user) {
+                        selectChat(targetChatEmail, `${data.user.first_name} ${data.user.last_name}`);
+                    }
+                } catch (err) { console.error(err); }
+            }
+        }
+
+        // 🎯 ໂຫຼດเฉพาะรายនាមអ្នកដែលធ្លាប់មានប្រវត្តិកិច្ចសន្ទនា (តម្រៀបតាមអ្នកឆាតថ្មីជាងគេ)
         async function loadConversations() {
             try {
                 const res = await fetch(`/api/chat-conversations?email=${currentUser.email}`);
@@ -154,13 +173,17 @@
         function renderSidebarList(users) {
             const sidebar = document.getElementById('sidebarUsersList');
             if (users.length === 0) {
-                sidebar.innerHTML = '<p style="text-align: center; color: #65676b; padding: 20px; font-size: 13px;">No conversations yet. Search someone to chat!</p>';
+                sidebar.innerHTML = '<p style="text-align: center; color: #65676b; padding: 20px; font-size: 13px;">No conversations yet. Search your friends or followers to chat!</p>';
                 return;
             }
 
             sidebar.innerHTML = users.map(u => `
                 <div class="chat-user-item" id="user-item-${u.email}" onclick="selectChat('${u.email}', '${u.first_name} ${u.last_name}')">
-                    <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
+                    <div class="avatar-wrapper">
+                        <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
+                        <!-- 🟢 Online Status Dot (រាល់ User ទាំងអស់ត្រូវបានចាត់ទុកជា Active ឬ Online) -->
+                        <div class="online-dot"></div>
+                    </div>
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-weight: bold; color: #050505; font-size: 14px;">${u.first_name} ${u.last_name}</div>
                         <div style="font-size: 12px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${u.last_message || 'Started a conversation'}</div>
@@ -169,7 +192,8 @@
             `).join('');
         }
 
-        async function searchUsers(keyword) {
+        // 🔍 Search មិត្តភក្តិ ឬ Followings ពេលវាយក្នុងប្រអប់ Search
+        async function searchConversationsOrFriends(keyword) {
             if (!keyword.trim()) {
                 loadConversations();
                 return;
@@ -254,7 +278,6 @@
             } catch (err) { console.error(err); }
         }
 
-        // 🎙️ មុខងារថតសំឡេង និងបង្កើត Timer វិនាទីត្រឹមត្រូវ
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             if (!isRecording) {
