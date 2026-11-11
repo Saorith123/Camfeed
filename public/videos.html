@@ -3,105 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camfeed - Reels Videos</title>
+    <title>Camfeed - Videos Feed</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100vh; background-color: black; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+        body { background-color: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding-top: 60px; }
 
-        .reels-top-bar { position: fixed; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
-        .back-btn { background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: fixed; top: 0; left: 0; width: 100%; z-index: 1000; box-sizing: border-box; }
+        .logo-nav { font-size: 22px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .back-btn { padding: 6px 14px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
-        .reels-container { width: 100vw; height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; }
-        .reels-container::-webkit-scrollbar { display: none; }
+        .container { max-width: 680px; margin: 20px auto; padding: 0 10px; }
+        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #ccc; }
+        .post-author { font-weight: bold; color: #050505; }
+        .post-time { font-size: 11px; color: #90949c; }
+        .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
+        
+        .post-media { width: 100%; max-height: 500px; border-radius: 6px; margin-bottom: 10px; object-fit: contain; background: black; }
 
-        .reel-item { width: 100vw; height: 100vh; scroll-snap-align: start; position: relative; display: flex; align-items: center; justify-content: center; background: black; }
-        .reel-video { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
+        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 5px 0; margin-top: 10px; justify-content: space-around; }
+        .action-btn { background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 6px 15px; border-radius: 4px; display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .action-btn:hover { background: #f2f2f2; }
+        .action-btn.liked { color: #1877f2; }
 
-        .reel-overlay { position: absolute; bottom: 30px; left: 15px; right: 70px; z-index: 10; color: white; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
-        .reel-author-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
-        .reel-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid white; }
-        .reel-caption { font-size: 14px; color: #f1f1f1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        /* Comments Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; display: none; padding: 15px; box-sizing: border-box; }
+        .modal-card { background: white; width: 100%; max-width: 500px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); overflow: hidden; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 12px 15px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 15px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
 
-        .reel-actions { position: absolute; bottom: 30px; right: 15px; z-index: 10; display: flex; flex-direction: column; gap: 20px; align-items: center; color: white; }
-        .action-icon-btn { background: rgba(0,0,0,0.4); border: none; color: white; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; backdrop-filter: blur(4px); }
-        .action-count { font-size: 12px; font-weight: bold; text-align: center; margin-top: 2px; }
+        .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; display: none; }
+        .comments-section.open { display: block; }
+        .comment-item { display: flex; gap: 8px; margin-bottom: 10px; font-size: 13px; align-items: flex-start; }
+        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+        .comment-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; word-break: break-word; }
+        .comment-author { font-weight: bold; color: #050505; font-size: 12px; margin-bottom: 2px; display: block; }
+        
+        input[type="text"] { width: 100%; padding: 10px 14px; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; }
+        .btn-primary { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <div class="reels-top-bar">
-        <button class="back-btn" onclick="window.location.href='feed.html'">❮</button>
-        <div style="font-weight: bold; font-size: 18px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Reels</div>
-        <div style="width: 40px;"></div>
+    <div class="top-bar">
+        <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
+        <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
     </div>
 
-    <div class="reels-container" id="reelsFeedContainer">
-        <div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Loading Reels...</div>
+    <div class="container" id="videosContainer">
+        <p style="text-align: center; color: #65676b; margin-top: 50px;">Loading videos...</p>
+    </div>
+
+    <!-- Comments Modal Popup -->
+    <div id="commentsModal" class="modal-overlay" onclick="closeCommentsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>Comments</span>
+                <span style="cursor: pointer; font-size: 18px;" onclick="closeCommentsModal()">×</span>
+            </div>
+            <div class="modal-body" id="modalCommentList"></div>
+            <div style="display: flex; padding: 10px 15px; border-top: 1px solid #e4e6eb; gap: 8px; background: #fff;">
+                <input type="text" id="modalCommentInput" placeholder="Write a comment..." onkeypress="if(event.key==='Enter') addModalComment()">
+                <button onclick="addModalComment()" class="btn-primary">Send</button>
+            </div>
+        </div>
     </div>
 
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let activePostIdForComment = null;
+
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            loadReelsFeed();
+            loadVideosFeed();
         }
 
-        async function loadReelsFeed() {
+        async function loadVideosFeed() {
             try {
                 const res = await fetch(`/api/posts?email=${currentUser.email}`);
                 const data = await res.json();
                 if (data.success) {
-                    const container = document.getElementById('reelsFeedContainer');
+                    const container = document.getElementById('videosContainer');
                     container.innerHTML = '';
                     const videoPosts = data.posts.filter(p => p.media_type === 'video');
 
                     if (videoPosts.length === 0) {
-                        container.innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh;">No reels available.</div>';
+                        container.innerHTML = '<p style="text-align: center; color: #65676b; margin-top: 50px;">No videos available.</p>';
                         return;
                     }
 
-                    container.innerHTML = videoPosts.map(video => `
-                        <div class="reel-item" id="reel-${video.id}">
-                            <video src="${video.media_url}" class="reel-video" loop playsinline controls></video>
+                    videoPosts.forEach(post => {
+                        const dateStr = new Date(post.created_at).toLocaleString();
+                        const div = document.createElement('div');
+                        div.className = 'post-item';
+                        div.id = `post-${post.id}`;
+
+                        div.innerHTML = `
+                            <div class="post-header" onclick="window.location.href='profile.html?email=${post.user_email}'">
+                                <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
+                                <div>
+                                    <div class="post-author">${post.first_name} ${post.last_name}</div>
+                                    <div class="post-time">${dateStr}</div>
+                                </div>
+                            </div>
+                            <div class="post-content">${post.content || ''}</div>
+                            <video src="${post.media_url}" class="post-media" controls preload="metadata"></video>
                             
-                            <div class="reel-overlay">
-                                <div class="reel-author-row" onclick="window.location.href='profile.html?email=${video.user_email}'">
-                                    <img src="${video.profile_pic || 'https://via.placeholder.com/40'}" class="reel-avatar">
-                                    <div style="font-weight: bold; font-size: 15px;">${video.first_name} ${video.last_name}</div>
-                                </div>
-                                <div class="reel-caption">${video.content || ''}</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #65676b; margin-top: 8px; padding: 0 5px;">
+                                <span id="likeCount-${post.id}">👍 ${post.likes_count || 0} Reactions</span>
+                                <span style="cursor: pointer;" onclick="openCommentsModal(${post.id})" id="commentCount-${post.id}">${post.comments_count || 0} Comments</span>
                             </div>
 
-                            <div class="reel-actions">
-                                <div>
-                                    <button class="action-icon-btn" onclick="sendReaction(${video.id}, '👍')">👍</button>
-                                    <div class="action-count" id="likeCount-${video.id}">${video.likes_count || 0}</div>
-                                </div>
-                                <div>
-                                    <button class="action-icon-btn" onclick="alert('Open comments')">💬</button>
-                                    <div class="action-count">${video.comments_count || 0}</div>
-                                </div>
-                                <div>
-                                    <button class="action-icon-btn" onclick="navigator.clipboard.writeText(window.location.origin + '${video.media_url}'); alert('Link copied!');">↗️</button>
-                                </div>
+                            <div class="post-actions">
+                                <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="sendReaction(${post.id}, '👍')">
+                                    ${post.user_reaction ? post.user_reaction : '👍 Like'}
+                                </button>
+                                <button class="action-btn" onclick="openCommentsModal(${post.id})">💬 Comment</button>
+                                <button class="action-btn" onclick="navigator.clipboard.writeText(window.location.origin + '/feed.html?post=${post.id}'); alert('Video link copied!');">🔗 Share</button>
                             </div>
-                        </div>
-                    `).join('');
-
-                    initReelsAutoplay();
-
-                    // 🎯 ពិនិត្យមើល URL បើមាន ?v=ID គឺ Scroll ឱ្យចំវីដេអូនោះភ្លាម
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const targetVideoId = urlParams.get('v');
-                    if (targetVideoId) {
-                        setTimeout(() => {
-                            const targetEl = document.getElementById(`reel-${targetVideoId}`);
-                            if (targetEl) {
-                                targetEl.scrollIntoView({ behavior: 'auto' });
-                            }
-                        }, 100);
-                    }
+                        `;
+                        container.appendChild(div);
+                    });
                 }
             } catch (err) {
                 console.error(err);
@@ -117,27 +142,83 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    const btn = document.getElementById(`likeBtn-${postId}`);
                     const countElem = document.getElementById(`likeCount-${postId}`);
-                    if (countElem) countElem.innerText = data.likes_count;
+                    
+                    btn.innerText = emoji;
+                    if (data.reacted) {
+                        btn.classList.add('liked');
+                    } else {
+                        btn.classList.remove('liked');
+                        btn.innerText = '👍 Like';
+                    }
+                    countElem.innerText = `👍 ${data.likes_count} Reactions`;
                 }
             } catch (err) { console.error(err); }
         }
 
-        function initReelsAutoplay() {
-            const videoItems = document.querySelectorAll('.reel-video');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const video = entry.target;
-                    if (entry.isIntersecting) {
-                        video.play().catch(err => console.log("Autoplay blocked:", err));
-                    } else {
-                        video.pause();
-                        video.currentTime = 0;
-                    }
-                });
-            }, { threshold: 0.7 });
+        async function openCommentsModal(postId) {
+            activePostIdForComment = postId;
+            const modal = document.getElementById('commentsModal');
+            const list = document.getElementById('modalCommentList');
+            list.innerHTML = '<p style="text-align:center; color:#65676b;">Loading comments...</p>';
+            modal.style.display = 'flex';
 
-            videoItems.forEach(vid => observer.observe(vid));
+            try {
+                const res = await fetch(`/api/comments/${postId}`);
+                const data = await res.json();
+                if (data.success) {
+                    if (data.comments.length === 0) {
+                        list.innerHTML = '<p style="text-align:center; color:#65676b; padding:20px;">No comments yet. Be the first to comment!</p>';
+                        return;
+                    }
+                    list.innerHTML = data.comments.map(c => `
+                        <div class="comment-item">
+                            <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar">
+                            <div class="comment-bubble">
+                                <span class="comment-author">${c.first_name} ${c.last_name}</span>
+                                <div>${c.content}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                list.innerHTML = '<p style="text-align:center; color:red;">Failed to load comments.</p>';
+            }
+        }
+
+        function closeCommentsModal() {
+            document.getElementById('commentsModal').style.display = 'none';
+            activePostIdForComment = null;
+        }
+
+        async function addModalComment() {
+            const input = document.getElementById('modalCommentInput');
+            const content = input.value.trim();
+            if (!content || !activePostIdForComment) return;
+
+            try {
+                const res = await fetch('/api/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId: activePostIdForComment, email: currentUser.email, content })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    input.value = '';
+                    openCommentsModal(activePostIdForComment); // Reload comments
+
+                    // Update comment count on UI
+                    const countElem = document.getElementById(`commentCount-${activePostIdForComment}`);
+                    if (countElem) {
+                        let parts = countElem.innerText.split(' ');
+                        let currentCount = parseInt(parts[0]) || 0;
+                        countElem.innerText = `${currentCount + 1} Comments`;
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
         }
     </script>
 </body>
