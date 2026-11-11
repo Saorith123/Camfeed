@@ -37,7 +37,7 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* 🎨 Custom Secure Audio Player UI (Messenger Style & Stable) */
+        /* 🎨 Custom Preloaded Audio Player UI */
         .custom-audio-player { display: flex; align-items: center; gap: 10px; width: 210px; padding: 2px 0; }
         .audio-play-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; font-weight: bold; }
         .msg-sent .audio-play-btn { background: rgba(255,255,255,0.25); color: white; }
@@ -175,9 +175,11 @@
         let recTimerInterval = null;
         let recSecondsCount = 0;
 
-        // 🎯 Global tracking for currently active audio to prevent simultaneous playing/glitching
-        let activeAudioElement = null;
-        let activePlayButton = null;
+        // Global Active Audio tracking to ensure only ONE plays at a time
+        let currentAudioObject = null;
+        let currentPlayBtn = null;
+        // Cache to store preloaded Blob URLs so we don't fetch twice
+        const audioBlobCache = {};
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -280,10 +282,9 @@
         }
 
         function backToSidebar() {
-            // Stop active playing audio when leaving chat view
-            if (activeAudioElement) {
-                activeAudioElement.pause();
-                activeAudioElement = null;
+            if (currentAudioObject) {
+                currentAudioObject.pause();
+                currentAudioObject = null;
             }
             document.getElementById('sidebarSection').classList.remove('hidden-mobile');
             document.getElementById('chatMainArea').classList.add('hidden-mobile');
@@ -311,19 +312,14 @@
                     const messagesHtml = data.messages.map((m, index) => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            const audioId = `audio-${m.id || index}`;
-                            const btnId = `btn-${m.id || index}`;
-                            const progressId = `progress-${m.id || index}`;
-                            const timeId = `time-${m.id || index}`;
-
+                            const uniqueId = m.id || index;
                             contentHtml = `
-                                <div class="custom-audio-player">
-                                    <audio id="${audioId}" src="${m.media_url}" preload="metadata"></audio>
-                                    <button id="${btnId}" class="audio-play-btn" onclick="toggleSecureAudio('${audioId}', '${btnId}', '${progressId}')">▶</button>
-                                    <div class="audio-progress-bg" onclick="seekSecureAudio(event, '${audioId}')">
-                                        <div id="${progressId}" class="audio-progress-fill"></div>
+                                <div class="custom-audio-player" id="player-box-${uniqueId}">
+                                    <button id="btn-${uniqueId}" class="audio-play-btn" onclick="handlePreloadedPlay('${m.media_url}', 'btn-${uniqueId}', 'progress-${uniqueId}', 'time-${uniqueId}')">▶</button>
+                                    <div class="audio-progress-bg" onclick="seekAudioProgress(event, '${uniqueId}')">
+                                        <div id="progress-${uniqueId}" class="audio-progress-fill"></div>
                                     </div>
-                                    <span id="${timeId}" class="audio-time">0:00</span>
+                                    <span id="time-${uniqueId}" class="audio-time">0:00</span>
                                 </div>
                             `;
                         } else if (m.message_type === 'image' && m.media_url) {
@@ -351,88 +347,89 @@
                     if (container.innerHTML !== messagesHtml) {
                         container.innerHTML = messagesHtml;
                         container.scrollTop = container.scrollHeight;
-                        attachSecureAudioListeners();
                     }
                 }
             } catch (err) { console.error(err); }
         }
 
-        function attachSecureAudioListeners() {
-            document.querySelectorAll('.custom-audio-player audio').forEach(audio => {
-                const parent = audio.parentElement;
-                const timeSpan = parent.querySelector('.audio-time');
-                const progressFill = parent.querySelector('.audio-progress-fill');
-                const playBtn = parent.querySelector('.audio-play-btn');
+        // 🎯 មុខងារ Preload 100% មុននឹង Play (ដូច Telegram/Messenger)
+        async function handlePreloadedPlay(mediaUrl, btnId, progressId, timeId) {
+            const playBtn = document.getElementById(btnId);
+            const progressFill = document.getElementById(progressId);
+            const timeSpan = document.getElementById(timeId);
 
-                audio.addEventListener('loadedmetadata', () => {
-                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                        timeSpan.innerText = formatTime(audio.duration);
-                    }
-                });
+            // ប្រសិនបើមានអូឌីយ៉ូផ្សេងទៀតកំពុងលេង ត្រូវ Pause និង Reset វាជាមុនសិន
+            if (currentAudioObject) {
+                currentAudioObject.pause();
+                currentAudioObject.currentTime = 0;
+                if (currentPlayBtn) {
+                    currentPlayBtn.innerText = '▶';
+                }
+                if (currentAudioObject.dataset.playBtnId === btnId) {
+                    // ប្រសិនបើចុច Pause លើអូឌីយ៉ូដដែល
+                    currentAudioObject = null;
+                    currentPlayBtn = null;
+                    return;
+                }
+            }
 
-                audio.addEventListener('timeupdate', () => {
-                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                        const percent = (audio.currentTime / audio.duration) * 100;
-                        progressFill.style.width = `${percent}%`;
-                        timeSpan.innerText = formatTime(audio.currentTime);
-                    } else if (audio.currentTime > 0) {
-                        timeSpan.innerText = formatTime(audio.currentTime);
-                    }
-                });
+            // បង្ហាញសញ្ញាកំពុង Load ទិន្នន័យ 100%
+            playBtn.innerText = '⏳';
 
-                audio.addEventListener('ended', () => {
+            let blobUrl = audioBlobCache[mediaUrl];
+            if (!blobUrl) {
+                try {
+                    const response = await fetch(mediaUrl);
+                    const blob = await response.blob();
+                    blobUrl = URL.createObjectURL(blob);
+                    audioBlobCache[mediaUrl] = blobUrl;
+                } catch (e) {
+                    console.error("Failed to preload audio:", e);
                     playBtn.innerText = '▶';
-                    progressFill.style.width = '0%';
-                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                        timeSpan.innerText = formatTime(audio.duration);
-                    }
-                    if (activeAudioElement === audio) {
-                        activeAudioElement = null;
-                        activePlayButton = null;
-                    }
-                });
+                    alert("មិនអាចទាញយកសារសំឡេងនេះបានទេ");
+                    return;
+                }
+            }
+
+            const audio = new Audio(blobUrl);
+            audio.dataset.playBtnId = btnId;
+            currentAudioObject = audio;
+            currentPlayBtn = playBtn;
+
+            audio.onloadedmetadata = () => {
+                if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                    timeSpan.innerText = formatTime(audio.duration);
+                }
+            };
+
+            audio.ontimeupdate = () => {
+                if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                    const percent = (audio.currentTime / audio.duration) * 100;
+                    progressFill.style.width = `${percent}%`;
+                    timeSpan.innerText = formatTime(audio.currentTime);
+                }
+            };
+
+            audio.onended = () => {
+                playBtn.innerText = '▶';
+                progressFill.style.width = '0%';
+                if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                    timeSpan.innerText = formatTime(audio.duration);
+                }
+                currentAudioObject = null;
+                currentPlayBtn = null;
+            };
+
+            audio.play().then(() => {
+                playBtn.innerText = '⏸';
+            }).catch(err => {
+                console.error("Playback error:", err);
+                playBtn.innerText = '▶';
             });
         }
 
-        // 🎯 ធានាថាមានតែអូឌីយ៉ូមួយប៉ុណ្ណោះដែលលេង ជៀសវាងការញាក់និងដើរព្រមគ្នាច្រឡោតតូង
-        function toggleSecureAudio(audioId, btnId, progressId) {
-            const audio = document.getElementById(audioId);
-            const btn = document.getElementById(btnId);
-
-            // If another audio is currently playing, pause and reset it immediately
-            if (activeAudioElement && activeAudioElement !== audio) {
-                activeAudioElement.pause();
-                activeAudioElement.currentTime = 0;
-                if (activePlayButton) {
-                    activePlayButton.innerText = '▶';
-                }
-            }
-
-            if (audio.paused) {
-                audio.play().then(() => {
-                    btn.innerText = '⏸';
-                    activeAudioElement = audio;
-                    activePlayButton = btn;
-                }).catch(err => console.error("Playback restriction:", err));
-            } else {
-                audio.pause();
-                btn.innerText = '▶';
-                if (activeAudioElement === audio) {
-                    activeAudioElement = null;
-                    activePlayButton = null;
-                }
-            }
-        }
-
-        function seekSecureAudio(event, audioId) {
-            const audio = document.getElementById(audioId);
-            const progressBg = event.currentTarget;
-            const rect = progressBg.getBoundingClientRect();
-            const clickX = event.clientX - rect.left;
-            const width = rect.width;
-            if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                audio.currentTime = (clickX / width) * audio.duration;
-            }
+        function seekAudioProgress(event, uniqueId) {
+            // ការគ្រប់គ្រងការចុចរំលងទីតាំងអូឌីយ៉ូ (Seek) អាចបន្ថែមទីនេះបើត្រូវការ
         }
 
         async function checkUnreadMessages() {
