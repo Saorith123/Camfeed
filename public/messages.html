@@ -286,7 +286,8 @@
                     const messagesHtml = data.messages.map(m => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            contentHtml = `<audio src="${m.media_url}" controls style="max-width: 180px; height: 32px;"></audio>`;
+                            // 🎯 បន្ថែម preload="metadata" ដើម្បីការពារសំឡេងកន្ត្រាក់/ញាក់ពេលចាក់ស្ដាប់
+                            contentHtml = `<audio src="${m.media_url}" controls preload="metadata" style="max-width: 180px; height: 32px;"></audio>`;
                         } else {
                             contentHtml = `<span>${m.message}</span>`;
                         }
@@ -372,7 +373,7 @@
             }
         }
 
-        // 🎯 កែសម្រួលការថតសំឡេង (Voice Recording) ឱ្យរលូនល្អ មិនញាក់/កន្ត្រាក់ និងឮច្បាស់ពេញលេញ
+        // 🎯 កែសម្រួលការថតសំឡេង (Voice Recording) ឱ្យមាន Sample Rate ថេរ និង timeslice រលូនល្អមិនកន្ត្រាក់
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -384,23 +385,23 @@
                         audio: { 
                             echoCancellation: true, 
                             noiseSuppression: true, 
-                            autoGainControl: true 
+                            autoGainControl: true,
+                            sampleRate: 44100
                         } 
                     });
                     
-                    let options = { mimeType: 'audio/webm' };
-                    if (!MediaRecorder.isTypeSupported('audio/webm')) {
-                        if (MediaRecorder.isTypeSupported('audio/ogg')) {
-                            options = { mimeType: 'audio/ogg' };
+                    let options = { mimeType: 'audio/webm;codecs=opus' };
+                    if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                        if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                            options = { mimeType: 'audio/ogg;codecs=opus' };
                         } else {
-                            options = {};
+                            options = { mimeType: 'audio/webm' };
                         }
                     }
 
                     mediaRecorder = new MediaRecorder(mediaStream, options);
                     audioChunks = [];
 
-                    // 🎯 ប្រើប្រាស់ timeslice (250ms) ដើម្បីធានាថា Data chunks ត្រូវបានប្រមូលរលូន មិនញាក់ ឬកន្ត្រាក់
                     mediaRecorder.ondataavailable = event => {
                         if (event.data && event.data.size > 0) {
                             audioChunks.push(event.data);
@@ -412,12 +413,14 @@
                         const audioUrl = URL.createObjectURL(recordedAudioBlob);
                         
                         previewAudio = new Audio(audioUrl);
+                        previewAudio.preload = 'auto';
+
                         previewAudio.onloadedmetadata = () => {
                             document.getElementById('previewTimer').innerText = `0:00 / ${formatTime(previewAudio.duration)}`;
                         };
 
                         previewAudio.ontimeupdate = () => {
-                            if (previewAudio.duration) {
+                            if (previewAudio.duration && !isNaN(previewAudio.duration)) {
                                 const progress = (previewAudio.currentTime / previewAudio.duration) * 100;
                                 document.getElementById('previewProgressBar').style.width = `${progress}%`;
                                 document.getElementById('previewTimer').innerText = `${formatTime(previewAudio.currentTime)} / ${formatTime(previewAudio.duration)}`;
@@ -433,7 +436,7 @@
                         document.getElementById('normalInputRow').style.display = 'none';
                     };
 
-                    mediaRecorder.start(250); // Start with timeslice to prevent choppy audio
+                    mediaRecorder.start(100); // 🎯 timeslice 100ms ធ្វើឱ្យទិន្នន័យអូឌីយ៉ូហូរបានទៀងទាត់មិនញាក់
                     isRecording = true;
                     recordBtn.style.color = 'red';
 
@@ -557,6 +560,7 @@
                     loadConversations();
                 } else {
                     alert("Failed to send message: " + (data.error || ''));
+                    input.value = message;
                 }
             } catch (err) { 
                 console.error("Error sending text message:", err); 
