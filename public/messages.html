@@ -37,7 +37,7 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* 🎨 Custom Preloaded Audio Player UI */
+        /* 🎨 Custom Smooth Audio Player UI */
         .custom-audio-player { display: flex; align-items: center; gap: 10px; width: 210px; padding: 2px 0; }
         .audio-play-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; font-weight: bold; }
         .msg-sent .audio-play-btn { background: rgba(255,255,255,0.25); color: white; }
@@ -175,10 +175,9 @@
         let recTimerInterval = null;
         let recSecondsCount = 0;
 
-        // Global Active Audio tracking to ensure only ONE plays at a time
         let currentAudioObject = null;
         let currentPlayBtn = null;
-        // Cache to store preloaded Blob URLs so we don't fetch twice
+        let currentAnimFrame = null;
         const audioBlobCache = {};
 
         if (!currentUser) {
@@ -286,6 +285,7 @@
                 currentAudioObject.pause();
                 currentAudioObject = null;
             }
+            if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
             document.getElementById('sidebarSection').classList.remove('hidden-mobile');
             document.getElementById('chatMainArea').classList.add('hidden-mobile');
             document.getElementById('mobileBackBtn').style.display = 'none';
@@ -352,28 +352,25 @@
             } catch (err) { console.error(err); }
         }
 
-        // 🎯 មុខងារ Preload 100% មុននឹង Play (ដូច Telegram/Messenger)
+        // 🎯 មុខងារ Play ជាមួយ requestAnimationFrame ធានាថា Progress Bar រត់ទន្ទឹមគ្នាស្របតាមសំឡេងយ៉ាងរលូន (Smooth)
         async function handlePreloadedPlay(mediaUrl, btnId, progressId, timeId) {
             const playBtn = document.getElementById(btnId);
             const progressFill = document.getElementById(progressId);
             const timeSpan = document.getElementById(timeId);
 
-            // ប្រសិនបើមានអូឌីយ៉ូផ្សេងទៀតកំពុងលេង ត្រូវ Pause និង Reset វាជាមុនសិន
             if (currentAudioObject) {
                 currentAudioObject.pause();
                 currentAudioObject.currentTime = 0;
-                if (currentPlayBtn) {
-                    currentPlayBtn.innerText = '▶';
-                }
+                if (currentPlayBtn) currentPlayBtn.innerText = '▶';
+                if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
+
                 if (currentAudioObject.dataset.playBtnId === btnId) {
-                    // ប្រសិនបើចុច Pause លើអូឌីយ៉ូដដែល
                     currentAudioObject = null;
                     currentPlayBtn = null;
                     return;
                 }
             }
 
-            // បង្ហាញសញ្ញាកំពុង Load ទិន្នន័យ 100%
             playBtn.innerText = '⏳';
 
             let blobUrl = audioBlobCache[mediaUrl];
@@ -402,15 +399,19 @@
                 }
             };
 
-            audio.ontimeupdate = () => {
-                if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                    const percent = (audio.currentTime / audio.duration) * 100;
-                    progressFill.style.width = `${percent}%`;
-                    timeSpan.innerText = formatTime(audio.currentTime);
+            function step() {
+                if (!audio.paused && !audio.ended) {
+                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                        const percent = (audio.currentTime / audio.duration) * 100;
+                        progressFill.style.width = `${percent}%`;
+                        timeSpan.innerText = formatTime(audio.currentTime);
+                    }
+                    currentAnimFrame = requestAnimationFrame(step);
                 }
-            };
+            }
 
             audio.onended = () => {
+                cancelAnimationFrame(currentAnimFrame);
                 playBtn.innerText = '▶';
                 progressFill.style.width = '0%';
                 if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
@@ -422,15 +423,14 @@
 
             audio.play().then(() => {
                 playBtn.innerText = '⏸';
+                currentAnimFrame = requestAnimationFrame(step);
             }).catch(err => {
                 console.error("Playback error:", err);
                 playBtn.innerText = '▶';
             });
         }
 
-        function seekAudioProgress(event, uniqueId) {
-            // ការគ្រប់គ្រងការចុចរំលងទីតាំងអូឌីយ៉ូ (Seek) អាចបន្ថែមទីនេះបើត្រូវការ
-        }
+        function seekAudioProgress(event, uniqueId) {}
 
         async function checkUnreadMessages() {
             if (!currentUser) return;
