@@ -37,6 +37,18 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
+        /* 🎨 Custom Audio Player Styling */
+        .custom-audio-player { display: flex; align-items: center; gap: 8px; width: 200px; padding: 4px 0; }
+        .audio-play-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+        .msg-sent .audio-play-btn { background: rgba(255,255,255,0.2); color: white; }
+        .msg-received .audio-play-btn { background: #d0d2d6; color: #050505; }
+        
+        .audio-progress-bg { flex: 1; height: 6px; background: rgba(0,0,0,0.15); border-radius: 3px; position: relative; cursor: pointer; overflow: hidden; }
+        .msg-sent .audio-progress-bg { background: rgba(255,255,255,0.4); }
+        .audio-progress-fill { height: 100%; width: 0%; background: #050505; border-radius: 3px; transition: width 0.1s linear; }
+        .msg-sent .audio-progress-fill { background: white; }
+        .audio-time { font-size: 11px; opacity: 0.8; flex-shrink: 0; min-width: 32px; text-align: right; }
+
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
         .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
         
@@ -158,6 +170,11 @@
         let previewAudio = null;
         let recTimerInterval = null;
         let recSecondsCount = 0;
+
+        // Keep track of active playing audio elements
+        let currentPlayingAudio = null;
+        let currentPlayingBtn = null;
+        let currentProgressFill = null;
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -283,11 +300,25 @@
                         return;
                     }
 
-                    const messagesHtml = data.messages.map(m => {
+                    const messagesHtml = data.messages.map((m, index) => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            // 🎯 បន្ថែម preload="metadata" ដើម្បីការពារសំឡេងកន្ត្រាក់/ញាក់ពេលចាក់ស្ដាប់
-                            contentHtml = `<audio src="${m.media_url}" controls preload="metadata" style="max-width: 180px; height: 32px;"></audio>`;
+                            // 🎨 Custom Audio Player HTML structure
+                            const audioId = `audio-${m.id || index}`;
+                            const btnId = `btn-${m.id || index}`;
+                            const progressId = `progress-${m.id || index}`;
+                            const timeId = `time-${m.id || index}`;
+
+                            contentHtml = `
+                                <div class="custom-audio-player">
+                                    <audio id="${audioId}" src="${m.media_url}" preload="metadata"></audio>
+                                    <button id="${btnId}" class="audio-play-btn" onclick="toggleCustomAudio('${audioId}', '${btnId}', '${progressId}', '${timeId}')">▶</button>
+                                    <div class="audio-progress-bg" onclick="seekCustomAudio(event, '${audioId}', '${progressId}')">
+                                        <div id="${progressId}" class="audio-progress-fill"></div>
+                                    </div>
+                                    <span id="${timeId}" class="audio-time">0:00</span>
+                                </div>
+                            `;
                         } else {
                             contentHtml = `<span>${m.message}</span>`;
                         }
@@ -309,9 +340,75 @@
                     if (container.innerHTML !== messagesHtml) {
                         container.innerHTML = messagesHtml;
                         container.scrollTop = container.scrollHeight;
+                        // Attach metadata listeners for custom audio elements
+                        attachAudioMetadataListeners();
                     }
                 }
             } catch (err) { console.error(err); }
+        }
+
+        function attachAudioMetadataListeners() {
+            document.querySelectorAll('.custom-audio-player audio').forEach(audio => {
+                const timeSpan = audio.parentElement.querySelector('.audio-time');
+                audio.addEventListener('loadedmetadata', () => {
+                    if (audio.duration && !isNaN(audio.duration)) {
+                        timeSpan.innerText = formatTime(audio.duration);
+                    }
+                });
+
+                audio.addEventListener('timeupdate', () => {
+                    if (audio.duration && !isNaN(audio.duration)) {
+                        const progressId = audio.parentElement.querySelector('.audio-progress-fill').id;
+                        const percent = (audio.currentTime / audio.duration) * 100;
+                        document.getElementById(progressId).style.width = `${percent}%`;
+                        timeSpan.innerText = formatTime(audio.currentTime);
+                    }
+                });
+
+                audio.addEventListener('ended', () => {
+                    const btnId = audio.parentElement.querySelector('.audio-play-btn').id;
+                    document.getElementById(btnId).innerText = '▶';
+                    const progressId = audio.parentElement.querySelector('.audio-progress-fill').id;
+                    document.getElementById(progressId).style.width = '0%';
+                    if (audio.duration) timeSpan.innerText = formatTime(audio.duration);
+                });
+            });
+        }
+
+        function toggleCustomAudio(audioId, btnId, progressId, timeId) {
+            const audio = document.getElementById(audioId);
+            const btn = document.getElementById(btnId);
+            const progressFill = document.getElementById(progressId);
+
+            // Pause previously playing audio if any
+            if (currentPlayingAudio && currentPlayingAudio !== audio) {
+                currentPlayingAudio.pause();
+                if (currentPlayingBtn) currentPlayingBtn.innerText = '▶';
+            }
+
+            if (audio.paused) {
+                audio.play();
+                btn.innerText = '⏸';
+                currentPlayingAudio = audio;
+                currentPlayingBtn = btn;
+                currentProgressFill = progressFill;
+            } else {
+                audio.pause();
+                btn.innerText = '▶';
+                currentPlayingAudio = null;
+                currentPlayingBtn = null;
+            }
+        }
+
+        function seekCustomAudio(event, audioId, progressId) {
+            const audio = document.getElementById(audioId);
+            const progressBg = event.currentTarget;
+            const rect = progressBg.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const width = rect.width;
+            if (audio.duration) {
+                audio.currentTime = (clickX / width) * audio.duration;
+            }
         }
 
         async function checkUnreadMessages() {
@@ -373,7 +470,6 @@
             }
         }
 
-        // 🎯 កែសម្រួលការថតសំឡេង (Voice Recording) ឱ្យមាន Sample Rate ថេរ និង timeslice រលូនល្អមិនកន្ត្រាក់
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -436,7 +532,7 @@
                         document.getElementById('normalInputRow').style.display = 'none';
                     };
 
-                    mediaRecorder.start(100); // 🎯 timeslice 100ms ធ្វើឱ្យទិន្នន័យអូឌីយ៉ូហូរបានទៀងទាត់មិនញាក់
+                    mediaRecorder.start(100);
                     isRecording = true;
                     recordBtn.style.color = 'red';
 
