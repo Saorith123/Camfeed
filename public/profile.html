@@ -78,12 +78,22 @@
         .reaction-emoji { font-size: 24px; cursor: pointer; transition: transform 0.2s; }
         .reaction-emoji:hover { transform: scale(1.35); }
 
+        /* Comment styles with Edit/Delete/Report Options Menu */
         .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; }
-        .comment-item { display: flex; gap: 8px; margin-bottom: 8px; font-size: 13px; }
-        .comment-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 15px; max-width: 80%; }
-        .comment-author { font-weight: bold; color: #050505; }
-        .reply-btn { font-size: 11px; color: #65676b; cursor: pointer; font-weight: bold; margin-left: 10px; }
-        .reply-btn:hover { text-decoration: underline; }
+        .comment-container { display: flex; gap: 8px; margin-bottom: 12px; font-size: 13px; align-items: flex-start; position: relative; width: 100%; }
+        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; flex-shrink: 0; }
+        .comment-content-wrapper { flex: 1; display: flex; justify-content: space-between; align-items: flex-start; background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; }
+        .comment-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; word-break: break-word; flex: 1; }
+        .comment-author { font-weight: bold; color: #050505; cursor: pointer; font-size: 12.5px; margin-bottom: 2px; display: inline-block; }
+        .comment-author:hover { text-decoration: underline; color: #1877f2; }
+        .comment-footer-actions { display: flex; gap: 10px; margin-top: 2px; margin-left: 10px; font-size: 11.5px; color: #65676b; }
+        .reply-btn { font-weight: bold; cursor: pointer; color: #65676b; }
+        .reply-btn:hover { text-decoration: underline; color: #1877f2; }
+
+        .comment-options-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #65676b; padding: 0 5px; }
+        .comment-menu-dropdown { display: none; position: absolute; right: 10px; top: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 3000; overflow: hidden; width: 120px; border: 1px solid #e4e6eb; }
+        .comment-menu-dropdown button { width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+        .comment-menu-dropdown button:hover { background: #f2f2f2; }
 
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
         .modal-card { background: white; width: 100%; max-width: 450px; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-height: 80vh; overflow-y: auto; }
@@ -126,7 +136,6 @@
                         <button onclick="saveBio()" class="btn-action" style="padding: 6px 12px; font-size: 12px;">Save</button>
                     </div>
                     
-                    <!-- Meta info: Followers, Following, Dob, Location, Phone, Email with Privacy -->
                     <div class="profile-meta-info">
                         <span id="followersCountSpan" style="cursor: pointer; font-weight: bold;" onclick="openFollowModal('followers')">0 Followers</span>
                         <span id="followingCountSpan" style="cursor: pointer; font-weight: bold;" onclick="openFollowModal('following')">0 Following</span>
@@ -136,7 +145,6 @@
                         <span id="metaEmail">✉️ Email: -</span>
                     </div>
 
-                    <!-- Edit Profile Extra Details Box (For Owner) -->
                     <div id="ownerSettingsBox" class="hidden" style="margin-top: 10px; background: #f0f2f5; padding: 10px; border-radius: 6px; font-size: 13px;">
                         <div style="font-weight: bold; margin-bottom: 6px;">⚙️ Edit Profile Details & Privacy</div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px;">
@@ -158,7 +166,6 @@
                 </div>
             </div>
 
-            <!-- Profile Actions (Dynamic for Owner vs Other User) -->
             <div class="profile-actions" id="profileActionButtons"></div>
         </div>
     </div>
@@ -170,7 +177,6 @@
 
     <div class="main-content" id="profilePostsContainer"></div>
 
-    <!-- Followers / Following Modal -->
     <div id="followListModal" class="modal-overlay hidden" onclick="closeFollowModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e4e6eb; padding-bottom: 8px; margin-bottom: 10px;">
@@ -181,7 +187,6 @@
         </div>
     </div>
 
-    <!-- Edit Post Modal -->
     <div id="editPostModal" class="modal-overlay hidden">
         <div class="modal-card">
             <h3 style="margin-top: 0;">Edit Post</h3>
@@ -198,7 +203,6 @@
         </div>
     </div>
 
-    <!-- Image Lightbox Modal script -->
     <script src="imageModal.js"></script>
 
     <script>
@@ -242,7 +246,6 @@
                         document.getElementById('metaDob').innerText = `🎂 DOB: ${user.birthdate || '-'}`;
                         document.getElementById('metaLocation').innerText = `📍 Location: ${user.location || '-'}`;
 
-                        // Phone & Email Privacy check
                         if (user.email === currentUser.email || user.phone_privacy !== 'private') {
                             document.getElementById('metaPhone').innerText = `📞 Phone: ${user.phone || '-'}`;
                         } else {
@@ -261,9 +264,7 @@
                         const actionContainer = document.getElementById('profileActionButtons');
                         actionContainer.innerHTML = '';
 
-                        // 🎯 ភាពខុសគ្នារវាង Profile ខ្លួនឯង និង Profile របស់អ្នកដទៃ
                         if (profileEmail === currentUser.email) {
-                            // 👤 ប្រូហ្វាលខ្លួនឯង៖ មានប៊ូតុង Share, Edit Bio និងកន្លែងកែប្រែ Settings
                             const shareBtn = document.createElement('button');
                             shareBtn.className = 'btn-action btn-secondary';
                             shareBtn.innerHTML = '🔗 Share Profile';
@@ -285,7 +286,6 @@
                             if(user.phone_privacy) document.getElementById('phonePrivacy').value = user.phone_privacy;
                             if(user.email_privacy) document.getElementById('emailPrivacy').value = user.email_privacy;
                         } else {
-                            // 👥 ប្រូហ្វាលអ្នកដទៃ៖ មានប៊ូតុង Follow/Following និងប៊ូតុង Message (គ្មានប៊ូតុង Edit ទេ)
                             targetUserIsFollowing = user.is_following;
 
                             const followBtn = document.createElement('button');
@@ -615,6 +615,7 @@
         window.onclick = function() {
             document.querySelectorAll('.options-dropdown').forEach(d => d.style.display = 'none');
             document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
             if(typeof closeImageMenu === 'function') closeImageMenu();
         }
 
@@ -672,24 +673,127 @@
             }
         }
 
+        // 🎯 មុខងារបង្ហាញបញ្ជី Comment ក្នុង Profile ជាមួយ Option Menu (Edit, Delete, Report)
         async function loadComments(postId) {
-            const res = await fetch(`/api/comments/${postId}`);
-            const data = await res.json();
-            if (data.success) {
-                const list = document.getElementById(`commentList-${postId}`);
-                list.innerHTML = data.comments.map(c => `
-                    <div class="comment-item">
-                        <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" style="width:30px; height:30px; border-radius:50%;">
-                        <div>
-                            <div class="comment-bubble">
-                                <span class="comment-author">${c.first_name} ${c.last_name}</span>
-                                <div>${c.content}</div>
+            try {
+                const res = await fetch(`/api/comments/${postId}`);
+                const data = await res.json();
+                if (data.success) {
+                    const list = document.getElementById(`commentList-${postId}`);
+                    if (!list) return;
+
+                    list.innerHTML = data.comments.map(c => {
+                        const isOwner = currentUser.email === c.user_email;
+                        return `
+                            <div class="comment-container" id="comment-${c.id}">
+                                <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${c.user_email}'" title="View Profile">
+                                <div class="comment-content-wrapper">
+                                    <div style="flex: 1;">
+                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${c.user_email}'">${c.first_name} ${c.last_name}</span>
+                                        <div id="comment-text-${c.id}">${c.content}</div>
+                                    </div>
+                                    <button class="comment-options-btn" onclick="toggleCommentMenu(event, ${c.id})">⋮</button>
+                                </div>
+                                
+                                <div class="comment-menu-dropdown" id="comment-menu-${c.id}">
+                                    ${isOwner ? `
+                                        <button onclick="enableEditComment(${c.id}, '${encodeURIComponent(c.content)}')">Edit</button>
+                                        <button onclick="deleteComment(${c.id}, ${postId})" style="color: red;">Delete</button>
+                                    ` : `
+                                        <button onclick="reportComment(${c.id})">Report</button>
+                                    `}
+                                </div>
                             </div>
-                            <span class="reply-btn" onclick="setReplyTarget(${postId}, '${c.first_name} ${c.last_name}', ${c.id})">Reply</span>
-                        </div>
-                    </div>
-                `).join('');
-            }
+                        `;
+                    }).join('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function toggleCommentMenu(event, commentId) {
+            event.stopPropagation();
+            const menu = document.getElementById(`comment-menu-${commentId}`);
+            document.querySelectorAll('.comment-menu-dropdown').forEach(m => {
+                if(m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
+            });
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function deleteComment(commentId, postId) {
+            if (!confirm('តើអ្នកពិតជាចង់លុប Comment នេះមែនទេ?')) return;
+            try {
+                const res = await fetch(`/api/comments/${commentId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadComments(postId);
+                    const commentCountElem = document.getElementById(`commentCount-${postId}`);
+                    let parts = commentCountElem.innerText.split(' ');
+                    let currentComments = parseInt(parts[0]) || 1;
+                    commentCountElem.innerText = `${Math.max(0, currentComments - 1)} Comments`;
+                } else {
+                    alert(data.message || 'មិនអាចលុប Comment នេះបានទេ');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function reportComment(commentId) {
+            const reason = prompt('សូមបញ្ជាក់ពីមូលហេតុដែលត្រូវ Report Comment នេះ៖');
+            if (!reason) return;
+
+            try {
+                const res = await fetch('/api/comments/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ commentId, email: currentUser.email, reason })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('ការរាយការណ៍ (Report) របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់អ្នកគ្រប់គ្រងប្រព័ន្ធជោគជ័យ។');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function enableEditComment(commentId, encodedContent) {
+            const content = decodeURIComponent(encodedContent);
+            document.getElementById(`comment-menu-${commentId}`).style.display = 'none';
+            const textDiv = document.getElementById(`comment-text-${commentId}`);
+            
+            textDiv.innerHTML = `
+                <div style="display: flex; gap: 5px; margin-top: 5px;">
+                    <input type="text" id="edit-input-${commentId}" value="${content}" style="padding: 4px 8px; font-size: 12px; border-radius: 12px; border: 1px solid #ddd;">
+                    <button onclick="submitEditComment(${commentId})" style="background: #1877f2; color: white; border: none; border-radius: 10px; padding: 4px 8px; cursor: pointer;">Save</button>
+                </div>
+            `;
+        }
+
+        async function submitEditComment(commentId) {
+            const newContent = document.getElementById(`edit-input-${commentId}`).value.trim();
+            if (!newContent) return;
+
+            try {
+                const res = await fetch(`/api/comments/${commentId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, content: newContent })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const commentContainer = document.getElementById(`comment-${commentId}`);
+                    if (commentContainer) {
+                        const section = commentContainer.closest('.comments-section');
+                        if (section) {
+                            const postId = section.id.split('-')[1];
+                            loadComments(postId);
+                        }
+                    }
+                } else {
+                    alert(data.message || 'កែប្រែមិនបានជោគជ័យ');
+                }
+            } catch (err) { console.error(err); }
         }
 
         let replyTargetCommentIds = {};
