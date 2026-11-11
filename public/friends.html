@@ -83,15 +83,18 @@
 
         async function loadUsers() {
             try {
-                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                // 🎯 ហៅ API ទៅកាន់ Backend ដើម្បីទាញយក User ទាំងអស់
+                const res = await fetch(`/api/users?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
-                if (data.success) {
-                    const container = document.getElementById('friendsContainer');
-                    container.innerHTML = '';
+                
+                const container = document.getElementById('friendsContainer');
+                container.innerHTML = '';
 
-                    const lang = localStorage.getItem('camfeed_lang') || 'en';
-                    const t = translations[lang];
+                const lang = localStorage.getItem('camfeed_lang') || 'en';
+                const t = translations[lang];
 
+                if (data.success && data.users && data.users.length > 0) {
+                    // ត្រងយក User ទាំងអស់លើកលែងតែខ្លួនឯងចេញ
                     const otherUsers = data.users.filter(u => u.email !== currentUser.email);
 
                     if (otherUsers.length === 0) {
@@ -110,7 +113,7 @@
                             btnClass = 'btn-follow-back';
                             btnText = t.followBackBtn;
                         } else if (u.is_following) {
-                            btnClass = 'btn-yellow';
+                            btnClass = 'btn-yellow'; // 🟡 ប៊ូតុងពណ៌លឿងពេលយើង Follow គេហើយ
                             btnText = t.followingBtn;
                         } else {
                             btnClass = '';
@@ -126,23 +129,29 @@
                         `;
                         container.appendChild(div);
                     });
+                } else {
+                    container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
                 }
             } catch (err) {
-                console.error(err);
+                console.error("Error loading users:", err);
+                document.getElementById('friendsContainer').innerHTML = `<p style="color: red; grid-column: 1/-1; text-align: center;">Failed to load users.</p>`;
             }
         }
 
         async function toggleFollow(targetEmail, isFollowing) {
             const action = isFollowing ? 'unfollow' : 'follow';
             try {
-                await fetch('/api/follow', {
+                const res = await fetch('/api/follow', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
                 });
-                loadUsers();
+                const data = await res.json();
+                if (data.success) {
+                    loadUsers(); // Refresh បញ្ជីឡើងវិញបន្ទាប់ពី Follow/Unfollow ជោគជ័យ
+                }
             } catch (err) {
-                console.error(err);
+                console.error("Error toggling follow:", err);
             }
         }
     </script>
