@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camfeed - Login</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; }
-        
-        .top-bar { display: flex; justify-content: flex-end; padding: 15px 25px; background: transparent; }
-        .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 4px; background: #fff; font-size: 14px; cursor: pointer; outline: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; justify-content: center; align-items: center; }
 
-        .container { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .logo { font-size: 42px; font-weight: bold; color: #1877f2; margin-bottom: 20px; text-align: center; }
+        .container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 420px; padding: 20px; box-sizing: border-box; }
         
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 8px 16px rgba(0, 0, 0, .1); width: 100%; max-width: 396px; box-sizing: border-box; }
+        .logo-container { text-align: center; margin-bottom: 20px; }
+        .logo { font-size: 52px; font-weight: bold; color: #1877f2; letter-spacing: -1px; margin-bottom: 8px; }
+        .logo-tagline { font-size: 18px; color: #606770; line-height: 1.2; }
         
-        input, select { width: 100%; padding: 12px 16px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 15px; outline: none; font-family: inherit; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 8px 16px rgba(0, 0, 0, .1); width: 100%; box-sizing: border-box; }
+        
+        input, select { width: 100%; padding: 12px 16px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 15px; outline: none; font-family: inherit; background: #fff; }
         input:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
         
         .row { display: flex; gap: 10px; }
@@ -35,42 +35,42 @@
         .msg { text-align: center; margin-top: 12px; font-size: 14px; font-weight: 500; }
         .hidden { display: none !important; }
         label { font-size: 12px; color: #606770; display: block; margin-top: 6px; text-align: left; }
+
+        /* Compact Language Switcher inside card area */
+        .lang-container { margin-top: 20px; text-align: center; }
+        .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 4px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
     </style>
 </head>
 <body>
 
-    <div class="top-bar">
-        <select class="lang-select" id="langSwitch" onchange="changeLanguage()">
-            <option value="en">English (US)</option>
-            <option value="km">ភាសាខ្មែរ</option>
-        </select>
-    </div>
-
     <div class="container">
-        <!-- LOGIN VIEW -->
-        <div id="loginSection" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+        <!-- Logo Header Center -->
+        <div class="logo-container">
             <div class="logo">camfeed</div>
-            <div class="card" id="loginCard">
-                <form onsubmit="event.preventDefault(); loginUser();">
-                    <input type="text" id="loginEmail" placeholder="Mobile number or email" required>
-                    <div class="password-container">
-                        <input type="password" id="loginPassword" placeholder="Password" required>
-                        <span class="eye-icon" onclick="togglePassword('loginPassword', this)">👁️</span>
-                    </div>
-                    <button type="submit" class="btn-primary" id="btnLoginText">Log In</button>
-                </form>
-                <div style="text-align: center; margin-top: 15px;">
-                    <a href="#" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="forgotText">Forgot password?</a>
+            <div class="logo-tagline" id="logoTagline">Connect with friends and the world around you on Camfeed.</div>
+        </div>
+
+        <!-- LOGIN VIEW -->
+        <div class="card" id="loginCard">
+            <form onsubmit="event.preventDefault(); loginUser();">
+                <input type="text" id="loginEmail" name="username" autocomplete="username" placeholder="Mobile number or email" required>
+                <div class="password-container">
+                    <input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="Password" required>
+                    <span class="eye-icon" onclick="togglePassword('loginPassword', this)">👁️</span>
                 </div>
-                <div class="divider"></div>
-                <button type="button" class="btn-create" onclick="showRegisterForm()" id="btnCreateText">Create new account</button>
-                <div class="msg" id="loginMsg"></div>
+                <button type="submit" class="btn-primary" id="btnLoginText">Log In</button>
+            </form>
+            <div style="text-align: center; margin-top: 15px;">
+                <a href="#" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="forgotText">Forgot password?</a>
             </div>
+            <div class="divider"></div>
+            <button type="button" class="btn-create" onclick="showRegisterForm()" id="btnCreateText">Create new account</button>
+            <div class="msg" id="loginMsg"></div>
         </div>
 
         <!-- REGISTER VIEW -->
         <div class="card hidden" id="registerCard">
-            <h3 id="regTitle" style="margin-top: 0; color: #1c1e21; text-align: center;">Sign Up</h3>
+            <h3 id="regTitle" style="margin-top: 0; color: #1c1e21; text-align: center; margin-bottom: 4px;">Sign Up</h3>
             <p id="regSubtitle" style="font-size: 14px; color: #606770; text-align: center; margin-bottom: 15px;">It's quick and easy.</p>
             
             <form onsubmit="event.preventDefault(); registerUser();">
@@ -78,9 +78,9 @@
                     <input type="text" id="firstName" placeholder="First name" required>
                     <input type="text" id="lastName" placeholder="Surname" required>
                 </div>
-                <input type="text" id="regEmail" placeholder="Mobile number or email" required>
+                <input type="text" id="regEmail" name="email" autocomplete="email" placeholder="Mobile number or email" required>
                 <div class="password-container">
-                    <input type="password" id="regPassword" placeholder="New password" required>
+                    <input type="password" id="regPassword" name="new-password" autocomplete="new-password" placeholder="New password" required>
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
                 </div>
 
@@ -119,11 +119,20 @@
             </div>
             <div class="msg" id="regMsg"></div>
         </div>
+
+        <!-- Compact Language Switcher -->
+        <div class="lang-container">
+            <select class="lang-select" id="langSwitch" onchange="changeLanguage()">
+                <option value="en">English (US)</option>
+                <option value="km">ភាសាខ្មែរ</option>
+            </select>
+        </div>
     </div>
 
     <script>
         const texts = {
             en: {
+                logoTagline: "Connect with friends and the world around you on Camfeed.",
                 loginEmail: "Mobile number or email", password: "Password", btnLoginText: "Log In",
                 forgotText: "Forgot password?", btnCreateText: "Create new account", regTitle: "Sign Up",
                 regSubtitle: "It's quick and easy.", firstName: "First name", lastName: "Surname",
@@ -132,6 +141,7 @@
                 optCustom: "Custom", lblCountry: "Country", btnSignSubmit: "Sign Up", haveAccText: "Already have an account?"
             },
             km: {
+                logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ Camfeed។",
                 loginEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", password: "ពាក្យសម្ងាត់", btnLoginText: "ចូលគណនី",
                 forgotText: "ភ្លេចពាក្យសម្ងាត់?", btnCreateText: "បង្កើតគណនីថ្មី", regTitle: "ចុះឈ្មោះ",
                 regSubtitle: "រហ័ស និងងាយស្រួល។", firstName: "នាមខ្លួន", lastName: "នាមត្រកូល",
@@ -144,6 +154,7 @@
         function changeLanguage() {
             const lang = document.getElementById('langSwitch').value;
             const t = texts[lang];
+            document.getElementById('logoTagline').innerText = t.logoTagline;
             document.getElementById('loginEmail').placeholder = t.loginEmail;
             document.getElementById('loginPassword').placeholder = t.password;
             document.getElementById('btnLoginText').innerText = t.btnLoginText;
@@ -231,7 +242,6 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // Save user data to localStorage and redirect to feed page
                     localStorage.setItem('camfeed_user', JSON.stringify(data.user));
                     window.location.href = 'feed.html';
                 } else {
