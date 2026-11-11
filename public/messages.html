@@ -37,8 +37,17 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* Native Audio Styling */
-        audio { max-width: 200px; height: 36px; outline: none; }
+        /* 🎨 Custom Audio Player Messenger Style */
+        .custom-audio-player { display: flex; align-items: center; gap: 10px; width: 210px; padding: 2px 0; }
+        .audio-play-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(255,255,255,0.3); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; font-weight: bold; }
+        .msg-sent .audio-play-btn { background: rgba(255,255,255,0.25); color: white; }
+        .msg-received .audio-play-btn { background: #cbd2d9; color: #050505; }
+        
+        .audio-progress-bg { flex: 1; height: 6px; background: rgba(0,0,0,0.15); border-radius: 3px; position: relative; cursor: pointer; overflow: hidden; }
+        .msg-sent .audio-progress-bg { background: rgba(255,255,255,0.35); }
+        .audio-progress-fill { height: 100%; width: 0%; background: #050505; border-radius: 3px; }
+        .msg-sent .audio-progress-fill { background: white; }
+        .audio-time { font-size: 11px; opacity: 0.9; flex-shrink: 0; min-width: 32px; text-align: right; }
 
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
         .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
@@ -75,7 +84,7 @@
             <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
         </div>
         
-        <div class="top-right-actions">
+        <div class="top-right-icons">
             <div style="position: relative; display: inline-block;">
                 <button onclick="toggleMessengerDropdown()" style="background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; position: relative;">
                     💬
@@ -136,7 +145,7 @@
                     </div>
                 </div>
 
-                <!-- Normal Chat Input Row (With Attachment for Image/Video) -->
+                <!-- Normal Chat Input Row -->
                 <div class="chat-input-row" id="normalInputRow">
                     <label class="action-icon-btn" title="Attach Image or Video" style="cursor: pointer; margin: 0;">
                         📷
@@ -165,6 +174,9 @@
         let previewAudio = null;
         let recTimerInterval = null;
         let recSecondsCount = 0;
+
+        let currentPlayingAudio = null;
+        let currentPlayingBtn = null;
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -290,10 +302,24 @@
                         return;
                     }
 
-                    const messagesHtml = data.messages.map(m => {
+                    const messagesHtml = data.messages.map((m, index) => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            contentHtml = `<audio src="${m.media_url}" controls preload="metadata"></audio>`;
+                            const audioId = `audio-${m.id || index}`;
+                            const btnId = `btn-${m.id || index}`;
+                            const progressId = `progress-${m.id || index}`;
+                            const timeId = `time-${m.id || index}`;
+
+                            contentHtml = `
+                                <div class="custom-audio-player">
+                                    <audio id="${audioId}" src="${m.media_url}" preload="metadata"></audio>
+                                    <button id="${btnId}" class="audio-play-btn" onclick="toggleCustomAudio('${audioId}', '${btnId}', '${progressId}')">▶</button>
+                                    <div class="audio-progress-bg" onclick="seekCustomAudio(event, '${audioId}', '${progressId}')">
+                                        <div id="${progressId}" class="audio-progress-fill"></div>
+                                    </div>
+                                    <span id="${timeId}" class="audio-time">0:00</span>
+                                </div>
+                            `;
                         } else if (m.message_type === 'image' && m.media_url) {
                             contentHtml = `<img src="${m.media_url}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover; cursor: pointer;" onclick="window.open('${m.media_url}', '_blank')">`;
                         } else if (m.message_type === 'video' && m.media_url) {
@@ -319,9 +345,80 @@
                     if (container.innerHTML !== messagesHtml) {
                         container.innerHTML = messagesHtml;
                         container.scrollTop = container.scrollHeight;
+                        attachAudioListeners();
                     }
                 }
             } catch (err) { console.error(err); }
+        }
+
+        function attachAudioListeners() {
+            document.querySelectorAll('.custom-audio-player audio').forEach(audio => {
+                const parent = audio.parentElement;
+                const timeSpan = parent.querySelector('.audio-time');
+                const progressFill = parent.querySelector('.audio-progress-fill');
+                const playBtn = parent.querySelector('.audio-play-btn');
+                const audioId = audio.id;
+
+                audio.addEventListener('loadedmetadata', () => {
+                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                        timeSpan.innerText = formatTime(audio.duration);
+                    }
+                });
+
+                audio.addEventListener('timeupdate', () => {
+                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                        const percent = (audio.currentTime / audio.duration) * 100;
+                        progressFill.style.width = `${percent}%`;
+                        timeSpan.innerText = formatTime(audio.currentTime);
+                    } else if (audio.currentTime > 0) {
+                        timeSpan.innerText = formatTime(audio.currentTime);
+                    }
+                });
+
+                audio.addEventListener('ended', () => {
+                    playBtn.innerText = '▶';
+                    progressFill.style.width = '0%';
+                    if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                        timeSpan.innerText = formatTime(audio.duration);
+                    }
+                    currentPlayingAudio = null;
+                    currentPlayingBtn = null;
+                });
+            });
+        }
+
+        function toggleCustomAudio(audioId, btnId, progressId) {
+            const audio = document.getElementById(audioId);
+            const btn = document.getElementById(btnId);
+
+            if (currentPlayingAudio && currentPlayingAudio !== audio) {
+                currentPlayingAudio.pause();
+                if (currentPlayingBtn) currentPlayingBtn.innerText = '▶';
+            }
+
+            if (audio.paused) {
+                audio.play().then(() => {
+                    btn.innerText = '⏸';
+                    currentPlayingAudio = audio;
+                    currentPlayingBtn = btn;
+                }).catch(err => console.error("Playback error:", err));
+            } else {
+                audio.pause();
+                btn.innerText = '▶';
+                currentPlayingAudio = null;
+                currentPlayingBtn = null;
+            }
+        }
+
+        function seekCustomAudio(event, audioId, progressId) {
+            const audio = document.getElementById(audioId);
+            const progressBg = event.currentTarget;
+            const rect = progressBg.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const width = rect.width;
+            if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
+                audio.currentTime = (clickX / width) * audio.duration;
+            }
         }
 
         async function checkUnreadMessages() {
@@ -383,7 +480,6 @@
             }
         }
 
-        // 🎯 មុខងារផ្ញើរូបភាព ឬវីដេអូក្នុង Chat
         async function sendMediaMessage(event) {
             const file = event.target.files[0];
             if (!file || !activeChatEmail) return;

@@ -550,7 +550,7 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// 🎯 API ទទួលសារទាំងអត្ថបទ, រូបភាព (Image), វីដេអូ (Video) និង Voice Message យ៉ាងរលូន
+// 🎯 API ទទួលសារទាំងអត្ថបទ, រូបភាព (Image), វីដេអូ (Video) និង Voice Message
 app.post('/api/messages', (req, res, next) => {
   cloudinaryUpload.single('mediaFile')(req, res, (err) => {
     if (err) {
