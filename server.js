@@ -463,7 +463,7 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-// Messages / Chat APIs
+// Messages / Chat APIs (គាំទ្រទាំងសារអត្ថបទ និង Voice Message)
 app.get('/api/messages', async (req, res) => {
   const { user1, user2 } = req.query;
   try {
@@ -479,11 +479,17 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-app.post('/api/messages', async (req, res) => {
-  const { sender, receiver, message } = req.body;
+app.post('/api/messages', cloudinaryUpload.single('mediaFile'), async (req, res) => {
+  const sender = req.body.sender;
+  const receiver = req.body.receiver;
+  const message = req.body.message || '';
+  
+  const mediaUrl = req.file ? req.file.path : null;
+  const messageType = req.file ? 'audio' : 'text';
+
   try {
-    const query = 'INSERT INTO messages (sender_email, receiver_email, message) VALUES ($1, $2, $3) RETURNING *';
-    const result = await pool.query(query, [sender, receiver, message]);
+    const query = 'INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type) VALUES ($1, $2, $3, $4, $5) RETURNING *';
+    const result = await pool.query(query, [sender, receiver, message, mediaUrl, messageType]);
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

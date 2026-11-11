@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camfeed - Messages</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
@@ -17,7 +17,7 @@
         
         .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.2s; }
         .chat-user-item:hover { background: #f2f2f2; }
-        .chat-user-item.active { background: #e7f3ff; border-left: 4px solid #1877f2; } /* 🎯 ចំណុចសម្គាល់ User ដែលកំពុងសន្ទនា */
+        .chat-user-item.active { background: #e7f3ff; border-left: 4px solid #1877f2; }
         
         .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; }
         
@@ -29,6 +29,12 @@
         .chat-input-area { display: flex; padding: 15px; background: white; border-top: 1px solid #e4e6eb; gap: 10px; align-items: center; }
         input[type="text"] { flex: 1; padding: 12px 16px; border: 1px solid #ccd0d5; border-radius: 20px; outline: none; font-size: 14px; }
         input[type="text"]:focus { border-color: #1877f2; }
+        
+        .action-icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #1877f2; }
+        .action-icon-btn:hover { background: #f2f2f2; }
+        .recording { color: red !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
         .send-btn { padding: 10px 20px; background: #1877f2; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; }
         .send-btn:hover { background: #166fe5; }
         .hidden { display: none !important; }
@@ -55,6 +61,7 @@
                 </div>
             </div>
             <div class="chat-input-area hidden" id="chatInputArea">
+                <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice Message">🎙️</button>
                 <input type="text" id="messageInput" placeholder="Aa..." onkeypress="handleKeyPress(event)">
                 <button class="send-btn" onclick="sendMessage()">Send</button>
             </div>
@@ -65,6 +72,12 @@
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         let activeChatEmail = null;
         let activeChatName = null;
+        let messagePollingInterval = null;
+
+        // 🎙️ Voice Recording Variables
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -109,7 +122,6 @@
             activeChatEmail = email;
             activeChatName = name;
             
-            // 🎯 កំណត់សម្គាល់ Highlight User ដែលកំពុងរើស
             document.querySelectorAll('.chat-user-item').forEach(el => el.classList.remove('active'));
             const activeEl = document.getElementById(`user-item-${email}`);
             if (activeEl) activeEl.classList.add('active');
@@ -117,38 +129,107 @@
             document.getElementById('chatHeader').innerText = name;
             document.getElementById('chatInputArea').classList.remove('hidden');
             loadMessages();
+
+            // Real-time Auto-Polling (រៀងរាល់ ២ វិនាទី)
+            if (messagePollingInterval) clearInterval(messagePollingInterval);
+            messagePollingInterval = setInterval(() => {
+                if (activeChatEmail) {
+                    loadMessages(true);
+                }
+            }, 2000);
         }
 
-        async function loadMessages() {
+        async function loadMessages(isPolling = false) {
             if (!activeChatEmail) return;
             try {
                 const res = await fetch(`/api/messages?user1=${currentUser.email}&user2=${activeChatEmail}`);
                 const data = await res.json();
                 if (data.success) {
                     const container = document.getElementById('messagesListContainer');
-                    container.innerHTML = '';
-
-                    // 🎯 ប្រសិនបើគ្មានសារពីមុន បង្ហាញការណែនាំកុំឱ្យទទេស្អាតពេក
+                    
                     if (data.messages.length === 0) {
-                        container.innerHTML = `
-                            <div style="text-align: center; color: #90949c; margin-top: 50px;">
-                                <p style="font-size: 14px;">No messages with ${activeChatName} yet.</p>
-                                <p style="font-size: 13px; color: #1877f2;">Say hello to start the conversation!</p>
-                            </div>
-                        `;
+                        if (!isPolling) {
+                            container.innerHTML = `
+                                <div style="text-align: center; color: #90949c; margin-top: 50px;">
+                                    <p style="font-size: 14px;">No messages with ${activeChatName} yet.</p>
+                                    <p style="font-size: 13px; color: #1877f2;">Say hello or send a voice note!</p>
+                                </div>
+                            `;
+                        }
                         return;
                     }
 
-                    data.messages.forEach(m => {
-                        const div = document.createElement('div');
-                        div.className = `msg-bubble ${m.sender_email === currentUser.email ? 'msg-sent' : 'msg-received'}`;
-                        div.innerText = m.message;
-                        container.appendChild(div);
-                    });
-                    container.scrollTop = container.scrollHeight;
+                    const messagesHtml = data.messages.map(m => {
+                        let contentHtml = '';
+                        if (m.message_type === 'audio' && m.media_url) {
+                            contentHtml = `<audio src="${m.media_url}" controls style="max-width: 220px; height: 36px;"></audio>`;
+                        } else {
+                            contentHtml = `<span>${m.message}</span>`;
+                        }
+                        return `<div class="msg-bubble ${m.sender_email === currentUser.email ? 'msg-sent' : 'msg-received'}">${contentHtml}</div>`;
+                    }).join('');
+
+                    if (container.innerHTML !== messagesHtml) {
+                        container.innerHTML = messagesHtml;
+                        container.scrollTop = container.scrollHeight;
+                    }
                 }
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        // 🎙️ មុខងារ Record សំឡេង (Voice Recording)
+        async function toggleVoiceRecording() {
+            const recordBtn = document.getElementById('recordBtn');
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        await sendVoiceMessage(audioBlob);
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordBtn.classList.add('recording');
+                    recordBtn.title = "Recording... Click to Stop & Send";
+                } catch (err) {
+                    alert("Microphone access denied or not supported.");
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.classList.remove('recording');
+                recordBtn.title = "Record Voice Message";
+            }
+        }
+
+        async function sendVoiceMessage(audioBlob) {
+            const formData = new FormData();
+            formData.append('sender', currentUser.email);
+            formData.append('receiver', activeChatEmail);
+            formData.append('message', '[Voice Message]');
+            formData.append('mediaFile', audioBlob, 'voice-message.webm');
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadMessages();
+                }
+            } catch (err) {
+                console.error("Failed to send voice message:", err);
             }
         }
 
