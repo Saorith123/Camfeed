@@ -12,8 +12,7 @@
         .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); flex-shrink: 0; }
         .logo-nav { font-size: 22px; font-weight: bold; color: #1877f2; cursor: pointer; }
         
-        .top-right-actions { display: flex; align-items: center; gap: 10px; }
-        .back-btn { padding: 6px 12px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        .top-right-actions { display: flex; align-items: center; gap: 10px; position: relative; }
 
         .chat-container { flex: 1; display: flex; max-width: 1000px; width: 100%; margin: 10px auto; background: white; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; height: calc(100dvh - 70px); }
         
@@ -53,10 +52,6 @@
         #mediaModalContent { max-width: 90%; max-height: 90%; border-radius: 8px; object-fit: contain; }
         #closeModalBtn { position: absolute; top: 20px; right: 30px; color: white; font-size: 35px; font-weight: bold; cursor: pointer; background: none; border: none; }
 
-        /* 💬 Messenger Notification Popup Banner */
-        #chatNotificationBanner { display: none; position: fixed; top: 20px; right: 20px; background: white; padding: 12px 18px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 10000; align-items: center; gap: 12px; animation: slideIn 0.3s ease; cursor: pointer; max-width: 320px; border-left: 4px solid #1877f2; }
-        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
         .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
         
@@ -71,12 +66,16 @@
 
         #voicePreviewContainer { display: none; align-items: center; justify-content: space-between; background: #e7f3ff; padding: 10px 15px; border-top: 1px solid #b0d3f8; gap: 8px; }
 
-        /* Menu Dropdown Styling */
-        .dropdown-menu { position: absolute; top: 48px; left: 15px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        /* Menu Dropdown Styling (Messenger Settings) */
+        .dropdown-menu { position: absolute; right: 0; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .dropdown-item:hover { background: #f2f2f2; }
         .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
         .menu-icon-btn:hover { background: #d8dadf; }
+
+        /* Media Preview Modal Container */
+        #mediaPreviewModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; align-items: center; justify-content: center; padding: 20px; }
+        .media-preview-card { background: white; border-radius: 12px; max-width: 500px; width: 100%; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 15px; }
 
         @media (max-width: 768px) {
             .chat-container { width: 100%; margin: 0; border-radius: 0; height: calc(100dvh - 60px); }
@@ -88,7 +87,6 @@
         }
         .mobile-back-chat { display: none; }
         .hidden { display: none !important; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -99,43 +97,34 @@
         <div id="modalContainer" style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;"></div>
     </div>
 
-    <!-- Messenger Chat Notification Popup Banner -->
-    <div id="chatNotificationBanner" onclick="clickBanner()">
-        <img id="bannerAvatar" src="" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover;">
-        <div style="flex: 1; min-width: 0;">
-            <div id="bannerName" style="font-weight: bold; font-size: 14px; color: #050505;"></div>
-            <div id="bannerText" style="font-size: 12px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+    <!-- Media Multi-Select Preview Modal -->
+    <div id="mediaPreviewModal">
+        <div class="media-preview-card">
+            <div style="font-weight: bold; font-size: 16px; color: #050505; display: flex; justify-content: space-between; align-items: center;">
+                <span>Send Selected Photos/Videos</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeMediaPreviewModal()">&times;</span>
+            </div>
+            <div id="previewThumbnailsContainer" style="display: flex; gap: 10px; overflow-x: auto; padding: 5px 0;"></div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button onclick="closeMediaPreviewModal()" class="cancel-btn">Cancel</button>
+                <button onclick="confirmSendMedia()" class="send-btn">Send All</button>
+            </div>
         </div>
     </div>
 
     <div class="top-bar">
-        <div style="display: flex; align-items: center; gap: 10px; position: relative;">
+        <div style="display: flex; align-items: center; gap: 10px;">
             <button class="mobile-back-chat" id="mobileBackBtn" onclick="backToSidebar()">❮ Back</button>
-            <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
             <div class="logo-nav" onclick="handleFeedNavigation()">camfeed</div>
-            
-            <div class="dropdown-menu" id="menuDropdown">
-                <div class="dropdown-item" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
-                <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
-            </div>
         </div>
         
         <div class="top-right-actions">
-            <div style="position: relative; display: inline-block;">
-                <button onclick="toggleMessengerDropdown()" style="background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; position: relative;">
-                    💬
-                    <span id="unreadBadge" style="position: absolute; top: -2px; right: -2px; background: #fa383e; color: white; font-size: 10px; font-weight: bold; padding: 2px 5px; border-radius: 10px; display: none;">0</span>
-                </button>
-
-                <div id="messengerDropdown" style="display: none; position: absolute; right: 0; top: 45px; width: 280px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; overflow: hidden;">
-                    <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; font-size: 14px; color: #050505;">Messenger Notifications</div>
-                    <div id="dropdownChatList" style="max-height: 300px; overflow-y: auto;">
-                        <p style="text-align: center; color: #65676b; padding: 15px; font-size: 12px;">No new messages</p>
-                    </div>
-                </div>
+            <!-- ☰ Messenger Settings Menu Button at Right -->
+            <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
+            <div class="dropdown-menu" id="menuDropdown">
+                <div class="dropdown-item" onclick="window.location.href='settings.html'">⚙️ Messenger Settings</div>
+                <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
             </div>
-
-            <button class="back-btn" onclick="handleFeedNavigation()">⬅ Feed</button>
         </div>
     </div>
 
@@ -185,7 +174,7 @@
                 <div class="chat-input-row" id="normalInputRow">
                     <label class="action-icon-btn" title="Attach Image or Video" style="cursor: pointer; margin: 0;">
                         📷
-                        <input type="file" id="chatMediaFile" accept="image/*,video/*" class="hidden" onchange="sendMediaMessage(event)">
+                        <input type="file" id="chatMediaFile" accept="image/*,video/*" multiple class="hidden" onchange="handleMediaSelection(event)">
                     </label>
                     <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice">🎙️</button>
                     <div id="recordingTimeDisplay" class="hidden" style="color: #fa383e; font-weight: bold; font-size: 14px; flex: 1;">🔴 <span id="recSeconds">0:00</span> (Recording...)</div>
@@ -216,15 +205,12 @@
         let currentAnimFrame = null;
         const audioBlobCache = {};
 
-        let lastUnreadCount = 0;
-        let lastNotifSender = null;
+        let selectedFilesQueue = [];
 
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
             initMessenger();
-            setInterval(checkUnreadMessages, 3000);
-            checkUnreadMessages();
         }
 
         async function initMessenger() {
@@ -244,27 +230,19 @@
 
         function toggleMenuDropdown(event) {
             event.stopPropagation();
-            document.getElementById('messengerDropdown').style.display = 'none';
             const dropdown = document.getElementById('menuDropdown');
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
 
-        function toggleMessengerDropdown() {
-            const menuDropdown = document.getElementById('menuDropdown');
-            if (menuDropdown) menuDropdown.style.display = 'none';
-            const dropdown = document.getElementById('messengerDropdown');
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        window.onclick = function(event) {
+            if (!event.target.closest('#menuDropdown') && !event.target.closest('.menu-icon-btn')) {
+                const dropdown = document.getElementById('menuDropdown');
+                if (dropdown) dropdown.style.display = 'none';
+            }
         }
 
-        // 🏠 មុខងារគ្រប់គ្រង Feed Navigation (ចុច Back / Logo ពេលស្ថិតក្នុង Chat ឱ្យត្រឡប់ទៅ Feed ដើមដោយមិន Reload)
         function handleFeedNavigation() {
-            if (activeChatEmail) {
-                // ប្រសិនបើកំពុងបើក Chat ជាមួយនរណាម្នាក់ ឱ្យបិទ Chat មកខាងក្រៅវិញជាមុនសិន
-                backToSidebar();
-            } else {
-                // ប្រសិនបើនៅខាងក្រៅបញ្ជី Chat ហើយ ចុចទៅ Feed ដើម
-                window.location.href = 'feed.html';
-            }
+            window.location.href = 'feed.html';
         }
 
         async function loadConversations() {
@@ -333,7 +311,6 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userEmail: currentUser.email, senderEmail: email })
             });
-            checkUnreadMessages();
 
             loadMessages();
 
@@ -343,7 +320,6 @@
             }, 2000);
         }
 
-        // 🔄 មុខងារ Back ពេលកំពុង Chat: ចុចទី១ មកក្រៅបញ្ជី Chat, ចុចទី២ ទៅ Feed ដើមដោយមិន Reload
         function backToSidebar() {
             if (currentAudioObject) {
                 currentAudioObject.pause();
@@ -352,7 +328,6 @@
             if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
             
             if (activeChatEmail) {
-                // ប្រសិនបើកំពុងនៅក្នុងห้อง Chat กับនរណាម្នាក់ ឱ្យត្រឡប់មកក្រៅបញ្ជី Chat វិញ
                 document.getElementById('sidebarSection').classList.remove('hidden-mobile');
                 document.getElementById('chatMainArea').classList.add('hidden-mobile');
                 document.getElementById('mobileBackBtn').style.display = 'none';
@@ -360,7 +335,6 @@
                 if (messagePollingInterval) clearInterval(messagePollingInterval);
                 loadConversations();
             } else {
-                // ប្រសិនបើនៅខាងក្រៅបញ្ជី Chat ហើយ ចុច Back ម្តងទៀត ឱ្យទៅកាន់ Feed ដើម
                 window.location.href = 'feed.html';
             }
         }
@@ -407,11 +381,12 @@
                         const fullTimeStr = `${dateString} ${timeString}`;
 
                         const isSent = m.sender_email === currentUser.email;
-                        
-                        // 👁️ បន្ថែមសញ្ញាសម្គាល់ Seen (ប្រសិនបើម្ខាងទៀតបានអានសារ is_read = true)
                         let seenStatusHtml = '';
                         if (isSent) {
-                            if (m.is_read) {
+                            // 🔄 បង្ហាញ Sending នៅលើសារផ្ទាល់ ប្រសិនបើជា message បណ្ដោះអាសន្ន
+                            if (m.sending) {
+                                seenStatusHtml = `<span style="font-size: 9px; color: #90949c; margin-left: 2px;">Sending...</span>`;
+                            } else if (m.is_read) {
                                 seenStatusHtml = `<span style="font-size: 9px; color: #1877f2; font-weight: bold; margin-left: 2px;">✔️ Seen</span>`;
                             } else {
                                 seenStatusHtml = `<span style="font-size: 9px; color: #90949c; margin-left: 2px;">Sent</span>`;
@@ -437,7 +412,6 @@
             } catch (err) { console.error(err); }
         }
 
-        // 🔍 Lightbox Modal Functions
         function openMediaModal(type, url) {
             const modal = document.getElementById('mediaModal');
             const container = document.getElementById('modalContainer');
@@ -456,27 +430,62 @@
             container.innerHTML = '';
         }
 
-        // 💬 Messenger Notification Popup Banner Logic
-        function showNotificationBanner(senderName, senderPic, messageText) {
-            const banner = document.getElementById('chatNotificationBanner');
-            document.getElementById('bannerName').innerText = senderName;
-            document.getElementById('bannerAvatar').src = senderPic || 'https://via.placeholder.com/40';
-            document.getElementById('bannerText').innerText = messageText || 'Sent a message';
-            
-            banner.style.display = 'flex';
-            setTimeout(() => {
-                banner.style.display = 'none';
-            }, 4000);
+        function handleMediaSelection(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            selectedFilesQueue = files;
+            renderPreviewThumbnails();
+            document.getElementById('mediaPreviewModal').style.display = 'flex';
+            event.target.value = '';
         }
 
-        function clickBanner() {
-            if (lastNotifSender) {
-                selectChat(lastNotifSender.email, `${lastNotifSender.first_name} ${lastNotifSender.last_name}`);
-                document.getElementById('chatNotificationBanner').style.display = 'none';
+        function renderPreviewThumbnails() {
+            const container = document.getElementById('previewThumbnailsContainer');
+            container.innerHTML = selectedFilesQueue.map((file, index) => {
+                const url = URL.createObjectURL(file);
+                return `
+                    <div style="position: relative; flex-shrink: 0;">
+                        <img src="${url}" style="width: 80px; height: 80px; border-radius: 6px; object-fit: cover;">
+                        <button onclick="removeFileFromQueue(${index})" style="position: absolute; top: -5px; right: -5px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center;">&times;</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function removeFileFromQueue(index) {
+            selectedFilesQueue.splice(index, 1);
+            if (selectedFilesQueue.length === 0) {
+                closeMediaPreviewModal();
+            } else {
+                renderPreviewThumbnails();
             }
         }
 
-        // 🎯 មុខងារ Preload 100% មុន Play
+        function closeMediaPreviewModal() {
+            document.getElementById('mediaPreviewModal').style.display = 'none';
+            selectedFilesQueue = [];
+        }
+
+        async function confirmSendMedia() {
+            if (selectedFilesQueue.length === 0 || !activeChatEmail) return;
+            const filesToSend = [...selectedFilesQueue];
+            closeMediaPreviewModal();
+
+            for (const file of filesToSend) {
+                const formData = new FormData();
+                formData.append('sender', currentUser.email);
+                formData.append('receiver', activeChatEmail);
+                formData.append('mediaFile', file);
+
+                try {
+                    await fetch('/api/messages', { method: 'POST', body: formData });
+                } catch (err) { console.error(err); }
+            }
+            loadMessages();
+            loadConversations();
+        }
+
         async function handlePreloadedPlay(mediaUrl, btnId, progressId, timeId) {
             const playBtn = document.getElementById(btnId);
             const progressFill = document.getElementById(progressId);
@@ -505,9 +514,7 @@
                     blobUrl = URL.createObjectURL(blob);
                     audioBlobCache[mediaUrl] = blobUrl;
                 } catch (e) {
-                    console.error("Failed to preload audio:", e);
                     playBtn.innerText = '▶';
-                    alert("មិនអាចទាញយកសារសំឡេងនេះបានទេ");
                     return;
                 }
             }
@@ -538,9 +545,6 @@
                 cancelAnimationFrame(currentAnimFrame);
                 playBtn.innerText = '▶';
                 progressFill.style.width = '0%';
-                if (audio.duration && !isNaN(audio.duration) && audio.duration !== Infinity) {
-                    timeSpan.innerText = formatTime(audio.duration);
-                }
                 currentAudioObject = null;
                 currentPlayBtn = null;
             };
@@ -548,110 +552,13 @@
             audio.play().then(() => {
                 playBtn.innerText = '⏸';
                 currentAnimFrame = requestAnimationFrame(step);
-            }).catch(err => {
-                console.error("Playback error:", err);
+            }).catch(() => {
                 playBtn.innerText = '▶';
             });
         }
 
         function seekAudioProgress(event, uniqueId) {}
 
-        async function checkUnreadMessages() {
-            if (!currentUser) return;
-            try {
-                const res = await fetch(`/api/chat-notifications?email=${currentUser.email}`);
-                const data = await res.json();
-                if (data.success) {
-                    const unreadList = data.unreadMessages;
-                    const badge = document.getElementById('unreadBadge');
-                    
-                    if (unreadList.length > 0) {
-                        badge.innerText = unreadList.length;
-                        badge.style.display = 'inline-block';
-                        renderDropdownList(unreadList);
-
-                        if (unreadList.length > lastUnreadCount) {
-                            const latest = unreadList[0];
-                            lastNotifSender = { email: latest.sender_email, first_name: latest.first_name, last_name: latest.last_name };
-                            showNotificationBanner(`${latest.first_name} ${latest.last_name}`, latest.profile_pic, latest.message);
-                        }
-                    } else {
-                        badge.style.display = 'none';
-                        document.getElementById('dropdownChatList').innerHTML = '<p style="text-align: center; color: #65676b; padding: 15px; font-size: 12px;">No new messages</p>';
-                    }
-                    lastUnreadCount = unreadList.length;
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function renderDropdownList(messages) {
-            const container = document.getElementById('dropdownChatList');
-            const uniqueSenders = {};
-            messages.forEach(m => {
-                if (!uniqueSenders[m.sender_email]) {
-                    uniqueSenders[m.sender_email] = m;
-                }
-            });
-
-            container.innerHTML = Object.values(uniqueSenders).map(m => `
-                <div onclick="openChatFromDropdown('${m.sender_email}', '${m.first_name} ${m.last_name}')" style="display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.2s;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='white'">
-                    <img src="${m.profile_pic || 'https://via.placeholder.com/40'}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: bold; font-size: 13px; color: #050505;">${m.first_name} ${m.last_name}</div>
-                        <div style="font-size: 11px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.message || 'Sent a media message'}</div>
-                    </div>
-                    <div style="width: 8px; height: 8px; background: #1877f2; border-radius: 50%;"></div>
-                </div>
-            `).join('');
-        }
-
-        function toggleMessengerDropdown() {
-            const menuDropdown = document.getElementById('menuDropdown');
-            if (menuDropdown) menuDropdown.style.display = 'none';
-            const dropdown = document.getElementById('messengerDropdown');
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-        }
-
-        async function openChatFromDropdown(senderEmail, senderName) {
-            document.getElementById('messengerDropdown').style.display = 'none';
-            selectChat(senderEmail, senderName);
-        }
-
-        window.onclick = function(event) {
-            if (!event.target.closest('button') && !event.target.closest('#messengerDropdown') && !event.target.closest('#menuDropdown')) {
-                const dropdown = document.getElementById('messengerDropdown');
-                if (dropdown) dropdown.style.display = 'none';
-                const menuDropdown = document.getElementById('menuDropdown');
-                if (menuDropdown) menuDropdown.style.display = 'none';
-            }
-        }
-
-        async function sendMediaMessage(event) {
-            const file = event.target.files[0];
-            if (!file || !activeChatEmail) return;
-
-            const formData = new FormData();
-            formData.append('sender', currentUser.email);
-            formData.append('receiver', activeChatEmail);
-            formData.append('mediaFile', file);
-
-            try {
-                const res = await fetch('/api/messages', { method: 'POST', body: formData });
-                const data = await res.json();
-                if (data.success) {
-                    loadMessages();
-                    loadConversations();
-                } else {
-                    alert("Failed to send media: " + (data.error || ''));
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Network error sending media.");
-            }
-            event.target.value = '';
-        }
-
-        // 🎙️ មុខងារ Record សំឡេងកម្រិត Studio / Podcast (Clear & Crisp Audio)
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -660,21 +567,12 @@
             if (!isRecording) {
                 try {
                     mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { 
-                            echoCancellation: true, 
-                            noiseSuppression: true, 
-                            autoGainControl: true,
-                            sampleRate: 44100
-                        } 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
                     });
                     
                     let options = { mimeType: 'audio/webm;codecs=opus' };
                     if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                        if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-                            options = { mimeType: 'audio/ogg;codecs=opus' };
-                        } else {
-                            options = { mimeType: 'audio/webm' };
-                        }
+                        options = { mimeType: 'audio/webm' };
                     }
 
                     mediaRecorder = new MediaRecorder(mediaStream, options);
@@ -778,18 +676,31 @@
             document.getElementById('normalInputRow').style.display = 'flex';
         }
 
+        // 🎙️ ផ្ញើសារសំឡេងដោយបង្ហាញ Sending នៅលើ message ផ្ទាល់ (Optimistic UI)
         async function sendVoiceMessage() {
-            if (!recordedAudioBlob) return;
+            if (!recordedAudioBlob || !activeChatEmail) return;
             if (previewAudio) { previewAudio.pause(); previewAudio = null; }
 
-            const previewContainer = document.getElementById('voicePreviewContainer');
-            previewContainer.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; color:#1877f2; font-weight:bold; padding: 5px;"><div class="spinner" style="width:16px; height:16px; border:2px solid #1877f2; border-top:transparent; border-radius:50%; animation: spin 0.8s linear infinite;"></div> Sending voice message...</div>`;
+            const audioBlobSnap = recordedAudioBlob;
+            cancelVoicePreview();
 
-            let fileExtension = 'webm';
-            if (recordedAudioBlob.type.includes('ogg')) fileExtension = 'ogg';
-            else if (recordedAudioBlob.type.includes('wav')) fileExtension = 'wav';
+            // 🚀 បង្ហាញសារ Sending នៅលើ Chat List ភ្លាមៗ (Optimistic Rendering)
+            const container = document.getElementById('messagesListContainer');
+            const tempId = 'temp-' + Date.now();
+            const tempDiv = document.createElement('div');
+            tempDiv.id = tempId;
+            tempDiv.style.cssText = "display: flex; flex-direction: column; align-items: flex-end; gap: 2px;";
+            tempDiv.innerHTML = `
+                <div class="msg-bubble msg-sent">[Voice Message]</div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-size: 10px; color: #90949c; padding: 0 4px;">Just now</span>
+                    <span style="font-size: 9px; color: #90949c; margin-left: 2px;">Sending...</span>
+                </div>
+            `;
+            container.appendChild(tempDiv);
+            container.scrollTop = container.scrollHeight;
 
-            const audioFile = new File([recordedAudioBlob], `voice_message.${fileExtension}`, { type: recordedAudioBlob.type || 'audio/webm' });
+            const audioFile = new File([audioBlobSnap], `voice_message.webm`, { type: audioBlobSnap.type || 'audio/webm' });
 
             const formData = new FormData();
             formData.append('sender', currentUser.email);
@@ -801,26 +712,45 @@
                 const res = await fetch('/api/messages', { method: 'POST', body: formData });
                 const data = await res.json();
                 if (data.success) {
-                    cancelVoicePreview();
+                    const el = document.getElementById(tempId);
+                    if (el) el.remove();
                     loadMessages();
                     loadConversations();
                 } else {
-                    alert("Failed to send voice message: " + (data.error || ''));
-                    cancelVoicePreview();
+                    alert("Failed to send voice message.");
+                    const el = document.getElementById(tempId);
+                    if (el) el.remove();
                 }
             } catch (err) {
-                console.error(err);
                 alert("Network error sending voice.");
-                cancelVoicePreview();
+                const el = document.getElementById(tempId);
+                if (el) el.remove();
             }
         }
 
+        // ✉️ ផ្ញើសារអត្ថបទដោយបង្ហាញ Sending នៅលើ message ផ្ទាល់ (Optimistic UI)
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
             if (!message || !activeChatEmail) return;
 
             input.value = '';
+
+            // 🚀 បង្ហាញសារ Sending នៅលើ Chat List ភ្លាមៗ
+            const container = document.getElementById('messagesListContainer');
+            const tempId = 'temp-' + Date.now();
+            const tempDiv = document.createElement('div');
+            tempDiv.id = tempId;
+            tempDiv.style.cssText = "display: flex; flex-direction: column; align-items: flex-end; gap: 2px;";
+            tempDiv.innerHTML = `
+                <div class="msg-bubble msg-sent">${message}</div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="font-size: 10px; color: #90949c; padding: 0 4px;">Just now</span>
+                    <span style="font-size: 9px; color: #90949c; margin-left: 2px;">Sending...</span>
+                </div>
+            `;
+            container.appendChild(tempDiv);
+            container.scrollTop = container.scrollHeight;
             
             try {
                 const res = await fetch('/api/messages', {
@@ -834,14 +764,19 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    const el = document.getElementById(tempId);
+                    if (el) el.remove();
                     loadMessages();
                     loadConversations();
                 } else {
-                    alert("Failed to send message: " + (data.error || ''));
+                    const el = document.getElementById(tempId);
+                    if (el) el.remove();
                     input.value = message;
                 }
             } catch (err) { 
-                console.error("Error sending text message:", err); 
+                const el = document.getElementById(tempId);
+                if (el) el.remove();
+                input.value = message;
             }
         }
 
