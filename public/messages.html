@@ -245,7 +245,6 @@
                 document.getElementById('mobileBackBtn').style.display = 'flex';
             }
 
-            // Mark unread messages as read when opening chat
             await fetch('/api/mark-read', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -385,7 +384,17 @@
                         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
                     });
                     
-                    mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+                    // 🎯 កំណត់ mimetype ឱ្យត្រូវតាមលក្ខណៈស្ដង់ដារអូឌីយ៉ូ (webm/ogg)
+                    let options = { mimeType: 'audio/webm' };
+                    if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                        if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                            options = { mimeType: 'audio/ogg' };
+                        } else {
+                            options = {};
+                        }
+                    }
+
+                    mediaRecorder = new MediaRecorder(mediaStream, options);
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = event => {
@@ -393,7 +402,7 @@
                     };
 
                     mediaRecorder.onstop = () => {
-                        recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        recordedAudioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
                         const audioUrl = URL.createObjectURL(recordedAudioBlob);
                         
                         previewAudio = new Audio(audioUrl);
@@ -487,11 +496,15 @@
             const previewContainer = document.getElementById('voicePreviewContainer');
             previewContainer.innerHTML = `<div style="display:flex; align-items:center; gap:8px; margin:auto; color:#1877f2; font-weight:bold;"><div class="spinner" style="width:16px; height:16px; border:2px solid #1877f2; border-top:transparent; border-radius:50%; animation: spin 0.8s linear infinite;"></div> Sending voice...</div>`;
 
+            // 🎯 បង្កើត File អូឌីយ៉ូត្រឹមត្រូវ (Audio File) សម្រាប់បញ្ជូនទៅកាន់ Server & Cloudinary
+            const fileExtension = recordedAudioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+            const audioFile = new File([recordedAudioBlob], `voice_message.${fileExtension}`, { type: recordedAudioBlob.type });
+
             const formData = new FormData();
             formData.append('sender', currentUser.email);
             formData.append('receiver', activeChatEmail);
             formData.append('message', '[Voice Message]');
-            formData.append('mediaFile', recordedAudioBlob, 'voice.webm');
+            formData.append('mediaFile', audioFile);
 
             try {
                 const res = await fetch('/api/messages', { method: 'POST', body: formData });
