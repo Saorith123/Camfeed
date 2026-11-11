@@ -50,7 +50,6 @@
 
         <!-- LOGIN VIEW -->
         <div class="card" id="loginCard">
-            <!-- 🎯 បន្ថែម name និង autocomplete ដើម្បីឱ្យ Browser ចងចាំ Password -->
             <form onsubmit="event.preventDefault(); loginUser();">
                 <input type="text" id="loginEmail" name="username" autocomplete="username" placeholder="Mobile number or email" required>
                 <div class="password-container">
@@ -128,6 +127,13 @@
     </div>
 
     <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedEmail = localStorage.getItem('camfeed_remembered_email');
+            if (savedEmail) {
+                document.getElementById('loginEmail').value = savedEmail;
+            }
+        });
+
         const texts = {
             en: {
                 logoTagline: "Connect with friends and the world around you on Camfeed.",
@@ -240,6 +246,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    localStorage.setItem('camfeed_remembered_email', email);
                     localStorage.setItem('camfeed_user', JSON.stringify(data.user));
                     window.location.href = 'feed.html';
                 } else {
