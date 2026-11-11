@@ -550,12 +550,20 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់รับសារទាំងអត្ថបទ (JSON) និង Voice Message (Multipart/FormData) យ៉ាងឆ្លាតវៃ
+// 🎯 API ទទួលសារទាំងអត្ថបទ (JSON/FormData) និង Voice Message (Multipart/FormData) យ៉ាងឆ្លាតវៃមិនឱ្យមាន Error
 app.post('/api/messages', (req, res, next) => {
-  cloudinaryUpload.single('mediaFile')(req, res, (err) => {
-    if (err) return res.status(500).json({ success: false, error: err.message });
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    cloudinaryUpload.single('mediaFile')(req, res, (err) => {
+      if (err) {
+        console.error("Cloudinary upload error:", err);
+        return res.status(500).json({ success: false, error: err.message });
+      }
+      next();
+    });
+  } else {
     next();
-  });
+  }
 }, async (req, res) => {
   const sender = req.body.sender;
   const receiver = req.body.receiver;
@@ -563,6 +571,10 @@ app.post('/api/messages', (req, res, next) => {
   
   const mediaUrl = req.file ? req.file.path : null;
   const messageType = req.file ? 'audio' : 'text';
+
+  if (!sender || !receiver) {
+    return res.status(400).json({ success: false, error: 'Sender and receiver are required' });
+  }
 
   try {
     const query = 'INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read) VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING *';
