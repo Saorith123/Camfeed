@@ -28,8 +28,8 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* 🎯 កែសម្រួល Input Area ឱ្យជាប់ខាងក្រោមស្អាតមិនបាំងដោយ Mobile Navigation Bar */
-        .chat-input-area { display: flex; padding: 10px 15px; background: white; border-top: 1px solid #e4e6eb; gap: 8px; align-items: center; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+        .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+        .chat-input-row { display: flex; padding: 10px 15px; gap: 8px; align-items: center; }
         
         input[type="text"] { flex: 1; padding: 10px 14px; border: 1px solid #ccd0d5; border-radius: 20px; outline: none; font-size: 14px; }
         input[type="text"]:focus { border-color: #1877f2; }
@@ -42,7 +42,9 @@
         .send-btn { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
         .send-btn:hover { background: #166fe5; }
 
-        /* 📱 Responsive สำหรับมือถือ៖ ប្ដូររវាង Sidebar និង Chat Box ពេលចុច */
+        /* Voice Preview Box */
+        #voicePreviewContainer { display: none; align-items: center; justify-content: space-between; background: #e7f3ff; padding: 10px 15px; border-top: 1px solid #b0d3f8; }
+
         @media (max-width: 768px) {
             .chat-container { width: 100%; margin: 0; border-radius: 0; height: calc(100dvh - 60px); }
             .chat-sidebar { width: 100%; display: flex; flex-direction: column; }
@@ -78,10 +80,27 @@
                     <p style="font-size: 12px; color: #b0b3b8;">Choose a friend from the list to start messaging.</p>
                 </div>
             </div>
+
+            <!-- Chat Input Area with Voice Preview -->
             <div class="chat-input-area hidden" id="chatInputArea">
-                <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice Message">🎙️</button>
-                <input type="text" id="messageInput" placeholder="Aa..." onkeypress="handleKeyPress(event)">
-                <button class="send-btn" onclick="sendMessage()">Send</button>
+                <!-- Voice Preview Box (បង្ហាញពេលថតសំឡេងរួច ដើម្បីឱ្យចុចស្តាប់/លុប/ផ្ញើ) -->
+                <div id="voicePreviewContainer">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <span style="font-size: 18px;">🎙️</span>
+                        <audio id="previewAudioPlayer" controls style="height: 32px; flex: 1;"></audio>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="cancelVoicePreview()" style="background: #e4e6eb; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #fa383e;">Cancel</button>
+                        <button onclick="sendVoiceMessage()" class="send-btn">Send Voice</button>
+                    </div>
+                </div>
+
+                <!-- Normal Chat Input Row -->
+                <div class="chat-input-row" id="normalInputRow">
+                    <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice">🎙️</button>
+                    <input type="text" id="messageInput" placeholder="Aa..." onkeypress="handleKeyPress(event)">
+                    <button class="send-btn" onclick="sendMessage()">Send</button>
+                </div>
             </div>
         </div>
     </div>
@@ -94,6 +113,7 @@
 
         let mediaRecorder = null;
         let audioChunks = [];
+        let recordedAudioBlob = null;
         let isRecording = false;
 
         if (!currentUser) {
@@ -130,9 +150,7 @@
                         sidebar.appendChild(div);
                     });
                 }
-            } catch (err) {
-                console.error(err);
-            }
+            } catch (err) { console.error(err); }
         }
 
         function selectChat(email, name) {
@@ -146,7 +164,6 @@
             document.getElementById('chatHeader').innerText = name;
             document.getElementById('chatInputArea').classList.remove('hidden');
             
-            // 📱 Mobile View Switch
             if (window.innerWidth <= 768) {
                 document.getElementById('sidebarUsersList').classList.add('hidden-mobile');
                 document.getElementById('chatMainArea').classList.remove('hidden-mobile');
@@ -204,11 +221,10 @@
                         container.scrollTop = container.scrollHeight;
                     }
                 }
-            } catch (err) {
-                console.error(err);
-            }
+            } catch (err) { console.error(err); }
         }
 
+        // 🎙️ ថតសំឡេង និងស្តាប់ឡើងវិញមុនផ្ញើ
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             if (!isRecording) {
@@ -218,14 +234,20 @@
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-                    mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        await sendVoiceMessage(audioBlob);
+                    mediaRecorder.onstop = () => {
+                        recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioUrl = URL.createObjectURL(recordedAudioBlob);
+                        
+                        // បង្ហាញ Voice Preview Container ឱ្យចុចស្តាប់
+                        document.getElementById('previewAudioPlayer').src = audioUrl;
+                        document.getElementById('voicePreviewContainer').style.display = 'flex';
+                        document.getElementById('normalInputRow').style.display = 'none';
                     };
 
                     mediaRecorder.start();
                     isRecording = true;
                     recordBtn.classList.add('recording');
+                    recordBtn.title = "Recording... Click to Stop";
                 } catch (err) {
                     alert("Microphone access denied or not supported.");
                 }
@@ -233,20 +255,32 @@
                 mediaRecorder.stop();
                 isRecording = false;
                 recordBtn.classList.remove('recording');
+                recordBtn.title = "Record Voice";
             }
         }
 
-        async function sendVoiceMessage(audioBlob) {
+        function cancelVoicePreview() {
+            recordedAudioBlob = null;
+            document.getElementById('voicePreviewContainer').style.display = 'none';
+            document.getElementById('normalInputRow').style.display = 'flex';
+        }
+
+        async function sendVoiceMessage() {
+            if (!recordedAudioBlob) return;
+
             const formData = new FormData();
             formData.append('sender', currentUser.email);
             formData.append('receiver', activeChatEmail);
             formData.append('message', '[Voice Message]');
-            formData.append('mediaFile', audioBlob, 'voice.webm');
+            formData.append('mediaFile', recordedAudioBlob, 'voice.webm');
 
             try {
                 const res = await fetch('/api/messages', { method: 'POST', body: formData });
                 const data = await res.json();
-                if (data.success) loadMessages();
+                if (data.success) {
+                    cancelVoicePreview();
+                    loadMessages();
+                }
             } catch (err) { console.error(err); }
         }
 
