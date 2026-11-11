@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camfeed - Settings & Privacy</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
+        .top-bar { display: flex; align-items: center; padding: 10px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-weight: bold; font-size: 18px; color: #1877f2; cursor: pointer; }
+        .main-container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h3 { margin-top: 0; color: #050505; border-bottom: 1px solid #e4e6eb; padding-bottom: 10px; }
+        label { font-size: 13px; font-weight: bold; color: #65676b; display: block; margin-top: 10px; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; }
+        input:focus { border-color: #1877f2; }
+        .btn { padding: 10px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+        .btn:hover { background: #166fe5; }
+        .btn-danger { background: #fa383e; }
+        .btn-danger:hover { background: #e02428; }
+        .msg { font-size: 13px; margin-top: 8px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar" onclick="window.location.href='feed.html'">
+        ⬅️ Back to Camfeed
+    </div>
+
+    <div class="main-container">
+        <!-- 1. CHANGE NAME -->
+        <div class="card">
+            <h3>👤 Name Settings</h3>
+            <p style="font-size: 12px; color: #65676b;">Note: If you change your name on Camfeed, you can't change it again for 15 days.</p>
+            <label>First Name</label>
+            <input type="text" id="setFirstName">
+            <label>Last Name</label>
+            <input type="text" id="setLastName">
+            <button class="btn" onclick="updateName()">Save Changes</button>
+            <div id="nameMsg" class="msg"></div>
+        </div>
+
+        <!-- 2. CHANGE PASSWORD -->
+        <div class="card">
+            <h3>🔒 Password & Security</h3>
+            <label>Current Password</label>
+            <input type="password" id="currentPassword" placeholder="••••••••">
+            <label>New Password</label>
+            <input type="password" id="newPassword" placeholder="••••••••">
+            <button class="btn" onclick="updatePassword()">Update Password</button>
+            <div id="passMsg" class="msg"></div>
+        </div>
+
+        <!-- 3. DELETE ACCOUNT -->
+        <div class="card">
+            <h3 style="color: #fa383e;">⚠️ Deactivate or Delete Account</h3>
+            <p style="font-size: 12px; color: #65676b;">Once you delete your account, there is no going back. Please be certain.</p>
+            <label>Enter Password to Confirm</label>
+            <input type="password" id="deletePassword" placeholder="••••••••">
+            <button class="btn btn-danger" onclick="deleteAccount()">Permanently Delete Account</button>
+            <div id="deleteMsg" class="msg"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        if (!currentUser) window.location.href = 'index.html';
+
+        document.getElementById('setFirstName').value = currentUser.first_name || '';
+        document.getElementById('setLastName').value = currentUser.last_name || '';
+
+        async function updateName() {
+            const firstName = document.getElementById('setFirstName').value;
+            const lastName = document.getElementById('setLastName').value;
+            const msg = document.getElementById('nameMsg');
+
+            const res = await fetch('/api/settings/name', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email, firstName, lastName })
+            });
+            const data = await res.json();
+            if (data.success) {
+                msg.style.color = 'green';
+                msg.innerText = 'Name updated successfully!';
+                currentUser.first_name = data.user.first_name;
+                currentUser.last_name = data.user.last_name;
+                localStorage.setItem('camfeed_user', JSON.stringify(currentUser));
+            } else {
+                msg.style.color = 'red';
+                msg.innerText = data.message || data.error;
+            }
+        }
+
+        async function updatePassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const msg = document.getElementById('passMsg');
+
+            const res = await fetch('/api/settings/password', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email, currentPassword, newPassword })
+            });
+            const data = await res.json();
+            if (data.success) {
+                msg.style.color = 'green';
+                msg.innerText = data.message;
+                document.getElementById('currentPassword').value = '';
+                document.getElementById('newPassword').value = '';
+            } else {
+                msg.style.color = 'red';
+                msg.innerText = data.message;
+            }
+        }
+
+        async function deleteAccount() {
+            const password = document.getElementById('deletePassword').value;
+            const msg = document.getElementById('deleteMsg');
+            if (!confirm('Are you sure you want to permanently delete your account?')) return;
+
+            const res = await fetch('/api/settings/account', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email, password })
+            });
+            const data = await res.json();
+            if (data.success) {
+                localStorage.removeItem('camfeed_user');
+                localStorage.removeItem('camfeed_remembered_email');
+                alert('Your account has been deleted.');
+                window.location.href = 'index.html';
+            } else {
+                msg.style.color = 'red';
+                msg.innerText = data.message;
+            }
+        }
+    </script>
+</body>
+</html>

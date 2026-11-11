@@ -11,7 +11,7 @@
         
         .logo-container { text-align: center; margin-bottom: 20px; }
         .logo { font-size: 52px; font-weight: bold; color: #1877f2; letter-spacing: -1px; margin-bottom: 8px; }
-        .logo-tagline { font-size: 18px; color: #606770; line-height: 1.2; }
+        .logo-tagline { font-size: 18px; color: #606770; line-height: 1.2; text-align: center; }
         
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 8px 16px rgba(0, 0, 0, .1); width: 100%; box-sizing: border-box; }
         
@@ -38,6 +38,8 @@
 
         .lang-container { margin-top: 20px; text-align: center; }
         .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 4px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
+        
+        .preview-avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); margin: 0 auto; display: block; background: #ccc; }
     </style>
 </head>
 <body>
@@ -74,12 +76,12 @@
             <div class="msg" id="loginMsg"></div>
         </div>
 
-        <!-- REGISTER VIEW -->
+        <!-- REGISTER STEP 1: BASIC INFO -->
         <div class="card hidden" id="registerCard">
             <h3 id="regTitle" style="margin-top: 0; color: #1c1e21; text-align: center; margin-bottom: 4px;">Sign Up</h3>
             <p id="regSubtitle" style="font-size: 14px; color: #606770; text-align: center; margin-bottom: 15px;">It's quick and easy.</p>
             
-            <form onsubmit="event.preventDefault(); registerUser();">
+            <form onsubmit="event.preventDefault(); proceedToStep2();">
                 <div class="row">
                     <input type="text" id="firstName" placeholder="First name" required>
                     <input type="text" id="lastName" placeholder="Surname" required>
@@ -90,8 +92,8 @@
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
                 </div>
 
-                <label id="lblDob">Date of birth</label>
-                <input type="date" id="birthdate" required>
+                <label id="lblDob">Date of birth (e.g., 01-07-2000)</label>
+                <input type="text" id="birthdate" placeholder="01-07-2000" required>
 
                 <label id="lblGender">Gender</label>
                 <select id="gender" required>
@@ -118,12 +120,33 @@
                     <option value="Other">Other Country Worldwide</option>
                 </select>
 
-                <button type="submit" class="btn-create" style="margin-top: 15px;" id="btnSignSubmit">Sign Up</button>
+                <button type="submit" class="btn-create" style="margin-top: 15px;" id="btnNextStep">Next</button>
             </form>
             <div style="text-align: center; margin-top: 15px;">
                 <a href="#" onclick="showLoginForm()" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="haveAccText">Already have an account?</a>
             </div>
             <div class="msg" id="regMsg"></div>
+        </div>
+
+        <!-- REGISTER STEP 2: WELCOME & PROFILE WIZARD -->
+        <div class="card hidden" id="welcomeWizardCard">
+            <h3 id="welcomeTitle" style="margin-top: 0; color: #1877f2; text-align: center;">សូមស្វាគមន៍មកកាន់ Camfeed!</h3>
+            <p id="welcomeDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;">
+                Camfeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។
+            </p>
+            <div class="divider"></div>
+            
+            <form onsubmit="event.preventDefault(); finalizeRegistration();">
+                <label id="lblProfilePic" style="font-weight: bold;">Upload Profile Picture</label>
+                <input type="file" id="regProfileFile" accept="image/*" onchange="previewAvatar(event)">
+                <img id="avatarPreviewImg" class="preview-avatar" src="https://via.placeholder.com/90" style="margin-top: 8px; margin-bottom: 12px;">
+
+                <label id="lblCoverPic" style="font-weight: bold;">Upload Cover Picture</label>
+                <input type="file" id="regCoverFile" accept="image/*">
+
+                <button type="submit" class="btn-primary" style="margin-top: 15px;" id="btnFinishReg">Get Started & Finish</button>
+            </form>
+            <div class="msg" id="wizardMsg"></div>
         </div>
 
         <div class="lang-container">
@@ -135,7 +158,12 @@
     </div>
 
     <script>
+        // Set initial language from localStorage
         window.addEventListener('DOMContentLoaded', () => {
+            const savedLang = localStorage.getItem('camfeed_lang') || 'en';
+            document.getElementById('langSwitch').value = savedLang;
+            changeLanguage();
+
             const savedEmail = localStorage.getItem('camfeed_remembered_email');
             if (savedEmail) {
                 document.getElementById('loginEmail').value = savedEmail;
@@ -148,24 +176,32 @@
                 loginEmail: "Mobile number or email", password: "Password", btnLoginText: "Log In",
                 forgotText: "Forgot password?", btnCreateText: "Create new account", regTitle: "Sign Up",
                 regSubtitle: "It's quick and easy.", firstName: "First name", lastName: "Surname",
-                regEmail: "Mobile number or email", regPassword: "New password", lblDob: "Date of birth",
+                regEmail: "Mobile number or email", regPassword: "New password", lblDob: "Date of birth (e.g., 01-07-2000)",
                 lblGender: "Gender", optGenderDefault: "Select gender", optMale: "Male", optFemale: "Female",
-                optCustom: "Custom", lblCountry: "Country", btnSignSubmit: "Sign Up", haveAccText: "Already have an account?"
+                optCustom: "Custom", lblCountry: "Country", btnNextStep: "Next", haveAccText: "Already have an account?",
+                welcomeTitle: "Welcome to Camfeed!",
+                welcomeDesc: "Camfeed is an amazing community platform designed to help you connect with friends, family, and share your daily life stories with the world.",
+                lblProfilePic: "Upload Profile Picture", lblCoverPic: "Upload Cover Picture", btnFinishReg: "Get Started & Finish"
             },
             km: {
                 logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ Camfeed។",
                 loginEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", password: "ពាក្យសម្ងាត់", btnLoginText: "ចូលគណនី",
                 forgotText: "ភ្លេចពាក្យសម្ងាត់?", btnCreateText: "បង្កើតគណនីថ្មី", regTitle: "ចុះឈ្មោះ",
                 regSubtitle: "រហ័ស និងងាយស្រួល។", firstName: "នាមខ្លួន", lastName: "នាមត្រកូល",
-                regEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
+                regEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត (ឧ. 01-07-2000)",
                 lblGender: "ភេទ", optGenderDefault: "ជ្រើសរើសភេទ", optMale: "ប្រុស", optFemale: "ស្រី",
-                optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnSignSubmit: "ចុះឈ្មោះ", haveAccText: "មានគណនីរួចហើយ?"
+                optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnNextStep: "បន្ទាប់", haveAccText: "មានគណនីរួចហើយ?",
+                welcomeTitle: "សូមស្វាគមន៍មកកាន់ Camfeed!",
+                welcomeDesc: "Camfeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។",
+                lblProfilePic: "ដាក់រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "ដាក់រូបភាពគម្រប (Cover Picture)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់"
             }
         };
 
         function changeLanguage() {
             const lang = document.getElementById('langSwitch').value;
+            localStorage.setItem('camfeed_lang', lang);
             const t = texts[lang];
+
             document.getElementById('logoTagline').innerText = t.logoTagline;
             document.getElementById('loginEmail').placeholder = t.loginEmail;
             document.getElementById('loginPassword').placeholder = t.password;
@@ -185,8 +221,14 @@
             document.getElementById('optFemale').innerText = t.optFemale;
             document.getElementById('optCustom').innerText = t.optCustom;
             document.getElementById('lblCountry').innerText = t.lblCountry;
-            document.getElementById('btnSignSubmit').innerText = t.btnSignSubmit;
+            document.getElementById('btnNextStep').innerText = t.btnNextStep;
             document.getElementById('haveAccText').innerText = t.haveAccText;
+
+            document.getElementById('welcomeTitle').innerText = t.welcomeTitle;
+            document.getElementById('welcomeDesc').innerText = t.welcomeDesc;
+            document.getElementById('lblProfilePic').innerText = t.lblProfilePic;
+            document.getElementById('lblCoverPic').innerText = t.lblCoverPic;
+            document.getElementById('btnFinishReg').innerText = t.btnFinishReg;
         }
 
         function togglePassword(fieldId, iconElement) {
@@ -207,10 +249,13 @@
 
         function showLoginForm() {
             document.getElementById('registerCard').classList.add('hidden');
+            document.getElementById('welcomeWizardCard').classList.add('hidden');
             document.getElementById('loginCard').classList.remove('hidden');
         }
 
-        async function registerUser() {
+        let tempUserData = null;
+
+        function proceedToStep2() {
             const firstName = document.getElementById('firstName').value;
             const lastName = document.getElementById('lastName').value;
             const email = document.getElementById('regEmail').value;
@@ -220,22 +265,73 @@
             const country = document.getElementById('country').value;
             const msg = document.getElementById('regMsg');
 
+            // Save temp data to push on final step
+            tempUserData = { firstName, lastName, email, password, birthdate, gender, country };
+
+            // Move to Step 2 (Welcome Wizard)
+            document.getElementById('registerCard').classList.add('hidden');
+            document.getElementById('welcomeWizardCard').classList.remove('hidden');
+        }
+
+        function previewAvatar(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('avatarPreviewImg').src = URL.createObjectURL(file);
+            }
+        }
+
+        async function finalizeRegistration() {
+            const profileFile = document.getElementById('regProfileFile').files[0];
+            const coverFile = document.getElementById('regCoverFile').files[0];
+            const msg = document.getElementById('wizardMsg');
+            const finishBtn = document.getElementById('btnFinishReg');
+
+            finishBtn.disabled = true;
+            finishBtn.innerText = "Creating account...";
+
             try {
+                // 1. Register User in Database
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ firstName, lastName, email, password, birthdate, gender, country })
+                    body: JSON.stringify(tempUserData)
                 });
                 const data = await res.json();
+
                 if (data.success) {
-                    msg.style.color = 'green';
-                    msg.innerText = 'Account created successfully! Please log in.';
-                    setTimeout(showLoginForm, 2000);
+                    let user = data.user;
+
+                    // 2. If profile or cover pictures are selected, upload them
+                    if (profileFile || coverFile) {
+                        const formData = new FormData();
+                        formData.append('email', user.email);
+                        formData.append('bio', '');
+                        if (profileFile) formData.append('profilePic', profileFile);
+                        if (coverFile) formData.append('coverPic', coverFile);
+
+                        const picRes = await fetch('/api/update-profile-pics', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const picData = await picRes.json();
+                        if (picData.success) {
+                            user = picData.user;
+                        }
+                    }
+
+                    // 3. Save to localStorage and Auto-Login redirect to feed.html
+                    localStorage.setItem('camfeed_remembered_email', user.email);
+                    localStorage.setItem('camfeed_user', JSON.stringify(user));
+                    window.location.href = 'feed.html';
                 } else {
+                    finishBtn.disabled = false;
+                    finishBtn.innerText = "Get Started & Finish";
                     msg.style.color = 'red';
                     msg.innerText = data.error || 'Registration failed';
                 }
             } catch (err) {
+                finishBtn.disabled = false;
+                finishBtn.innerText = "Get Started & Finish";
                 msg.style.color = 'red';
                 msg.innerText = 'Server connection error';
             }

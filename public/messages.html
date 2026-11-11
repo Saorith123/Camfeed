@@ -15,8 +15,10 @@
         .chat-sidebar { width: 320px; border-right: 1px solid #e4e6eb; overflow-y: auto; background: #fff; }
         .chat-main { flex: 1; display: flex; flex-direction: column; background: #fff; }
         
-        .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
-        .chat-user-item:hover, .chat-user-item.active { background: #f2f2f2; }
+        .chat-user-item { display: flex; align-items: center; gap: 12px; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; transition: background 0.2s; }
+        .chat-user-item:hover { background: #f2f2f2; }
+        .chat-user-item.active { background: #e7f3ff; border-left: 4px solid #1877f2; } /* 🎯 ចំណុចសម្គាល់ User ដែលកំពុងសន្ទនា */
+        
         .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; }
         
         .messages-list { flex: 1; padding: 20px; overflow-y: auto; background: #f7f8fa; display: flex; flex-direction: column; gap: 10px; }
@@ -29,6 +31,7 @@
         input[type="text"]:focus { border-color: #1877f2; }
         .send-btn { padding: 10px 20px; background: #1877f2; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; }
         .send-btn:hover { background: #166fe5; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -45,7 +48,11 @@
                 Select a conversation to start chatting
             </div>
             <div class="messages-list" id="messagesListContainer">
-                <p style="text-align: center; color: #90949c; margin-top: 50px;">No chat selected</p>
+                <div style="text-align: center; color: #90949c; margin-top: 60px;">
+                    <p style="font-size: 40px; margin: 0;">💬</p>
+                    <p style="font-size: 14px; font-weight: 500; margin-top: 10px;">No conversation selected</p>
+                    <p style="font-size: 12px; color: #b0b3b8;">Choose a friend from the left sidebar to start messaging.</p>
+                </div>
             </div>
             <div class="chat-input-area hidden" id="chatInputArea">
                 <input type="text" id="messageInput" placeholder="Aa..." onkeypress="handleKeyPress(event)">
@@ -71,10 +78,10 @@
                 const data = await res.json();
                 if (data.success) {
                     const sidebar = document.getElementById('sidebarUsersList');
-                    sidebar.innerHTML = '<h3 style="padding: 10px 15px; margin: 0; color: #050505;">Chats</h3>';
+                    sidebar.innerHTML = '<h3 style="padding: 15px; margin: 0; color: #050505; border-bottom: 1px solid #f0f2f5;">Chats</h3>';
 
                     if (data.users.length === 0) {
-                        sidebar.innerHTML += '<p style="padding: 15px; color: #65676b;">No friends found.</p>';
+                        sidebar.innerHTML += '<p style="padding: 15px; color: #65676b; text-align: center; font-size: 13px;">No friends found to chat.</p>';
                         return;
                     }
 
@@ -86,7 +93,7 @@
                             <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
                             <div>
                                 <div style="font-weight: bold; color: #050505; font-size: 15px;">${u.first_name} ${u.last_name}</div>
-                                <div style="font-size: 12px; color: #65676b;">Click to chat</div>
+                                <div style="font-size: 12px; color: #65676b;">Click to open chat</div>
                             </div>
                         `;
                         div.onclick = () => selectChat(u.email, `${u.first_name} ${u.last_name}`);
@@ -102,7 +109,7 @@
             activeChatEmail = email;
             activeChatName = name;
             
-            // Highlight active user
+            // 🎯 កំណត់សម្គាល់ Highlight User ដែលកំពុងរើស
             document.querySelectorAll('.chat-user-item').forEach(el => el.classList.remove('active'));
             const activeEl = document.getElementById(`user-item-${email}`);
             if (activeEl) activeEl.classList.add('active');
@@ -121,8 +128,14 @@
                     const container = document.getElementById('messagesListContainer');
                     container.innerHTML = '';
 
+                    // 🎯 ប្រសិនបើគ្មានសារពីមុន បង្ហាញការណែនាំកុំឱ្យទទេស្អាតពេក
                     if (data.messages.length === 0) {
-                        container.innerHTML = '<p style="text-align: center; color: #90949c; font-size: 13px;">Say hello to start the conversation!</p>';
+                        container.innerHTML = `
+                            <div style="text-align: center; color: #90949c; margin-top: 50px;">
+                                <p style="font-size: 14px;">No messages with ${activeChatName} yet.</p>
+                                <p style="font-size: 13px; color: #1877f2;">Say hello to start the conversation!</p>
+                            </div>
+                        `;
                         return;
                     }
 

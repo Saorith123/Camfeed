@@ -250,6 +250,25 @@ app.post('/api/reaction', async (req, res) => {
   }
 });
 
+// 🎯 API សម្រាប់ទាញយករាយនាមអ្នកដែលបាន Reaction លើ Post ណាមួយ
+app.get('/api/reactions/:postId', async (req, res) => {
+  const { postId } = req.params;
+  const { email } = req.query;
+  try {
+    const query = `
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, l.reaction_type,
+             EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email) AS is_following
+      FROM likes l
+      JOIN users u ON l.user_email = u.email
+      WHERE l.post_id = $1
+    `;
+    const result = await pool.query(query, [postId, email]);
+    res.json({ success: true, reactors: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get Comments for Post
 app.get('/api/comments/:postId', async (req, res) => {
   const { postId } = req.params;

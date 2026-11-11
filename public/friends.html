@@ -20,19 +20,21 @@
         .user-name { font-weight: bold; color: #050505; margin-bottom: 10px; cursor: pointer; }
         
         .btn-follow { width: 100%; padding: 8px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-follow:hover { background: #166fe5; }
         .btn-unfollow { background: #e4e6eb; color: #050505; }
+        .btn-unfollow:hover { background: #d8dadf; }
     </style>
 </head>
 <body>
 
     <div class="top-bar">
         <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
-        <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
+        <button class="back-btn" id="backBtnText" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
     </div>
 
     <div class="container">
         <div class="friends-card">
-            <h2 style="margin-top: 0; color: #050505;">👥 People You May Follow</h2>
+            <h2 style="margin-top: 0; color: #050505;" id="friendsTitle">👥 People You May Follow</h2>
             <div id="friendsContainer" class="user-grid"></div>
         </div>
     </div>
@@ -42,7 +44,32 @@
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
+            applyLanguage();
             loadUsers();
+        }
+
+        const translations = {
+            en: {
+                backBtn: "⬅ Back to Feed",
+                friendsHeader: "👥 People You May Follow",
+                followBtn: "Follow",
+                followingBtn: "Following",
+                noUsers: "No other users found."
+            },
+            km: {
+                backBtn: "⬅ ត្រឡប់ទៅ Feed វិញ",
+                friendsHeader: "👥 មនុស្សដែលអ្នកអាចតាមដាន",
+                followBtn: "តាមដាន",
+                followingBtn: "កំពុងតាមដាន",
+                noUsers: "រកមិនឃើញអ្នកប្រើប្រាស់ផ្សេងទៀតទេ។"
+            }
+        };
+
+        function applyLanguage() {
+            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const t = translations[lang];
+            document.getElementById('backBtnText').innerText = t.backBtn;
+            document.getElementById('friendsTitle').innerText = t.friendsHeader;
         }
 
         async function loadUsers() {
@@ -53,8 +80,11 @@
                     const container = document.getElementById('friendsContainer');
                     container.innerHTML = '';
 
+                    const lang = localStorage.getItem('camfeed_lang') || 'en';
+                    const t = translations[lang];
+
                     if (data.users.length === 0) {
-                        container.innerHTML = '<p style="color: #65676b;">No other users found.</p>';
+                        container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
                         return;
                     }
 
@@ -65,7 +95,7 @@
                             <img src="${u.profile_pic || 'https://via.placeholder.com/90'}" class="avatar" onclick="window.location.href='profile.html?email=${u.email}'">
                             <div class="user-name" onclick="window.location.href='profile.html?email=${u.email}'">${u.first_name} ${u.last_name}</div>
                             <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollow('${u.email}', ${u.is_following})">
-                                ${u.is_following ? 'Following' : 'Follow'}
+                                ${u.is_following ? t.followingBtn : t.followBtn}
                             </button>
                         `;
                         container.appendChild(div);

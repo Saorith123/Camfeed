@@ -79,7 +79,7 @@
         .reaction-emoji { font-size: 22px; cursor: pointer; transition: transform 0.2s; }
         .reaction-emoji:hover { transform: scale(1.35); }
 
-        /* Comments Section (Smooth Slide Down & Facebook Style) */
+        /* Comments Section */
         .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; background: #fff; padding: 10px 12px; border-radius: 0 0 8px 8px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
         .comments-section.open { max-height: 800px; overflow-y: auto; }
 
@@ -96,11 +96,12 @@
         .reply-btn { font-weight: bold; cursor: pointer; color: #65676b; }
         .reply-btn:hover { text-decoration: underline; color: #1877f2; }
 
-        /* Reply Items Smaller than Main Comment */
-        .reply-item { display: flex; gap: 6px; margin-top: 8px; margin-left: 20px; font-size: 12px; align-items: flex-start; }
-        .reply-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; cursor: pointer; flex-shrink: 0; }
-        .reply-bubble { background: #f0f2f5; padding: 6px 10px; border-radius: 14px; color: #050505; word-break: break-word; font-size: 12px; }
-        .reply-author { font-weight: bold; color: #050505; cursor: pointer; font-size: 11.5px; margin-bottom: 1px; display: inline-block; }
+        /* Reactions Modal / List Popup */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; display: none; }
+        .modal-card { background: white; width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); overflow: hidden; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 12px 15px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 10px 15px; overflow-y: auto; flex: 1; }
+        .reactor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 
         .highlight-post { box-shadow: 0 0 0 3px #1877f2 !important; }
         .highlight-comment { background-color: #e7f3ff !important; border: 1px solid #1877f2; }
@@ -132,8 +133,8 @@
                 <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
                 <div class="logo-nav" onclick="switchTab('feed')">camfeed</div>
                 <div class="dropdown-menu" id="menuDropdown">
-                    <div class="dropdown-item" onclick="alert('Settings & Privacy clicked')">⚙️ Settings & Privacy</div>
-                    <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
+                    <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
+                    <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
                 </div>
             </div>
 
@@ -148,9 +149,9 @@
                     <span id="notifBadge" class="notif-badge hidden">0</span>
                 </button>
                 <div class="notification-dropdown" id="notifDropdown" onclick="event.stopPropagation()">
-                    <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
+                    <div id="notifHeaderTitle" style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
                     <div id="notifList">
-                        <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
+                        <div id="notifEmptyText" style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
                     </div>
                 </div>
 
@@ -166,6 +167,19 @@
             <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
             <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
             <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat">💬</button>
+        </div>
+    </div>
+
+    <!-- Modal for Reactions List -->
+    <div id="reactionsModal" class="modal-overlay" onclick="closeReactionsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="modalReactorTitle">People who reacted</span>
+                <span style="cursor: pointer; font-size: 18px;" onclick="closeReactionsModal()">×</span>
+            </div>
+            <div class="modal-body" id="reactionsModalList">
+                <!-- Reactor list injected here -->
+            </div>
         </div>
     </div>
 
@@ -196,16 +210,16 @@
 
                 <!-- Privacy Selector for Post -->
                 <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                    <label style="font-size: 13px; font-weight: bold; color: #65676b;">Privacy:</label>
+                    <label id="lblPrivacy" style="font-size: 13px; font-weight: bold; color: #65676b;">Privacy:</label>
                     <select id="postPrivacy" style="width: 140px; padding: 6px; font-size: 13px; margin: 0;">
-                        <option value="public">🌐 Public</option>
-                        <option value="private">🔒 Private (Only me)</option>
+                        <option value="public" id="optPublic">🌐 Public</option>
+                        <option value="private" id="optPrivate">🔒 Private (Only me)</option>
                     </select>
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px;">
                     <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: 600; color: #65676b; padding: 8px; border-radius: 6px; flex: 1; justify-content: center;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='transparent'">
-                        <span style="font-size: 18px;">📷</span> Photo / Video
+                        <span style="font-size: 18px;">📷</span> <span id="photoVideoLabel">Photo / Video</span>
                         <input type="file" id="mediaFile" accept="image/*,video/*" class="hidden" onchange="previewMedia(event)">
                     </label>
                     <button id="postSubmitBtn" onclick="createPost()" class="btn-primary" style="width: 100px; padding: 8px; margin: 0; border-radius: 6px;">Post</button>
@@ -233,7 +247,7 @@
                     <div class="chat-messages" id="chatMessagesContainer"></div>
                     <div style="display: flex; padding: 10px; background: white; border-top: 1px solid #e4e6eb;">
                         <input type="text" id="chatInput" placeholder="Type a message..." style="margin:0; flex:1; padding: 8px 12px;" onkeypress="if(event.key==='Enter') sendMessage()">
-                        <button onclick="sendMessage()" class="btn-primary" style="margin:0; width: 90px; margin-left: 8px;">Send</button>
+                        <button onclick="sendMessage()" class="btn-primary" style="margin:0; width: 90px; margin-left: 8px;" id="sendChatBtn">Send</button>
                     </div>
                 </div>
             </div>
@@ -247,6 +261,90 @@
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         let activeChatEmail = null;
 
+        // 🎯 Global variable រក្សាទុកស្ថានភាពសំឡេងវីដេអូ (បើកអូតូគ្រប់វីដេអូបន្ទាប់បើធ្លាប់ចុចបើកម្តង)
+        let globalVideoUnmuted = false;
+
+        // 🎯 ระบบแปลภาษา (Khmer & English)
+        const uiTexts = {
+            en: {
+                searchPlaceholder: "Search...",
+                notifHeader: "Notifications",
+                notifEmpty: "No notifications yet",
+                postPlaceholder: "What's on your mind?",
+                privacyLabel: "Privacy:",
+                optPublic: "🌐 Public",
+                optPrivate: "🔒 Private (Only me)",
+                photoVideoLabel: "Photo / Video",
+                postBtn: "Post",
+                friendsHeader: "👥 People You May Follow",
+                chatSelect: "Select a friend to chat",
+                chatInputPlaceholder: "Type a message...",
+                sendBtn: "Send",
+                commentPlaceholder: "Write a comment...",
+                commentBtn: "Send",
+                menuSettings: "⚙️ Settings & Privacy",
+                menuLogout: "🚪 Log Out",
+                reactionsModalTitle: "People who reacted",
+                commentsTitle: "Comments",
+                sortRelevant: "More relevant",
+                sortNewest: "Newest",
+                sortAll: "All comments",
+                likeBtn: "👍 Like",
+                commentAction: "💬 Comment",
+                shareAction: "🔗 Share"
+            },
+            km: {
+                searchPlaceholder: "ស្វែងរក...",
+                notifHeader: "ការជូនដំណឹង",
+                notifEmpty: "មិនទាន់មានការជូនដំណឹងនៅឡើយទេ",
+                postPlaceholder: "តើអ្នកកំពុងគិតអ្វីខ្លះ?",
+                privacyLabel: "ភាពឯកជន:",
+                optPublic: "🌐 ជាសាធារណៈ",
+                optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
+                photoVideoLabel: "រូបថត / វីដេអូ",
+                postBtn: "បង្ហោះ",
+                friendsHeader: "👥 មនុស្សដែលអ្នកអាចតាមដាន",
+                chatSelect: "ជ្រើសរើសមិត្តភក្តិដើម្បីជជែកកំសាន្ត",
+                chatInputPlaceholder: "វាយសារ...",
+                sendBtn: "បញ្ជូន",
+                commentPlaceholder: "សរសេរមតិយោបល់...",
+                commentBtn: "ផ្ញើ",
+                menuSettings: "⚙️ ការកំណត់ និងភាពឯកជន",
+                menuLogout: "🚪 ចេញពីគណនី",
+                reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
+                commentsTitle: "មតិយោបល់",
+                sortRelevant: "ពាក់ព័ន្ធបំផុត",
+                sortNewest: "ថ្មីបំផុត",
+                sortAll: "មតិយោបល់ទាំងអស់",
+                likeBtn: "👍 ចូលចិត្ត",
+                commentAction: "💬 ខមមិន",
+                shareAction: "🔗 ចែករំលែក"
+            }
+        };
+
+        function applyLanguage() {
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const t = uiTexts[currentLang];
+            if (!t) return;
+
+            document.getElementById('searchInput').placeholder = t.searchPlaceholder;
+            document.getElementById('notifHeaderTitle').innerText = t.notifHeader;
+            document.getElementById('notifEmptyText').innerText = t.notifEmpty;
+            document.getElementById('postContent').placeholder = t.postPlaceholder;
+            document.getElementById('lblPrivacy').innerText = t.privacyLabel;
+            document.getElementById('optPublic').innerText = t.optPublic;
+            document.getElementById('optPrivate').innerText = t.optPrivate;
+            document.getElementById('photoVideoLabel').innerText = t.photoVideoLabel;
+            document.getElementById('postSubmitBtn').innerText = t.postBtn;
+            document.getElementById('friendsHeaderTitle').innerText = t.friendsHeader;
+            document.getElementById('chatHeader').innerText = t.chatSelect;
+            document.getElementById('chatInput').placeholder = t.chatInputPlaceholder;
+            document.getElementById('sendChatBtn').innerText = t.sendBtn;
+            document.getElementById('menuSettingsText').innerText = t.menuSettings;
+            document.getElementById('menuLogoutText').innerText = t.menuLogout;
+            document.getElementById('modalReactorTitle').innerText = t.reactionsModalTitle;
+        }
+
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
@@ -255,6 +353,8 @@
                 document.getElementById('feedUserAvatar').src = currentUser.profile_pic;
             }
             
+            applyLanguage();
+
             const urlParams = new URLSearchParams(window.location.search);
             const targetPostId = urlParams.get('post');
             const targetCommentId = urlParams.get('comment');
@@ -338,8 +438,10 @@
                 loadPosts();
             }
             if (tab === 'friends') {
+                const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                const t = uiTexts[currentLang];
                 const headerTitle = document.getElementById('friendsHeaderTitle');
-                if (headerTitle) headerTitle.innerText = '👥 People You May Follow';
+                if (headerTitle) headerTitle.innerText = t.friendsHeader;
                 loadUsersToFollow();
             }
             if (tab === 'chat') loadChatUsers();
@@ -540,9 +642,13 @@
             if (!container) return;
             container.innerHTML = '';
             if (posts.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #65676b;">No posts found.</p>';
+                currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                container.innerHTML = `<p style="text-align: center; color: #65676b;">${currentLang === 'km' ? 'រកមិនឃើញការបង្ហោះទេ។' : 'No posts found.'}</p>`;
                 return;
             }
+
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const t = uiTexts[currentLang];
 
             posts.forEach(post => {
                 const dateStr = new Date(post.created_at).toLocaleString();
@@ -553,13 +659,14 @@
                 let mediaHtml = '';
                 if (post.media_url) {
                     if (post.media_type === 'video') {
-                        mediaHtml = `<video src="${post.media_url}" class="post-media autoplay-video" onclick="window.location.href='videos.html?v=${post.id}'" controls muted loop playsinline style="cursor: pointer;"></video>`;
+                        // 🎯 វីដេអូភ្ជាប់ស្របតាម globalVideoUnmuted logic
+                        mediaHtml = `<video src="${post.media_url}" class="post-media autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
                     } else {
                         mediaHtml = `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
                     }
                 }
 
-                let currentReactionIcon = post.user_reaction ? post.user_reaction : '👍 Like';
+                let currentReactionIcon = post.user_reaction ? post.user_reaction : t.likeBtn;
 
                 div.innerHTML = `
                     <div class="post-header" onclick="window.location.href='profile.html?email=${post.user_email}'">
@@ -572,8 +679,11 @@
                     <div class="post-content">${post.content}</div>
                     ${mediaHtml}
                     <div style="display: flex; justify-content: space-between; font-size: 13px; color: #65676b; margin-bottom: 5px; padding: 0 5px;">
-                        <span id="likeCount-${post.id}">👍 ${post.likes_count} Reactions</span>
-                        <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} Comments</span>
+                        <div style="display: flex; align-items: center; gap: 4px; cursor: pointer;" onclick="openReactionsList(${post.id})">
+                            <span>👍 ❤️ 😂</span>
+                            <span id="likeCount-${post.id}">${post.likes_count || 0}</span>
+                        </div>
+                        <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} ${currentLang === 'km' ? 'មតិយោបល់' : 'Comments'}</span>
                     </div>
                     <div class="post-actions">
                         <div style="position: relative;">
@@ -587,26 +697,26 @@
                                 <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😡')">😡</span>
                             </div>
                         </div>
-                        <button class="action-btn" onclick="toggleCommentBox(${post.id})">💬 Comment</button>
-                        <button class="action-btn" onclick="openShareMenu(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on Camfeed!')}')" title="Share Link">🔗 Share</button>
+                        <button class="action-btn" onclick="toggleCommentBox(${post.id})">${t.commentAction}</button>
+                        <button class="action-btn" onclick="openShareMenu(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on Camfeed!')}')" title="Share Link">${t.shareAction}</button>
                     </div>
 
-                    <!-- Comments Section (Hidden by default, slides down smoothly when clicked) -->
+                    <!-- Comments Section -->
                     <div id="commentsSection-${post.id}" class="comments-section">
                         <div class="comment-filter-bar">
-                            <span>Comments</span>
+                            <span>${t.commentsTitle}</span>
                             <div>
                                 <select class="comment-filter-select" onchange="sortComments(${post.id}, this.value)">
-                                    <option value="relevant">More relevant</option>
-                                    <option value="newest">Newest</option>
-                                    <option value="all">All comments</option>
+                                    <option value="relevant">${t.sortRelevant}</option>
+                                    <option value="newest">${t.sortNewest}</option>
+                                    <option value="all">${t.sortAll}</option>
                                 </select>
                             </div>
                         </div>
                         <div id="commentList-${post.id}"></div>
                         <div style="display: flex; gap: 5px; margin-top: 10px;">
-                            <input type="text" id="commentInput-${post.id}" placeholder="Write a comment..." style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
-                            <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">Send</button>
+                            <input type="text" id="commentInput-${post.id}" placeholder="${t.commentPlaceholder}" style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
+                            <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">${t.commentBtn}</button>
                         </div>
                     </div>
                 `;
@@ -614,6 +724,66 @@
             });
 
             initAutoPlayVideos();
+        }
+
+        // 🎯 គ្រប់គ្រងស្ថានភាពសំឡេងវីដេអូជាសកល
+        function handleVideoVolumeChange(videoElem) {
+            if (!videoElem.muted && videoElem.volume > 0) {
+                globalVideoUnmuted = true;
+                // បើកសំឡេងវីដេអូដទៃទៀតដែលកំពុង Play ស្រាប់លើ Feed ផងដែរ
+                document.querySelectorAll('.autoplay-video').forEach(v => {
+                    v.muted = false;
+                });
+            }
+        }
+
+        // 🎯 បើកดูรายชื่อผู้ Reaction บน Post
+        async function openReactionsList(postId) {
+            const modal = document.getElementById('reactionsModal');
+            const listContainer = document.getElementById('reactionsModalList');
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            listContainer.innerHTML = `<p style="text-align:center; color:#65676b;">${currentLang === 'km' ? 'កំពុងផ្ទុក...' : 'Loading...'}</p>`;
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/reactions/${postId}?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success && data.reactors.length > 0) {
+                    listContainer.innerHTML = data.reactors.map(r => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${r.email}'">
+                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
+                                </div>
+                            </div>
+                            ${r.email !== currentUser.email ? `
+                                <button class="btn-follow ${r.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowReactor('${r.email}', ${r.is_following}, ${postId})">
+                                    ${r.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = `<p style="text-align:center; color:#65676b; padding:15px;">${currentLang === 'km' ? 'មិនទាន់មានប្រតិកម្មនៅឡើយទេ។' : 'No reactions yet.'}</p>`;
+                }
+            } catch (err) {
+                listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load reactions.</p>';
+            }
+        }
+
+        function closeReactionsModal() {
+            document.getElementById('reactionsModal').style.display = 'none';
+        }
+
+        async function toggleFollowReactor(targetEmail, isFollowing, postId) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            openReactionsList(postId);
         }
 
         function toggleReactionPopup(event, postId) {
@@ -635,8 +805,10 @@
         function openShareMenu(postId, encodedContent) {
             const shareUrl = `${window.location.origin}/feed.html?post=${postId}`;
             const postText = decodeURIComponent(encodedContent);
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
             
-            const choice = confirm("ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!");
+            const msgConfirm = currentLang === 'km' ? "ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!" : "Click 'OK' to share to Telegram or 'Cancel' to Copy Link!";
+            const choice = confirm(msgConfirm);
             if (choice) {
                 const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`;
                 window.open(telegramUrl, '_blank');
@@ -663,9 +835,10 @@
                         btn.classList.add('liked');
                     } else {
                         btn.classList.remove('liked');
-                        btn.innerText = '👍 Like';
+                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                        btn.innerText = uiTexts[currentLang].likeBtn;
                     }
-                    countElem.innerText = `👍 ${data.likes_count} Reactions`;
+                    countElem.innerText = data.likes_count;
                 }
             } catch (err) { console.error(err); }
         }
@@ -675,6 +848,9 @@
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const video = entry.target;
+                    // កំណត់ស្ថានភាពសំឡេងស្របតាម globalVideoUnmuted
+                    video.muted = !globalVideoUnmuted;
+
                     if (entry.isIntersecting) {
                         video.play().catch(err => console.log("Autoplay prevented:", err));
                     } else {
@@ -685,7 +861,6 @@
             videoElements.forEach(video => observer.observe(video));
         }
 
-        // Toggle Comments Section (Smooth Slide Down / Collapse)
         function toggleCommentBox(postId) {
             const sec = document.getElementById(`commentsSection-${postId}`);
             if (!sec) return;
@@ -696,7 +871,6 @@
         }
 
         function sortComments(postId, sortType) {
-            // Placeholder for sorting handling if needed
             loadComments(postId);
         }
 
@@ -756,7 +930,8 @@
             if (commentCountElem) {
                 let parts = commentCountElem.innerText.split(' ');
                 let currentComments = parseInt(parts[0]) || 0;
-                commentCountElem.innerText = `${currentComments + 1} Comments`;
+                const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                commentCountElem.innerText = `${currentComments + 1} ${currentLang === 'km' ? 'មតិយោបល់' : 'Comments'}`;
             }
         }
 
@@ -821,7 +996,8 @@
                             }).join('');
                         }
                     } else {
-                        if (list) list.innerHTML = `<div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>`;
+                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                        if (list) list.innerHTML = `<div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">${currentLang === 'km' ? 'មិនទាន់មានការជូនដំណឹងនៅឡើយទេ' : 'No notifications yet'}</div>`;
                     }
                 }
             } catch (err) { console.error(err); }
@@ -833,6 +1009,7 @@
                 const data = await res.json();
                 if (data.success) {
                     const container = document.getElementById('usersListContainer');
+                    const currentLang = localStorage.getItem('camfeed_lang') || 'en';
                     if (container) {
                         container.innerHTML = data.users.map(u => `
                             <div class="user-row">
@@ -841,7 +1018,7 @@
                                     <span style="font-weight:bold;">${u.first_name} ${u.last_name}</span>
                                 </div>
                                 <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollow('${u.email}', ${u.is_following})">
-                                    ${u.is_following ? 'Following' : 'Follow'}
+                                    ${u.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
                                 </button>
                             </div>
                         `).join('');
