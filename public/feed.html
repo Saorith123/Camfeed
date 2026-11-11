@@ -7,13 +7,14 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; }
         
-        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; gap: 8px; }
-        .top-left { display: flex; align-items: center; gap: 8px; position: relative; flex-shrink: 0; }
-        .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
+        .top-bar { display: flex; flex-direction: column; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; padding: 0 10px; }
+        .top-bar-row1 { display: flex; justify-content: space-between; align-items: center; height: 50px; border-bottom: 1px solid #f0f2f5; width: 100%; }
+        .top-left { display: flex; align-items: center; gap: 8px; position: relative; }
+        .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
         .menu-icon-btn:hover { background: #d8dadf; }
-        .logo-nav { font-size: 20px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .logo-nav { font-size: 22px; font-weight: bold; color: #1877f2; cursor: pointer; letter-spacing: -0.5px; }
         
-        .dropdown-menu { position: absolute; top: 45px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .dropdown-item:hover { background: #f2f2f2; }
 
@@ -24,17 +25,17 @@
 
         /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
-        .search-input { padding: 7px 10px 7px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 110px; transition: width 0.3s, border-color 0.3s; }
+        .search-input { padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 120px; transition: width 0.3s, border-color 0.3s; }
         .search-input:focus { width: 180px; background: white; border-color: #1877f2; }
         .search-icon-abs { position: absolute; left: 8px; font-size: 13px; color: #65676b; cursor: pointer; }
 
-        .nav-menus { display: flex; gap: 2px; }
-        .menu-btn { padding: 6px 14px; background: none; border: none; font-size: 20px; color: #65676b; cursor: pointer; border-radius: 8px; position: relative; }
+        .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 48px; width: 100%; border-top: 1px solid #f0f2f5; }
+        .menu-btn { background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 0; }
         .menu-btn:hover { background: #f2f2f2; }
-        .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; border-radius: 0; }
+        .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; }
 
-        .nav-right { display: flex; align-items: center; gap: 6px; position: relative; flex-shrink: 0; }
-        .icon-circle-btn { width: 36px; height: 36px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; position: relative; }
+        .top-right-icons { display: flex; align-items: center; gap: 6px; }
+        .icon-circle-btn { width: 38px; height: 38px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; position: relative; }
         .icon-circle-btn:hover { background: #d8dadf; }
         .notif-badge { position: absolute; top: 1px; right: 1px; background: #fa383e; color: white; font-size: 9px; padding: 2px 4px; border-radius: 10px; font-weight: bold; }
 
@@ -73,22 +74,33 @@
         .action-btn:hover { background: #f2f2f2; }
         .action-btn.liked { color: #1877f2; }
 
-        /* Tap-to-toggle reaction popup for instant response on mobile */
+        /* Reaction Popup */
         .reaction-popup { position: absolute; bottom: 42px; left: 0; background: white; border-radius: 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); padding: 6px 10px; display: flex; gap: 8px; z-index: 100; border: 1px solid #dddfe2; display: none; }
         .reaction-emoji { font-size: 22px; cursor: pointer; transition: transform 0.2s; }
         .reaction-emoji:hover { transform: scale(1.35); }
 
-        .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; background: #f9f9f9; padding: 10px 12px; border-radius: 0 0 8px 8px; }
-        .comment-item { display: flex; gap: 8px; margin-bottom: 10px; font-size: 13px; align-items: flex-start; }
-        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; }
-        .comment-avatar:hover { opacity: 0.85; }
-        .comment-bubble-wrap { display: flex; flex-direction: column; max-width: 82%; }
-        .comment-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; word-break: break-word; transition: background 0.5s; }
+        /* Comments Section (Smooth Slide Down & Facebook Style) */
+        .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; background: #fff; padding: 10px 12px; border-radius: 0 0 8px 8px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
+        .comments-section.open { max-height: 800px; overflow-y: auto; }
+
+        .comment-filter-bar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #65676b; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e4e6eb; }
+        .comment-filter-select { border: none; background: transparent; font-weight: bold; color: #1877f2; cursor: pointer; font-size: 12px; outline: none; }
+
+        .comment-item { display: flex; gap: 8px; margin-bottom: 12px; font-size: 13px; align-items: flex-start; }
+        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; flex-shrink: 0; }
+        .comment-bubble-wrap { display: flex; flex-direction: column; max-width: 85%; }
+        .comment-bubble { background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; word-break: break-word; }
         .comment-author { font-weight: bold; color: #050505; cursor: pointer; font-size: 12.5px; margin-bottom: 2px; display: inline-block; }
         .comment-author:hover { text-decoration: underline; color: #1877f2; }
         .comment-footer-actions { display: flex; gap: 10px; margin-top: 2px; margin-left: 10px; font-size: 11.5px; color: #65676b; }
         .reply-btn { font-weight: bold; cursor: pointer; color: #65676b; }
         .reply-btn:hover { text-decoration: underline; color: #1877f2; }
+
+        /* Reply Items Smaller than Main Comment */
+        .reply-item { display: flex; gap: 6px; margin-top: 8px; margin-left: 20px; font-size: 12px; align-items: flex-start; }
+        .reply-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; cursor: pointer; flex-shrink: 0; }
+        .reply-bubble { background: #f0f2f5; padding: 6px 10px; border-radius: 14px; color: #050505; word-break: break-word; font-size: 12px; }
+        .reply-author { font-weight: bold; color: #050505; cursor: pointer; font-size: 11.5px; margin-bottom: 1px; display: inline-block; }
 
         .highlight-post { box-shadow: 0 0 0 3px #1877f2 !important; }
         .highlight-comment { background-color: #e7f3ff !important; border: 1px solid #1877f2; }
@@ -115,44 +127,45 @@
 <body>
 
     <div class="top-bar">
-        <div class="top-left">
-            <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
-            <div class="dropdown-menu" id="menuDropdown">
-                <div class="dropdown-item" onclick="alert('Settings & Privacy clicked')">⚙️ Settings & Privacy</div>
-                <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
+        <div class="top-bar-row1">
+            <div class="top-left">
+                <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
+                <div class="logo-nav" onclick="switchTab('feed')">camfeed</div>
+                <div class="dropdown-menu" id="menuDropdown">
+                    <div class="dropdown-item" onclick="alert('Settings & Privacy clicked')">⚙️ Settings & Privacy</div>
+                    <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
+                </div>
             </div>
-            
-            <div class="logo-nav" onclick="switchTab('feed')">camfeed</div>
+
+            <div class="top-right-icons">
+                <div class="search-box-wrapper">
+                    <span class="search-icon-abs" onclick="focusSearchInput()">🔍</span>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search..." oninput="searchUsers(this.value)">
+                </div>
+
+                <button class="icon-circle-btn" onclick="toggleNotifications(event)">
+                    🔔
+                    <span id="notifBadge" class="notif-badge hidden">0</span>
+                </button>
+                <div class="notification-dropdown" id="notifDropdown" onclick="event.stopPropagation()">
+                    <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
+                    <div id="notifList">
+                        <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
+                    </div>
+                </div>
+
+                <a class="user-profile-link" href="profile.html" title="My Profile">
+                    <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                </a>
+            </div>
         </div>
-        
+
         <!-- Navigation Tabs -->
         <div class="nav-menus">
             <button class="menu-btn active" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
             <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
             <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
             <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat">💬</button>
-        </div>
-
-        <div class="nav-right">
-            <div class="search-box-wrapper">
-                <span class="search-icon-abs" onclick="focusSearchInput()">🔍</span>
-                <input type="text" id="searchInput" class="search-input" placeholder="Search..." oninput="searchUsers(this.value)">
-            </div>
-
-            <button class="icon-circle-btn" onclick="toggleNotifications(event)">
-                🔔
-                <span id="notifBadge" class="notif-badge hidden">0</span>
-            </button>
-            <div class="notification-dropdown" id="notifDropdown" onclick="event.stopPropagation()">
-                <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
-                <div id="notifList">
-                    <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
-                </div>
-            </div>
-
-            <a class="user-profile-link" href="profile.html" title="My Profile">
-                <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
-            </a>
         </div>
     </div>
 
@@ -296,7 +309,6 @@
         window.onclick = function() {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
-            // បិទ reaction popup ទាំងអស់បើចុចក្រៅ
             document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
             if(typeof closeImageMenu === 'function') closeImageMenu();
         }
@@ -578,9 +590,21 @@
                         <button class="action-btn" onclick="toggleCommentBox(${post.id})">💬 Comment</button>
                         <button class="action-btn" onclick="openShareMenu(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on Camfeed!')}')" title="Share Link">🔗 Share</button>
                     </div>
-                    <div id="commentsSection-${post.id}" class="comments-section hidden">
+
+                    <!-- Comments Section (Hidden by default, slides down smoothly when clicked) -->
+                    <div id="commentsSection-${post.id}" class="comments-section">
+                        <div class="comment-filter-bar">
+                            <span>Comments</span>
+                            <div>
+                                <select class="comment-filter-select" onchange="sortComments(${post.id}, this.value)">
+                                    <option value="relevant">More relevant</option>
+                                    <option value="newest">Newest</option>
+                                    <option value="all">All comments</option>
+                                </select>
+                            </div>
+                        </div>
                         <div id="commentList-${post.id}"></div>
-                        <div style="display: flex; gap: 5px; margin-top: 8px;">
+                        <div style="display: flex; gap: 5px; margin-top: 10px;">
                             <input type="text" id="commentInput-${post.id}" placeholder="Write a comment..." style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
                             <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">Send</button>
                         </div>
@@ -594,7 +618,6 @@
 
         function toggleReactionPopup(event, postId) {
             event.stopPropagation();
-            // បិទ popup ផ្សេងៗជាមុន
             document.querySelectorAll('.reaction-popup').forEach(p => {
                 if (p.id !== `reactionPopup-${postId}`) p.style.display = 'none';
             });
@@ -662,13 +685,19 @@
             videoElements.forEach(video => observer.observe(video));
         }
 
-        async function toggleCommentBox(postId) {
+        // Toggle Comments Section (Smooth Slide Down / Collapse)
+        function toggleCommentBox(postId) {
             const sec = document.getElementById(`commentsSection-${postId}`);
             if (!sec) return;
-            sec.classList.toggle('hidden');
-            if (!sec.classList.contains('hidden')) {
+            sec.classList.toggle('open');
+            if (sec.classList.contains('open')) {
                 loadComments(postId);
             }
+        }
+
+        function sortComments(postId, sortType) {
+            // Placeholder for sorting handling if needed
+            loadComments(postId);
         }
 
         async function loadComments(postId) {
@@ -745,7 +774,7 @@
                     setTimeout(() => postElem.classList.remove('highlight-post'), 2500);
 
                     const sec = document.getElementById(`commentsSection-${postId}`);
-                    if (sec && sec.classList.contains('hidden')) {
+                    if (sec && !sec.classList.contains('open')) {
                         toggleCommentBox(postId);
                     }
 
