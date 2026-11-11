@@ -412,7 +412,7 @@ app.get('/api/users', async (req, res) => {
 
 // Get Followers or Following List
 app.get('/api/follow-list', async (req, res) => {
-  const { email, type } = req.query; // type = 'followers' ឬ 'following'
+  const { email, type } = req.query;
   try {
     let query = '';
     if (type === 'followers') {
@@ -458,6 +458,40 @@ app.post('/api/follow', async (req, res) => {
       await pool.query('DELETE FROM follows WHERE follower_email = $1 AND following_email = $2', [followerEmail, followingEmail]);
     }
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🎯 API សម្រាប់ទាញយកรายនាម Chats ទាំងអស់ ឬ Users មកបង្ហាញមិនឱ្យជាប់ Loading
+app.get('/api/chat-conversations', async (req, res) => {
+  const { email } = req.query;
+  try {
+    const query = `
+      SELECT email, first_name, last_name, profile_pic 
+      FROM users 
+      WHERE email != $1
+      ORDER BY first_name ASC
+    `;
+    const result = await pool.query(query, [email]);
+    res.json({ success: true, conversations: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🎯 API សម្រាប់ Search រក User ពេលវាយអក្សរក្នុងប្រអប់ Search ផ្ទាំង Chat
+app.get('/api/search-users', async (req, res) => {
+  const { email, keyword } = req.query;
+  try {
+    const query = `
+      SELECT email, first_name, last_name, profile_pic 
+      FROM users 
+      WHERE email != $1 AND (first_name ILIKE $2 OR last_name ILIKE $2 OR email ILIKE $2)
+      LIMIT 10
+    `;
+    const result = await pool.query(query, [email, `%${keyword || ''}%`]);
+    res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
