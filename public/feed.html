@@ -335,7 +335,9 @@
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
         }
 
-        // 🎯 មុខងារ SwitchTab ដែលបានកែសម្រួលថ្មី៖ ពេលចុចលើ tab ដែលកំពុងមើលស្រាប់ វានឹង Scroll ឡើងលើនិង Reload ទិន្នន័យស្វ័យប្រវត្តិ
+        // ⏱️ សម្រាប់ចាប់ពេលចុចប៊ូតុង Home ពីរដងជាប់គ្នា (Double Click)
+        let lastHomeClickTime = 0;
+
         function switchTab(tab) {
             if (tab === 'videos') { 
                 if (window.location.pathname.includes('videos.html')) {
@@ -363,10 +365,21 @@
             }
             
             // 🏠 ករណីចុចប៊ូតុង Home (Feed)
-            if (window.location.pathname.includes('feed.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                loadPosts(); // 🔄 Refresh Feed ឡើងវិញភ្លាមៗ
+            const isAlreadyOnFeed = window.location.pathname.includes('feed.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
+            
+            if (isAlreadyOnFeed) {
+                const currentTime = new Date().getTime();
+                // ⏱️ បើចុចពីរដងជាប់គ្នា (ក្នុងរង្វង់ ៥០០ មីលីវិនាទី) ទើបทำการ Reload ទិន្នន័យ
+                if (currentTime - lastHomeClickTime < 500) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    loadPosts(); // 🔄 Reload Feed ថ្មី
+                } else {
+                    // បើចុចធម្មតាមួយដង គ្រាន់តែរមូរឡើងលើ មិនបាច់ Reload ទេ
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                lastHomeClickTime = currentTime;
             } else {
+                // បើមកពីទំព័រផ្សេង (ឧ. Friends) គ្រាន់តែប្ដូរមក feed.html ធម្មតា (រក្សាទីតាំងចាស់)
                 window.location.href = 'feed.html';
             }
         }

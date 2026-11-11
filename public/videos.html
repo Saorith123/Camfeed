@@ -51,7 +51,7 @@
 <body>
 
     <div class="reels-top-bar">
-        <button class="back-btn" onclick="window.location.href='feed.html'">🡠</button>
+        <button class="back-btn" onclick="switchTab('feed')">🡠</button>
         <div style="font-weight: bold; font-size: 18px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Videos</div>
         <div style="width: 40px;"></div>
     </div>
@@ -83,6 +83,30 @@
             window.location.href = 'index.html';
         } else {
             loadVideosFeed();
+        }
+
+        let lastVideoClickTime = 0;
+
+        function switchTab(tab) {
+            if (tab === 'videos') {
+                const isAlreadyOnVideos = window.location.pathname.includes('videos.html');
+                if (isAlreadyOnVideos) {
+                    const currentTime = new Date().getTime();
+                    if (currentTime - lastVideoClickTime < 500) {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        loadVideosFeed(); // 🔄 Reload វីដេអូពេលចុចពីរដង
+                    } else {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                    lastVideoClickTime = currentTime;
+                } else {
+                    window.location.href = 'videos.html';
+                }
+                return;
+            }
+            if (tab === 'friends') { window.location.href = 'friends.html'; return; }
+            if (tab === 'chat') { window.location.href = 'messages.html'; return; }
+            window.location.href = 'feed.html';
         }
 
         async function loadVideosFeed() {

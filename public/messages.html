@@ -28,7 +28,6 @@
         
         .avatar-wrapper { position: relative; flex-shrink: 0; }
         .avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: #ccc; }
-        .online-dot { position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; background: #31a24c; border: 2px solid white; border-radius: 50%; }
 
         .chat-main { flex: 1; display: flex; flex-direction: column; background: #fff; min-width: 0; position: relative; }
         .messages-list { flex: 1; padding: 15px; overflow-y: auto; background: #f7f8fa; display: flex; flex-direction: column; gap: 10px; }
@@ -72,6 +71,13 @@
 
         #voicePreviewContainer { display: none; align-items: center; justify-content: space-between; background: #e7f3ff; padding: 10px 15px; border-top: 1px solid #b0d3f8; gap: 8px; }
 
+        /* Menu Dropdown Styling */
+        .dropdown-menu { position: absolute; top: 48px; left: 15px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .dropdown-item:hover { background: #f2f2f2; }
+        .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
+        .menu-icon-btn:hover { background: #d8dadf; }
+
         @media (max-width: 768px) {
             .chat-container { width: 100%; margin: 0; border-radius: 0; height: calc(100dvh - 60px); }
             .chat-sidebar { width: 100%; }
@@ -103,9 +109,15 @@
     </div>
 
     <div class="top-bar">
-        <div style="display: flex; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px; position: relative;">
             <button class="mobile-back-chat" id="mobileBackBtn" onclick="backToSidebar()">❮ Back</button>
-            <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
+            <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
+            <div class="logo-nav" onclick="handleFeedNavigation()">camfeed</div>
+            
+            <div class="dropdown-menu" id="menuDropdown">
+                <div class="dropdown-item" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
+                <div class="dropdown-item" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
+            </div>
         </div>
         
         <div class="top-right-actions">
@@ -123,7 +135,7 @@
                 </div>
             </div>
 
-            <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Feed</button>
+            <button class="back-btn" onclick="handleFeedNavigation()">⬅ Feed</button>
         </div>
     </div>
 
@@ -230,6 +242,31 @@
             }
         }
 
+        function toggleMenuDropdown(event) {
+            event.stopPropagation();
+            document.getElementById('messengerDropdown').style.display = 'none';
+            const dropdown = document.getElementById('menuDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleMessengerDropdown() {
+            const menuDropdown = document.getElementById('menuDropdown');
+            if (menuDropdown) menuDropdown.style.display = 'none';
+            const dropdown = document.getElementById('messengerDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // 🏠 មុខងារគ្រប់គ្រង Feed Navigation (ចុច Back / Logo ពេលស្ថិតក្នុង Chat ឱ្យត្រឡប់ទៅ Feed ដើមដោយមិន Reload)
+        function handleFeedNavigation() {
+            if (activeChatEmail) {
+                // ប្រសិនបើកំពុងបើក Chat ជាមួយនរណាម្នាក់ ឱ្យបិទ Chat មកខាងក្រៅវិញជាមុនសិន
+                backToSidebar();
+            } else {
+                // ប្រសិនបើនៅខាងក្រៅបញ្ជី Chat ហើយ ចុចទៅ Feed ដើម
+                window.location.href = 'feed.html';
+            }
+        }
+
         async function loadConversations() {
             try {
                 const res = await fetch(`/api/chat-conversations?email=${currentUser.email}`);
@@ -251,7 +288,6 @@
                 <div class="chat-user-item" id="user-item-${u.email}" onclick="selectChat('${u.email}', '${u.first_name} ${u.last_name}')">
                     <div class="avatar-wrapper">
                         <img src="${u.profile_pic || 'https://via.placeholder.com/45'}" class="avatar">
-                        <div class="online-dot"></div>
                     </div>
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-weight: bold; color: #050505; font-size: 14px;">${u.first_name} ${u.last_name}</div>
@@ -307,18 +343,26 @@
             }, 2000);
         }
 
+        // 🔄 មុខងារ Back ពេលកំពុង Chat: ចុចទី១ មកក្រៅបញ្ជី Chat, ចុចទី២ ទៅ Feed ដើមដោយមិន Reload
         function backToSidebar() {
             if (currentAudioObject) {
                 currentAudioObject.pause();
                 currentAudioObject = null;
             }
             if (currentAnimFrame) cancelAnimationFrame(currentAnimFrame);
-            document.getElementById('sidebarSection').classList.remove('hidden-mobile');
-            document.getElementById('chatMainArea').classList.add('hidden-mobile');
-            document.getElementById('mobileBackBtn').style.display = 'none';
-            activeChatEmail = null;
-            if (messagePollingInterval) clearInterval(messagePollingInterval);
-            loadConversations();
+            
+            if (activeChatEmail) {
+                // ប្រសិនបើកំពុងនៅក្នុងห้อง Chat กับនរណាម្នាក់ ឱ្យត្រឡប់មកក្រៅបញ្ជី Chat វិញ
+                document.getElementById('sidebarSection').classList.remove('hidden-mobile');
+                document.getElementById('chatMainArea').classList.add('hidden-mobile');
+                document.getElementById('mobileBackBtn').style.display = 'none';
+                activeChatEmail = null;
+                if (messagePollingInterval) clearInterval(messagePollingInterval);
+                loadConversations();
+            } else {
+                // ប្រសិនបើនៅខាងក្រៅបញ្ជី Chat ហើយ ចុច Back ម្តងទៀត ឱ្យទៅកាន់ Feed ដើម
+                window.location.href = 'feed.html';
+            }
         }
 
         async function loadMessages(isPolling = false) {
@@ -363,10 +407,24 @@
                         const fullTimeStr = `${dateString} ${timeString}`;
 
                         const isSent = m.sender_email === currentUser.email;
+                        
+                        // 👁️ បន្ថែមសញ្ញាសម្គាល់ Seen (ប្រសិនបើម្ខាងទៀតបានអានសារ is_read = true)
+                        let seenStatusHtml = '';
+                        if (isSent) {
+                            if (m.is_read) {
+                                seenStatusHtml = `<span style="font-size: 9px; color: #1877f2; font-weight: bold; margin-left: 2px;">✔️ Seen</span>`;
+                            } else {
+                                seenStatusHtml = `<span style="font-size: 9px; color: #90949c; margin-left: 2px;">Sent</span>`;
+                            }
+                        }
+
                         return `
                             <div style="display: flex; flex-direction: column; align-items: ${isSent ? 'flex-end' : 'flex-start'}; gap: 2px;">
                                 <div class="msg-bubble ${isSent ? 'msg-sent' : 'msg-received'}">${contentHtml}</div>
-                                <span style="font-size: 10px; color: #90949c; padding: 0 4px;">${fullTimeStr}</span>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <span style="font-size: 10px; color: #90949c; padding: 0 4px;">${fullTimeStr}</span>
+                                    ${seenStatusHtml}
+                                </div>
                             </div>
                         `;
                     }).join('');
@@ -548,6 +606,8 @@
         }
 
         function toggleMessengerDropdown() {
+            const menuDropdown = document.getElementById('menuDropdown');
+            if (menuDropdown) menuDropdown.style.display = 'none';
             const dropdown = document.getElementById('messengerDropdown');
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
@@ -558,9 +618,11 @@
         }
 
         window.onclick = function(event) {
-            if (!event.target.closest('button') && !event.target.closest('#messengerDropdown')) {
+            if (!event.target.closest('button') && !event.target.closest('#messengerDropdown') && !event.target.closest('#menuDropdown')) {
                 const dropdown = document.getElementById('messengerDropdown');
                 if (dropdown) dropdown.style.display = 'none';
+                const menuDropdown = document.getElementById('menuDropdown');
+                if (menuDropdown) menuDropdown.style.display = 'none';
             }
         }
 
@@ -589,6 +651,7 @@
             event.target.value = '';
         }
 
+        // 🎙️ មុខងារ Record សំឡេងកម្រិត Studio / Podcast (Clear & Crisp Audio)
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -784,6 +847,11 @@
 
         function handleKeyPress(e) {
             if (e.key === 'Enter') sendMessage();
+        }
+
+        function logout() {
+            localStorage.removeItem('camfeed_user');
+            window.location.href = 'index.html';
         }
     </script>
 </body>
