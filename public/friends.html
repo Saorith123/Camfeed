@@ -90,11 +90,40 @@
             setInterval(loadFeedMessengerBadge, 3000);
         }
 
+        // 🎯 មុខងារ SwitchTab ដែលបានកែសម្រួលថ្មី៖ ពេលចុចលើ tab ដែលកំពុងមើលស្រាប់ វានឹង Scroll ឡើងលើនិង Reload ទិន្នន័យស្វ័យប្រវត្តិ
         function switchTab(tab) {
-            if (tab === 'videos') { window.location.href = 'videos.html'; return; }
-            if (tab === 'friends') { window.location.href = 'friends.html'; return; }
-            if (tab === 'chat') { window.location.href = 'messages.html'; return; }
-            window.location.href = 'feed.html';
+            if (tab === 'videos') { 
+                if (window.location.pathname.includes('videos.html')) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    window.location.href = 'videos.html'; 
+                }
+                return; 
+            }
+            if (tab === 'friends') { 
+                if (window.location.pathname.includes('friends.html')) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    loadUsers(); // 🔄 Refresh បញ្ជីមិត្តភក្តិឡើងវិញ
+                } else {
+                    window.location.href = 'friends.html'; 
+                }
+                return; 
+            }
+            if (tab === 'chat') { 
+                if (window.location.pathname.includes('messages.html')) {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    window.location.href = 'messages.html'; 
+                }
+                return; 
+            }
+            
+            // 🏠 ករណីចុចប៊ូតុង Home (Feed)
+            if (window.location.pathname.includes('feed.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/')) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                window.location.href = 'feed.html';
+            }
         }
 
         async function loadFeedMessengerBadge() {
