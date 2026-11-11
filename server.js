@@ -332,7 +332,7 @@ app.post('/api/comments', async (req, res) => {
   }
 });
 
-// 🛠️ API ថ្មីសម្រាប់ Edit Comment
+// Edit Comment API
 app.put('/api/comments/:id', async (req, res) => {
   const { id } = req.params;
   const { email, content } = req.body;
@@ -349,12 +349,11 @@ app.put('/api/comments/:id', async (req, res) => {
   }
 });
 
-// 🛠️ API ថ្មីសម្រាប់ Delete Comment (អនុញ្ញាតឱ្យទាំងម្ចាស់ comment និងម្ចាស់ post លុបបាន)
+// Delete Comment API
 app.delete('/api/comments/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
   try {
-    // ពិនិត្យមើលថាតើអ្នកស្នើសុំជាម្ចាស់ comment ផ្ទាល់ ឬជាម្ចាស់ post ដែរឬទេ
     const checkQuery = `
       SELECT c.*, p.user_email as post_owner_email 
       FROM comments c 
@@ -378,13 +377,10 @@ app.delete('/api/comments/:id', async (req, res) => {
   }
 });
 
-// 🛠️ API ថ្មីសម្រាប់ Report Comment
+// Report Comment API
 app.post('/api/comments/report', async (req, res) => {
   const { commentId, email, reason } = req.body;
   try {
-    // ប្រសិនបើអ្នកមិនទាន់មានតារាង reports ទេ អ្នកអាចបង្កើត ឬកត់ត្រាទុកតាមតម្រូវការ
-    // ឧទាហរណ៍៖ INSERT INTO reports (comment_id, reporter_email, reason) VALUES (...)
-    // បច្ចុប្បន្នយើងឆ្លើយតបថាជោគជ័យសិនដើម្បីភ្ជាប់ជាមួយ Frontend
     res.json({ success: true, message: 'Report received successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -447,6 +443,8 @@ app.get('/api/users', async (req, res) => {
     
     const usersWithFriendship = result.rows.map(u => ({
       ...u,
+      is_following: u.is_following === true || u.is_following === 'true',
+      is_followed_by: u.is_followed_by === true || u.is_followed_by === 'true',
       is_friend: u.is_following && u.is_followed_by
     }));
 
@@ -609,7 +607,6 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// 🎯 API ទទួលសារទាំងអត្ថបទ, រូបភាព (Image), វីដេអូ (Video) និង Voice Message
 app.post('/api/messages', (req, res, next) => {
   cloudinaryUpload.single('mediaFile')(req, res, (err) => {
     if (err) {
