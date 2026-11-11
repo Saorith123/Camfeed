@@ -463,24 +463,49 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ទាញយកรายនាម Chats ទាំងអស់ ឬ Users មកបង្ហាញមិនឱ្យជាប់ Loading
+// 🎯 API សម្រាប់ទាញយក เฉพาะรายនាមអ្នកដែលធ្លាប់ឆាតគ្នា (តម្រៀបតាមអ្នកឆាតថ្មីជាងគេ) និងអ្នកដែល Follow គ្នា
 app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT email, first_name, last_name, profile_pic 
-      FROM users 
-      WHERE email != $1
-      ORDER BY first_name ASC
+      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic,
+      (
+        SELECT m.message FROM messages m 
+        WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
+        ORDER BY m.created_at DESC LIMIT 1
+      ) as last_message,
+      (
+        SELECT m.created_at FROM messages m 
+        WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
+        ORDER BY m.created_at DESC LIMIT 1
+      ) as last_time
+      FROM users u
+      JOIN messages m ON u.email = m.sender_email OR u.email = m.receiver_email
+      WHERE (m.sender_email = $1 OR m.receiver_email = $1) AND u.email != $1
+      
+      UNION
+      
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic,
+      'Start a conversation' as last_message,
+      NOW() - INTERVAL '1 year' as last_time
+      FROM users u
+      JOIN follows f ON (f.following_email = u.email AND f.follower_email = $1) OR (f.follower_email = u.email AND f.following_email = $1)
+      WHERE u.email != $1 AND u.email NOT IN (
+        SELECT DISTINCT CASE WHEN sender_email = $1 THEN receiver_email ELSE sender_email END 
+        FROM messages WHERE sender_email = $1 OR receiver_email = $1
+      )
+      
+      ORDER BY last_time DESC NULLS LAST
     `;
     const result = await pool.query(query, [email]);
     res.json({ success: true, conversations: result.rows });
   } catch (err) {
+    console.error("Error loading conversations:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 🎯 API សម្រាប់ Search រក User ពេលវាយអក្សរក្នុងប្រអប់ Search ផ្ទាំង Chat
+// 🎯 API សម្រាប់ Search រក User ផ្សេងៗពេលវាយអក្សរ
 app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
@@ -492,6 +517,38 @@ app.get('/api/search-users', async (req, res) => {
     `;
     const result = await pool.query(query, [email, `%${keyword || ''}%`]);
     res.json({ success: true, users: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🎯 API សម្រាប់ទាញយកចំនួនសារមិនទាន់បានអាន (Chat Unread Notifications)
+app.get('/api/chat-notifications', async (req, res) => {
+  const { email } = req.query;
+  try {
+    const query = `
+      SELECT m.*, u.first_name, u.last_name, u.profile_pic 
+      FROM messages m
+      JOIN users u ON m.sender_email = u.email
+      WHERE m.receiver_email = $1 AND m.is_read = FALSE
+      ORDER BY m.created_at DESC
+    `;
+    const result = await pool.query(query, [email]);
+    res.json({ success: true, unreadMessages: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🎯 API សម្រាប់ Mark ថាបានអានសាររួចរាល់ (Mark as Read)
+app.post('/api/mark-read', async (req, res) => {
+  const { userEmail, senderEmail } = req.body;
+  try {
+    await pool.query(
+      'UPDATE messages SET is_read = TRUE WHERE receiver_email = $1 AND sender_email = $2',
+      [userEmail, senderEmail]
+    );
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -522,10 +579,11 @@ app.post('/api/messages', cloudinaryUpload.single('mediaFile'), async (req, res)
   const messageType = req.file ? 'audio' : 'text';
 
   try {
-    const query = 'INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type) VALUES ($1, $2, $3, $4, $5) RETURNING *';
+    const query = 'INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read) VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING *';
     const result = await pool.query(query, [sender, receiver, message, mediaUrl, messageType]);
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
+    console.error("Error saving message:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
