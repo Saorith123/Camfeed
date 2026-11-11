@@ -92,22 +92,18 @@
                     const lang = localStorage.getItem('camfeed_lang') || 'en';
                     const t = translations[lang];
 
-                    // 🎯 ត្រងបង្ហាញเฉพาะ User ដែលយើងមិនទាន់เป็นเพื่อนกัน (is_friend === false)
-                    // (is_friend គឺទាល់តែ both តាមដានគ្នាទៅវិញទៅមក)
-                    const notFriendsUsers = data.users.filter(u => !u.is_friend);
+                    // 🎯 បង្ហាញ User ទាំងអស់លើកលែងតែខ្លួនឯងចេញ
+                    const otherUsers = data.users.filter(u => u.email !== currentUser.email);
 
-                    if (notFriendsUsers.length === 0) {
+                    if (otherUsers.length === 0) {
                         container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
                         return;
                     }
 
-                    notFriendsUsers.forEach(u => {
+                    otherUsers.forEach(u => {
                         const div = document.createElement('div');
                         div.className = 'user-card';
 
-                        // 🔍 ពិនិត្យស្ថានភាព Follow:
-                        // 1. ຖ້າគេ Follow យើង (is_followed_by === true) ហើយយើងមិនទាន់ Follow គេ (is_following === false) -> ពណ៌បៃតង "Follow Back"
-                        // 2. ຖ້າ നമ്മ ෙFollow គេហើយ (is_following === true) -> ពណ៌លឿង ឬ Unfollow
                         let btnClass = '';
                         let btnText = '';
 
@@ -115,7 +111,7 @@
                             btnClass = 'btn-follow-back';
                             btnText = t.followBackBtn;
                         } else if (u.is_following) {
-                            btnClass = 'btn-yellow'; // 🟡 ប៊ូតុងពណ៌លឿងពេលយើង Follow គេ
+                            btnClass = 'btn-yellow'; // 🟡 ប៊ូតុងពណ៌លឿងពេលយើង Follow គេហើយ
                             btnText = t.followingBtn;
                         } else {
                             btnClass = '';

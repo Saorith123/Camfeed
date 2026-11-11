@@ -58,7 +58,7 @@
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <span>Comments</span>
-                <span style="cursor: pointer; font-size: 20px;" onclick="closeCommentsModal()">×</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeCommentsModal()">&times;</span>
             </div>
             <div class="modal-body" id="modalCommentList"></div>
             <div style="display: flex; padding: 10px 15px; border-top: 1px solid #e4e6eb; gap: 8px; background: #fff; align-items: center;">
@@ -94,7 +94,7 @@
 
                     container.innerHTML = videoPosts.map(video => `
                         <div class="reel-item" id="reel-${video.id}">
-                            <video src="${video.media_url}" class="reel-video" loop playsinline preload="metadata" onclick="togglePlayPause(this)"></video>
+                            <video src="${video.media_url}" class="reel-video" loop playsinline preload="auto" onclick="togglePlayPause(this)"></video>
                             
                             <div class="reel-overlay">
                                 <div class="reel-author-row" onclick="window.location.href='profile.html?email=${video.user_email}'">
@@ -225,6 +225,14 @@
 
         function initReelsAutoplay() {
             const videoItems = document.querySelectorAll('.reel-video');
+            
+            // 🎯 Auto-play the first video immediately when loaded
+            if (videoItems.length > 0) {
+                videoItems[0].play().catch(err => {
+                    console.log("Autoplay blocked by browser policy, waiting for interaction:", err);
+                });
+            }
+
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const video = entry.target;
