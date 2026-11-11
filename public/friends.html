@@ -47,14 +47,7 @@
     </div>
 
     <script>
-        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        if (!currentUser) {
-            window.location.href = 'index.html';
-        } else {
-            applyLanguage();
-            loadUsers();
-        }
-
+        // 🎯 ដាក់ translations ไว้ด้านบนสุด เพื่อป้องกัน Error មិនស្គាល់អថេរមុនពេលប្រកាស
         const translations = {
             en: {
                 backBtn: "⬅ Back to Feed",
@@ -74,6 +67,14 @@
             }
         };
 
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            applyLanguage();
+            loadUsers();
+        }
+
         function applyLanguage() {
             const lang = localStorage.getItem('camfeed_lang') || 'en';
             const t = translations[lang];
@@ -83,7 +84,6 @@
 
         async function loadUsers() {
             try {
-                // 🎯 ហៅ API ទៅកាន់ Backend ដើម្បីទាញយក User ទាំងអស់
                 const res = await fetch(`/api/users?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 
@@ -94,7 +94,6 @@
                 const t = translations[lang];
 
                 if (data.success && data.users && data.users.length > 0) {
-                    // ត្រងយក User ទាំងអស់លើកលែងតែខ្លួនឯងចេញ
                     const otherUsers = data.users.filter(u => u.email !== currentUser.email);
 
                     if (otherUsers.length === 0) {
@@ -113,7 +112,7 @@
                             btnClass = 'btn-follow-back';
                             btnText = t.followBackBtn;
                         } else if (u.is_following) {
-                            btnClass = 'btn-yellow'; // 🟡 ប៊ូតុងពណ៌លឿងពេលយើង Follow គេហើយ
+                            btnClass = 'btn-yellow';
                             btnText = t.followingBtn;
                         } else {
                             btnClass = '';
@@ -148,7 +147,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    loadUsers(); // Refresh បញ្ជីឡើងវិញបន្ទាប់ពី Follow/Unfollow ជោគជ័យ
+                    loadUsers();
                 }
             } catch (err) {
                 console.error("Error toggling follow:", err);
