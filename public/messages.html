@@ -494,7 +494,6 @@
             const previewContainer = document.getElementById('voicePreviewContainer');
             previewContainer.innerHTML = `<div style="display:flex; align-items:center; gap:8px; margin:auto; color:#1877f2; font-weight:bold;"><div class="spinner" style="width:16px; height:16px; border:2px solid #1877f2; border-top:transparent; border-radius:50%; animation: spin 0.8s linear infinite;"></div> Sending voice...</div>`;
 
-            // 🎯 កំណត់นามสกุลไฟล์អូឌីយ៉ូឱ្យត្រូវ (wav, ogg, webm) តាមប្រភេទ Blob
             let fileExtension = 'webm';
             if (recordedAudioBlob.type.includes('ogg')) fileExtension = 'ogg';
             else if (recordedAudioBlob.type.includes('wav')) fileExtension = 'wav';
@@ -532,25 +531,27 @@
 
             input.value = '';
             
-            // 🎯 ផ្ញើសារអត្ថបទជា FormData ដូចគ្នា ដើម្បីឱ្យ Server ຮັບស្គាល់ និងដំណើរការបានរលូនជាមួយគ្នា
-            const formData = new FormData();
-            formData.append('sender', currentUser.email);
-            formData.append('receiver', activeChatEmail);
-            formData.append('message', message);
-
+            // 🎯 ផ្ញើសារអត្ថបទជា JSON ធម្មតា ទៅកាន់ Server ដើម្បីធានាថាដំណើរការបានរលូន ១០០% មិន Error
             try {
                 const res = await fetch('/api/messages', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        receiver: activeChatEmail,
+                        message: message
+                    })
                 });
                 const data = await res.json();
                 if (data.success) {
                     loadMessages();
                     loadConversations();
                 } else {
-                    alert("Failed to send message.");
+                    alert("Failed to send message: " + (data.error || ''));
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error("Error sending text message:", err); 
+            }
         }
 
         function handleKeyPress(e) {
