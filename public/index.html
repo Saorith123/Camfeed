@@ -36,7 +36,6 @@
         .hidden { display: none !important; }
         label { font-size: 12px; color: #606770; display: block; margin-top: 6px; text-align: left; }
 
-        /* Compact Language Switcher inside card area */
         .lang-container { margin-top: 20px; text-align: center; }
         .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 4px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
     </style>
@@ -44,7 +43,6 @@
 <body>
 
     <div class="container">
-        <!-- Logo Header Center -->
         <div class="logo-container">
             <div class="logo">camfeed</div>
             <div class="logo-tagline" id="logoTagline">Connect with friends and the world around you on Camfeed.</div>
@@ -52,6 +50,7 @@
 
         <!-- LOGIN VIEW -->
         <div class="card" id="loginCard">
+            <!-- 🎯 បន្ថែម name និង autocomplete ដើម្បីឱ្យ Browser ចងចាំ Password -->
             <form onsubmit="event.preventDefault(); loginUser();">
                 <input type="text" id="loginEmail" name="username" autocomplete="username" placeholder="Mobile number or email" required>
                 <div class="password-container">
@@ -120,7 +119,6 @@
             <div class="msg" id="regMsg"></div>
         </div>
 
-        <!-- Compact Language Switcher -->
         <div class="lang-container">
             <select class="lang-select" id="langSwitch" onchange="changeLanguage()">
                 <option value="en">English (US)</option>
