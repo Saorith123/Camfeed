@@ -332,6 +332,65 @@ app.post('/api/comments', async (req, res) => {
   }
 });
 
+// 🛠️ API ថ្មីសម្រាប់ Edit Comment
+app.put('/api/comments/:id', async (req, res) => {
+  const { id } = req.params;
+  const { email, content } = req.body;
+  try {
+    const query = 'UPDATE comments SET content = $1 WHERE id = $2 AND user_email = $3 RETURNING *';
+    const result = await pool.query(query, [content, id, email]);
+    if (result.rows.length > 0) {
+      res.json({ success: true, comment: result.rows[0] });
+    } else {
+      res.status(403).json({ success: false, error: 'Unauthorized or comment not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🛠️ API ថ្មីសម្រាប់ Delete Comment (អនុញ្ញាតឱ្យទាំងម្ចាស់ comment និងម្ចាស់ post លុបបាន)
+app.delete('/api/comments/:id', async (req, res) => {
+  const { id } = req.params;
+  const { email } = req.body;
+  try {
+    // ពិនិត្យមើលថាតើអ្នកស្នើសុំជាម្ចាស់ comment ផ្ទាល់ ឬជាម្ចាស់ post ដែរឬទេ
+    const checkQuery = `
+      SELECT c.*, p.user_email as post_owner_email 
+      FROM comments c 
+      JOIN posts p ON c.post_id = p.id 
+      WHERE c.id = $1
+    `;
+    const checkRes = await pool.query(checkQuery, [id]);
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Comment not found' });
+    }
+
+    const comment = checkRes.rows[0];
+    if (comment.user_email !== email && comment.post_owner_email !== email) {
+      return res.status(403).json({ success: false, error: 'Unauthorized to delete this comment' });
+    }
+
+    await pool.query('DELETE FROM comments WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 🛠️ API ថ្មីសម្រាប់ Report Comment
+app.post('/api/comments/report', async (req, res) => {
+  const { commentId, email, reason } = req.body;
+  try {
+    // ប្រសិនបើអ្នកមិនទាន់មានតារាង reports ទេ អ្នកអាចបង្កើត ឬកត់ត្រាទុកតាមតម្រូវការ
+    // ឧទាហរណ៍៖ INSERT INTO reports (comment_id, reporter_email, reason) VALUES (...)
+    // បច្ចុប្បន្នយើងឆ្លើយតបថាជោគជ័យសិនដើម្បីភ្ជាប់ជាមួយ Frontend
+    res.json({ success: true, message: 'Report received successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/notifications', async (req, res) => {
   const { email } = req.query;
   try {
