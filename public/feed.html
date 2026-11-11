@@ -7,42 +7,43 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; }
         
-        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
-        .top-left { display: flex; align-items: center; gap: 10px; position: relative; }
-        .menu-icon-btn { font-size: 20px; background: #e4e6eb; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; gap: 8px; }
+        .top-left { display: flex; align-items: center; gap: 8px; position: relative; flex-shrink: 0; }
+        .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
         .menu-icon-btn:hover { background: #d8dadf; }
-        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .logo-nav { font-size: 20px; font-weight: bold; color: #1877f2; cursor: pointer; }
         
-        .dropdown-menu { position: absolute; top: 50px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-menu { position: absolute; top: 45px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .dropdown-item:hover { background: #f2f2f2; }
 
         /* Notification Dropdown */
-        .notification-dropdown { position: absolute; right: 50px; top: 50px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 340px; max-height: 400px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
+        .notification-dropdown { position: absolute; right: 10px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 300px; max-height: 400px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
         .notification-item { padding: 10px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: center; cursor: pointer; }
         .notification-item:hover { background: #f2f2f2; }
 
+        /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
-        .search-input { padding: 8px 12px 8px 32px; border-radius: 20px; border: none; background: #f0f2f5; outline: none; font-size: 14px; width: 180px; transition: width 0.3s; }
-        .search-input:focus { width: 240px; background: white; border: 1px solid #1877f2; }
-        .search-icon-abs { position: absolute; left: 10px; font-size: 14px; color: #65676b; }
+        .search-input { padding: 7px 10px 7px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 110px; transition: width 0.3s, border-color 0.3s; }
+        .search-input:focus { width: 180px; background: white; border-color: #1877f2; }
+        .search-icon-abs { position: absolute; left: 8px; font-size: 13px; color: #65676b; cursor: pointer; }
 
-        .nav-menus { display: flex; gap: 5px; }
-        .menu-btn { padding: 8px 22px; background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; border-radius: 8px; position: relative; }
+        .nav-menus { display: flex; gap: 2px; }
+        .menu-btn { padding: 6px 14px; background: none; border: none; font-size: 20px; color: #65676b; cursor: pointer; border-radius: 8px; position: relative; }
         .menu-btn:hover { background: #f2f2f2; }
         .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; border-radius: 0; }
 
-        .nav-right { display: flex; align-items: center; gap: 8px; position: relative; }
-        .icon-circle-btn { width: 40px; height: 40px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; position: relative; }
+        .nav-right { display: flex; align-items: center; gap: 6px; position: relative; flex-shrink: 0; }
+        .icon-circle-btn { width: 36px; height: 36px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; position: relative; }
         .icon-circle-btn:hover { background: #d8dadf; }
-        .notif-badge { position: absolute; top: 2px; right: 2px; background: #fa383e; color: white; font-size: 10px; padding: 2px 5px; border-radius: 10px; font-weight: bold; }
+        .notif-badge { position: absolute; top: 1px; right: 1px; background: #fa383e; color: white; font-size: 9px; padding: 2px 4px; border-radius: 10px; font-weight: bold; }
 
         .user-profile-link { display: flex; align-items: center; cursor: pointer; border-radius: 50%; padding: 2px; }
         .user-profile-link:hover { background: #f2f2f2; }
 
         #pullRefreshIndicator { text-align: center; color: #65676b; font-size: 13px; font-weight: bold; padding: 10px; display: none; background: #e4e6eb; border-radius: 20px; width: fit-content; margin: 0 auto 10px auto; }
 
-        .main-container { max-width: 680px; margin: 20px auto; padding: 0 15px; }
+        .main-container { max-width: 680px; margin: 15px auto; padding: 0 10px; }
         .card { background: white; padding: 12px 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
         
         input, textarea, select { width: 100%; padding: 10px 14px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; font-family: inherit; background: #fff; }
@@ -52,7 +53,6 @@
         .btn-primary:hover { background: #166fe5; }
         .btn-primary:disabled { background: #b0d3f8; cursor: not-allowed; }
 
-        /* Upload Progress Bar Styling */
         #uploadProgressContainer { margin-top: 10px; display: none; }
         .progress-bar-bg { width: 100%; background-color: #e4e6eb; border-radius: 10px; overflow: hidden; height: 12px; }
         .progress-bar-fill { width: 0%; height: 100%; background-color: #1877f2; transition: width 0.2s; }
@@ -69,15 +69,15 @@
         .post-media { width: 100%; max-height: 400px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
 
         .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 5px 0; margin-top: 10px; justify-content: space-around; position: relative; }
-        .action-btn { background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 6px 15px; border-radius: 4px; display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .action-btn { background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-size: 13px; }
         .action-btn:hover { background: #f2f2f2; }
         .action-btn.liked { color: #1877f2; }
 
-        .reaction-popup { position: absolute; bottom: 40px; left: 0; background: white; border-radius: 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); padding: 6px 12px; display: flex; gap: 10px; z-index: 100; border: 1px solid #dddfe2; display: none; }
-        .reaction-emoji { font-size: 24px; cursor: pointer; transition: transform 0.2s; }
+        /* Tap-to-toggle reaction popup for instant response on mobile */
+        .reaction-popup { position: absolute; bottom: 42px; left: 0; background: white; border-radius: 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); padding: 6px 10px; display: flex; gap: 8px; z-index: 100; border: 1px solid #dddfe2; display: none; }
+        .reaction-emoji { font-size: 22px; cursor: pointer; transition: transform 0.2s; }
         .reaction-emoji:hover { transform: scale(1.35); }
 
-        /* Comments Section & Bubbles */
         .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; background: #f9f9f9; padding: 10px 12px; border-radius: 0 0 8px 8px; }
         .comment-item { display: flex; gap: 8px; margin-bottom: 10px; font-size: 13px; align-items: flex-start; }
         .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; }
@@ -100,13 +100,13 @@
         .btn-unfollow:hover { background: #d8dadf; }
 
         .chat-layout { display: flex; background: white; height: 500px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; }
-        .chat-sidebar { width: 300px; border-right: 1px solid #e4e6eb; overflow-y: auto; }
+        .chat-sidebar { width: 260px; border-right: 1px solid #e4e6eb; overflow-y: auto; }
         .chat-box-area { flex: 1; display: flex; flex-direction: column; }
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; background: #f0f2f5; display: flex; flex-direction: column; gap: 8px; }
-        .msg-bubble { padding: 8px 12px; border-radius: 12px; max-width: 60%; font-size: 14px; }
+        .msg-bubble { padding: 8px 12px; border-radius: 12px; max-width: 70%; font-size: 14px; }
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; }
         .msg-received { background: white; color: #050505; align-self: flex-start; border: 1px solid #dddfe2; }
-        .chat-user-item { display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
+        .chat-user-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
         .chat-user-item:hover { background: #f2f2f2; }
 
         .hidden { display: none !important; }
@@ -135,8 +135,8 @@
 
         <div class="nav-right">
             <div class="search-box-wrapper">
-                <span class="search-icon-abs">🔍</span>
-                <input type="text" id="searchInput" class="search-input" placeholder="Search Camfeed..." oninput="searchUsers(this.value)">
+                <span class="search-icon-abs" onclick="focusSearchInput()">🔍</span>
+                <input type="text" id="searchInput" class="search-input" placeholder="Search..." oninput="searchUsers(this.value)">
             </div>
 
             <button class="icon-circle-btn" onclick="toggleNotifications(event)">
@@ -151,7 +151,7 @@
             </div>
 
             <a class="user-profile-link" href="profile.html" title="My Profile">
-                <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:38px; height:38px; border-radius:50%; object-fit:cover;">
+                <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
             </a>
         </div>
     </div>
@@ -267,6 +267,11 @@
             loadNotifications();
         }
 
+        function focusSearchInput() {
+            const input = document.getElementById('searchInput');
+            input.focus();
+        }
+
         function toggleMenuDropdown(event) {
             event.stopPropagation();
             document.getElementById('notifDropdown').style.display = 'none';
@@ -291,6 +296,8 @@
         window.onclick = function() {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
+            // បិទ reaction popup ទាំងអស់បើចុចក្រៅ
+            document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
             if(typeof closeImageMenu === 'function') closeImageMenu();
         }
 
@@ -557,9 +564,9 @@
                         <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} Comments</span>
                     </div>
                     <div class="post-actions">
-                        <div style="position: relative;" onmouseenter="showReactionPopup(${post.id})" onmouseleave="hideReactionPopup(${post.id})">
-                            <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="sendReaction(${post.id}, '👍')">${currentReactionIcon}</button>
-                            <div id="reactionPopup-${post.id}" class="reaction-popup" onmouseenter="showReactionPopup(${post.id})" onmouseleave="hideReactionPopup(${post.id})">
+                        <div style="position: relative;">
+                            <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="toggleReactionPopup(event, ${post.id})">${currentReactionIcon}</button>
+                            <div id="reactionPopup-${post.id}" class="reaction-popup" onclick="event.stopPropagation()">
                                 <span class="reaction-emoji" onclick="sendReaction(${post.id}, '👍')">👍</span>
                                 <span class="reaction-emoji" onclick="sendReaction(${post.id}, '❤️')">❤️</span>
                                 <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😂')">😂</span>
@@ -585,6 +592,16 @@
             initAutoPlayVideos();
         }
 
+        function toggleReactionPopup(event, postId) {
+            event.stopPropagation();
+            // បិទ popup ផ្សេងៗជាមុន
+            document.querySelectorAll('.reaction-popup').forEach(p => {
+                if (p.id !== `reactionPopup-${postId}`) p.style.display = 'none';
+            });
+            const popup = document.getElementById(`reactionPopup-${postId}`);
+            popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
+        }
+
         function copyPostLink(postId) {
             const link = `${window.location.origin}/feed.html?post=${postId}`;
             navigator.clipboard.writeText(link).then(() => {
@@ -605,20 +622,8 @@
             }
         }
 
-        let popupTimeout = null;
-        function showReactionPopup(postId) {
-            clearTimeout(popupTimeout);
-            document.getElementById(`reactionPopup-${postId}`).style.display = 'flex';
-        }
-
-        function hideReactionPopup(postId) {
-            popupTimeout = setTimeout(() => {
-                document.getElementById(`reactionPopup-${postId}`).style.display = 'none';
-            }, 300);
-        }
-
         async function sendReaction(postId, emoji) {
-            hideReactionPopup(postId);
+            document.getElementById(`reactionPopup-${postId}`).style.display = 'none';
             try {
                 const res = await fetch('/api/reaction', {
                     method: 'POST',
