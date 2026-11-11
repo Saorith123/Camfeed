@@ -42,6 +42,14 @@
 </head>
 <body>
 
+    <!-- 🎯 ឆែកមើលជាមុន៖ ប្រសិនបើធ្លាប់ Login រួចហើយ នឹងបញ្ជូនចូល Feed ភ្លាមៗដោយស្វ័យប្រវត្តិ -->
+    <script>
+        const existingUser = localStorage.getItem('camfeed_user');
+        if (existingUser) {
+            window.location.href = 'feed.html';
+        }
+    </script>
+
     <div class="container">
         <div class="logo-container">
             <div class="logo">camfeed</div>
