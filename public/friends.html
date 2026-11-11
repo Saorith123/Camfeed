@@ -7,71 +7,112 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
         
-        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
-        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
-        .back-btn { padding: 6px 14px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        /* 🌐 របារខាងលើ (Top Bar & Navigation) ដូច Facebook */
+        .top-bar { display: flex; flex-direction: column; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; padding: 0 10px; }
+        .top-bar-row1 { display: flex; justify-content: space-between; align-items: center; height: 50px; border-bottom: 1px solid #f0f2f5; width: 100%; }
+        .top-left { display: flex; align-items: center; gap: 8px; position: relative; }
+        .logo-nav { font-size: 22px; font-weight: bold; color: #1877f2; cursor: pointer; letter-spacing: -0.5px; }
 
-        .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
-        .friends-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        /* Navigation Tabs ខាងលើ (Home, Videos, Friends, Chat) */
+        .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 48px; width: 100%; border-top: 1px solid #f0f2f5; position: relative; }
+        .menu-btn { background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 0; }
+        .menu-btn:hover { background: #f2f2f2; }
+        .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; }
+
+        .top-right-icons { display: flex; align-items: center; gap: 6px; }
+        .icon-circle-btn { width: 38px; height: 38px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; position: relative; }
+        .notif-badge { position: absolute; top: 1px; right: 1px; background: #fa383e; color: white; font-size: 9px; padding: 2px 4px; border-radius: 10px; font-weight: bold; }
+        .hidden { display: none !important; }
+
+        .container { max-width: 680px; margin: 15px auto; padding: 0 10px; box-sizing: border-box; }
+        .friends-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         
-        .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; margin-top: 15px; }
-        .user-card { background: #fff; border: 1px solid #e4e6eb; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; background: #ccc; margin-bottom: 10px; cursor: pointer; }
-        .user-name { font-weight: bold; color: #050505; margin-bottom: 10px; cursor: pointer; }
+        .user-grid { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
+        .user-card { display: flex; align-items: center; justify-content: space-between; background: #fff; border-bottom: 1px solid #f0f2f5; padding-bottom: 12px; }
+        .user-info-left { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .avatar { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; background: #ccc; }
+        .user-name { font-weight: bold; color: #050505; font-size: 16px; margin-bottom: 4px; }
         
-        .btn-follow { width: 100%; padding: 8px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
-        .btn-follow:hover { opacity: 0.9; }
+        .user-actions { display: flex; gap: 8px; }
+        .btn-follow { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-follow:hover { background: #166fe5; }
         
         /* 🎨 ប៊ូតុងពណ៌បៃតងសម្រាប់ Follow Back */
-        .btn-follow-back { background: #31a24c !important; color: white; }
+        .btn-follow-back { background: #31a24c !important; }
+        .btn-remove { padding: 8px 16px; background: #e4e6eb; color: #050505; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-remove:hover { background: #d8dadf; }
     </style>
 </head>
 <body>
 
+    <!-- 🌐 Top Bar ដូច Facebook (មានរបារខាងលើពេញលេញ) -->
     <div class="top-bar">
-        <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
-        <button class="back-btn" id="backBtnText" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
+        <div class="top-bar-row1">
+            <div class="top-left">
+                <div class="logo-nav" onclick="switchTab('feed')">camfeed</div>
+            </div>
+            <div class="top-right-icons">
+                <a class="user-profile-link" href="profile.html" title="My Profile">
+                    <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                </a>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs (Home, Videos, Friends, Chat) -->
+        <div class="nav-menus">
+            <button class="menu-btn" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
+            <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
+            <button class="menu-btn active" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
+            <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat" style="position: relative;">
+                💬
+                <span id="feedUnreadBadge" class="notif-badge hidden" style="top: 8px; right: 18px;">0</span>
+            </button>
+        </div>
     </div>
 
     <div class="container">
         <div class="friends-card">
-            <h2 style="margin-top: 0; color: #050505;" id="friendsTitle">👥 People You May Follow</h2>
+            <h2 style="margin-top: 0; color: #050505; font-size: 20px;" id="friendsTitle">People you may know</h2>
             <div id="friendsContainer" class="user-grid"></div>
         </div>
     </div>
 
     <script>
-        // 🎯 ការកំណត់ភាសា (Translations)
-        const translations = {
-            en: {
-                backBtn: "⬅ Back to Feed",
-                friendsHeader: "👥 People You May Follow",
-                followBtn: "Follow",
-                followBackBtn: "Follow Back",
-                noUsers: "No new users to follow."
-            },
-            km: {
-                backBtn: "⬅ ត្រឡប់ទៅ Feed វិញ",
-                friendsHeader: "👥 មនុស្សដែលអ្នកអាចតាមដាន",
-                followBtn: "តាមដាន",
-                followBackBtn: "តាមដានតប",
-                noUsers: "មិនមានអ្នកប្រើប្រាស់ផ្សេងទៀតត្រូវតាមដានទេ។"
-            }
-        };
-
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            applyLanguage();
+            if(currentUser.profile_pic) {
+                document.getElementById('navUserAvatar').src = currentUser.profile_pic;
+            }
             loadUsers();
+            loadFeedMessengerBadge();
+            setInterval(loadFeedMessengerBadge, 3000);
         }
 
-        function applyLanguage() {
-            const lang = localStorage.getItem('camfeed_lang') || 'en';
-            const t = translations[lang];
-            document.getElementById('backBtnText').innerText = t.backBtn;
-            document.getElementById('friendsTitle').innerText = t.friendsHeader;
+        function switchTab(tab) {
+            if (tab === 'videos') { window.location.href = 'videos.html'; return; }
+            if (tab === 'friends') { window.location.href = 'friends.html'; return; }
+            if (tab === 'chat') { window.location.href = 'messages.html'; return; }
+            window.location.href = 'feed.html';
+        }
+
+        async function loadFeedMessengerBadge() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`/api/chat-notifications?email=${currentUser.email}`);
+                const data = await res.json();
+                if (data.success) {
+                    const unreadList = data.unreadMessages;
+                    const badge = document.getElementById('feedUnreadBadge');
+                    if (unreadList.length > 0) {
+                        badge.innerText = unreadList.length;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (err) { console.error(err); }
         }
 
         async function loadUsers() {
@@ -82,15 +123,11 @@
                 const container = document.getElementById('friendsContainer');
                 container.innerHTML = '';
 
-                const lang = localStorage.getItem('camfeed_lang') || 'en';
-                const t = translations[lang];
-
                 if (data.success && data.users && data.users.length > 0) {
-                    // 🎯 ត្រងយកតែ User ណាដែលយើង "មិនទាន់ Follow គេ" តែប៉ុណ្ណោះ
                     const filteredUsers = data.users.filter(u => u.email !== currentUser.email && !u.is_following);
 
                     if (filteredUsers.length === 0) {
-                        container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
+                        container.innerHTML = `<p style="color: #65676b; text-align: center; padding: 20px;">No new users to follow.</p>`;
                         return;
                     }
 
@@ -99,32 +136,34 @@
                         div.className = 'user-card';
 
                         let btnClass = '';
-                        let btnText = '';
+                        let btnText = 'Follow';
 
-                        // ប្រសិនបើគេ Follow យើងមក ប៉ុន្តែយើងមិនទាន់ Follow គេវិញ ឱ្យចេញពាក្យ Follow Back
                         if (u.is_followed_by) {
                             btnClass = 'btn-follow-back';
-                            btnText = t.followBackBtn;
-                        } else {
-                            btnClass = '';
-                            btnText = t.followBtn;
+                            btnText = 'Follow Back';
                         }
 
                         div.innerHTML = `
-                            <img src="${u.profile_pic || 'https://via.placeholder.com/90'}" class="avatar" onclick="window.location.href='profile.html?email=${u.email}'">
-                            <div class="user-name" onclick="window.location.href='profile.html?email=${u.email}'">${u.first_name} ${u.last_name}</div>
-                            <button class="btn-follow ${btnClass}" onclick="toggleFollow('${u.email}')">
-                                ${btnText}
-                            </button>
+                            <div class="user-info-left" onclick="window.location.href='profile.html?email=${u.email}'">
+                                <img src="${u.profile_pic || 'https://via.placeholder.com/90'}" class="avatar">
+                                <div>
+                                    <div class="user-name">${u.first_name} ${u.last_name}</div>
+                                    <div style="font-size: 12px; color: #65676b;">Suggested for you</div>
+                                </div>
+                            </div>
+                            <div class="user-actions">
+                                <button class="btn-follow ${btnClass}" id="followBtn-${u.email.replace(/[@.]/g, '_')}" onclick="toggleFollow('${u.email}')">${btnText}</button>
+                                <button class="btn-remove" onclick="this.closest('.user-card').remove()">Remove</button>
+                            </div>
                         `;
                         container.appendChild(div);
                     });
                 } else {
-                    container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
+                    container.innerHTML = `<p style="color: #65676b; text-align: center; padding: 20px;">No new users to follow.</p>`;
                 }
             } catch (err) {
                 console.error("Error loading users:", err);
-                document.getElementById('friendsContainer').innerHTML = `<p style="color: red; grid-column: 1/-1; text-align: center;">Failed to load users.</p>`;
+                document.getElementById('friendsContainer').innerHTML = `<p style="color: red; text-align: center; padding: 20px;">Failed to load users.</p>`;
             }
         }
 
@@ -137,7 +176,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    loadUsers(); // 🔄 Refresh បញ្ជីឡើងវិញភ្លាមៗ ពេលចុច Follow ជោគជ័យ
+                    loadUsers(); // 🔄 Refresh បញ្ជីឡើងវិញភ្លាមៗ
                 }
             } catch (err) {
                 console.error("Error following user:", err);
