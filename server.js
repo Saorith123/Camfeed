@@ -4,13 +4,12 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
-// នាំចូល Cloudinary configurations ពី file cloudinary.js របស់យើង
 const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// កំណត់ Path សម្រាប់ public folder និង Root Route យ៉ាងសុវត្ថិភាព
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
@@ -61,7 +60,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Create Post (ភ្ជាប់ជាមួយ Cloudinary ຜ່ານ cloudinaryUpload)
+// Create Post
 app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -124,7 +123,6 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-// Get Single Post by ID
 app.get('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
@@ -149,7 +147,6 @@ app.get('/api/posts/:id', async (req, res) => {
   }
 });
 
-// Edit Post
 app.put('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { content, privacy, email } = req.body;
@@ -166,7 +163,6 @@ app.put('/api/posts/:id', async (req, res) => {
   }
 });
 
-// Delete Post
 app.delete('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
@@ -183,7 +179,6 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
-// Update Profile & Cover Pictures & Bio
 app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
   const { email, bio } = req.body;
   try {
@@ -212,7 +207,6 @@ app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePi
   }
 });
 
-// Update Profile Details (Dob, Location, Privacy)
 app.post('/api/update-profile-details', async (req, res) => {
   const { email, birthdate, location, phone_privacy, email_privacy } = req.body;
   try {
@@ -229,7 +223,6 @@ app.post('/api/update-profile-details', async (req, res) => {
   }
 });
 
-// Reaction / Like API
 app.post('/api/reaction', async (req, res) => {
   const { postId, email, reactionType } = req.body;
   try {
@@ -266,7 +259,6 @@ app.post('/api/reaction', async (req, res) => {
   }
 });
 
-// API ទាញយកបញ្ជីរាយនាម Reactors
 app.get('/api/reactions/:postId', async (req, res) => {
   const { postId } = req.params;
   const { email } = req.query;
@@ -285,7 +277,6 @@ app.get('/api/reactions/:postId', async (req, res) => {
   }
 });
 
-// Get Comments for Post
 app.get('/api/comments/:postId', async (req, res) => {
   const { postId } = req.params;
   try {
@@ -303,7 +294,6 @@ app.get('/api/comments/:postId', async (req, res) => {
   }
 });
 
-// Add Comment or Reply
 app.post('/api/comments', async (req, res) => {
   const { postId, email, content, replyToCommentId } = req.body;
   try {
@@ -342,7 +332,6 @@ app.post('/api/comments', async (req, res) => {
   }
 });
 
-// Get Notifications
 app.get('/api/notifications', async (req, res) => {
   const { email } = req.query;
   try {
@@ -360,7 +349,6 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ទាញយក Profile របស់ User ផ្ទាល់ខ្លួន ឬមិត្តភក្តិដោយចំគោលដៅ
 app.get('/api/user-profile', async (req, res) => {
   const { email, viewerEmail } = req.query;
   try {
@@ -385,7 +373,6 @@ app.get('/api/user-profile', async (req, res) => {
   }
 });
 
-// Get All Users with Followers, Following counts & Mutual Friend status
 app.get('/api/users', async (req, res) => {
   const { email } = req.query;
   try {
@@ -410,7 +397,6 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-// Get Followers or Following List
 app.get('/api/follow-list', async (req, res) => {
   const { email, type } = req.query;
   try {
@@ -439,7 +425,6 @@ app.get('/api/follow-list', async (req, res) => {
   }
 });
 
-// Follow / Unfollow with Notification
 app.post('/api/follow', async (req, res) => {
   const { followerEmail, followingEmail, action } = req.body;
   try {
@@ -463,7 +448,6 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ទាញយក เฉพาะรายនាមអ្នកដែលធ្លាប់ឆាតគ្នា (តម្រៀបតាមអ្នកឆាតថ្មីជាងគេ) និងអ្នកដែល Follow គ្នា
 app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
@@ -505,7 +489,6 @@ app.get('/api/chat-conversations', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ Search រក User ផ្សេងៗពេលវាយអក្សរ
 app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
@@ -522,7 +505,6 @@ app.get('/api/search-users', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ទាញយកចំនួនសារមិនទាន់បានអាន (Chat Unread Notifications)
 app.get('/api/chat-notifications', async (req, res) => {
   const { email } = req.query;
   try {
@@ -540,7 +522,6 @@ app.get('/api/chat-notifications', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ Mark ថាបានអានសាររួចរាល់ (Mark as Read)
 app.post('/api/mark-read', async (req, res) => {
   const { userEmail, senderEmail } = req.body;
   try {
@@ -554,7 +535,6 @@ app.post('/api/mark-read', async (req, res) => {
   }
 });
 
-// Messages / Chat APIs (គាំទ្រទាំងសារអត្ថបទ និង Voice Message)
 app.get('/api/messages', async (req, res) => {
   const { user1, user2 } = req.query;
   try {
@@ -570,10 +550,16 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-app.post('/api/messages', cloudinaryUpload.single('mediaFile'), async (req, res) => {
+// 🎯 API សម្រាប់รับសារទាំងអត្ថបទ (JSON) និង Voice Message (Multipart/FormData) យ៉ាងឆ្លាតវៃ
+app.post('/api/messages', (req, res, next) => {
+  cloudinaryUpload.single('mediaFile')(req, res, (err) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+    next();
+  });
+}, async (req, res) => {
   const sender = req.body.sender;
   const receiver = req.body.receiver;
-  const message = req.body.message || '';
+  const message = req.body.message || (req.file ? '[Voice Message]' : '');
   
   const mediaUrl = req.file ? req.file.path : null;
   const messageType = req.file ? 'audio' : 'text';
