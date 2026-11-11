@@ -24,7 +24,7 @@
             .profile-header-info { padding: 0 20px 20px 20px; flex-direction: row; align-items: flex-end; justify-content: space-between; }
         }
         
-        .profile-avatar-wrapper { display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; gap: 10px; }
+        .profile-avatar-wrapper { display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; gap: 10px; width: 100%; }
         @media (min-width: 768px) {
             .profile-avatar-wrapper { flex-direction: row; align-items: flex-end; text-align: left; gap: 20px; }
         }
@@ -104,7 +104,7 @@
 
     <div class="profile-container">
         <div class="profile-cover">
-            <img id="profileCoverImg" alt="Cover">
+            <img id="profileCoverImg" alt="Cover" src="https://via.placeholder.com/900x350?text=Cover">
             <div id="coverEditBtn" class="cover-camera-badge hidden" onclick="document.getElementById('coverPicFile').click()">
                 📷 Edit Cover
             </div>
@@ -114,7 +114,7 @@
         <div class="profile-header-info">
             <div class="profile-avatar-wrapper">
                 <div class="avatar-container">
-                    <img id="profileAvatarImg" class="profile-avatar-large" alt="Avatar">
+                    <img id="profileAvatarImg" class="profile-avatar-large" alt="Avatar" src="https://via.placeholder.com/140?text=Avatar">
                     <div id="profileEditBtn" class="camera-badge hidden" onclick="document.getElementById('profilePicFile').click()" title="Change Profile Picture">📷</div>
                     <input type="file" id="profilePicFile" accept="image/*" class="hidden" onchange="uploadProfilePic(this)">
                 </div>
@@ -225,10 +225,11 @@
 
         async function loadProfileData() {
             try {
-                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                // 🎯 កែសម្រួលឱ្យហៅទៅកាន់ API ថ្មី /api/user-profile យ៉ាងត្រឹមត្រូវ
+                const res = await fetch(`/api/user-profile?email=${profileEmail}&viewerEmail=${currentUser.email}`);
                 const data = await res.json();
                 if (data.success) {
-                    const user = data.users.find(u => u.email === profileEmail) || (profileEmail === currentUser.email ? currentUser : null);
+                    const user = data.user;
                     if (user) {
                         document.getElementById('profileFullName').innerText = `${user.first_name} ${user.last_name}`;
                         document.getElementById('profileBioText').innerText = user.bio || '';
@@ -535,7 +536,7 @@
         function copyPostLink(postId) {
             const link = `${window.location.origin}/feed.html?post=${postId}`;
             navigator.clipboard.writeText(link).then(() => {
-                alert('Post link copied to clipboard!');
+                alert('Profile link copied to clipboard!');
             });
         }
 

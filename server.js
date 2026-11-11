@@ -360,6 +360,31 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
+// 🎯 API សម្រាប់ទាញយក Profile របស់ User ផ្ទាល់ខ្លួន ឬមិត្តភក្តិដោយចំគោលដៅ
+app.get('/api/user-profile', async (req, res) => {
+  const { email, viewerEmail } = req.query;
+  try {
+    const query = `
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.cover_pic, u.bio, u.birthdate, u.location, u.phone, u.phone_privacy, u.email_privacy,
+      (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
+      (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
+      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
+      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $2)) as is_followed_by
+      FROM users u WHERE u.email = $1
+    `;
+    const result = await pool.query(query, [email, viewerEmail]);
+    if (result.rows.length > 0) {
+      const u = result.rows[0];
+      u.is_friend = u.is_following && u.is_followed_by;
+      res.json({ success: true, user: u });
+    } else {
+      res.status(404).json({ success: false, error: 'User not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get All Users with Followers, Following counts & Mutual Friend status
 app.get('/api/users', async (req, res) => {
   const { email } = req.query;
