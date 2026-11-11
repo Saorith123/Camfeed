@@ -332,7 +332,6 @@ app.post('/api/comments', async (req, res) => {
   }
 });
 
-// Edit Comment API
 app.put('/api/comments/:id', async (req, res) => {
   const { id } = req.params;
   const { email, content } = req.body;
@@ -349,7 +348,6 @@ app.put('/api/comments/:id', async (req, res) => {
   }
 });
 
-// Delete Comment API
 app.delete('/api/comments/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
@@ -377,7 +375,6 @@ app.delete('/api/comments/:id', async (req, res) => {
   }
 });
 
-// Report Comment API
 app.post('/api/comments/report', async (req, res) => {
   const { commentId, email, reason } = req.body;
   try {
@@ -428,28 +425,48 @@ app.get('/api/user-profile', async (req, res) => {
   }
 });
 
+// 🎯 API សម្រាប់ទាញយក User ទាំងអស់ (កែសម្រួលថ្មីឱ្យទន់ភ្លន់ និងទាញយកបានគ្រប់ User ទាំងអស់ដោយសុវត្ថិភាព)
 app.get('/api/users', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.cover_pic, u.bio, u.birthdate, u.location, u.phone_privacy, u.email_privacy,
-      (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
-      (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
-      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = u.email)) as is_following,
-      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $1)) as is_followed_by
-      FROM users u WHERE u.email != $1
+      SELECT email, first_name, last_name, profile_pic, cover_pic, bio, birthdate, location, phone_privacy, email_privacy
+      FROM users 
+      WHERE email != $1
+      ORDER BY first_name ASC
     `;
     const result = await pool.query(query, [email]);
     
-    const usersWithFriendship = result.rows.map(u => ({
-      ...u,
-      is_following: u.is_following === true || u.is_following === 'true',
-      is_followed_by: u.is_followed_by === true || u.is_followed_by === 'true',
-      is_friend: u.is_following && u.is_followed_by
+    const usersWithFriendship = await Promise.all(result.rows.map(async (u) => {
+      let is_following = false;
+      let is_followed_by = false;
+      try {
+        const followCheck = await pool.query(
+          'SELECT 1 FROM follows WHERE follower_email = $1 AND following_email = $2',
+          [email, u.email]
+        );
+        is_following = followCheck.rows.length > 0;
+
+        const followedByCheck = await pool.query(
+          'SELECT 1 FROM follows WHERE follower_email = $1 AND following_email = $2',
+          [u.email, email]
+        );
+        is_followed_by = followedByCheck.rows.length > 0;
+      } catch (e) {
+        // Fallback ករណីตาราง follows មានបញ្ហា
+      }
+
+      return {
+        ...u,
+        is_following,
+        is_followed_by,
+        is_friend: is_following && is_followed_by
+      };
     }));
 
     res.json({ success: true, users: usersWithFriendship });
   } catch (err) {
+    console.error("Error fetching users:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

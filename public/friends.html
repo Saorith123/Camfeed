@@ -92,7 +92,6 @@
                     const lang = localStorage.getItem('camfeed_lang') || 'en';
                     const t = translations[lang];
 
-                    // 🎯 បង្ហាញ User ទាំងអស់លើកលែងតែខ្លួនឯងចេញ
                     const otherUsers = data.users.filter(u => u.email !== currentUser.email);
 
                     if (otherUsers.length === 0) {
@@ -111,7 +110,7 @@
                             btnClass = 'btn-follow-back';
                             btnText = t.followBackBtn;
                         } else if (u.is_following) {
-                            btnClass = 'btn-yellow'; // 🟡 ប៊ូតុងពណ៌លឿងពេលយើង Follow គេហើយ
+                            btnClass = 'btn-yellow';
                             btnText = t.followingBtn;
                         } else {
                             btnClass = '';
