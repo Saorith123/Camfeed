@@ -44,7 +44,7 @@
 
         #pullRefreshIndicator { text-align: center; color: #65676b; font-size: 13px; font-weight: bold; padding: 10px; display: none; background: #e4e6eb; border-radius: 20px; width: fit-content; margin: 0 auto 10px auto; }
 
-        .main-container { max-width: 680px; margin: 15px auto; padding: 0 10px; }
+        .main-container { max-width: 680px; margin: 15px auto; padding: 0 10px; box-sizing: border-box; }
         .card { background: white; padding: 12px 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
         
         input, textarea, select { width: 100%; padding: 10px 14px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; font-family: inherit; background: #fff; }
@@ -260,11 +260,8 @@
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         let activeChatEmail = null;
-
-        // 🎯 Global variable រក្សាទុកស្ថានភាពសំឡេងវីដេអូ (បើកអូតូគ្រប់វីដេអូបន្ទាប់បើធ្លាប់ចុចបើកម្តង)
         let globalVideoUnmuted = false;
 
-        // 🎯 ระบบแปลภาษา (Khmer & English)
         const uiTexts = {
             en: {
                 searchPlaceholder: "Search...",
@@ -413,38 +410,23 @@
             if(typeof closeImageMenu === 'function') closeImageMenu();
         }
 
+        // 🎯 កែសម្រួល switchTab ឱ្យប៊ូតុង Home, Friends, Chat ដំណើរការយ៉ាងត្រឹមត្រូវ
         function switchTab(tab) {
             if (tab === 'videos') {
                 window.location.href = 'videos.html'; 
                 return;
             }
-
-            ['Feed', 'Videos', 'Friends', 'Chat'].forEach(t => {
-                const elem = document.getElementById(`tabContent${t}`);
-                const menuElem = document.getElementById(`menu${t}`);
-                if (elem) elem.classList.add('hidden');
-                if (menuElem) menuElem.classList.remove('active');
-            });
-
-            const activeTabElem = document.getElementById(`tabContent${tab}`);
-            const activeMenuElem = document.getElementById(`menu${tab}`);
-            if (activeTabElem) activeTabElem.classList.remove('hidden');
-            if (activeMenuElem) activeMenuElem.classList.add('active');
-
-            if (tab === 'feed') {
-                if (window.location.search) {
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }
-                loadPosts();
-            }
             if (tab === 'friends') {
-                const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                const t = uiTexts[currentLang];
-                const headerTitle = document.getElementById('friendsHeaderTitle');
-                if (headerTitle) headerTitle.innerText = t.friendsHeader;
-                loadUsersToFollow();
+                window.location.href = 'friends.html';
+                return;
             }
-            if (tab === 'chat') loadChatUsers();
+            if (tab === 'chat') {
+                window.location.href = 'messages.html';
+                return;
+            }
+
+            // Default tab: feed / home
+            window.location.href = 'feed.html';
         }
 
         let touchstartY = 0;
@@ -464,7 +446,7 @@
 
         async function searchUsers(keyword) {
             if (!keyword.trim()) {
-                if(document.getElementById('menuFeed').classList.contains('active')) loadPosts();
+                loadPosts();
                 return;
             }
             try {
@@ -475,12 +457,11 @@
                     
                     ['Feed', 'Videos', 'Friends', 'Chat'].forEach(t => {
                         const elem = document.getElementById(`tabContent${t}`);
-                        const menuElem = document.getElementById(`menu${t}`);
                         if (elem) elem.classList.add('hidden');
-                        if (menuElem) menuElem.classList.remove('active');
                     });
                     document.getElementById('tabContentFriends').classList.remove('hidden');
                     document.getElementById('menuFriends').classList.add('active');
+                    document.getElementById('menuFeed').classList.remove('active');
 
                     const headerTitle = document.getElementById('friendsHeaderTitle');
                     if (headerTitle) headerTitle.innerText = `Search Results for "${keyword}"`;
@@ -642,7 +623,7 @@
             if (!container) return;
             container.innerHTML = '';
             if (posts.length === 0) {
-                currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                const currentLang = localStorage.getItem('camfeed_lang') || 'en';
                 container.innerHTML = `<p style="text-align: center; color: #65676b;">${currentLang === 'km' ? 'រកមិនឃើញការបង្ហោះទេ។' : 'No posts found.'}</p>`;
                 return;
             }
@@ -659,7 +640,6 @@
                 let mediaHtml = '';
                 if (post.media_url) {
                     if (post.media_type === 'video') {
-                        // 🎯 វីដេអូភ្ជាប់ស្របតាម globalVideoUnmuted logic
                         mediaHtml = `<video src="${post.media_url}" class="post-media autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
                     } else {
                         mediaHtml = `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
@@ -726,18 +706,15 @@
             initAutoPlayVideos();
         }
 
-        // 🎯 គ្រប់គ្រងស្ថានភាពសំឡេងវីដេអូជាសកល
         function handleVideoVolumeChange(videoElem) {
             if (!videoElem.muted && videoElem.volume > 0) {
                 globalVideoUnmuted = true;
-                // បើកសំឡេងវីដេអូដទៃទៀតដែលកំពុង Play ស្រាប់លើ Feed ផងដែរ
                 document.querySelectorAll('.autoplay-video').forEach(v => {
                     v.muted = false;
                 });
             }
         }
 
-        // 🎯 បើកดูรายชื่อผู้ Reaction บน Post
         async function openReactionsList(postId) {
             const modal = document.getElementById('reactionsModal');
             const listContainer = document.getElementById('reactionsModalList');
@@ -808,10 +785,8 @@
             const currentLang = localStorage.getItem('camfeed_lang') || 'en';
             
             const msgConfirm = currentLang === 'km' ? "ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!" : "Click 'OK' to share to Telegram or 'Cancel' to Copy Link!";
-            const choice = confirm(msgConfirm);
-            if (choice) {
-                const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`;
-                window.open(telegramUrl, '_blank');
+            if (confirm(msgConfirm)) {
+                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`, '_blank');
             } else {
                 copyPostLink(postId);
             }
@@ -848,7 +823,6 @@
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const video = entry.target;
-                    // កំណត់ស្ថានភាពសំឡេងស្របតាម globalVideoUnmuted
                     video.muted = !globalVideoUnmuted;
 
                     if (entry.isIntersecting) {
@@ -1001,92 +975,6 @@
                     }
                 }
             } catch (err) { console.error(err); }
-        }
-
-        async function loadUsersToFollow() {
-            try {
-                const res = await fetch(`/api/users?email=${currentUser.email}`);
-                const data = await res.json();
-                if (data.success) {
-                    const container = document.getElementById('usersListContainer');
-                    const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                    if (container) {
-                        container.innerHTML = data.users.map(u => `
-                            <div class="user-row">
-                                <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${u.email}'">
-                                    <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%;">
-                                    <span style="font-weight:bold;">${u.first_name} ${u.last_name}</span>
-                                </div>
-                                <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollow('${u.email}', ${u.is_following})">
-                                    ${u.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
-                                </button>
-                            </div>
-                        `).join('');
-                    }
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        async function toggleFollow(targetEmail, isFollowing) {
-            await fetch('/api/follow', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
-            });
-            loadUsersToFollow();
-        }
-
-        async function loadChatUsers() {
-            try {
-                const res = await fetch(`/api/users?email=${currentUser.email}`);
-                const data = await res.json();
-                if (data.success) {
-                    const chatUserList = document.getElementById('chatUserList');
-                    if (chatUserList) {
-                        chatUserList.innerHTML = data.users.map(u => `
-                            <div class="chat-user-item" onclick="openChat('${u.email}', '${u.first_name} ${u.last_name}')">
-                                <img src="${u.profile_pic || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%;">
-                                <span style="font-weight:bold; font-size:14px;">${u.first_name} ${u.last_name}</span>
-                            </div>
-                        `).join('');
-                    }
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        openChat = function(email, name) {
-            activeChatEmail = email;
-            const chatHeader = document.getElementById('chatHeader');
-            if (chatHeader) chatHeader.innerText = `Chat with ${name}`;
-            loadMessages();
-        };
-
-        async function loadMessages() {
-            if (!activeChatEmail) return;
-            try {
-                const res = await fetch(`/api/messages?user1=${currentUser.email}&user2=${activeChatEmail}`);
-                const data = await res.json();
-                if (data.success) {
-                    const chatMessagesContainer = document.getElementById('chatMessagesContainer');
-                    if (chatMessagesContainer) {
-                        chatMessagesContainer.innerHTML = data.messages.map(m => `
-                            <div class="msg-bubble ${m.sender_email === currentUser.email ? 'msg-sent' : 'msg-received'}">${m.message}</div>
-                        `).join('');
-                    }
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        async function sendMessage() {
-            const input = document.getElementById('chatInput');
-            if (!input || !input.value.trim() || !activeChatEmail) return;
-            await fetch('/api/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sender: currentUser.email, receiver: activeChatEmail, message: input.value })
-            });
-            input.value = '';
-            loadMessages();
         }
 
         function logout() {

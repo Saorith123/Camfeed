@@ -5,41 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camfeed - Profile</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; }
         
-        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
-        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
-        .back-btn { padding: 6px 14px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; }
+        .logo-nav { font-size: 22px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .back-btn { padding: 6px 12px; background: #e4e6eb; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
 
-        .profile-container { width: 100%; max-width: 900px; margin: 0 auto; background: white; border-radius: 0 0 8px 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; }
+        .profile-container { width: 100%; max-width: 900px; margin: 0 auto; background: white; border-radius: 0 0 8px 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; }
         
-        .profile-cover { height: 300px; background: #e4e6eb; position: relative; }
+        .profile-cover { height: 250px; background: #e4e6eb; position: relative; }
+        @media (min-width: 600px) { .profile-cover { height: 350px; } }
         .profile-cover img { width: 100%; height: 100%; object-fit: cover; }
         .cover-camera-badge { position: absolute; bottom: 15px; right: 15px; background: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 5px; }
         .cover-camera-badge:hover { background: #f2f2f2; }
         
-        .profile-header-info { padding: 0 20px 20px 20px; position: relative; display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid #e4e6eb; }
-        .profile-avatar-wrapper { display: flex; align-items: flex-end; gap: 20px; position: relative; }
+        .profile-header-info { padding: 15px; position: relative; display: flex; flex-direction: column; gap: 15px; border-bottom: 1px solid #e4e6eb; }
+        @media (min-width: 768px) {
+            .profile-header-info { padding: 0 20px 20px 20px; flex-direction: row; align-items: flex-end; justify-content: space-between; }
+        }
         
-        .avatar-container { position: relative; top: -50px; margin-bottom: -50px; }
-        .profile-avatar-large { width: 150px; height: 150px; border-radius: 50%; border: 4px solid white; background: #e4e6eb; object-fit: cover; }
+        .profile-avatar-wrapper { display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; gap: 10px; }
+        @media (min-width: 768px) {
+            .profile-avatar-wrapper { flex-direction: row; align-items: flex-end; text-align: left; gap: 20px; }
+        }
+        
+        .avatar-container { position: relative; margin-top: -75px; }
+        @media (min-width: 768px) { .avatar-container { top: -50px; margin-bottom: -50px; margin-top: 0; } }
+        
+        .profile-avatar-large { width: 140px; height: 140px; border-radius: 50%; border: 4px solid white; background: #e4e6eb; object-fit: cover; }
         .camera-badge { position: absolute; bottom: 10px; right: 10px; background: #e4e6eb; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid white; font-size: 16px; }
         .camera-badge:hover { background: #d8dadf; }
 
-        .profile-name { font-size: 28px; font-weight: bold; color: #050505; margin-bottom: 2px; }
+        .profile-name { font-size: 24px; font-weight: bold; color: #050505; margin-bottom: 2px; }
         .profile-bio { font-size: 14px; color: #65676b; margin-top: 5px; }
+        .profile-meta-info { font-size: 13px; color: #65676b; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; }
+        @media (min-width: 768px) { .profile-meta-info { justify-content: flex-start; } }
         
-        .profile-actions { display: flex; gap: 10px; align-items: center; margin-bottom: 15px; }
+        .profile-actions { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 15px; flex-wrap: wrap; }
         .btn-action { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
         .btn-action:hover { background: #166fe5; }
         .btn-secondary { background: #e4e6eb; color: #050505; }
         .btn-secondary:hover { background: #d8dadf; }
 
-        .profile-tabs { display: flex; padding: 0 20px; gap: 10px; border-bottom: 1px solid #e4e6eb; background: white; max-width: 900px; margin: 20px auto 0 auto; border-radius: 8px 8px 0 0; }
-        .tab-btn { padding: 15px 20px; background: none; border: none; font-weight: bold; color: #65676b; cursor: pointer; font-size: 15px; border-bottom: 3px solid transparent; }
+        .profile-tabs { display: flex; padding: 0 10px; gap: 5px; border-bottom: 1px solid #e4e6eb; background: white; max-width: 900px; margin: 15px auto 0 auto; border-radius: 8px 8px 0 0; overflow-x: auto; }
+        .tab-btn { padding: 12px 16px; background: none; border: none; font-weight: bold; color: #65676b; cursor: pointer; font-size: 14px; border-bottom: 3px solid transparent; white-space: nowrap; }
         .tab-btn.active { color: #1877f2; border-bottom-color: #1877f2; }
 
-        .main-content { max-width: 900px; margin: 0 auto; padding: 20px 0; }
+        .main-content { max-width: 680px; margin: 0 auto; padding: 15px 10px; box-sizing: border-box; }
         
         .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; position: relative; }
         .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -48,7 +60,7 @@
         .post-author { font-weight: bold; color: #050505; }
         .post-time { font-size: 11px; color: #90949c; }
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
-        .post-media { width: 100%; max-height: 400px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; }
+        .post-media { width: 100%; max-height: 400px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
 
         .post-options-container { position: relative; }
         .options-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #65676b; padding: 4px 8px; border-radius: 50%; }
@@ -73,8 +85,12 @@
         .reply-btn { font-size: 11px; color: #65676b; cursor: pointer; font-weight: bold; margin-left: 10px; }
         .reply-btn:hover { text-decoration: underline; }
 
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
-        .modal-card { background: white; width: 450px; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
+        .modal-card { background: white; width: 100%; max-width: 450px; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); max-height: 80vh; overflow-y: auto; }
+
+        .user-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .btn-follow { padding: 6px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn-unfollow { background: #e4e6eb; color: #050505; }
 
         .hidden { display: none !important; }
     </style>
@@ -90,7 +106,7 @@
         <div class="profile-cover">
             <img id="profileCoverImg" alt="Cover">
             <div id="coverEditBtn" class="cover-camera-badge hidden" onclick="document.getElementById('coverPicFile').click()">
-                📷 Edit Cover Photo
+                📷 Edit Cover
             </div>
             <input type="file" id="coverPicFile" accept="image/*" class="hidden" onchange="uploadCoverPic(this)">
         </div>
@@ -102,19 +118,48 @@
                     <div id="profileEditBtn" class="camera-badge hidden" onclick="document.getElementById('profilePicFile').click()" title="Change Profile Picture">📷</div>
                     <input type="file" id="profilePicFile" accept="image/*" class="hidden" onchange="uploadProfilePic(this)">
                 </div>
-                <div style="margin-bottom: 15px;">
+                <div style="margin-bottom: 10px; width: 100%;">
                     <div class="profile-name" id="profileFullName"></div>
                     <div class="profile-bio" id="profileBioText"></div>
                     <div id="bioEditBox" class="hidden" style="margin-top: 5px; display: flex; gap: 5px;">
-                        <input type="text" id="bioInput" placeholder="Write bio..." style="padding: 4px 8px; font-size: 13px; border: 1px solid #ddd; border-radius: 4px;">
-                        <button onclick="saveBio()" class="btn-action" style="padding: 4px 10px; font-size: 12px;">Save</button>
+                        <input type="text" id="bioInput" placeholder="Write bio..." style="padding: 6px; font-size: 13px; border: 1px solid #ddd; border-radius: 4px; flex: 1;">
+                        <button onclick="saveBio()" class="btn-action" style="padding: 6px 12px; font-size: 12px;">Save</button>
                     </div>
-                    <div style="color: #65676b; font-size: 13px; margin-top: 2px;" id="profileEmailText"></div>
+                    
+                    <!-- Meta info: Followers, Following, Dob, Location, Phone, Email with Privacy -->
+                    <div class="profile-meta-info">
+                        <span id="followersCountSpan" style="cursor: pointer; font-weight: bold;" onclick="openFollowModal('followers')">0 Followers</span>
+                        <span id="followingCountSpan" style="cursor: pointer; font-weight: bold;" onclick="openFollowModal('following')">0 Following</span>
+                        <span id="metaDob">🎂 DOB: -</span>
+                        <span id="metaLocation">📍 Location: -</span>
+                        <span id="metaPhone">📞 Phone: -</span>
+                        <span id="metaEmail">✉️ Email: -</span>
+                    </div>
+
+                    <!-- Edit Profile Extra Details Box (For Owner) -->
+                    <div id="ownerSettingsBox" class="hidden" style="margin-top: 10px; background: #f0f2f5; padding: 10px; border-radius: 6px; font-size: 13px;">
+                        <div style="font-weight: bold; margin-bottom: 6px;">⚙️ Edit Profile Details & Privacy</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px;">
+                            <input type="text" id="editDob" placeholder="DOB (01-07-2000)" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                            <input type="text" id="editLocation" placeholder="Location/Hometown" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                            <select id="phonePrivacy" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="public">Phone: Public</option>
+                                <option value="private">Phone: Private</option>
+                            </select>
+                            <select id="emailPrivacy" style="padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="public">Email: Public</option>
+                                <option value="private">Email: Private</option>
+                            </select>
+                        </div>
+                        <button onclick="saveProfileDetails()" class="btn-action" style="padding: 4px 10px; font-size: 12px;">Save Details</button>
+                    </div>
                 </div>
             </div>
 
             <div class="profile-actions" id="profileActionButtons">
-                <button class="btn-action btn-secondary" onclick="copyProfileLink()">🔗 Share Profile</button>
+                <button class="btn-action btn-secondary" onclick="copyProfileLink()">🔗 Share</button>
             </div>
         </div>
     </div>
@@ -124,8 +169,20 @@
         <button class="tab-btn" onclick="switchTab('videos')" id="tabVideos">Videos</button>
     </div>
 
-    <div class="main-content" id="profilePostsContainer" style="max-width: 900px; margin: 0 auto; padding: 20px;"></div>
+    <div class="main-content" id="profilePostsContainer"></div>
 
+    <!-- Followers / Following Modal -->
+    <div id="followListModal" class="modal-overlay hidden" onclick="closeFollowModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e4e6eb; padding-bottom: 8px; margin-bottom: 10px;">
+                <h3 id="followModalTitle" style="margin: 0; font-size: 16px;">Connections</h3>
+                <span style="cursor: pointer; font-size: 18px; font-weight: bold;" onclick="closeFollowModal()">×</span>
+            </div>
+            <div id="followModalContent"></div>
+        </div>
+    </div>
+
+    <!-- Edit Post Modal -->
     <div id="editPostModal" class="modal-overlay hidden">
         <div class="modal-card">
             <h3 style="margin-top: 0;">Edit Post</h3>
@@ -142,6 +199,9 @@
         </div>
     </div>
 
+    <!-- Image Lightbox Modal script -->
+    <script src="imageModal.js"></script>
+
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         const urlParams = new URLSearchParams(window.location.search);
@@ -153,13 +213,6 @@
         if (!currentUser || !profileEmail) {
             window.location.href = 'index.html';
         } else {
-            if (profileEmail === currentUser.email) {
-                document.getElementById('profileFullName').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-                document.getElementById('profileEmailText').innerText = currentUser.email;
-                if(currentUser.bio) document.getElementById('profileBioText').innerText = currentUser.bio;
-                if(currentUser.profile_pic) document.getElementById('profileAvatarImg').src = currentUser.profile_pic;
-                if(currentUser.cover_pic) document.getElementById('profileCoverImg').src = currentUser.cover_pic;
-            }
             loadProfileData();
         }
 
@@ -178,21 +231,46 @@
                     const user = data.users.find(u => u.email === profileEmail) || (profileEmail === currentUser.email ? currentUser : null);
                     if (user) {
                         document.getElementById('profileFullName').innerText = `${user.first_name} ${user.last_name}`;
-                        document.getElementById('profileEmailText').innerText = user.email;
                         document.getElementById('profileBioText').innerText = user.bio || '';
+                        
+                        // Meta info rendering with privacy checks
+                        document.getElementById('followersCountSpan').innerText = `${user.followers_count || 0} Followers`;
+                        document.getElementById('followingCountSpan').innerText = `${user.following_count || 0} Following`;
+                        document.getElementById('metaDob').innerText = `🎂 DOB: ${user.birthdate || '-'}`;
+                        document.getElementById('metaLocation').innerText = `📍 Location: ${user.location || '-'}`;
+
+                        // Phone & Email Privacy check
+                        if (user.email === currentUser.email || user.phone_privacy !== 'private') {
+                            document.getElementById('metaPhone').innerText = `📞 Phone: ${user.phone || '-'}`;
+                        } else {
+                            document.getElementById('metaPhone').innerText = `📞 Phone: Private`;
+                        }
+
+                        if (user.email === currentUser.email || user.email_privacy !== 'private') {
+                            document.getElementById('metaEmail').innerText = `✉️ Email: ${user.email}`;
+                        } else {
+                            document.getElementById('metaEmail').innerText = `✉️ Email: Private`;
+                        }
+
                         if (user.profile_pic) document.getElementById('profileAvatarImg').src = user.profile_pic;
                         if (user.cover_pic) document.getElementById('profileCoverImg').src = user.cover_pic;
 
                         const actionContainer = document.getElementById('profileActionButtons');
-                        actionContainer.innerHTML = '<button class="btn-action btn-secondary" onclick="copyProfileLink()">🔗 Share Profile</button>';
+                        actionContainer.innerHTML = '<button class="btn-action btn-secondary" onclick="copyProfileLink()">🔗 Share</button>';
 
                         if (profileEmail === currentUser.email) {
                             document.getElementById('profileEditBtn').classList.remove('hidden');
                             document.getElementById('coverEditBtn').classList.remove('hidden');
+                            document.getElementById('ownerSettingsBox').classList.remove('hidden');
+                            
+                            document.getElementById('editDob').value = user.birthdate || '';
+                            document.getElementById('editLocation').value = user.location || '';
+                            if(user.phone_privacy) document.getElementById('phonePrivacy').value = user.phone_privacy;
+                            if(user.email_privacy) document.getElementById('emailPrivacy').value = user.email_privacy;
                             
                             const editBioBtn = document.createElement('button');
                             editBioBtn.className = 'btn-action btn-secondary';
-                            editBioBtn.innerText = '✏️ Edit Bio';
+                            editBioBtn.innerText = '✏️ Bio';
                             editBioBtn.onclick = toggleBioEdit;
                             actionContainer.appendChild(editBioBtn);
                         } else {
@@ -216,6 +294,75 @@
                 }
                 loadProfilePosts();
             } catch (err) { console.error(err); }
+        }
+
+        async function saveProfileDetails() {
+            const birthdate = document.getElementById('editDob').value;
+            const location = document.getElementById('editLocation').value;
+            const phone_privacy = document.getElementById('phonePrivacy').value;
+            const email_privacy = document.getElementById('emailPrivacy').value;
+
+            const res = await fetch('/api/update-profile-details', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: currentUser.email, birthdate, location, phone_privacy, email_privacy })
+            });
+            const data = await res.json();
+            if(data.success) {
+                localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                alert('Profile details updated successfully!');
+                location.reload();
+            } else {
+                alert('Failed to update details');
+            }
+        }
+
+        async function openFollowModal(type) {
+            const modal = document.getElementById('followListModal');
+            const content = document.getElementById('followModalContent');
+            const title = document.getElementById('followModalTitle');
+            title.innerText = type === 'followers' ? 'Followers' : 'Following';
+            content.innerHTML = '<p style="text-align:center; color:#65676b;">Loading...</p>';
+            modal.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`/api/follow-list?email=${profileEmail}&type=${type}`);
+                const data = await res.json();
+                if(data.success && data.users.length > 0) {
+                    content.innerHTML = data.users.map(u => `
+                        <div class="user-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${u.email}'">
+                                <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div style="font-weight:bold; font-size:14px; color:#050505;">${u.first_name} ${u.last_name}</div>
+                            </div>
+                            ${u.email !== currentUser.email ? `
+                                <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowModalUser('${u.email}', ${u.is_following}, '${type}')">
+                                    ${u.is_following ? 'Following' : 'Follow'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    content.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">No users found.</p>';
+                }
+            } catch(err) {
+                content.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>';
+            }
+        }
+
+        function closeFollowModal() {
+            document.getElementById('followListModal').classList.add('hidden');
+        }
+
+        async function toggleFollowModalUser(targetEmail, isFollowing, type) {
+            const action = isFollowing ? 'unfollow' : 'follow';
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
+            });
+            openFollowModal(type);
+            loadProfileData();
         }
 
         async function toggleFollowProfile(targetEmail) {
@@ -300,13 +447,14 @@
                         const dateStr = new Date(post.created_at).toLocaleString();
                         const div = document.createElement('div');
                         div.className = 'post-item';
+                        div.id = `post-${post.id}`;
 
                         let mediaHtml = '';
                         if (post.media_url) {
                             if (post.media_type === 'video') {
                                 mediaHtml = `<video src="${post.media_url}" class="post-media" controls></video>`;
                             } else {
-                                mediaHtml = `<img src="${post.media_url}" class="post-media">`;
+                                mediaHtml = `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
                             }
                         }
 
@@ -337,7 +485,7 @@
 
                         div.innerHTML = `
                             <div class="post-header">
-                                <div class="post-author-info">
+                                <div class="post-author-info" onclick="window.location.href='profile.html?email=${post.user_email}'">
                                     <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
                                     <div>
                                         <div class="post-author">${post.first_name} ${post.last_name}</div>
@@ -349,13 +497,16 @@
                             <div class="post-content">${post.content}</div>
                             ${mediaHtml}
                             <div style="display: flex; justify-content: space-between; font-size: 13px; color: #65676b; margin-bottom: 5px; padding: 0 5px;">
-                                <span id="likeCount-${post.id}">👍 ${post.likes_count} Reactions</span>
+                                <div style="display: flex; align-items: center; gap: 4px; cursor: pointer;" onclick="openReactionsList(${post.id})">
+                                    <span>👍 ❤️ 😂</span>
+                                    <span id="likeCount-${post.id}">${post.likes_count || 0}</span>
+                                </div>
                                 <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} Comments</span>
                             </div>
                             <div class="post-actions">
-                                <div style="position: relative;" onmouseenter="showReactionPopup(${post.id})" onmouseleave="hideReactionPopup(${post.id})">
-                                    <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="sendReaction(${post.id}, '👍')">${currentReactionIcon}</button>
-                                    <div id="reactionPopup-${post.id}" class="reaction-popup" onmouseenter="showReactionPopup(${post.id})" onmouseleave="hideReactionPopup(${post.id})">
+                                <div style="position: relative;">
+                                    <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="toggleReactionPopup(event, ${post.id})">${currentReactionIcon}</button>
+                                    <div id="reactionPopup-${post.id}" class="reaction-popup" onclick="event.stopPropagation()">
                                         <span class="reaction-emoji" onclick="sendReaction(${post.id}, '👍')">👍</span>
                                         <span class="reaction-emoji" onclick="sendReaction(${post.id}, '❤️')">❤️</span>
                                         <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😂')">😂</span>
@@ -365,6 +516,7 @@
                                     </div>
                                 </div>
                                 <button class="action-btn" onclick="toggleCommentBox(${post.id})">💬 Comment</button>
+                                <button class="action-btn" onclick="openShareMenu(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on Camfeed!')}')">🔗 Share</button>
                             </div>
                             <div id="commentsSection-${post.id}" class="comments-section hidden">
                                 <div id="commentList-${post.id}"></div>
@@ -387,20 +539,17 @@
             });
         }
 
-        let popupTimeout = null;
-        function showReactionPopup(postId) {
-            clearTimeout(popupTimeout);
-            document.getElementById(`reactionPopup-${postId}`).style.display = 'flex';
-        }
-
-        function hideReactionPopup(postId) {
-            popupTimeout = setTimeout(() => {
-                document.getElementById(`reactionPopup-${postId}`).style.display = 'none';
-            }, 300);
+        function toggleReactionPopup(event, postId) {
+            event.stopPropagation();
+            document.querySelectorAll('.reaction-popup').forEach(p => {
+                if (p.id !== `reactionPopup-${postId}`) p.style.display = 'none';
+            });
+            const popup = document.getElementById(`reactionPopup-${postId}`);
+            popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
         }
 
         async function sendReaction(postId, emoji) {
-            hideReactionPopup(postId);
+            document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
             try {
                 const res = await fetch('/api/reaction', {
                     method: 'POST',
@@ -419,21 +568,32 @@
                         btn.classList.remove('liked');
                         btn.innerText = '👍 Like';
                     }
-                    countElem.innerText = `👍 ${data.likes_count} Reactions`;
+                    countElem.innerText = data.likes_count;
                 }
             } catch (err) { console.error(err); }
+        }
+
+        function openShareMenu(postId, encodedContent) {
+            const shareUrl = `${window.location.origin}/feed.html?post=${postId}`;
+            const postText = decodeURIComponent(encodedContent);
+            if (confirm("ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!")) {
+                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`, '_blank');
+            } else {
+                copyPostLink(postId);
+            }
         }
 
         function toggleOptionsDropdown(event, postId) {
             event.stopPropagation();
             const dropdown = document.getElementById(`dropdown-${postId}`);
-            const allDropdowns = document.querySelectorAll('.options-dropdown');
-            allDropdowns.forEach(d => { if(d !== dropdown) d.style.display = 'none'; });
+            document.querySelectorAll('.options-dropdown').forEach(d => { if(d !== dropdown) d.style.display = 'none'; });
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
 
         window.onclick = function() {
             document.querySelectorAll('.options-dropdown').forEach(d => d.style.display = 'none');
+            document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
+            if(typeof closeImageMenu === 'function') closeImageMenu();
         }
 
         function openEditModal(postId, content, privacy) {
