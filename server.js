@@ -9,8 +9,13 @@ const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
-// សម្រួលលែងចាំបាច់ប្រើ local uploads folder ព្រោះយើងប្តូរមកប្រើ Cloudinary ស្របតាមការចង់បាន
+
+// កំណត់ Path សម្រាប់ public folder និង Root Route យ៉ាងសុវត្ថិភាព
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
