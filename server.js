@@ -33,9 +33,9 @@ app.post('/api/register', async (req, res) => {
   const { email, password, firstName, lastName, birthdate, gender, country } = req.body;
   try {
     const query = `
-      INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, '') 
-      RETURNING id, email, first_name, last_name, profile_pic, cover_pic, bio, created_at
+      INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'public', 'public') 
+      RETURNING *
     `;
     const result = await pool.query(query, [email, password, firstName, lastName, birthdate, gender, country]);
     res.status(201).json({ success: true, user: result.rows[0] });
@@ -71,7 +71,6 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   const content = req.body.content || '';
   const privacy = req.body.privacy || 'public';
   
-  // req.file.path គឺជារបស់ Cloudinary ផ្ដល់ Link URL មកឱ្យយើងស្រាប់
   const mediaUrl = req.file ? req.file.path : (req.body.mediaUrl || null);
   const mediaType = req.file ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image') : (req.body.mediaType || 'text');
 
@@ -125,7 +124,7 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-// 🎯 Get Single Post by ID (For Share Link & Deep Linking)
+// Get Single Post by ID
 app.get('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
@@ -184,7 +183,7 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
-// Update Profile & Cover Pictures & Bio (ភ្ជាប់ជាមួយ Cloudinary)
+// Update Profile & Cover Pictures & Bio
 app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
   const { email, bio } = req.body;
   try {
@@ -207,6 +206,23 @@ app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePi
     params.push(email);
 
     const result = await pool.query(query, params);
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update Profile Details (Dob, Location, Privacy)
+app.post('/api/update-profile-details', async (req, res) => {
+  const { email, birthdate, location, phone_privacy, email_privacy } = req.body;
+  try {
+    const query = `
+      UPDATE users 
+      SET birthdate = $1, location = $2, phone_privacy = $3, email_privacy = $4 
+      WHERE email = $5 
+      RETURNING *
+    `;
+    const result = await pool.query(query, [birthdate, location, phone_privacy, email_privacy, email]);
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -250,7 +266,7 @@ app.post('/api/reaction', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ទាញយករាយនាមអ្នកដែលបាន Reaction លើ Post ណាមួយ
+// API ទាញយកបញ្ជីរាយនាម Reactors
 app.get('/api/reactions/:postId', async (req, res) => {
   const { postId } = req.params;
   const { email } = req.query;
@@ -344,16 +360,79 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
-// Get All Users
+// 🎯 API សម្រាប់ទាញយក Profile របស់ User ផ្ទាល់ខ្លួន ឬមិត្តភក្តិដោយចំគោលដៅ
+app.get('/api/user-profile', async (req, res) => {
+  const { email, viewerEmail } = req.query;
+  try {
+    const query = `
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.cover_pic, u.bio, u.birthdate, u.location, u.phone, u.phone_privacy, u.email_privacy,
+      (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
+      (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
+      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
+      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $2)) as is_followed_by
+      FROM users u WHERE u.email = $1
+    `;
+    const result = await pool.query(query, [email, viewerEmail]);
+    if (result.rows.length > 0) {
+      const u = result.rows[0];
+      u.is_friend = u.is_following && u.is_followed_by;
+      res.json({ success: true, user: u });
+    } else {
+      res.status(404).json({ success: false, error: 'User not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get All Users with Followers, Following counts & Mutual Friend status
 app.get('/api/users', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT email, first_name, last_name, profile_pic, cover_pic, bio,
-      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = users.email)) as is_following
-      FROM users WHERE email != $1
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.cover_pic, u.bio, u.birthdate, u.location, u.phone_privacy, u.email_privacy,
+      (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
+      (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
+      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = u.email)) as is_following,
+      (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $1)) as is_followed_by
+      FROM users u WHERE u.email != $1
     `;
     const result = await pool.query(query, [email]);
+    
+    const usersWithFriendship = result.rows.map(u => ({
+      ...u,
+      is_friend: u.is_following && u.is_followed_by
+    }));
+
+    res.json({ success: true, users: usersWithFriendship });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get Followers or Following List
+app.get('/api/follow-list', async (req, res) => {
+  const { email, type } = req.query; // type = 'followers' ឬ 'following'
+  try {
+    let query = '';
+    if (type === 'followers') {
+      query = `
+        SELECT u.email, u.first_name, u.last_name, u.profile_pic,
+        EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = $2 AND f2.following_email = u.email) AS is_following
+        FROM follows f
+        JOIN users u ON f.follower_email = u.email
+        WHERE f.following_email = $1
+      `;
+    } else {
+      query = `
+        SELECT u.email, u.first_name, u.last_name, u.profile_pic,
+        EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = $2 AND f2.following_email = u.email) AS is_following
+        FROM follows f
+        JOIN users u ON f.following_email = u.email
+        WHERE f.follower_email = $1
+      `;
+    }
+    const result = await pool.query(query, [email, email]);
     res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
