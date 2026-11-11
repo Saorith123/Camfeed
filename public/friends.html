@@ -24,12 +24,6 @@
         
         /* 🎨 ប៊ូតុងពណ៌បៃតងសម្រាប់ Follow Back */
         .btn-follow-back { background: #31a24c !important; color: white; }
-        
-        /* 🎨 ប៊ូតុងពណ៌លឿងសម្រាប់ពេលយើង Follow គេហើយ */
-        .btn-yellow { background: #f7b125 !important; color: #050505; }
-        
-        .btn-unfollow { background: #e4e6eb; color: #050505; }
-        .btn-unfollow:hover { background: #d8dadf; }
     </style>
 </head>
 <body>
@@ -47,23 +41,21 @@
     </div>
 
     <script>
-        // 🎯 ដាក់ translations ไว้ด้านบนสุด เพื่อป้องกัน Error មិនស្គាល់អថេរមុនពេលប្រកាស
+        // 🎯 ការកំណត់ភាសា (Translations)
         const translations = {
             en: {
                 backBtn: "⬅ Back to Feed",
                 friendsHeader: "👥 People You May Follow",
                 followBtn: "Follow",
                 followBackBtn: "Follow Back",
-                followingBtn: "Following",
-                noUsers: "No other users found."
+                noUsers: "No new users to follow."
             },
             km: {
                 backBtn: "⬅ ត្រឡប់ទៅ Feed វិញ",
                 friendsHeader: "👥 មនុស្សដែលអ្នកអាចតាមដាន",
                 followBtn: "តាមដាន",
                 followBackBtn: "តាមដានតប",
-                followingBtn: "កំពុងតាមដាន",
-                noUsers: "រកមិនឃើញអ្នកប្រើប្រាស់ផ្សេងទៀតទេ។"
+                noUsers: "មិនមានអ្នកប្រើប្រាស់ផ្សេងទៀតត្រូវតាមដានទេ។"
             }
         };
 
@@ -94,26 +86,25 @@
                 const t = translations[lang];
 
                 if (data.success && data.users && data.users.length > 0) {
-                    const otherUsers = data.users.filter(u => u.email !== currentUser.email);
+                    // 🎯 ត្រងយកតែ User ណាដែលយើង "មិនទាន់ Follow គេ" តែប៉ុណ្ណោះ
+                    const filteredUsers = data.users.filter(u => u.email !== currentUser.email && !u.is_following);
 
-                    if (otherUsers.length === 0) {
+                    if (filteredUsers.length === 0) {
                         container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
                         return;
                     }
 
-                    otherUsers.forEach(u => {
+                    filteredUsers.forEach(u => {
                         const div = document.createElement('div');
                         div.className = 'user-card';
 
                         let btnClass = '';
                         let btnText = '';
 
-                        if (u.is_followed_by && !u.is_following) {
+                        // ប្រសិនបើគេ Follow យើងមក ប៉ុន្តែយើងមិនទាន់ Follow គេវិញ ឱ្យចេញពាក្យ Follow Back
+                        if (u.is_followed_by) {
                             btnClass = 'btn-follow-back';
                             btnText = t.followBackBtn;
-                        } else if (u.is_following) {
-                            btnClass = 'btn-yellow';
-                            btnText = t.followingBtn;
                         } else {
                             btnClass = '';
                             btnText = t.followBtn;
@@ -122,7 +113,7 @@
                         div.innerHTML = `
                             <img src="${u.profile_pic || 'https://via.placeholder.com/90'}" class="avatar" onclick="window.location.href='profile.html?email=${u.email}'">
                             <div class="user-name" onclick="window.location.href='profile.html?email=${u.email}'">${u.first_name} ${u.last_name}</div>
-                            <button class="btn-follow ${btnClass}" onclick="toggleFollow('${u.email}', ${u.is_following})">
+                            <button class="btn-follow ${btnClass}" onclick="toggleFollow('${u.email}')">
                                 ${btnText}
                             </button>
                         `;
@@ -137,20 +128,19 @@
             }
         }
 
-        async function toggleFollow(targetEmail, isFollowing) {
-            const action = isFollowing ? 'unfollow' : 'follow';
+        async function toggleFollow(targetEmail) {
             try {
                 const res = await fetch('/api/follow', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
+                    body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: 'follow' })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    loadUsers();
+                    loadUsers(); // 🔄 Refresh បញ្ជីឡើងវិញភ្លាមៗ ពេលចុច Follow ជោគជ័យ
                 }
             } catch (err) {
-                console.error("Error toggling follow:", err);
+                console.error("Error following user:", err);
             }
         }
     </script>
