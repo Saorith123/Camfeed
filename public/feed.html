@@ -23,8 +23,8 @@
         .notification-item { padding: 10px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: center; cursor: pointer; }
         .notification-item:hover { background: #f2f2f2; }
 
-        /* Messenger Dropdown */
-        .messenger-dropdown { position: absolute; right: 50px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 280px; max-height: 350px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
+        /* Messenger Dropdown from Bottom Tab */
+        .messenger-dropdown-bottom { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 280px; max-height: 350px; overflow-y: auto; display: none; z-index: 1200; border: 1px solid #e4e6eb; }
 
         /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
@@ -32,7 +32,7 @@
         .search-input:focus { width: 180px; background: white; border-color: #1877f2; }
         .search-icon-abs { position: absolute; left: 8px; font-size: 13px; color: #65676b; cursor: pointer; }
 
-        .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 48px; width: 100%; border-top: 1px solid #f0f2f5; }
+        .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 48px; width: 100%; border-top: 1px solid #f0f2f5; position: relative; }
         .menu-btn { background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 0; }
         .menu-btn:hover { background: #f2f2f2; }
         .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; }
@@ -137,20 +137,7 @@
                     <input type="text" id="searchInput" class="search-input" placeholder="Search..." oninput="searchUsers(this.value)">
                 </div>
 
-                <!-- 💬 Messenger Icon with Unread Badge on Feed -->
-                <div style="position: relative; display: inline-block;">
-                    <button class="icon-circle-btn" onclick="toggleMessengerDropdown(event)">
-                        💬
-                        <span id="feedUnreadBadge" class="notif-badge hidden">0</span>
-                    </button>
-                    <div class="messenger-dropdown" id="messengerDropdown" onclick="event.stopPropagation()">
-                        <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; font-size: 14px;">Messenger Chats</div>
-                        <div id="feedMessengerList">
-                            <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No new messages</div>
-                        </div>
-                    </div>
-                </div>
-
+                <!-- 🔔 Notification Icon (ខាងលើរក្សាទុកតែ notification និង profile) -->
                 <button class="icon-circle-btn" onclick="toggleNotifications(event)">
                     🔔
                     <span id="notifBadge" class="notif-badge hidden">0</span>
@@ -168,12 +155,23 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs (ផ្នែកខាងក្រោមមានប៊ូតុង Chat 💬 ជាមួយ Messenger Dropdown & Badge លេខក្រហម) -->
         <div class="nav-menus">
             <button class="menu-btn active" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
             <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
             <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
-            <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat">💬</button>
+            
+            <!-- 💬 Chat Tab with Dropdown & Unread Badge -->
+            <button class="menu-btn" id="menuChat" onclick="toggleMessengerDropdown(event)" title="Chat" style="position: relative;">
+                💬
+                <span id="feedUnreadBadge" class="notif-badge hidden" style="top: 8px; right: 18px;">0</span>
+                <div class="messenger-dropdown-bottom" id="messengerDropdown" onclick="event.stopPropagation()">
+                    <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb; font-size: 14px;">Messenger Chats</div>
+                    <div id="feedMessengerList">
+                        <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No new messages</div>
+                    </div>
+                </div>
+            </button>
         </div>
     </div>
 

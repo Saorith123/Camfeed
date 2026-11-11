@@ -372,7 +372,7 @@
             }
         }
 
-        // 🎯 កែសម្រួលការថតសំឡេង (Voice Recording) ឱ្យប៊ូសកម្រិតសម្លេងខ្លាំងច្បាស់ល្អ ១០០%
+        // 🎯 កែសម្រួលការថតសំឡេង (Voice Recording) ឱ្យរលូនល្អ មិនញាក់/កន្ត្រាក់ និងឮច្បាស់ពេញលេញ
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -384,15 +384,14 @@
                         audio: { 
                             echoCancellation: true, 
                             noiseSuppression: true, 
-                            autoGainControl: true,
-                            channelCount: 1 
+                            autoGainControl: true 
                         } 
                     });
                     
-                    let options = { mimeType: 'audio/webm;codecs=opus' };
-                    if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                        if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-                            options = { mimeType: 'audio/ogg;codecs=opus' };
+                    let options = { mimeType: 'audio/webm' };
+                    if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                        if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                            options = { mimeType: 'audio/ogg' };
                         } else {
                             options = {};
                         }
@@ -401,8 +400,11 @@
                     mediaRecorder = new MediaRecorder(mediaStream, options);
                     audioChunks = [];
 
+                    // 🎯 ប្រើប្រាស់ timeslice (250ms) ដើម្បីធានាថា Data chunks ត្រូវបានប្រមូលរលូន មិនញាក់ ឬកន្ត្រាក់
                     mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) audioChunks.push(event.data);
+                        if (event.data && event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
                     };
 
                     mediaRecorder.onstop = () => {
@@ -415,9 +417,11 @@
                         };
 
                         previewAudio.ontimeupdate = () => {
-                            const progress = (previewAudio.currentTime / previewAudio.duration) * 100;
-                            document.getElementById('previewProgressBar').style.width = `${progress}%`;
-                            document.getElementById('previewTimer').innerText = `${formatTime(previewAudio.currentTime)} / ${formatTime(previewAudio.duration)}`;
+                            if (previewAudio.duration) {
+                                const progress = (previewAudio.currentTime / previewAudio.duration) * 100;
+                                document.getElementById('previewProgressBar').style.width = `${progress}%`;
+                                document.getElementById('previewTimer').innerText = `${formatTime(previewAudio.currentTime)} / ${formatTime(previewAudio.duration)}`;
+                            }
                         };
 
                         previewAudio.onended = () => {
@@ -429,7 +433,7 @@
                         document.getElementById('normalInputRow').style.display = 'none';
                     };
 
-                    mediaRecorder.start();
+                    mediaRecorder.start(250); // Start with timeslice to prevent choppy audio
                     isRecording = true;
                     recordBtn.style.color = 'red';
 
@@ -493,7 +497,6 @@
             document.getElementById('normalInputRow').style.display = 'flex';
         }
 
-        // 🎯 ដាក់អត្ថបទ "Sending voice..." ឱ្យស្ថិតនៅក្នុង Preview Box ផ្ទាល់ មិនបាំងកន្លែងប្រអប់វាយអក្សរឡើយ
         async function sendVoiceMessage() {
             if (!recordedAudioBlob) return;
             if (previewAudio) { previewAudio.pause(); previewAudio = null; }

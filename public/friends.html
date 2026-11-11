@@ -20,7 +20,14 @@
         .user-name { font-weight: bold; color: #050505; margin-bottom: 10px; cursor: pointer; }
         
         .btn-follow { width: 100%; padding: 8px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
-        .btn-follow:hover { background: #166fe5; }
+        .btn-follow:hover { opacity: 0.9; }
+        
+        /* 🎨 ប៊ូតុងពណ៌បៃតងសម្រាប់ Follow Back */
+        .btn-follow-back { background: #31a24c !important; color: white; }
+        
+        /* 🎨 ប៊ូតុងពណ៌លឿងសម្រាប់ពេលយើង Follow គេហើយ */
+        .btn-yellow { background: #f7b125 !important; color: #050505; }
+        
         .btn-unfollow { background: #e4e6eb; color: #050505; }
         .btn-unfollow:hover { background: #d8dadf; }
     </style>
@@ -53,6 +60,7 @@
                 backBtn: "⬅ Back to Feed",
                 friendsHeader: "👥 People You May Follow",
                 followBtn: "Follow",
+                followBackBtn: "Follow Back",
                 followingBtn: "Following",
                 noUsers: "No other users found."
             },
@@ -60,6 +68,7 @@
                 backBtn: "⬅ ត្រឡប់ទៅ Feed វិញ",
                 friendsHeader: "👥 មនុស្សដែលអ្នកអាចតាមដាន",
                 followBtn: "តាមដាន",
+                followBackBtn: "តាមដានតប",
                 followingBtn: "កំពុងតាមដាន",
                 noUsers: "រកមិនឃើញអ្នកប្រើប្រាស់ផ្សេងទៀតទេ។"
             }
@@ -83,19 +92,41 @@
                     const lang = localStorage.getItem('camfeed_lang') || 'en';
                     const t = translations[lang];
 
-                    if (data.users.length === 0) {
+                    // 🎯 ត្រងបង្ហាញเฉพาะ User ដែលយើងមិនទាន់เป็นเพื่อนกัน (is_friend === false)
+                    // (is_friend គឺទាល់តែ both តាមដានគ្នាទៅវិញទៅមក)
+                    const notFriendsUsers = data.users.filter(u => !u.is_friend);
+
+                    if (notFriendsUsers.length === 0) {
                         container.innerHTML = `<p style="color: #65676b; grid-column: 1/-1; text-align: center;">${t.noUsers}</p>`;
                         return;
                     }
 
-                    data.users.forEach(u => {
+                    notFriendsUsers.forEach(u => {
                         const div = document.createElement('div');
                         div.className = 'user-card';
+
+                        // 🔍 ពិនិត្យស្ថានភាព Follow:
+                        // 1. ຖ້າគេ Follow យើង (is_followed_by === true) ហើយយើងមិនទាន់ Follow គេ (is_following === false) -> ពណ៌បៃតង "Follow Back"
+                        // 2. ຖ້າ നമ്മ ෙFollow គេហើយ (is_following === true) -> ពណ៌លឿង ឬ Unfollow
+                        let btnClass = '';
+                        let btnText = '';
+
+                        if (u.is_followed_by && !u.is_following) {
+                            btnClass = 'btn-follow-back';
+                            btnText = t.followBackBtn;
+                        } else if (u.is_following) {
+                            btnClass = 'btn-yellow'; // 🟡 ប៊ូតុងពណ៌លឿងពេលយើង Follow គេ
+                            btnText = t.followingBtn;
+                        } else {
+                            btnClass = '';
+                            btnText = t.followBtn;
+                        }
+
                         div.innerHTML = `
                             <img src="${u.profile_pic || 'https://via.placeholder.com/90'}" class="avatar" onclick="window.location.href='profile.html?email=${u.email}'">
                             <div class="user-name" onclick="window.location.href='profile.html?email=${u.email}'">${u.first_name} ${u.last_name}</div>
-                            <button class="btn-follow ${u.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollow('${u.email}', ${u.is_following})">
-                                ${u.is_following ? t.followingBtn : t.followBtn}
+                            <button class="btn-follow ${btnClass}" onclick="toggleFollow('${u.email}', ${u.is_following})">
+                                ${btnText}
                             </button>
                         `;
                         container.appendChild(div);
