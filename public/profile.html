@@ -158,9 +158,8 @@
                 </div>
             </div>
 
-            <div class="profile-actions" id="profileActionButtons">
-                <button class="btn-action btn-secondary" onclick="copyProfileLink()">🔗 Share</button>
-            </div>
+            <!-- Profile Actions (Dynamic for Owner vs Other User) -->
+            <div class="profile-actions" id="profileActionButtons"></div>
         </div>
     </div>
 
@@ -205,7 +204,12 @@
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         const urlParams = new URLSearchParams(window.location.search);
-        const profileEmail = urlParams.get('email') || (currentUser ? currentUser.email : null);
+        
+        let profileEmail = urlParams.get('email');
+        if (!profileEmail && currentUser) {
+            profileEmail = currentUser.email;
+        }
+
         let currentTab = 'posts';
         let targetUserIsFollowing = false;
         let editingPostId = null;
@@ -225,7 +229,6 @@
 
         async function loadProfileData() {
             try {
-                // 🎯 កែសម្រួលឱ្យហៅទៅកាន់ API ថ្មី /api/user-profile យ៉ាងត្រឹមត្រូវ
                 const res = await fetch(`/api/user-profile?email=${profileEmail}&viewerEmail=${currentUser.email}`);
                 const data = await res.json();
                 if (data.success) {
@@ -234,7 +237,6 @@
                         document.getElementById('profileFullName').innerText = `${user.first_name} ${user.last_name}`;
                         document.getElementById('profileBioText').innerText = user.bio || '';
                         
-                        // Meta info rendering with privacy checks
                         document.getElementById('followersCountSpan').innerText = `${user.followers_count || 0} Followers`;
                         document.getElementById('followingCountSpan').innerText = `${user.following_count || 0} Following`;
                         document.getElementById('metaDob').innerText = `🎂 DOB: ${user.birthdate || '-'}`;
@@ -257,9 +259,23 @@
                         if (user.cover_pic) document.getElementById('profileCoverImg').src = user.cover_pic;
 
                         const actionContainer = document.getElementById('profileActionButtons');
-                        actionContainer.innerHTML = '<button class="btn-action btn-secondary" onclick="copyProfileLink()">🔗 Share</button>';
+                        actionContainer.innerHTML = '';
 
+                        // 🎯 ភាពខុសគ្នារវាង Profile ខ្លួនឯង និង Profile របស់អ្នកដទៃ
                         if (profileEmail === currentUser.email) {
+                            // 👤 ប្រូហ្វាលខ្លួនឯង៖ មានប៊ូតុង Share, Edit Bio និងកន្លែងកែប្រែ Settings
+                            const shareBtn = document.createElement('button');
+                            shareBtn.className = 'btn-action btn-secondary';
+                            shareBtn.innerHTML = '🔗 Share Profile';
+                            shareBtn.onclick = copyProfileLink;
+                            actionContainer.appendChild(shareBtn);
+
+                            const editBioBtn = document.createElement('button');
+                            editBioBtn.className = 'btn-action btn-secondary';
+                            editBioBtn.innerHTML = '✏️ Edit Bio';
+                            editBioBtn.onclick = toggleBioEdit;
+                            actionContainer.appendChild(editBioBtn);
+
                             document.getElementById('profileEditBtn').classList.remove('hidden');
                             document.getElementById('coverEditBtn').classList.remove('hidden');
                             document.getElementById('ownerSettingsBox').classList.remove('hidden');
@@ -268,13 +284,8 @@
                             document.getElementById('editLocation').value = user.location || '';
                             if(user.phone_privacy) document.getElementById('phonePrivacy').value = user.phone_privacy;
                             if(user.email_privacy) document.getElementById('emailPrivacy').value = user.email_privacy;
-                            
-                            const editBioBtn = document.createElement('button');
-                            editBioBtn.className = 'btn-action btn-secondary';
-                            editBioBtn.innerText = '✏️ Bio';
-                            editBioBtn.onclick = toggleBioEdit;
-                            actionContainer.appendChild(editBioBtn);
                         } else {
+                            // 👥 ប្រូហ្វាលអ្នកដទៃ៖ មានប៊ូតុង Follow/Following និងប៊ូតុង Message (គ្មានប៊ូតុង Edit ទេ)
                             targetUserIsFollowing = user.is_following;
 
                             const followBtn = document.createElement('button');
@@ -290,6 +301,16 @@
                                 window.location.href = `messages.html?chat=${user.email}`;
                             };
                             actionContainer.appendChild(messageBtn);
+
+                            const shareBtn = document.createElement('button');
+                            shareBtn.className = 'btn-action btn-secondary';
+                            shareBtn.innerHTML = '🔗 Share';
+                            shareBtn.onclick = copyProfileLink;
+                            actionContainer.appendChild(shareBtn);
+
+                            document.getElementById('profileEditBtn').classList.add('hidden');
+                            document.getElementById('coverEditBtn').classList.add('hidden');
+                            document.getElementById('ownerSettingsBox').classList.add('hidden');
                         }
                     }
                 }
