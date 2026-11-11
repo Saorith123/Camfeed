@@ -37,7 +37,7 @@
         .msg-sent { background: #1877f2; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-received { background: #e4e6eb; color: #050505; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        /* 🎨 Native Audio Styling for smooth playback */
+        /* Native Audio Styling */
         audio { max-width: 200px; height: 36px; outline: none; }
 
         .chat-input-area { display: flex; flex-direction: column; background: white; border-top: 1px solid #e4e6eb; flex-shrink: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
@@ -136,8 +136,12 @@
                     </div>
                 </div>
 
-                <!-- Normal Chat Input Row -->
+                <!-- Normal Chat Input Row (With Attachment for Image/Video) -->
                 <div class="chat-input-row" id="normalInputRow">
+                    <label class="action-icon-btn" title="Attach Image or Video" style="cursor: pointer; margin: 0;">
+                        📷
+                        <input type="file" id="chatMediaFile" accept="image/*,video/*" class="hidden" onchange="sendMediaMessage(event)">
+                    </label>
                     <button id="recordBtn" class="action-icon-btn" onclick="toggleVoiceRecording()" title="Record Voice">🎙️</button>
                     <div id="recordingTimeDisplay" class="hidden" style="color: #fa383e; font-weight: bold; font-size: 14px; flex: 1;">🔴 <span id="recSeconds">0:00</span> (Recording...)</div>
                     <input type="text" id="messageInput" class="msg-text" placeholder="Aa..." onkeypress="handleKeyPress(event)">
@@ -289,8 +293,11 @@
                     const messagesHtml = data.messages.map(m => {
                         let contentHtml = '';
                         if (m.message_type === 'audio' && m.media_url) {
-                            // 🎯 ប្រើប្រាស់ Native HTML5 audio controls រលូនល្អ ១០០% មិនមានអាការញាក់ ឬ NaN
                             contentHtml = `<audio src="${m.media_url}" controls preload="metadata"></audio>`;
+                        } else if (m.message_type === 'image' && m.media_url) {
+                            contentHtml = `<img src="${m.media_url}" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover; cursor: pointer;" onclick="window.open('${m.media_url}', '_blank')">`;
+                        } else if (m.message_type === 'video' && m.media_url) {
+                            contentHtml = `<video src="${m.media_url}" controls style="max-width: 200px; max-height: 200px; border-radius: 8px; background: black;" playsinline></video>`;
                         } else {
                             contentHtml = `<span>${m.message}</span>`;
                         }
@@ -352,7 +359,7 @@
                     <img src="${m.profile_pic || 'https://via.placeholder.com/40'}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
                     <div style="flex: 1; min-width: 0;">
                         <div style="font-weight: bold; font-size: 13px; color: #050505;">${m.first_name} ${m.last_name}</div>
-                        <div style="font-size: 11px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.message || 'Sent a voice message'}</div>
+                        <div style="font-size: 11px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${m.message || 'Sent a media message'}</div>
                     </div>
                     <div style="width: 8px; height: 8px; background: #1877f2; border-radius: 50%;"></div>
                 </div>
@@ -376,6 +383,32 @@
             }
         }
 
+        // 🎯 មុខងារផ្ញើរូបភាព ឬវីដេអូក្នុង Chat
+        async function sendMediaMessage(event) {
+            const file = event.target.files[0];
+            if (!file || !activeChatEmail) return;
+
+            const formData = new FormData();
+            formData.append('sender', currentUser.email);
+            formData.append('receiver', activeChatEmail);
+            formData.append('mediaFile', file);
+
+            try {
+                const res = await fetch('/api/messages', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    loadMessages();
+                    loadConversations();
+                } else {
+                    alert("Failed to send media: " + (data.error || ''));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Network error sending media.");
+            }
+            event.target.value = '';
+        }
+
         async function toggleVoiceRecording() {
             const recordBtn = document.getElementById('recordBtn');
             const messageInput = document.getElementById('messageInput');
@@ -392,12 +425,12 @@
                         } 
                     });
                     
-                    let options = { mimeType: 'audio/webm;codecs=opus' };
-                    if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                        if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-                            options = { mimeType: 'audio/ogg;codecs=opus' };
+                    let options = { mimeType: 'audio/webm' };
+                    if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                        if (MediaRecorder.isTypeSupported('audio/ogg')) {
+                            options = { mimeType: 'audio/ogg' };
                         } else {
-                            options = { mimeType: 'audio/webm' };
+                            options = {};
                         }
                     }
 
@@ -438,7 +471,7 @@
                         document.getElementById('normalInputRow').style.display = 'none';
                     };
 
-                    mediaRecorder.start(100);
+                    mediaRecorder.start();
                     isRecording = true;
                     recordBtn.style.color = 'red';
 

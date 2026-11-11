@@ -550,7 +550,7 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// 🎯 API ទទួលសារទាំងអត្ថបទ និង Voice Message យ៉ាងរលូន ដោយមិនបាច់បារម្ភរឿង Content-Type
+// 🎯 API ទទួលសារទាំងអត្ថបទ, រូបភាព (Image), វីដេអូ (Video) និង Voice Message យ៉ាងរលូន
 app.post('/api/messages', (req, res, next) => {
   cloudinaryUpload.single('mediaFile')(req, res, (err) => {
     if (err) {
@@ -563,10 +563,26 @@ app.post('/api/messages', (req, res, next) => {
   try {
     const sender = req.body.sender;
     const receiver = req.body.receiver;
-    const message = req.body.message || (req.file ? '[Voice Message]' : '');
     
+    let defaultMsg = '';
+    let messageType = 'text';
+
+    if (req.file) {
+      const mimetype = req.file.mimetype || '';
+      if (mimetype.startsWith('video')) {
+        messageType = 'video';
+        defaultMsg = '[Video Message]';
+      } else if (mimetype.startsWith('image')) {
+        messageType = 'image';
+        defaultMsg = '[Image Message]';
+      } else {
+        messageType = 'audio';
+        defaultMsg = '[Voice Message]';
+      }
+    }
+
+    const message = req.body.message || defaultMsg;
     const mediaUrl = req.file ? req.file.path : null;
-    const messageType = req.file ? 'audio' : 'text';
 
     if (!sender || !receiver) {
       return res.status(400).json({ success: false, error: 'Sender and receiver are required' });
