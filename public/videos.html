@@ -88,69 +88,78 @@
             try {
                 const res = await fetch(`/api/posts?email=${currentUser.email}`);
                 const data = await res.json();
-                if (data.success) {
-                    const container = document.getElementById('reelsFeedContainer');
-                    container.innerHTML = '';
-                    // 🎬 គាំទ្រទាំងប្រភេទ video ធម្មតា និង youtube_short
-                    const videoPosts = data.posts.filter(p => p.media_type === 'video' || p.media_type === 'youtube_short');
+                
+                const container = document.getElementById('reelsFeedContainer');
+                if (!data.success || !data.posts) {
+                    container.innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Failed to load posts.</div>';
+                    return;
+                }
 
-                    if (videoPosts.length === 0) {
-                        container.innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
-                        return;
-                    }
+                // 🎬 គាំទ្រទាំងប្រភេទ video និង youtube_short
+                const videoPosts = data.posts.filter(p => p.media_type === 'video' || p.media_type === 'youtube_short');
 
-                    container.innerHTML = videoPosts.map(video => {
-                        let mediaContent = '';
-                        if (video.media_type === 'youtube_short') {
-                            // 🎥 បង្ហាញជា YouTube Iframe Embed
-                            let embedUrl = video.media_url;
-                            if (embedUrl.includes('watch?v=')) {
-                                embedUrl = embedUrl.replace('watch?v=', 'embed/');
-                            } else if (embedUrl.includes('shorts/')) {
-                                embedUrl = embedUrl.replace('shorts/', 'embed/');
-                            }
-                            if (!embedUrl.includes('autoplay=1')) {
-                                separator = embedUrl.includes('?') ? '&' : '?';
-                                embedUrl += separator + 'autoplay=1&mute=0&loop=1&playlist=' + embedUrl.split('/').pop().split('?')[0];
-                            }
-                            mediaContent = `<iframe src="${embedUrl}" class="reel-iframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                if (videoPosts.length === 0) {
+                    container.innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
+                    return;
+                }
+
+                container.innerHTML = videoPosts.map(video => {
+                    let mediaContent = '';
+                    if (video.media_type === 'youtube_short') {
+                        let rawUrl = video.media_url || '';
+                        let videoId = '';
+
+                        // 🔍 ទាញយក Video ID យ៉ាងសុវត្ថិភាពពីគ្រប់ទម្រង់ Link YouTube
+                        if (rawUrl.includes('embed/')) {
+                            videoId = rawUrl.split('embed/')[1].split('?')[0];
+                        } else if (rawUrl.includes('shorts/')) {
+                            videoId = rawUrl.split('shorts/')[1].split('?')[0];
+                        } else if (rawUrl.includes('watch?v=')) {
+                            videoId = rawUrl.split('watch?v=')[1].split('&')[0];
                         } else {
-                            mediaContent = `<video src="${video.media_url}" class="reel-video" loop playsinline preload="auto" onclick="togglePlayPause(this)"></video>`;
+                            videoId = rawUrl.trim();
                         }
 
-                        return `
-                            <div class="reel-item" id="reel-${video.id}">
-                                ${mediaContent}
-                                
-                                <div class="reel-overlay">
-                                    <div class="reel-author-row" onclick="window.location.href='profile.html?email=${video.user_email}'">
-                                        <img src="${video.profile_pic || 'https://via.placeholder.com/40'}" class="reel-avatar">
-                                        <div style="font-weight: bold; font-size: 15px;">${video.first_name} ${video.last_name}</div>
-                                    </div>
-                                    <div class="reel-caption">${video.content || ''}</div>
-                                </div>
+                        const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&loop=1&playlist=${videoId}`;
+                        mediaContent = `<iframe src="${embedUrl}" class="reel-iframe" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                    } else {
+                        mediaContent = `<video src="${video.media_url}" class="reel-video" loop playsinline preload="auto" onclick="togglePlayPause(this)"></video>`;
+                    }
 
-                                <div class="reel-actions">
-                                    <div>
-                                        <button class="action-icon-btn" onclick="sendReaction(${video.id}, '👍')">👍</button>
-                                        <div class="action-count" id="likeCount-${video.id}">${video.likes_count || 0}</div>
-                                    </div>
-                                    <div>
-                                        <button class="action-icon-btn" onclick="openCommentsModal(${video.id})">💬</button>
-                                        <div class="action-count" id="commentCount-${video.id}">${video.comments_count || 0}</div>
-                                    </div>
-                                    <div>
-                                        <button class="action-icon-btn" onclick="navigator.clipboard.writeText(window.location.origin + '/videos.html?v=${video.id}'); alert('Video link copied!');">🔗</button>
-                                    </div>
+                    return `
+                        <div class="reel-item" id="reel-${video.id}">
+                            ${mediaContent}
+                            
+                            <div class="reel-overlay">
+                                <div class="reel-author-row" onclick="window.location.href='profile.html?email=${video.user_email}'">
+                                    <img src="${video.profile_pic || 'https://via.placeholder.com/40'}" class="reel-avatar">
+                                    <div style="font-weight: bold; font-size: 15px;">${video.first_name || 'User'} ${video.last_name || ''}</div>
+                                </div>
+                                <div class="reel-caption">${video.content || ''}</div>
+                            </div>
+
+                            <div class="reel-actions">
+                                <div>
+                                    <button class="action-icon-btn" onclick="sendReaction(${video.id}, '👍')">👍</button>
+                                    <div class="action-count" id="likeCount-${video.id}">${video.likes_count || 0}</div>
+                                </div>
+                                <div>
+                                    <button class="action-icon-btn" onclick="openCommentsModal(${video.id})">💬</button>
+                                    <div class="action-count" id="commentCount-${video.id}">${video.comments_count || 0}</div>
+                                </div>
+                                <div>
+                                    <button class="action-icon-btn" onclick="navigator.clipboard.writeText(window.location.origin + '/videos.html?v=${video.id}'); alert('Video link copied!');">🔗</button>
                                 </div>
                             </div>
-                        `;
-                    }).join('');
+                        </div>
+                    `;
+                }).join('');
 
-                    initReelsAutoplay();
-                }
+                initReelsAutoplay();
+
             } catch (err) {
                 console.error(err);
+                document.getElementById('reelsFeedContainer').innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Error loading videos.</div>';
             }
         }
 
