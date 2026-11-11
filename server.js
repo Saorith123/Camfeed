@@ -4,27 +4,17 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
+// នាំចូល Cloudinary configurations ពី file cloudinary.js របស់យើង
+const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
+
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
-app.use('/uploads', express.static('uploads')); // សម្រាប់ឱ្យ Browser មើលរូបភាព/វីដេអូที่ Upload
+// សម្រួលលែងចាំបាច់ប្រើ local uploads folder ព្រោះយើងប្តូរមកប្រើ Cloudinary ស្របតាមការចង់បាន
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
-});
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 1000 * 1024 * 1024 }
 });
 
 pool.connect((err, client, release) => {
@@ -66,8 +56,8 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Create Post
-app.post('/api/posts', upload.single('mediaFile'), async (req, res) => {
+// Create Post (ភ្ជាប់ជាមួយ Cloudinary ຜ່ານ cloudinaryUpload)
+app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
   }
@@ -75,8 +65,10 @@ app.post('/api/posts', upload.single('mediaFile'), async (req, res) => {
   const email = req.body.email;
   const content = req.body.content || '';
   const privacy = req.body.privacy || 'public';
-  const mediaUrl = req.file ? `/uploads/${req.file.filename}` : (req.body.mediaUrl || null);
-  const mediaType = req.file ? (req.file.mimetype.startsWith('video') ? 'video' : 'image') : (req.body.mediaType || 'text');
+  
+  // req.file.path គឺជារបស់ Cloudinary ផ្ដល់ Link URL មកឱ្យយើងស្រាប់
+  const mediaUrl = req.file ? req.file.path : (req.body.mediaUrl || null);
+  const mediaType = req.file ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image') : (req.body.mediaType || 'text');
 
   try {
     const query = 'INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, $3, $4, $5) RETURNING *';
@@ -128,7 +120,7 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-// 🎯 Get Single Post by ID (For Share Link & Deep Linking)[cite: 9]
+// 🎯 Get Single Post by ID (For Share Link & Deep Linking)
 app.get('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
@@ -187,12 +179,12 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
-// Update Profile & Cover Pictures & Bio
-app.post('/api/update-profile-pics', upload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
+// Update Profile & Cover Pictures & Bio (ភ្ជាប់ជាមួយ Cloudinary)
+app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
   const { email, bio } = req.body;
   try {
-    let profileUrl = req.files && req.files['profilePic'] ? `/uploads/${req.files['profilePic'][0].filename}` : null;
-    let coverUrl = req.files && req.files['coverPic'] ? `/uploads/${req.files['coverPic'][0].filename}` : null;
+    let profileUrl = req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null;
+    let coverUrl = req.files && req.files['coverPic'] ? req.files['coverPic'][0].path : null;
 
     let query = 'UPDATE users SET bio = $1';
     let params = [bio || ''];
