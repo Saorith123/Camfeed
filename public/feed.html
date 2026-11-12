@@ -1676,10 +1676,21 @@
         function uploadFileToR2(file, onProgress) {
             return new Promise(async (resolve, reject) => {
                 const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
-                // Route videos through server (/api/videos/upload-direct) for automatic server-side FFmpeg compression
-                if (isVideo) {
-                    return uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
+                // Only route large videos (> 15MB) through server FFmpeg compression; smaller videos upload straight to R2 at full speed
+                if (isVideo && file.size > 15 * 1024 * 1024) {
+                    return uploadViaServerFallback(file, onProgress)
+                        .then(resolve)
+                        .catch(() => {
+                            // If server hits 502/timeout on large file, fall back to direct R2 Presigned URL
+                            uploadDirectPresignedR2(file, onProgress).then(resolve).catch(reject);
+                        });
                 }
+                return uploadDirectPresignedR2(file, onProgress).then(resolve).catch(reject);
+            });
+        }
+
+        function uploadDirectPresignedR2(file, onProgress) {
+            return new Promise(async (resolve, reject) => {
                 try {
                     const urlRes = await fetch('/api/videos/upload-url', {
                         method: 'POST',

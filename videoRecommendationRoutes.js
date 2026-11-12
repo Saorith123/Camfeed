@@ -21,6 +21,11 @@ try {
 
 function compressVideoBufferOnServer(inputBuffer, originalName) {
   return new Promise((resolve) => {
+    // If video is already compact (<= 15MB), skip heavy CPU re-encoding so Render 512MB RAM never OOMs (502)
+    if (!inputBuffer || inputBuffer.length <= 15 * 1024 * 1024) {
+      return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
+    }
+
     const tmpDir = os.tmpdir();
     const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const ext = path.extname(originalName || '.mp4') || '.mp4';
@@ -32,18 +37,21 @@ function compressVideoBufferOnServer(inputBuffer, originalName) {
         return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
       }
 
-      // Scale max dimension to 720p, H.264 CRF 26 (high visual clarity, ~60-80% smaller size), AAC 128k audio, +faststart for instant streaming
+      // Low-memory single-thread 720p H.264 compression safe for 512MB Render containers
       const args = [
         '-y',
+        '-threads', '1',
         '-i', inPath,
         '-vf', "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
         '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-crf', '26',
+        '-preset', 'ultrafast',
+        '-crf', '27',
+        '-maxrate', '1800k',
+        '-bufsize', '2000k',
         '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',
         outPath
       ];
 
