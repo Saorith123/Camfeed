@@ -1312,6 +1312,22 @@ app.post('/api/messages', (req, res, next) => {
   }
 });
 
+// Translate individual post caption on demand (keeps original text intact by default)
+app.post('/api/translate-text', async (req, res) => {
+  const { text, targetLang } = req.body;
+  if (!text || !text.trim()) return res.json({ success: false });
+  const tl = targetLang === 'en' ? 'en' : 'km';
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    const translated = Array.isArray(data?.[0]) ? data[0].map(seg => seg[0]).join('') : text;
+    res.json({ success: true, translatedText: translated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // =============================================================================
 // ADMIN CONTROL CENTER ROUTES (Protected by Super Admin / Team Admin Role + PIN)
 // =============================================================================
