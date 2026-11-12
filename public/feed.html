@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CamFeed - News Feed</title>
+    <title>CamFeed - Friends & Search</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; top: 0 !important; }
-        
-        /* Hide Google Translate Top Bar & Tooltips for Clean Mobile App UI */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; top: 0 !important; }
+
+        /* Hide Google Translate Top Banner for Clean Mobile App UI */
         .goog-te-banner-frame.skiptranslate,
         .goog-te-gadget-icon,
         #goog-gt-tt,
@@ -22,16 +22,34 @@
             display: none !important;
         }
 
+        /* Language Switching Loading Toast */
+        .lang-loading-toast {
+            position: fixed;
+            top: 64px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(24, 119, 242, 0.95);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-size: 13.5px;
+            font-weight: 700;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
         .top-bar { display: flex; flex-direction: column; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; padding: 0 10px; }
         .top-bar-row1 { display: flex; justify-content: space-between; align-items: center; height: 52px; border-bottom: 1px solid #f0f2f5; width: 100%; }
-        .top-left { display: flex; align-items: center; gap: 10px; position: relative; }
+        .top-left { display: flex; align-items: center; gap: 8px; position: relative; }
         .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
         .menu-icon-btn:hover { background: #d8dadf; }
 
-        /* Attractive Brand Logo: CamFeed (Protected from Google Translate) */
         .logo-nav {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 25px;
+            font-size: 24px;
             font-weight: 800;
             background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
             -webkit-background-clip: text;
@@ -39,16 +57,14 @@
             cursor: pointer;
             letter-spacing: -0.8px;
             user-select: none;
-            transition: transform 0.15s ease;
         }
-        .logo-nav:hover { transform: scale(1.03); }
-        
+
+        /* Dropdown Menu */
         .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); width: 235px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; border-bottom: 1px solid #f0f2f5; }
         .dropdown-item:last-child { border-bottom: none; }
         .dropdown-item:hover { background: #f2f2f2; }
 
-        /* Language Sub-selector inside ☰ Menu */
         .lang-submenu { display: none; background: #f8f9fa; border-bottom: 1px solid #e4e6eb; }
         .lang-submenu.open { display: block; }
         .lang-option-row { padding: 10px 18px 10px 32px; font-size: 13.5px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
@@ -57,315 +73,86 @@
 
         /* Notification Dropdown */
         .notification-dropdown { position: absolute; right: 10px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 315px; max-height: 420px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
-        .notification-item { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: flex-start; cursor: pointer; transition: background 0.15s; }
+        .notification-item { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
         .notification-item:hover { background: #f0f7ff; }
-        .notif-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid #e4e6eb; }
 
-        /* Mobile friendly search box */
-        .search-box-wrapper { position: relative; display: flex; align-items: center; }
-        .search-input { padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 115px; transition: width 0.3s, border-color 0.3s; }
-        .search-input:focus { width: 175px; background: white; border-color: #1877f2; }
-        .search-icon-abs { position: absolute; left: 8px; font-size: 13px; color: #65676b; cursor: pointer; }
+        /* Search Box with Dedicated Search Button */
+        .search-box-wrapper { position: relative; display: flex; align-items: center; background: #f0f2f5; border: 1px solid #dddfe2; border-radius: 20px; padding: 2px 4px 2px 10px; }
+        .search-box-wrapper:focus-within { background: #fff; border-color: #1877f2; }
+        .search-input { border: none; background: transparent; outline: none; font-size: 13px; width: 105px; transition: width 0.25s; padding: 4px 4px; }
+        .search-input:focus { width: 145px; }
+        .search-submit-btn { background: #1877f2; color: #fff; border: none; border-radius: 16px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .search-submit-btn:hover { background: #166fe5; }
 
-        /* Navigation Menus with Single Center '+' Button */
+        /* Navigation Tabs */
         .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 50px; width: 100%; border-top: 1px solid #f0f2f5; position: relative; }
         .menu-btn { background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 0; }
         .menu-btn:hover { background: #f2f2f2; }
         .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; }
 
-        /* Unified Center '+' Post Button */
         .center-plus-slot { flex: 1; display: flex; align-items: center; justify-content: center; height: 100%; }
         .unified-plus-btn {
-            width: 44px;
-            height: 34px;
-            border-radius: 10px;
-            border: none;
+            width: 44px; height: 34px; border-radius: 10px; border: none;
             background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
-            color: #fff;
-            font-size: 24px;
-            font-weight: 800;
-            line-height: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+            color: #fff; font-size: 24px; font-weight: 800; line-height: 1;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
             box-shadow: 0 2px 8px rgba(24, 119, 242, 0.35);
-            transition: transform 0.15s ease;
         }
-        .unified-plus-btn:hover { transform: scale(1.06); }
-        .unified-plus-btn:active { transform: scale(0.93); }
 
         .top-right-icons { display: flex; align-items: center; gap: 6px; }
         .icon-circle-btn { width: 38px; height: 38px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; position: relative; }
         .icon-circle-btn:hover { background: #d8dadf; }
         .notif-badge { position: absolute; top: 1px; right: 1px; background: #fa383e; color: white; font-size: 9px; padding: 2px 4px; border-radius: 10px; font-weight: bold; }
+        .hidden { display: none !important; }
 
         .user-profile-link { display: flex; align-items: center; cursor: pointer; border-radius: 50%; padding: 2px; }
-        .user-profile-link:hover { background: #f2f2f2; }
 
-        .main-container { max-width: 680px; margin: 10px auto; padding: 0; box-sizing: border-box; }
+        .container { max-width: 680px; margin: 12px auto; padding: 0 10px; box-sizing: border-box; }
+        .friends-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+        /* Search Category Filter Pills (All | People | Photos | Videos) */
+        .search-filter-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid #e4e6eb; scrollbar-width: none; }
+        .search-filter-bar::-webkit-scrollbar { display: none; }
+        .filter-pill { padding: 7px 14px; border-radius: 20px; border: none; background: #e4e6eb; color: #050505; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .filter-pill.active { background: #1877f2; color: #fff; }
+
+        .user-grid { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+        .user-card { display: flex; align-items: center; justify-content: space-between; background: #fff; border-bottom: 1px solid #f0f2f5; padding-bottom: 12px; }
+        .user-info-left { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #ccc; }
+        .user-name { font-weight: bold; color: #050505; font-size: 15.5px; margin-bottom: 3px; }
         
-        input, textarea, select { width: 100%; padding: 10px 14px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; font-family: inherit; background: #fff; }
-        textarea:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
-
-        .btn-primary { width: 100%; padding: 10px; background: #1877f2; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 5px; }
-        .btn-primary:hover { background: #166fe5; }
-        .btn-primary:disabled { background: #b0d3f8; cursor: not-allowed; }
-
-        /* Multi-Media Preview Grid in Create Modal */
-        .multi-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; margin-top: 10px; }
-        .preview-tile { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; overflow: hidden; background: #000; border: 1px solid #e4e6eb; }
-        .preview-tile img, .preview-tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .preview-tile-badge { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 4px; }
-        .preview-tile-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.75); color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: center; }
-
-        #uploadProgressContainer { margin-top: 10px; display: none; }
-        .progress-bar-bg { width: 100%; background-color: #e4e6eb; border-radius: 10px; overflow: hidden; height: 12px; }
-        .progress-bar-fill { width: 0%; height: 100%; background-color: #1877f2; transition: width 0.2s; }
-        .progress-text { font-size: 12px; font-weight: bold; color: #65676b; text-align: right; margin-top: 4px; }
-
-        /* Facebook-Style Full-Bleed Edge-to-Edge Post Card */
-        .post-item { background: white; padding: 12px 0 8px 0; border-radius: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 10px; transition: box-shadow 0.4s, background-color 0.4s; position: relative; }
-        @media (min-width: 681px) {
-            .post-item { border-radius: 10px; margin-bottom: 15px; }
-        }
-        .post-item.highlight-target { box-shadow: 0 0 0 3px #1877f2, 0 6px 20px rgba(24,119,242,0.25); background-color: #f7fbff; }
-        .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; padding: 0 14px; }
-        .post-header-left { display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; min-width: 0; }
-        .post-header-right { display: flex; align-items: center; gap: 4px; position: relative; flex-shrink: 0; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; flex-shrink: 0; }
-        .post-author { font-weight: bold; color: #050505; }
-        .post-author:hover { text-decoration: underline; }
-        .post-time { font-size: 11px; color: #90949c; }
-        .ai-topic-pill { font-size: 10px; background: #f0f2f5; color: #65676b; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
-
-        /* Compact 3-Dot Menu Button at Top-Right of Post */
-        .post-dots-btn {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            border: none;
-            background: transparent;
-            color: #65676b;
-            font-size: 17px;
-            line-height: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            padding: 0;
-        }
-        .post-dots-btn:hover { background: #f0f2f5; color: #050505; }
-        .post-options-dropdown {
-            display: none;
-            position: absolute;
-            right: 0;
-            top: 30px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.18);
-            border: 1px solid #e4e6eb;
-            min-width: 155px;
-            z-index: 400;
-            overflow: hidden;
-        }
-        .post-options-dropdown button {
-            width: 100%;
-            text-align: left;
-            background: none;
-            border: none;
-            padding: 10px 13px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #050505;
-        }
-        .post-options-dropdown button:hover { background: #f2f3f5; }
-
-        .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
-
-        /* Edge-to-Edge Full-Width Media (Facebook Mobile Style) */
-        .post-media {
-            width: 100%;
-            height: auto;
-            max-height: 82vh;
-            border-radius: 0;
-            margin-bottom: 8px;
-            object-fit: contain;
-            background: #000;
-            cursor: pointer;
-            display: block;
-        }
-
-        /* Facebook-Style Embedded Shared Post Card */
-        .embedded-shared-card {
-            border-top: 1px solid #dddfe2;
-            border-bottom: 1px solid #dddfe2;
-            border-radius: 0;
-            overflow: hidden;
-            margin-bottom: 8px;
-            background: #fff;
-        }
-        .embedded-shared-media .post-media,
-        .embedded-shared-media .carousel-wrapper {
-            border-radius: 0;
-            margin-bottom: 0;
-        }
-        .embedded-shared-info {
-            padding: 10px 14px;
-        }
-        .embedded-shared-author-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            margin-bottom: 6px;
-        }
-        .embedded-shared-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #e4e6eb;
-        }
-        .embedded-shared-author {
-            font-weight: 700;
-            font-size: 13.5px;
-            color: #050505;
-        }
-        .embedded-shared-author:hover { text-decoration: underline; }
-        .embedded-shared-time {
-            font-size: 11px;
-            color: #65676b;
-        }
-        .embedded-shared-text {
-            font-size: 14px;
-            color: #1c1e21;
-            white-space: pre-wrap;
-        }
-
-        /* Carousel for Multiple Photos/Videos in One Post */
-        .carousel-wrapper { position: relative; width: 100%; border-radius: 0; overflow: hidden; background: #000; margin-bottom: 8px; }
-        .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-        .carousel-track::-webkit-scrollbar { display: none; }
-        .carousel-slide { flex: 0 0 100%; width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; background: #000; }
-        .carousel-slide img, .carousel-slide video { width: 100%; max-height: 82vh; object-fit: contain; display: block; }
-        .carousel-counter { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 14px; pointer-events: none; }
-        .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -2px; margin-bottom: 8px; }
-        .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; transition: background 0.2s, transform 0.2s; }
-        .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
-
-        /* Reaction, Views, Comments & Shares Summary Bar */
-        .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #65676b; margin-bottom: 6px; padding: 0 14px; min-height: 24px; flex-wrap: wrap; gap: 6px; }
-        .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
-        .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
-        .right-stats-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-        .stat-link:hover { text-decoration: underline; }
-
-        /* Action Buttons & Persistent Long-Press Reaction Bar */
-        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 10px; margin-top: 6px; justify-content: space-around; position: relative; }
-        .reaction-wrapper { flex: 1; position: relative; display: flex; }
-        .action-btn { flex: 1; background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 7px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; transition: transform 0.1s ease, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-        .action-btn:hover { background: #f2f2f2; }
-        .action-btn:active { transform: scale(0.94); }
-
-        /* Active Reaction Highlight Colors */
-        .action-btn.reacted-like { color: #1877f2; font-weight: 700; }
-        .action-btn.reacted-love { color: #f33e58; font-weight: 700; }
-        .action-btn.reacted-care,
-        .action-btn.reacted-haha,
-        .action-btn.reacted-wow,
-        .action-btn.reacted-sad { color: #f7b125; font-weight: 700; }
-        .action-btn.reacted-angry { color: #e9710f; font-weight: 700; }
-
-        /* Floating Cute Reaction Bar */
-        .reaction-picker {
-            display: none;
-            position: absolute;
-            bottom: 46px;
-            left: 0;
-            background: #fff;
-            padding: 7px 12px;
-            border-radius: 30px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-            border: 1px solid #e4e6eb;
-            gap: 10px;
-            z-index: 300;
-            animation: popUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .reaction-picker.show { display: flex; }
-
-        @keyframes popUp {
-            from { opacity: 0; transform: translateY(8px) scale(0.9); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-
-        .emoji-option {
-            font-size: 27px;
-            cursor: pointer;
-            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            user-select: none;
-            line-height: 1;
-        }
-        .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
-
-        /* Comments Section */
-        .comments-section { margin-top: 8px; border-top: 1px solid #f0f2f5; background: #fff; padding: 0 14px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
-        .comments-section.open { max-height: 800px; overflow-y: auto; padding: 10px 14px; }
-
-        .comment-filter-bar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #65676b; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e4e6eb; }
-        .comment-filter-select { border: none; background: transparent; font-weight: bold; color: #1877f2; cursor: pointer; font-size: 12px; outline: none; width: auto; padding: 0; margin: 0; }
-
-        .comment-container { display: flex; gap: 8px; margin-bottom: 12px; font-size: 13px; align-items: flex-start; position: relative; width: 100%; }
-        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; flex-shrink: 0; }
-        .comment-content-wrapper { flex: 1; display: flex; justify-content: space-between; align-items: flex-start; background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; }
-        .comment-author { font-weight: bold; color: #050505; cursor: pointer; font-size: 12.5px; margin-bottom: 2px; display: inline-block; }
-        .comment-author:hover { text-decoration: underline; color: #1877f2; }
-
-        .comment-options-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #65676b; padding: 0 5px; }
-        .comment-menu-dropdown { display: none; position: absolute; right: 10px; top: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 3000; overflow: hidden; width: 120px; border: 1px solid #e4e6eb; }
-        .comment-menu-dropdown button { width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; font-size: 13px; cursor: pointer; }
-        .comment-menu-dropdown button:hover { background: #f2f2f2; }
-
-        /* Modals */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
-        .modal-card { background: white; width: 100%; max-width: 450px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden; max-height: 85vh; display: flex; flex-direction: column; }
-        .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-        .reactor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-
-        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14px; font-weight: 600; color: #050505; transition: background 0.15s; }
-        .share-option-btn:hover { background: #e4e6eb; }
-        .share-icon { font-size: 20px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
-
-        .report-reason-btn { width: 100%; text-align: left; padding: 11px 14px; border: 1px solid #e4e6eb; border-radius: 8px; background: #f8f9fa; font-size: 14px; font-weight: 600; cursor: pointer; color: #050505; }
-        .report-reason-btn:hover, .report-reason-btn.selected { background: #ffebe9; border-color: #fa383e; color: #d93025; }
-
-        .btn-follow { padding: 6px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .user-actions { display: flex; gap: 8px; }
+        .btn-follow { padding: 8px 15px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13.5px; }
         .btn-follow:hover { background: #166fe5; }
-        .btn-unfollow { background: #e4e6eb; color: #050505; }
-        .btn-unfollow:hover { background: #d8dadf; }
+        .btn-follow-back { background: #31a24c !important; }
+        .btn-remove { padding: 8px 14px; background: #e4e6eb; color: #050505; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13.5px; }
 
-        .hidden { display: none !important; }
+        /* Search Media Result Card */
+        .search-media-card { border: 1px solid #e4e6eb; border-radius: 10px; overflow: hidden; background: #fff; margin-bottom: 12px; cursor: pointer; }
+        .search-media-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+        .search-media-thumb { width: 100%; max-height: 360px; object-fit: cover; background: #000; display: block; }
+
+        /* Notification Popup Modal (Instant Post/Video Viewer + Comment Reactions & Replies) */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 3000; padding: 12px; box-sizing: border-box; }
+        .modal-card { background: #fff; width: 100%; max-width: 500px; border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.3); overflow: hidden; max-height: 90vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 12px 16px; font-weight: 700; font-size: 15.5px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 12px 16px; overflow-y: auto; flex: 1; }
     </style>
 </head>
 <body>
+
+    <div id="langLoadingToast" class="lang-loading-toast">🌐 កំពុងផ្លាស់ប្តូរភាសា...</div>
 
     <div class="top-bar">
         <div class="top-bar-row1">
             <div class="top-left">
                 <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
-                <!-- Brand name protected with class="notranslate" so Google Translate never alters "CamFeed" -->
                 <div class="logo-nav notranslate" translate="no" onclick="switchTab('feed')">CamFeed</div>
                 <div class="dropdown-menu" id="menuDropdown" onclick="event.stopPropagation()">
-                    <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'"><span>⚙️ Settings & Privacy</span></div>
-                    <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'"><span>🛡️ Admin Reports</span></div>
-                    <!-- Language Selector with Khmer / English Dropdown inside ☰ Menu -->
+                    <div class="dropdown-item" onclick="window.location.href='settings.html'"><span>⚙️ Settings & Privacy</span></div>
                     <div class="dropdown-item" onclick="toggleLanguageSubmenu(event)" style="background: #f8f9fa;">
-                        <span>🌐 <span id="menuLangText">ភាសា / Language</span></span>
+                        <span>🌐 ភាសា / Language</span>
                         <span id="langArrowIcon" style="font-size: 11px; color: #65676b;">▼</span>
                     </div>
                     <div class="lang-submenu" id="langSubmenu">
@@ -378,14 +165,14 @@
                             <span id="checkEn" style="display:none;">✓</span>
                         </div>
                     </div>
-                    <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;"><span>🚪 Log Out</span></div>
+                    <div class="dropdown-item" onclick="logout()" style="color: #fa383e;"><span>🚪 Log Out</span></div>
                 </div>
             </div>
 
             <div class="top-right-icons">
                 <div class="search-box-wrapper">
-                    <span class="search-icon-abs" onclick="focusSearchInput()">🔍</span>
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search..." oninput="searchUsers(this.value)">
+                    <input type="text" id="searchInput" class="search-input" placeholder="វាយពាក្យស្វែងរក..." onkeypress="if(event.key==='Enter') executeSearch()">
+                    <button type="button" class="search-submit-btn" onclick="executeSearch()" title="ស្វែងរក">🔍</button>
                 </div>
 
                 <!-- 🔔 Notification Icon -->
@@ -394,9 +181,9 @@
                     <span id="notifBadge" class="notif-badge hidden">0</span>
                 </button>
                 <div class="notification-dropdown" id="notifDropdown" onclick="event.stopPropagation()">
-                    <div id="notifHeaderTitle" style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
+                    <div style="padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #e4e6eb;">Notifications</div>
                     <div id="notifList">
-                        <div id="notifEmptyText" style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
+                        <div style="padding: 15px; text-align: center; color: #65676b; font-size: 13px;">No notifications yet</div>
                     </div>
                 </div>
 
@@ -406,14 +193,14 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs with Single Center '+' Post Button -->
+        <!-- Navigation Tabs -->
         <div class="nav-menus">
-            <button class="menu-btn active" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
+            <button class="menu-btn" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
             <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
             <div class="center-plus-slot">
-                <button class="unified-plus-btn" onclick="openCreatePostModal()" title="Create Post (Text, Photos & Videos)">+</button>
+                <button class="unified-plus-btn" onclick="window.location.href='feed.html?create=1'" title="Create Post">+</button>
             </div>
-            <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
+            <button class="menu-btn active" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
             <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat" style="position: relative;">
                 💬
                 <span id="feedUnreadBadge" class="notif-badge hidden" style="top: 8px; right: 14px;">0</span>
@@ -421,258 +208,74 @@
         </div>
     </div>
 
-    <!-- Unified Create Post Modal (Automatic Background Video Optimization, No Limit) -->
-    <div id="createPostModal" class="modal-overlay" onclick="closeCreatePostModal()">
+    <div class="container">
+        <div class="friends-card">
+            <!-- Category Filter Bar (Shown when searching) -->
+            <div class="search-filter-bar hidden" id="searchFilterBar">
+                <button class="filter-pill active" id="filter-all" onclick="setSearchFilter('all')">All (ទាំងអស់)</button>
+                <button class="filter-pill" id="filter-people" onclick="setSearchFilter('people')">👤 People (មនុស្ស)</button>
+                <button class="filter-pill" id="filter-photos" onclick="setSearchFilter('photos')">🖼️ Photos (រូបភាព)</button>
+                <button class="filter-pill" id="filter-videos" onclick="setSearchFilter('videos')">🎬 Videos (វីដេអូ)</button>
+            </div>
+
+            <h2 style="margin-top: 0; color: #050505; font-size: 19px;" id="friendsTitle">People you may know</h2>
+            <div id="friendsContainer" class="user-grid"></div>
+        </div>
+    </div>
+
+    <!-- Instant Notification Post/Video Modal -->
+    <div id="notifPostModal" class="modal-overlay" onclick="closeNotifPostModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <span id="createModalTitle">Create Post</span>
-                <span style="cursor: pointer; font-size: 22px;" onclick="closeCreatePostModal()">×</span>
+                <span id="notifPostModalTitle">ការបង្ហោះ (Post)</span>
+                <span style="cursor:pointer; font-size:22px;" onclick="closeNotifPostModal()">&times;</span>
             </div>
-            <div class="modal-body">
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <img src="https://via.placeholder.com/40" id="feedUserAvatar" class="avatar">
-                    <div style="flex: 1;">
-                        <div id="modalAuthorName" style="font-weight: bold; font-size: 14px; color: #050505;">User</div>
-                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-                            <label id="lblPrivacy" style="font-size: 12px; font-weight: bold; color: #65676b;">Privacy:</label>
-                            <select id="postPrivacy" style="width: auto; padding: 3px 8px; font-size: 12px; margin: 0;">
-                                <option value="public" id="optPublic">🌐 Public</option>
-                                <option value="private" id="optPrivate">🔒 Private (Only me)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <textarea id="postContent" rows="3" placeholder="What's on your mind?" style="border: none; background: #f0f2f5; border-radius: 14px; padding: 12px 14px; resize: none; margin: 4px 0 0 0; outline: none; font-size: 15px;"></textarea>
-                
-                <div id="multiPreviewGrid" class="multi-preview-grid hidden"></div>
-
-                <div id="uploadProgressContainer">
-                    <div class="progress-bar-bg">
-                        <div id="progressBarFill" class="progress-bar-fill"></div>
-                    </div>
-                    <div id="progressText" class="progress-text">Processing... 0%</div>
-                </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; border-top: 1px solid #e4e6eb;">
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1877f2; padding: 8px 12px; border-radius: 8px; background: #e7f3ff; flex: 1; justify-content: center;">
-                        <span style="font-size: 18px;">🖼️🎬</span> <span id="photoVideoLabel">Photo / Video (Multiple)</span>
-                        <input type="file" id="mediaFile" accept="image/*,video/*" multiple class="hidden" onchange="previewMedia(event)">
-                    </label>
-                </div>
-
-                <button id="postSubmitBtn" onclick="createPost()" class="btn-primary" style="margin-top: 4px;">Post</button>
-                <div class="msg" id="postMsg" style="color: red; font-size: 13px; text-align: center;"></div>
-            </div>
+            <div class="modal-body" id="notifPostModalBody"></div>
         </div>
     </div>
 
-    <!-- Modal for Reactions List -->
-    <div id="reactionsModal" class="modal-overlay" onclick="closeReactionsModal()">
-        <div class="modal-card" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span id="modalReactorTitle">People who reacted</span>
-                <span style="cursor: pointer; font-size: 20px;" onclick="closeReactionsModal()">×</span>
-            </div>
-            <div class="modal-body" id="reactionsModalList"></div>
-        </div>
-    </div>
-
-    <!-- Modal for Sharers List -->
-    <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
-        <div class="modal-card" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span id="modalSharerTitle">People who shared</span>
-                <span style="cursor: pointer; font-size: 20px;" onclick="closeSharersModal()">×</span>
-            </div>
-            <div class="modal-body" id="sharersModalList"></div>
-        </div>
-    </div>
-
-    <!-- Modal for Share Options -->
-    <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
-        <div class="modal-card" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span id="shareModalTitle">Share Post</span>
-                <span style="cursor: pointer; font-size: 20px;" onclick="closeShareModal()">×</span>
-            </div>
-            <div class="modal-body">
-                <input type="text" id="shareCaptionInput" placeholder="Say something about this post (optional)..." style="margin: 0; border-radius: 10px;">
-                
-                <button class="share-option-btn" onclick="shareToMyProfile()">
-                    <span class="share-icon">👤</span>
-                    <div>
-                        <div id="shareProfileTitle">Share to My Profile</div>
-                        <div id="shareProfileSub" style="font-size: 12px; color: #65676b; font-weight: normal;">Post directly to your timeline</div>
-                    </div>
-                </button>
-
-                <button class="share-option-btn" onclick="shareToSocialMedia()">
-                    <span class="share-icon">🌐</span>
-                    <div>
-                        <div id="shareSocialTitle">Share to Social Media</div>
-                        <div id="shareSocialSub" style="font-size: 12px; color: #65676b; font-weight: normal;">Telegram, Facebook, Messenger & more</div>
-                    </div>
-                </button>
-
-                <button class="share-option-btn" onclick="copyCurrentShareLink()">
-                    <span class="share-icon">🔗</span>
-                    <div>
-                        <div id="copyLinkLabel">Copy Link</div>
-                        <div id="copyLinkSub" style="font-size: 12px; color: #65676b; font-weight: normal;">Copy URL to paste on other websites</div>
-                    </div>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal for Reporting a Post/Video to Admin -->
-    <div id="reportPostModal" class="modal-overlay" onclick="closeReportModal()">
-        <div class="modal-card" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span>🚩 រាយការណ៍ការបង្ហោះ (Report Post)</span>
-                <span style="cursor: pointer; font-size: 20px;" onclick="closeReportModal()">×</span>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 13px; color: #65676b; margin: 0;">សូមជ្រើសរើសមូលហេតុដែលការបង្ហោះ ឬវីដេអូនេះរំលោភបំពានគោលការណ៍៖</p>
-                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
-                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Violence or Harmful Content (អំពើហិង្សា)')">⚠️ អំពើហិង្សា ឬគ្រោះថ្នាក់ធ្ងន់ធ្ងរ</button>
-                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
-                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Harassment or Hate Speech (រំលោភបំពាន)')">💢 ការជេរប្រមាថ ឬរំលោភបំពាន</button>
-                <textarea id="reportCustomDetails" rows="2" placeholder="បញ្ជាក់ព័ត៌មានបន្ថែម (ស្រេចចិត្ត)..." style="margin: 2px 0 0 0; font-size: 13px;"></textarea>
-                <button type="button" class="btn-primary" style="background: #fa383e; margin-top: 4px;" onclick="submitPostReport()">បញ្ជូនរបាយការណ៍ទៅ Admin</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="main-container">
-        <div id="tabContentFeed">
-            <div id="postsContainer"></div>
-        </div>
-    </div>
-
-    <!-- Hidden Google Translate Engine -->
     <div id="google_translate_element" style="display:none;"></div>
 
-  <script src="imageModal.js"></script>
-<script src="notification.js"></script>
-
+    <script src="notification.js"></script>
     <script>
-        let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        let globalVideoUnmuted = sessionStorage.getItem('camfeed_unmuted') === 'true';
-        let activePostIdForShare = null;
-        let activePostTextForShare = '';
-        let activePostIdForReport = null;
-        let selectedReportReasonText = '';
-        let pressTimer = null;
-        let isLongPressTriggered = false;
-        let selectedMediaFiles = [];
-        const trackedViewsInSession = new Set();
-        const activeViewTimers = new Map();
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let currentSearchKeyword = '';
+        let currentSearchFilter = 'all';
 
-        const postReactionsState = {};
-
-        const REACTION_META = {
-            '👍': { en: 'Liked', km: 'បានចូលចិត្ត', cls: 'reacted-like' },
-            '❤️': { en: 'Love', km: 'ស្រឡាញ់', cls: 'reacted-love' },
-            '🥰': { en: 'Care', km: 'បារម្ភ', cls: 'reacted-care' },
-            '😆': { en: 'Haha', km: 'សើច', cls: 'reacted-haha' },
-            '😮': { en: 'Wow', km: 'ភ្ញាក់ផ្អើល', cls: 'reacted-wow' },
-            '😢': { en: 'Sad', km: 'សោកសៅ', cls: 'reacted-sad' },
-            '😡': { en: 'Angry', km: 'ខឹង', cls: 'reacted-angry' }
-        };
-
-        const uiTexts = {
-            en: {
-                searchPlaceholder: "Search...",
-                notifHeader: "Notifications",
-                notifEmpty: "No notifications yet",
-                createModalTitle: "Create Post",
-                postPlaceholder: "What's on your mind?",
-                privacyLabel: "Privacy:",
-                optPublic: "🌐 Public",
-                optPrivate: "🔒 Private (Only me)",
-                photoVideoLabel: "Photo / Video (Multiple)",
-                postBtn: "Post",
-                reactionsModalTitle: "People who reacted",
-                sharersModalTitle: "People who shared",
-                commentsTitle: "Comments",
-                sortRelevant: "More relevant",
-                sortNewest: "Newest",
-                sortAll: "All comments",
-                likeBtn: "👍 Like",
-                commentAction: "💬 Comment",
-                shareAction: "↗️ Share",
-                shareModalTitle: "Share Post",
-                shareCaptionPlaceholder: "Say something about this post (optional)...",
-                shareProfileTitle: "Share to My Profile",
-                shareProfileSub: "Post directly to your timeline",
-                shareSocialTitle: "Share to Social Media",
-                shareSocialSub: "Telegram, Facebook, Messenger & more",
-                copyLinkLabel: "Copy Link",
-                copyLinkSub: "Copy URL to paste on other websites"
-            },
-            km: {
-                searchPlaceholder: "ស្វែងរក...",
-                notifHeader: "ការជូនដំណឹង",
-                notifEmpty: "មិនទាន់មានការជូនដំណឹងនៅឡើយទេ",
-                createModalTitle: "បង្កើតការបង្ហោះថ្មី",
-                postPlaceholder: "តើអ្នកកំពុងគិតអ្វីខ្លះ?",
-                privacyLabel: "ភាពឯកជន:",
-                optPublic: "🌐 ជាសាធារណៈ",
-                optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
-                photoVideoLabel: "រូបថត / វីដេអូ (ច្រើនឯកសារ)",
-                postBtn: "បង្ហោះ",
-                reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
-                sharersModalTitle: "អ្នកដែលបានចែករំលែក",
-                commentsTitle: "មតិយោបល់",
-                sortRelevant: "ពាក់ព័ន្ធបំផុត",
-                sortNewest: "ថ្មីបំផុត",
-                sortAll: "មតិយោបល់ទាំងអស់",
-                likeBtn: "👍 ចូលចិត្ត",
-                commentAction: "💬 ខមមិន",
-                shareAction: "↗️ ចែករំលែក",
-                shareModalTitle: "ចែករំលែកការបង្ហោះ",
-                shareCaptionPlaceholder: "សរសេរអ្វីមួយអំពីការបង្ហោះនេះ (ស្រេចចិត្ត)...",
-                shareProfileTitle: "ស៊ែរចូលទៅក្នុង Profile របស់ខ្ញុំ",
-                shareProfileSub: "បង្ហោះផ្ទាល់ទៅលើទំព័រផ្ទាល់ខ្លួនរបស់អ្នក",
-                shareSocialTitle: "ចែករំលែកទៅកាន់បណ្ដាញសង្គមផ្សេងៗ",
-                shareSocialSub: "Telegram, Facebook, Messenger និងកម្មវិធីផ្សេងទៀត",
-                copyLinkLabel: "ចម្លងតំណភ្ជាប់ (Copy Link)",
-                copyLinkSub: "ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ"
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            if (currentUser.profile_pic) {
+                document.getElementById('navUserAvatar').src = currentUser.profile_pic;
             }
-        };
+            updateLangCheckmarks();
 
-        function applyLanguage() {
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            const t = uiTexts[currentLang];
-            if (!t) return;
+            const params = new URLSearchParams(window.location.search);
+            const initialQuery = params.get('search') || '';
+            const initialFilter = params.get('filter') || 'all';
+            if (initialQuery) {
+                document.getElementById('searchInput').value = initialQuery;
+                currentSearchKeyword = initialQuery;
+                currentSearchFilter = initialFilter;
+                executeSearch();
+            } else {
+                loadUsers();
+            }
 
-            document.getElementById('searchInput').placeholder = t.searchPlaceholder;
-            document.getElementById('notifHeaderTitle').innerText = t.notifHeader;
-            document.getElementById('notifEmptyText').innerText = t.notifEmpty;
-            document.getElementById('createModalTitle').innerText = t.createModalTitle;
-            document.getElementById('postContent').placeholder = t.postPlaceholder;
-            document.getElementById('lblPrivacy').innerText = t.privacyLabel;
-            document.getElementById('optPublic').innerText = t.optPublic;
-            document.getElementById('optPrivate').innerText = t.optPrivate;
-            document.getElementById('photoVideoLabel').innerText = t.photoVideoLabel;
-            document.getElementById('postSubmitBtn').innerText = t.postBtn;
-            document.getElementById('modalReactorTitle').innerText = t.reactionsModalTitle;
-            document.getElementById('modalSharerTitle').innerText = t.sharersModalTitle;
-            document.getElementById('shareModalTitle').innerText = t.shareModalTitle;
-            document.getElementById('shareCaptionInput').placeholder = t.shareCaptionPlaceholder;
-            document.getElementById('shareProfileTitle').innerText = t.shareProfileTitle;
-            document.getElementById('shareProfileSub').innerText = t.shareProfileSub;
-            document.getElementById('shareSocialTitle').innerText = t.shareSocialTitle;
-            document.getElementById('shareSocialSub').innerText = t.shareSocialSub;
-            document.getElementById('copyLinkLabel').innerText = t.copyLinkLabel;
-            document.getElementById('copyLinkSub').innerText = t.copyLinkSub;
+            if (typeof loadNotifications === 'function') {
+                loadNotifications();
+                setInterval(loadNotifications, 5000);
+            }
+            loadFeedMessengerBadge();
+            setInterval(loadFeedMessengerBadge, 3000);
+        }
 
-            document.getElementById('checkKm').style.display = currentLang === 'km' ? 'inline' : 'none';
-            document.getElementById('checkEn').style.display = currentLang === 'en' ? 'inline' : 'none';
-            document.getElementById('optLangKm').classList.toggle('active-lang', currentLang === 'km');
-            document.getElementById('optLangEn').classList.toggle('active-lang', currentLang === 'en');
+        function updateLangCheckmarks() {
+            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            document.getElementById('checkKm').style.display = lang === 'km' ? 'inline' : 'none';
+            document.getElementById('checkEn').style.display = lang === 'en' ? 'inline' : 'none';
+            document.getElementById('optLangKm').classList.toggle('active-lang', lang === 'km');
+            document.getElementById('optLangEn').classList.toggle('active-lang', lang === 'en');
         }
 
         function toggleLanguageSubmenu(event) {
@@ -695,18 +298,24 @@
 
         function selectAppLanguage(langCode) {
             localStorage.setItem('camfeed_lang', langCode);
-            applyLanguage();
+            updateLangCheckmarks();
             document.getElementById('langSubmenu').classList.remove('open');
             document.getElementById('menuDropdown').style.display = 'none';
 
-            if (langCode === 'km') {
-                triggerGoogleTranslate('km');
-                loadPosts();
-            } else {
-                document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=.${window.location.hostname}; path=/;`;
-                location.reload();
-            }
+            const toast = document.getElementById('langLoadingToast');
+            toast.innerText = langCode === 'km' ? '🌐 កំពុងប្តូរទៅភាសាខ្មែរ...' : '🌐 Switching to English...';
+            toast.style.display = 'flex';
+
+            setTimeout(() => {
+                if (langCode === 'km') {
+                    triggerGoogleTranslate('km');
+                    setTimeout(() => { toast.style.display = 'none'; }, 900);
+                } else {
+                    document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                    document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=.${window.location.hostname}; path=/;`;
+                    location.reload();
+                }
+            }, 250);
         }
 
         function googleTranslateElementInit() {
@@ -715,36 +324,11 @@
                 includedLanguages: 'en,km',
                 autoDisplay: false
             }, 'google_translate_element');
-
             const savedLang = localStorage.getItem('camfeed_lang') || 'en';
             if (savedLang === 'km') {
                 setTimeout(() => triggerGoogleTranslate('km'), 500);
             }
         }
-
-        if (!currentUser) {
-            window.location.href = 'index.html';
-        } else {
-            if (currentUser.profile_pic) {
-                document.getElementById('navUserAvatar').src = currentUser.profile_pic;
-                document.getElementById('feedUserAvatar').src = currentUser.profile_pic;
-            }
-            document.getElementById('modalAuthorName').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
-            
-            const adminEmails = ['rossaorith@gmail.com', 'saorithkh2018@gmail.com', '0962829738'];
-            if (currentUser.role === 'super_admin' || currentUser.role === 'admin' || adminEmails.includes((currentUser.email || '').toLowerCase())) {
-                const adminMenuEl = document.getElementById('menuAdminText');
-                if (adminMenuEl) adminMenuEl.classList.remove('hidden');
-            }
-
-            applyLanguage();
-            loadPosts();
-            loadNotifications();
-            loadFeedMessengerBadge();
-            setInterval(loadFeedMessengerBadge, 3000);
-        }
-
-        function focusSearchInput() { document.getElementById('searchInput').focus(); }
 
         function toggleMenuDropdown(event) {
             event.stopPropagation();
@@ -753,7 +337,140 @@
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
 
+        window.onclick = function() {
+            document.getElementById('menuDropdown').style.display = 'none';
+            document.getElementById('notifDropdown').style.display = 'none';
+        }
 
+        function switchTab(tab) {
+            if (tab === 'videos') { window.location.href = 'videos.html'; return; }
+            if (tab === 'friends') { window.scrollTo({ top: 0, behavior: 'smooth' }); loadUsers(); return; }
+            if (tab === 'chat') { window.location.href = 'messages.html'; return; }
+            window.location.href = 'feed.html';
+        }
+
+        function setSearchFilter(filterType) {
+            currentSearchFilter = filterType;
+            document.querySelectorAll('.filter-pill').forEach(btn => btn.classList.remove('active'));
+            const activePill = document.getElementById(`filter-${filterType}`);
+            if (activePill) activePill.classList.add('active');
+            executeSearch();
+        }
+
+        async function executeSearch() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            currentSearchKeyword = keyword;
+            const filterBar = document.getElementById('searchFilterBar');
+            const titleEl = document.getElementById('friendsTitle');
+            const container = document.getElementById('friendsContainer');
+
+            if (!keyword) {
+                filterBar.classList.add('hidden');
+                titleEl.innerText = 'People you may know';
+                loadUsers();
+                return;
+            }
+
+            filterBar.classList.remove('hidden');
+            titleEl.innerText = `លទ្ធផលស្វែងរកសម្រាប់ "${keyword}"`;
+            container.innerHTML = `<p style="color:#65676b; text-align:center; padding:20px;">កំពុងស្វែងរក...</p>`;
+
+            try {
+                const [usersRes, postsRes] = await Promise.all([
+                    fetch(`/api/users?email=${encodeURIComponent(currentUser.email)}`),
+                    fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}`)
+                ]);
+                const usersData = await usersRes.json();
+                const postsData = await postsRes.json();
+                const q = keyword.toLowerCase();
+
+                const matchedUsers = (usersData.users || []).filter(u =>
+                    u.email !== currentUser.email &&
+                    (`${u.first_name || ''} ${u.last_name || ''}`.toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
+                );
+
+                const allMatchedPosts = (postsData.posts || []).filter(p =>
+                    (p.content || '').toLowerCase().includes(q) ||
+                    `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase().includes(q) ||
+                    (p.ai_category || '').toLowerCase().includes(q)
+                );
+
+                const matchedPhotos = allMatchedPosts.filter(p =>
+                    p.media_type === 'image' || (p.media_url && p.media_url.includes('"type":"image"'))
+                );
+                const matchedVideos = allMatchedPosts.filter(p =>
+                    p.media_type === 'video' || (p.media_url && p.media_url.includes('"type":"video"'))
+                );
+
+                let html = '';
+
+                if (currentSearchFilter === 'all' || currentSearchFilter === 'people') {
+                    if (matchedUsers.length > 0) {
+                        html += matchedUsers.map(u => `
+                            <div class="user-card">
+                                <div class="user-info-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
+                                    <img src="${u.profile_pic || 'https://via.placeholder.com/70'}" class="avatar">
+                                    <div>
+                                        <div class="user-name">${u.first_name} ${u.last_name}</div>
+                                        <div style="font-size: 12px; color: #65676b;">👤 People on CamFeed</div>
+                                    </div>
+                                </div>
+                                <div class="user-actions">
+                                    ${u.is_following
+                                        ? `<button class="btn-remove" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">View Profile</button>`
+                                        : `<button class="btn-follow ${u.is_followed_by ? 'btn-follow-back' : ''}" onclick="toggleFollow('${u.email}')">${u.is_followed_by ? 'Follow Back' : 'Follow'}</button>`
+                                    }
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+
+                const mediaPostsToRender = currentSearchFilter === 'photos'
+                    ? matchedPhotos
+                    : (currentSearchFilter === 'videos' ? matchedVideos : (currentSearchFilter === 'all' ? allMatchedPosts : []));
+
+                if (mediaPostsToRender.length > 0) {
+                    html += mediaPostsToRender.map(p => {
+                        let thumbHtml = '';
+                        let isVid = p.media_type === 'video';
+                        let mediaSrc = p.media_url || '';
+                        if (mediaSrc.trim().startsWith('[')) {
+                            try {
+                                const arr = JSON.parse(mediaSrc);
+                                if (arr.length > 0) {
+                                    mediaSrc = arr[0].url;
+                                    isVid = arr[0].type === 'video';
+                                }
+                            } catch (e) {}
+                        }
+                        if (mediaSrc) {
+                            thumbHtml = isVid
+                                ? `<video src="${mediaSrc}" class="search-media-thumb" muted playsinline></video>`
+                                : `<img src="${mediaSrc}" class="search-media-thumb">`;
+                        }
+                        return `
+                            <div class="search-media-card" onclick="openPostInPopupModal(${p.id})">
+                                <div class="search-media-header">
+                                    <img src="${p.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                                    <div>
+                                        <div style="font-weight:700; font-size:14px;">${p.first_name} ${p.last_name}</div>
+                                        <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (mediaSrc ? '🖼️ Photo' : '📝 Post')} · ${new Date(p.created_at).toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+                                ${p.content ? `<div style="padding:0 12px 10px; font-size:14px;">${p.content}</div>` : ''}
+                                ${thumbHtml}
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                container.innerHTML = html || `<p style="color:#65676b; text-align:center; padding:24px;">រកមិនឃើញលទ្ធផលសម្រាប់ "${keyword}" ទេ។</p>`;
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `<p style="color:red; text-align:center; padding:20px;">Search failed.</p>`;
+            }
+        }
 
         async function loadFeedMessengerBadge() {
             if (!currentUser) return;
@@ -773,1269 +490,75 @@
             } catch (err) { console.error(err); }
         }
 
-        document.addEventListener('click', function(e) {
-            document.getElementById('menuDropdown').style.display = 'none';
-            document.getElementById('notifDropdown').style.display = 'none';
-            document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
-            document.querySelectorAll('.post-options-dropdown').forEach(m => m.style.display = 'none');
-
-            if (!e.target.closest('.reaction-wrapper')) {
-                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
-            }
-        });
-
-        let lastHomeClickTime = 0;
-
-        function switchTab(tab) {
-            if (tab === 'videos') { 
-                if (window.location.pathname.includes('videos.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
-                else window.location.href = 'videos.html'; 
-                return; 
-            }
-            if (tab === 'friends') { 
-                if (window.location.pathname.includes('friends.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
-                else window.location.href = 'friends.html'; 
-                return; 
-            }
-            if (tab === 'chat') { 
-                if (window.location.pathname.includes('messages.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
-                else window.location.href = 'messages.html'; 
-                return; 
-            }
-            
-            const isAlreadyOnFeed = window.location.pathname.includes('feed.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
-            if (isAlreadyOnFeed) {
-                const currentTime = new Date().getTime();
-                if (currentTime - lastHomeClickTime < 500) {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                    loadPosts();
-                } else {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-                lastHomeClickTime = currentTime;
-            } else {
-                window.location.href = 'feed.html';
-            }
-        }
-
-        async function searchUsers(keyword) {
-            if (!keyword.trim()) { loadPosts(); return; }
+        async function loadUsers() {
             try {
-                const res = await fetch(`/api/users?email=${currentUser.email}`);
+                const res = await fetch(`/api/users?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
-                if (data.success) {
-                    window.location.href = `friends.html?search=${encodeURIComponent(keyword)}`;
-                }
-            } catch(err) { console.error(err); }
-        }
+                const container = document.getElementById('friendsContainer');
+                container.innerHTML = '';
 
-        function openCreatePostModal() {
-            document.getElementById('postMsg').innerText = '';
-            document.getElementById('createPostModal').style.display = 'flex';
-            setTimeout(() => document.getElementById('postContent').focus(), 100);
-        }
+                if (data.success && data.users && data.users.length > 0) {
+                    const filteredUsers = data.users.filter(u => u.email !== currentUser.email && !u.is_following);
 
-        function closeCreatePostModal() {
-            document.getElementById('createPostModal').style.display = 'none';
-        }
-
-        function previewMedia(event) {
-            const files = Array.from(event.target.files || []);
-            if (files.length === 0) return;
-
-            files.forEach(file => {
-                selectedMediaFiles.push(file);
-            });
-            event.target.value = '';
-            renderMediaPreviews();
-        }
-
-        function removeMediaItem(index) {
-            selectedMediaFiles.splice(index, 1);
-            renderMediaPreviews();
-        }
-
-        function renderMediaPreviews() {
-            const grid = document.getElementById('multiPreviewGrid');
-            grid.innerHTML = '';
-            if (selectedMediaFiles.length === 0) {
-                grid.classList.add('hidden');
-                return;
-            }
-            grid.classList.remove('hidden');
-
-            selectedMediaFiles.forEach((file, idx) => {
-                const url = URL.createObjectURL(file);
-                const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-                const isVideo = file.type.startsWith('video');
-                const tile = document.createElement('div');
-                tile.className = 'preview-tile';
-                tile.innerHTML = `
-                    ${isVideo ? `<video src="${url}" muted playsinline webkit-playsinline></video>` : `<img src="${url}">`}
-                    <span class="preview-tile-badge">${isVideo ? '🎬 ' : '🖼️ '}${sizeMB}</span>
-                    <button type="button" class="preview-tile-remove" onclick="removeMediaItem(${idx})">×</button>
-                `;
-                grid.appendChild(tile);
-            });
-        }
-
-        function extractThumbnailBase64(file) {
-            return new Promise((resolve) => {
-                if (file.type.startsWith('image')) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const scale = Math.min(1, 512 / Math.max(img.width, img.height));
-                        canvas.width = Math.round(img.width * scale);
-                        canvas.height = Math.round(img.height * scale);
-                        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7));
-                    };
-                    img.onerror = () => resolve(null);
-                    img.src = URL.createObjectURL(file);
-                } else if (file.type.startsWith('video')) {
-                    const video = document.createElement('video');
-                    video.muted = true;
-                    video.playsInline = true;
-                    video.preload = 'metadata';
-                    video.src = URL.createObjectURL(file);
-                    video.onloadeddata = () => {
-                        video.currentTime = Math.min(1.0, (video.duration || 1) / 3);
-                    };
-                    video.onseeked = () => {
-                        const canvas = document.createElement('canvas');
-                        const scale = Math.min(1, 512 / Math.max(video.videoWidth, video.videoHeight));
-                        canvas.width = Math.round(video.videoWidth * scale);
-                        canvas.height = Math.round(video.videoHeight * scale);
-                        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7));
-                    };
-                    video.onerror = () => resolve(null);
-                } else {
-                    resolve(null);
-                }
-            });
-        }
-
-        function optimizeVideoTo720pHD(file, onCompressProgress) {
-            return new Promise((resolve) => {
-                const video = document.createElement('video');
-                video.muted = false;
-                video.playsInline = true;
-                video.preload = 'auto';
-                const objectUrl = URL.createObjectURL(file);
-                video.src = objectUrl;
-
-                video.onloadedmetadata = async () => {
-                    const origW = video.videoWidth;
-                    const origH = video.videoHeight;
-                    const duration = video.duration || 1;
-
-                    const maxDim = Math.max(origW, origH);
-                    if (maxDim <= 1280 && file.size <= 14 * 1024 * 1024) {
-                        URL.revokeObjectURL(objectUrl);
-                        return resolve(file);
+                    if (filteredUsers.length === 0) {
+                        container.innerHTML = `<p style="color: #65676b; text-align: center; padding: 20px;">No new users to follow.</p>`;
+                        return;
                     }
 
-                    let targetW = origW;
-                    let targetH = origH;
-                    if (maxDim > 1280) {
-                        const scale = 1280 / maxDim;
-                        targetW = Math.round((origW * scale) / 2) * 2;
-                        targetH = Math.round((origH * scale) / 2) * 2;
-                    }
+                    filteredUsers.forEach(u => {
+                        const div = document.createElement('div');
+                        div.className = 'user-card';
+                        const btnClass = u.is_followed_by ? 'btn-follow-back' : '';
+                        const btnText = u.is_followed_by ? 'Follow Back' : 'Follow';
 
-                    const canvas = document.createElement('canvas');
-                    canvas.width = targetW;
-                    canvas.height = targetH;
-                    const ctx = canvas.getContext('2d');
-
-                    try {
-                        const canvasStream = canvas.captureStream(30);
-                        if (video.captureStream) {
-                            const vidStream = video.captureStream();
-                            vidStream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
-                        } else if (video.mozCaptureStream) {
-                            const vidStream = video.mozCaptureStream();
-                            vidStream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
-                        }
-
-                        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-                            ? 'video/webm;codecs=vp9,opus'
-                            : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm');
-
-                        const recorder = new MediaRecorder(canvasStream, {
-                            mimeType,
-                            videoBitsPerSecond: 2500000,
-                            audioBitsPerSecond: 128000
-                        });
-
-                        const chunks = [];
-                        recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-
-                        recorder.onstop = () => {
-                            URL.revokeObjectURL(objectUrl);
-                            const compressedBlob = new Blob(chunks, { type: mimeType });
-                            if (compressedBlob.size > 0 && compressedBlob.size < file.size) {
-                                const newName = file.name.replace(/\.[^/.]+$/, '') + '.webm';
-                                resolve(new File([compressedBlob], newName, { type: mimeType }));
-                            } else {
-                                resolve(file);
-                            }
-                        };
-
-                        video.currentTime = 0;
-                        recorder.start(250);
-                        await video.play();
-
-                        const drawFrame = () => {
-                            if (video.paused || video.ended) {
-                                if (recorder.state !== 'inactive') recorder.stop();
-                                return;
-                            }
-                            ctx.drawImage(video, 0, 0, targetW, targetH);
-                            if (onCompressProgress && duration > 0) {
-                                onCompressProgress(Math.min(1, video.currentTime / duration));
-                            }
-                            requestAnimationFrame(drawFrame);
-                        };
-                        drawFrame();
-
-                        video.onended = () => {
-                            if (recorder.state !== 'inactive') recorder.stop();
-                        };
-                    } catch (e) {
-                        URL.revokeObjectURL(objectUrl);
-                        resolve(file);
-                    }
-                };
-
-                video.onerror = () => {
-                    URL.revokeObjectURL(objectUrl);
-                    resolve(file);
-                };
-            });
-        }
-
-        function uploadFileToR2(file, onProgress) {
-            return new Promise(async (resolve, reject) => {
-                try {
-                    const urlRes = await fetch('/api/videos/upload-url', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_email: currentUser.email,
-                            file_name: file.name,
-                            content_type: file.type || 'application/octet-stream'
-                        })
-                    });
-                    const urlData = await urlRes.json();
-                    if (!urlRes.ok || !urlData.uploadUrl) {
-                        return reject(new Error(urlData.error || 'Failed to get R2 upload URL'));
-                    }
-
-                    const xhr = new XMLHttpRequest();
-                    xhr.open('PUT', urlData.uploadUrl, true);
-                    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-
-                    xhr.upload.onprogress = function(e) {
-                        if (e.lengthComputable && onProgress) {
-                            onProgress(e.loaded / e.total);
-                        }
-                    };
-                    xhr.onload = function() {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            resolve({
-                                url: urlData.publicUrl,
-                                r2Key: urlData.r2Key,
-                                type: file.type.startsWith('video') ? 'video' : 'image'
-                            });
-                        } else {
-                            reject(new Error('R2 upload failed (' + xhr.status + ')'));
-                        }
-                    };
-                    xhr.onerror = () => reject(new Error('Network error during R2 upload'));
-                    xhr.send(file);
-                } catch (err) {
-                    reject(err);
-                }
-            });
-        }
-
-        async function createPost() {
-            const content = document.getElementById('postContent').value;
-            const privacy = document.getElementById('postPrivacy').value;
-            const msg = document.getElementById('postMsg');
-            const submitBtn = document.getElementById('postSubmitBtn');
-            const progressContainer = document.getElementById('uploadProgressContainer');
-            const progressBarFill = document.getElementById('progressBarFill');
-            const progressText = document.getElementById('progressText');
-
-            if (!content.trim() && selectedMediaFiles.length === 0) {
-                msg.innerText = 'Please write something or select at least one photo/video!';
-                return;
-            }
-            msg.innerText = '';
-
-            submitBtn.disabled = true;
-            submitBtn.innerText = 'Processing...';
-
-            try {
-                const uploadedItems = [];
-                let thumbnailBase64 = null;
-
-                if (selectedMediaFiles.length > 0) {
-                    progressContainer.style.display = 'block';
-                    progressBarFill.style.width = '0%';
-
-                    thumbnailBase64 = await extractThumbnailBase64(selectedMediaFiles[0]);
-
-                    for (let i = 0; i < selectedMediaFiles.length; i++) {
-                        let fileToUpload = selectedMediaFiles[i];
-
-                        if (fileToUpload.type.startsWith('video')) {
-                            progressText.innerText = `Optimizing 720p HD video (${i + 1}/${selectedMediaFiles.length})... 0%`;
-                            fileToUpload = await optimizeVideoTo720pHD(fileToUpload, (ratio) => {
-                                const cPercent = Math.round(ratio * 100);
-                                progressBarFill.style.width = cPercent + '%';
-                                progressText.innerText = `Optimizing 720p HD (${i + 1}/${selectedMediaFiles.length})... ${cPercent}%`;
-                            });
-                        }
-
-                        const uploaded = await uploadFileToR2(fileToUpload, (ratio) => {
-                            const percent = Math.round(((i + ratio) / selectedMediaFiles.length) * 100);
-                            progressBarFill.style.width = percent + '%';
-                            progressText.innerText = `Uploading to R2 (${i + 1}/${selectedMediaFiles.length})... ${percent}%`;
-                        });
-                        uploadedItems.push({ url: uploaded.url, type: uploaded.type });
-
-                        if (uploaded.type === 'video') {
-                            fetch('/api/videos/complete', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    user_email: currentUser.email,
-                                    title: content.trim() ? content.trim().slice(0, 120) : fileToUpload.name,
-                                    description: content.trim(),
-                                    r2_key: uploaded.r2Key,
-                                    video_url: uploaded.url,
-                                    thumbnailBase64: thumbnailBase64
-                                })
-                            }).catch(() => {});
-                        }
-                    }
-                }
-
-                progressText.innerText = 'AI categorizing & saving post...';
-
-                const postRes = await fetch('/api/posts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        email: currentUser.email,
-                        content: content,
-                        privacy: privacy,
-                        mediaItems: uploadedItems,
-                        thumbnailBase64: thumbnailBase64
-                    })
-                });
-                const postData = await postRes.json();
-
-                submitBtn.disabled = false;
-                submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
-                progressContainer.style.display = 'none';
-
-                if (postData.success) {
-                    document.getElementById('postContent').value = '';
-                    selectedMediaFiles = [];
-                    renderMediaPreviews();
-                    closeCreatePostModal();
-                    loadPosts();
-                } else {
-                    msg.innerText = 'Error: ' + (postData.error || 'Failed to save post.');
-                }
-            } catch (err) {
-                console.error(err);
-                submitBtn.disabled = false;
-                submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
-                progressContainer.style.display = 'none';
-                msg.innerText = 'Upload failed: ' + err.message;
-            }
-        }
-
-        function formatCompactNumber(num) {
-            const n = parseInt(num) || 0;
-            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-            if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-            return n.toString();
-        }
-
-        function buildReactionSummaryHtml(postId) {
-            const state = postReactionsState[postId];
-            if (!state || state.count <= 0) return '';
-            const uniqueIcons = (state.types && state.types.length > 0)
-                ? state.types.join('')
-                : (state.userReaction || '👍');
-            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${formatCompactNumber(state.count)}</span>`;
-        }
-
-        function buildActionBtnContent(userReaction, lang) {
-            if (userReaction && REACTION_META[userReaction]) {
-                return `${userReaction} ${REACTION_META[userReaction][lang] || REACTION_META[userReaction].en}`;
-            }
-            return uiTexts[lang].likeBtn;
-        }
-
-        function buildActionBtnClass(userReaction) {
-            if (userReaction && REACTION_META[userReaction]) {
-                return `action-btn ${REACTION_META[userReaction].cls}`;
-            }
-            return `action-btn`;
-        }
-
-        function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video') {
-            return `<video src="${videoUrl}" class="${extraClass}" data-post-id="${postId}" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback onvolumechange="handleVideoVolumeChange(this)"></video>`;
-        }
-
-        function renderRawMediaBlock(postId, mediaType, mediaUrl, authorName, authorPic, contentStr, dateStr, likesCount, commentsCount) {
-            if (!mediaUrl) return '';
-
-            if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
-                try {
-                    const items = JSON.parse(mediaUrl);
-                    if (Array.isArray(items) && items.length > 0) {
-                        const slidesHtml = items.map(item => {
-                            if (item.type === 'video') {
-                                return `<div class="carousel-slide">${buildInlineVideoTag(item.url, postId, 'autoplay-video')}</div>`;
-                            }
-                            return `<div class="carousel-slide"><img src="${item.url}" onclick="openImageModal(${postId}, '${item.url}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
-                        }).join('');
-
-                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${postId}-${idx}"></span>`).join('');
-
-                        return `
-                            <div class="carousel-wrapper">
-                                <div class="carousel-counter" id="counter-${postId}">1 / ${items.length}</div>
-                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${postId}, ${items.length})">
-                                    ${slidesHtml}
-                                </div>
-                            </div>
-                            <div class="carousel-dots">${dotsHtml}</div>
-                        `;
-                    }
-                } catch (e) {}
-            }
-
-            if (mediaType === 'video') {
-                return buildInlineVideoTag(mediaUrl, postId, 'post-media autoplay-video');
-            }
-            return `<img src="${mediaUrl}" class="post-media" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
-        }
-
-        function isPostVideoType(post) {
-            if (post.media_type === 'video') return true;
-            if (post.media_url && post.media_url.includes('"type":"video"')) return true;
-            if (post.media_type === 'carousel' || (post.media_url && post.media_url.trim().startsWith('['))) {
-                try {
-                    const items = JSON.parse(post.media_url);
-                    if (items.some(it => it.type === 'video')) return true;
-                } catch (e) {}
-            }
-            if (post.shared_post_id && (post.orig_media_type === 'video' || (post.orig_media_url && post.orig_media_url.includes('"type":"video"')))) return true;
-            return false;
-        }
-
-        function renderPostMediaHtml(post, dateStr) {
-            if (post.media_type === 'shared_profile' && post.media_url) {
-                try {
-                    const sp = JSON.parse(post.media_url);
-                    return `
-                        <div class="embedded-shared-card" style="cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(sp.email)}'">
-                            ${sp.cover_pic ? `<img src="${sp.cover_pic}" style="width:100%; height:130px; object-fit:cover; display:block;">` : ''}
-                            <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
-                                <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
+                        div.innerHTML = `
+                            <div class="user-info-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
+                                <img src="${u.profile_pic || 'https://via.placeholder.com/70'}" class="avatar">
                                 <div>
-                                    <div style="font-weight:700; font-size:15px; color:#050505;">${sp.name}</div>
-                                    <div style="font-size:12.5px; color:#65676b;">${sp.bio || 'View Profile on CamFeed'}</div>
+                                    <div class="user-name">${u.first_name} ${u.last_name}</div>
+                                    <div style="font-size: 12px; color: #65676b;">Suggested for you</div>
                                 </div>
                             </div>
-                        </div>
-                    `;
-                } catch (e) {}
-            }
-
-            if (post.shared_post_id || post.media_type === 'shared') {
-                if (!post.orig_id) {
-                    return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
-                }
-                const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
-                const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
-                const origMedia = renderRawMediaBlock(
-                    post.orig_id,
-                    post.orig_media_type,
-                    post.orig_media_url,
-                    origAuthor,
-                    post.orig_profile_pic || '',
-                    post.orig_content || '',
-                    origDate,
-                    post.likes_count || 0,
-                    post.comments_count || 0
-                );
-                return `
-                    <div class="embedded-shared-card">
-                        <div class="embedded-shared-media">${origMedia}</div>
-                        <div class="embedded-shared-info">
-                            <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
-                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/32'}" class="embedded-shared-avatar">
-                                <div>
-                                    <div class="embedded-shared-author">${origAuthor}</div>
-                                    <div class="embedded-shared-time">${origDate} · 🌐</div>
-                                </div>
-                            </div>
-                            ${post.orig_content ? `<div class="embedded-shared-text">${post.orig_content}</div>` : ''}
-                        </div>
-                    </div>
-                `;
-            }
-
-            return renderRawMediaBlock(
-                post.id,
-                post.media_type,
-                post.media_url,
-                `${post.first_name} ${post.last_name}`,
-                post.profile_pic || '',
-                post.content || '',
-                dateStr,
-                post.likes_count || 0,
-                post.comments_count || 0
-            );
-        }
-
-        function updateCarouselIndicator(track, postId, total) {
-            const slideWidth = track.clientWidth || 1;
-            const currentIndex = Math.round(track.scrollLeft / slideWidth);
-            const counter = document.getElementById(`counter-${postId}`);
-            if (counter) counter.innerText = `${currentIndex + 1} / ${total}`;
-            for (let i = 0; i < total; i++) {
-                const dot = document.getElementById(`dot-${postId}-${i}`);
-                if (dot) dot.classList.toggle('active', i === currentIndex);
-            }
-        }
-
-        async function loadPosts() {
-            try {
-                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}`);
-                const data = await res.json();
-                if (data.success) {
-                    let postsList = data.posts || [];
-
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const targetPostId = urlParams.get('post');
-                    if (targetPostId) {
-                        const existingIdx = postsList.findIndex(p => String(p.id) === String(targetPostId));
-                        if (existingIdx > -1) {
-                            const [targetPost] = postsList.splice(existingIdx, 1);
-                            postsList.unshift(targetPost);
-                        } else {
-                            try {
-                                const singleRes = await fetch(`/api/posts/${targetPostId}?email=${encodeURIComponent(currentUser.email)}`);
-                                const singleData = await singleRes.json();
-                                if (singleData.success && singleData.post) {
-                                    postsList.unshift(singleData.post);
-                                }
-                            } catch (e) {}
-                        }
-                    }
-
-                    renderPosts(postsList, 'postsContainer', targetPostId);
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function renderPosts(posts, containerId, highlightPostId = null) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            const t = uiTexts[currentLang];
-
-            if (posts.length === 0) {
-                container.innerHTML = `<p style="text-align: center; color: #65676b;">${currentLang === 'km' ? 'រកមិនឃើញការបង្ហោះទេ។' : 'No posts found.'}</p>`;
-                return;
-            }
-
-            posts.forEach(post => {
-                const count = parseInt(post.likes_count) || 0;
-                const viewsCount = parseInt(post.views_count) || 0;
-                const sharesCount = parseInt(post.shares_count) || 0;
-                const isVideo = isPostVideoType(post);
-                const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
-                postReactionsState[post.id] = {
-                    count: count,
-                    userReaction: post.user_reaction || null,
-                    types: types
-                };
-
-                const dateStr = new Date(post.created_at).toLocaleString();
-                const div = document.createElement('div');
-                div.className = 'post-item' + (highlightPostId && String(post.id) === String(highlightPostId) ? ' highlight-target' : '');
-                div.id = `post-${post.id}`;
-                div.setAttribute('data-post-id', post.id);
-
-                const mediaHtml = renderPostMediaHtml(post, dateStr);
-                const categoryBadge = (post.ai_category && post.ai_category !== 'General')
-                    ? `<span class="ai-topic-pill">#${post.ai_category}</span>`
-                    : '';
-
-                const isOwnPost = currentUser.email === post.user_email;
-
-                div.innerHTML = `
-                    <div class="post-header">
-                        <div class="post-header-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
-                            <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
-                            <div>
-                                <div class="post-author">${post.first_name} ${post.last_name}</div>
-                                <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
-                            </div>
-                        </div>
-                        <div class="post-header-right">
-                            ${categoryBadge}
-                            <button class="post-dots-btn" onclick="togglePostOptionsMenu(event, ${post.id})" title="Options">⋮</button>
-                            <div class="post-options-dropdown" id="postOptionsMenu-${post.id}" onclick="event.stopPropagation()">
-                                ${isOwnPost ? `<button onclick="deleteOwnPost(${post.id})" style="color:#fa383e;">🗑️ លុបការបង្ហោះ</button>` : ''}
-                                <button onclick="openReportModal(${post.id})" style="color:#d93025;">🚩 រាយការណ៍ (Report)</button>
-                            </div>
-                        </div>
-                    </div>
-                    ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
-                    ${mediaHtml}
-                    <div class="post-stats-row">
-                        <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
-                            ${buildReactionSummaryHtml(post.id)}
-                        </div>
-                        <div class="right-stats-group">
-                            ${isVideo ? `<span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>` : ''}
-                            <span class="stat-link" style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${formatCompactNumber(post.comments_count)} ${currentLang === 'km' ? 'មតិ' : 'Comments'}</span>
-                            <span class="stat-link" style="cursor: pointer;" onclick="openSharersList(${post.id})" id="shareCount-${post.id}">${formatCompactNumber(sharesCount)} ${currentLang === 'km' ? 'ចែករំលែក' : 'Shares'}</span>
-                        </div>
-                    </div>
-                    <div class="post-actions">
-                        <div class="reaction-wrapper">
-                            <div id="picker-${post.id}" class="reaction-picker" onclick="event.stopPropagation()">
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '👍')">👍</span>
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '❤️')">❤️</span>
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '🥰')">🥰</span>
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😆')">😆</span>
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😮')">😮</span>
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😢')">😢</span>
-                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😡')">😡</span>
-                            </div>
-                            <button id="likeBtn-${post.id}"
-                                    class="${buildActionBtnClass(post.user_reaction)}"
-                                    onpointerdown="startHoldReaction(event, ${post.id})"
-                                    onpointerup="endHoldReaction(event, ${post.id})"
-                                    onpointerleave="cancelHoldTimer()"
-                                    oncontextmenu="event.preventDefault()">
-                                ${buildActionBtnContent(post.user_reaction, currentLang)}
-                            </button>
-                        </div>
-                        <button class="action-btn" onclick="toggleCommentBox(${post.id})">${t.commentAction}</button>
-                        <button class="action-btn" onclick="openShareModal(${post.id}, '${encodeURIComponent(post.content || post.orig_content || 'Check out this post on CamFeed!')}')" title="Share">${t.shareAction}</button>
-                    </div>
-
-                    <!-- Comments Section -->
-                    <div id="commentsSection-${post.id}" class="comments-section">
-                        <div class="comment-filter-bar">
-                            <span>${t.commentsTitle}</span>
-                            <div>
-                                <select class="comment-filter-select" onchange="sortComments(${post.id}, this.value)">
-                                    <option value="relevant">${t.sortRelevant}</option>
-                                    <option value="newest">${t.sortNewest}</option>
-                                    <option value="all">${t.sortAll}</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="commentList-${post.id}"></div>
-                        <div style="display: flex; gap: 5px; margin-top: 10px;">
-                            <input type="text" id="commentInput-${post.id}" placeholder="${currentLang === 'km' ? 'សរសេរមតិយោបល់...' : 'Write a comment...'}" style="margin: 0; padding: 8px 12px; font-size: 13px;" onkeypress="if(event.key==='Enter') addComment(${post.id})">
-                            <button onclick="addComment(${post.id})" class="btn-primary" style="margin: 0; width: 80px; padding: 8px; font-size: 13px;">${currentLang === 'km' ? 'ផ្ញើ' : 'Send'}</button>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-
-            initAutoPlayVideos();
-            initPostViewsObserver();
-
-            if (highlightPostId) {
-                const targetEl = document.getElementById(`post-${highlightPostId}`);
-                if (targetEl) {
-                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }
-        }
-
-        function togglePostOptionsMenu(event, postId) {
-            event.stopPropagation();
-            document.querySelectorAll('.post-options-dropdown').forEach(m => {
-                if (m.id !== `postOptionsMenu-${postId}`) m.style.display = 'none';
-            });
-            const menu = document.getElementById(`postOptionsMenu-${postId}`);
-            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-        }
-
-        async function deleteOwnPost(postId) {
-            if (!confirm('តើអ្នកពិតជាចង់លុបការបង្ហោះនេះមែនទេ?')) return;
-            try {
-                const res = await fetch(`/api/posts/${postId}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const card = document.getElementById(`post-${postId}`);
-                    if (card) card.remove();
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function openReportModal(postId) {
-            document.querySelectorAll('.post-options-dropdown').forEach(m => m.style.display = 'none');
-            activePostIdForReport = postId;
-            selectedReportReasonText = '';
-            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
-            document.getElementById('reportCustomDetails').value = '';
-            document.getElementById('reportPostModal').style.display = 'flex';
-        }
-
-        function closeReportModal() {
-            document.getElementById('reportPostModal').style.display = 'none';
-            activePostIdForReport = null;
-        }
-
-        function selectReportReason(btn, reason) {
-            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            selectedReportReasonText = reason;
-        }
-
-        async function submitPostReport() {
-            if (!activePostIdForReport) return;
-            const customNote = document.getElementById('reportCustomDetails').value.trim();
-            const fullReason = selectedReportReasonText
-                ? (customNote ? `${selectedReportReasonText} - ${customNote}` : selectedReportReasonText)
-                : customNote;
-
-            if (!fullReason) {
-                alert('សូមជ្រើសរើសមូលហេតុ ឬសរសេរបញ្ជាក់មុននឹងបញ្ជូន!');
-                return;
-            }
-
-            try {
-                const res = await fetch(`/api/posts/${activePostIdForReport}/report`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email, reason: fullReason })
-                });
-                const data = await res.json();
-                closeReportModal();
-                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
-            } catch (err) {
-                console.error(err);
-                closeReportModal();
-            }
-        }
-
-        // Standard 3-Second Video View Counter (Video Posts Only)
-        function initPostViewsObserver() {
-            const postCards = document.querySelectorAll('.post-item');
-            const viewObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const postId = entry.target.getAttribute('data-post-id');
-                    if (!postId) return;
-
-                    if (entry.isIntersecting) {
-                        const hasVideo = entry.target.querySelector('video') !== null;
-                        if (!hasVideo) return;
-
-                        if (!trackedViewsInSession.has(postId) && !activeViewTimers.has(postId)) {
-                            const timer = setTimeout(() => {
-                                trackedViewsInSession.add(postId);
-                                activeViewTimers.delete(postId);
-
-                                fetch(`/api/posts/${postId}/view`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ email: currentUser.email })
-                                })
-                                .then(r => r.json())
-                                .then(data => {
-                                    if (data.success && data.views_count !== undefined) {
-                                        const viewEl = document.getElementById(`viewCount-${postId}`);
-                                        if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
-                                    }
-                                })
-                                .catch(() => {});
-                            }, 3000);
-
-                            activeViewTimers.set(postId, timer);
-                        }
-                    } else {
-                        if (activeViewTimers.has(postId)) {
-                            clearTimeout(activeViewTimers.get(postId));
-                            activeViewTimers.delete(postId);
-                        }
-                    }
-                });
-            }, { threshold: 0.65 });
-
-            postCards.forEach(card => viewObserver.observe(card));
-        }
-
-        function startHoldReaction(event, postId) {
-            if (event.button && event.button !== 0) return;
-            isLongPressTriggered = false;
-            cancelHoldTimer();
-            pressTimer = setTimeout(() => {
-                isLongPressTriggered = true;
-                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
-                const picker = document.getElementById(`picker-${postId}`);
-                if (picker) picker.classList.add('show');
-            }, 1000);
-        }
-
-        function endHoldReaction(event, postId) {
-            cancelHoldTimer();
-            if (!isLongPressTriggered) {
-                const picker = document.getElementById(`picker-${postId}`);
-                if (picker && picker.classList.contains('show')) {
-                    picker.classList.remove('show');
-                    return;
-                }
-                quickToggleLike(postId);
-            }
-        }
-
-        function cancelHoldTimer() {
-            if (pressTimer) {
-                clearTimeout(pressTimer);
-                pressTimer = null;
-            }
-        }
-
-        function quickToggleLike(postId) {
-            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
-            const emojiToSend = state.userReaction ? state.userReaction : '👍';
-            applyReactionOptimistically(postId, emojiToSend);
-        }
-
-        function selectReaction(event, postId, emoji) {
-            event.stopPropagation();
-            const picker = document.getElementById(`picker-${postId}`);
-            if (picker) picker.classList.remove('show');
-            applyReactionOptimistically(postId, emoji);
-        }
-
-        async function applyReactionOptimistically(postId, emoji) {
-            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
-
-            if (state.userReaction === emoji) {
-                state.userReaction = null;
-                state.count = Math.max(0, state.count - 1);
-                if (state.count === 0) state.types = [];
-            } else {
-                if (!state.userReaction) {
-                    state.count += 1;
-                }
-                state.userReaction = emoji;
-                if (!state.types.includes(emoji)) {
-                    state.types.push(emoji);
-                }
-            }
-            postReactionsState[postId] = state;
-            updatePostReactionUI(postId);
-
-            try {
-                const res = await fetch('/api/reaction', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    state.count = parseInt(data.likes_count) || 0;
-                    state.userReaction = data.reacted ? emoji : null;
-                    if (Array.isArray(data.reaction_types)) {
-                        state.types = data.reaction_types;
-                    }
-                    postReactionsState[postId] = state;
-                    updatePostReactionUI(postId);
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function updatePostReactionUI(postId) {
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            const state = postReactionsState[postId];
-            const btn = document.getElementById(`likeBtn-${postId}`);
-            const summary = document.getElementById(`reactionSummary-${postId}`);
-            if (btn) {
-                btn.className = buildActionBtnClass(state.userReaction);
-                btn.innerHTML = buildActionBtnContent(state.userReaction, currentLang);
-            }
-            if (summary) {
-                summary.innerHTML = buildReactionSummaryHtml(postId);
-            }
-        }
-
-        function openShareModal(postId, encodedContent) {
-            activePostIdForShare = postId;
-            activePostTextForShare = decodeURIComponent(encodedContent || '');
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            document.getElementById('shareCaptionInput').value = '';
-            document.getElementById('copyLinkLabel').innerText = uiTexts[currentLang].copyLinkLabel;
-            document.getElementById('shareModal').style.display = 'flex';
-        }
-
-        function closeShareModal() {
-            document.getElementById('shareModal').style.display = 'none';
-            activePostIdForShare = null;
-        }
-
-        async function shareToMyProfile() {
-            if (!activePostIdForShare) return;
-            const caption = document.getElementById('shareCaptionInput').value.trim();
-            try {
-                const res = await fetch('/api/posts/share', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        postId: activePostIdForShare,
-                        email: currentUser.email,
-                        caption: caption
-                    })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    closeShareModal();
-                    const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                    alert(currentLang === 'km' ? 'បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!' : 'Shared to your profile successfully!');
-                    loadPosts();
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        async function shareToSocialMedia() {
-            if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
-            if (navigator.share) {
-                try {
-                    await navigator.share({
-                        title: 'CamFeed Post',
-                        text: activePostTextForShare || 'Check out this post on CamFeed!',
-                        url: shareUrl
-                    });
-                    closeShareModal();
-                } catch (err) {}
-            } else {
-                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(activePostTextForShare)}`, '_blank');
-                closeShareModal();
-            }
-        }
-
-        function copyCurrentShareLink() {
-            if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
-            navigator.clipboard.writeText(shareUrl);
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            document.getElementById('copyLinkLabel').innerText = currentLang === 'km' ? '✓ បានចម្លងតំណភ្ជាប់!' : '✓ Link Copied!';
-            setTimeout(() => closeShareModal(), 900);
-        }
-
-        // Global Unmute Sync: Unmuting one video automatically unmutes all videos on the feed
-        function syncAllVideosMuteState(unmute) {
-            globalVideoUnmuted = unmute;
-            sessionStorage.setItem('camfeed_unmuted', unmute ? 'true' : 'false');
-            document.querySelectorAll('.autoplay-video').forEach(v => {
-                v.muted = !unmute;
-                if (unmute) {
-                    v.removeAttribute('muted');
-                    if (v.volume === 0) v.volume = 1.0;
-                }
-            });
-        }
-
-        function handleVideoVolumeChange(videoElem) {
-            if (!videoElem.muted && videoElem.volume > 0) {
-                if (!globalVideoUnmuted) syncAllVideosMuteState(true);
-            } else if (videoElem.muted) {
-                if (globalVideoUnmuted) syncAllVideosMuteState(false);
-            }
-        }
-
-        async function openReactionsList(postId) {
-            const modal = document.getElementById('reactionsModal');
-            const listContainer = document.getElementById('reactionsModalList');
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            listContainer.innerHTML = `<p style="text-align:center; color:#65676b;">${currentLang === 'km' ? 'កំពុងផ្ទុក...' : 'Loading...'}</p>`;
-            modal.style.display = 'flex';
-
-            try {
-                const res = await fetch(`/api/reactions/${postId}?email=${encodeURIComponent(currentUser.email)}`);
-                const data = await res.json();
-                if (data.success && data.reactors.length > 0) {
-                    listContainer.innerHTML = data.reactors.map(r => `
-                        <div class="reactor-row">
-                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
-                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                                <div>
-                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${r.first_name} ${r.last_name}</div>
-                                    <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
-                                </div>
-                            </div>
-                            ${r.email !== currentUser.email ? `
-                                <button class="btn-follow ${r.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowReactor('${r.email}', ${r.is_following}, ${postId})">
-                                    ${r.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
-                                </button>
-                            ` : ''}
-                        </div>
-                    `).join('');
-                } else {
-                    listContainer.innerHTML = `<p style="text-align:center; color:#65676b; padding:15px;">${currentLang === 'km' ? 'មិនទាន់មានប្រតិកម្មនៅឡើយទេ។' : 'No reactions yet.'}</p>`;
-                }
-            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load reactions.</p>'; }
-        }
-
-        function closeReactionsModal() { document.getElementById('reactionsModal').style.display = 'none'; }
-
-        async function toggleFollowReactor(targetEmail, isFollowing, postId) {
-            await fetch('/api/follow', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
-            });
-            openReactionsList(postId);
-        }
-
-        async function openSharersList(postId) {
-            const modal = document.getElementById('sharersModal');
-            const listContainer = document.getElementById('sharersModalList');
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            listContainer.innerHTML = `<p style="text-align:center; color:#65676b;">${currentLang === 'km' ? 'កំពុងផ្ទុក...' : 'Loading...'}</p>`;
-            modal.style.display = 'flex';
-
-            try {
-                const res = await fetch(`/api/shares/${postId}?email=${encodeURIComponent(currentUser.email)}`);
-                const data = await res.json();
-                if (data.success && data.sharers.length > 0) {
-                    listContainer.innerHTML = data.sharers.map(s => `
-                        <div class="reactor-row">
-                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
-                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                                <div>
-                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${s.first_name} ${s.last_name}</div>
-                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
-                                </div>
-                            </div>
-                            ${s.email !== currentUser.email ? `
-                                <button class="btn-follow ${s.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowSharer('${s.email}', ${s.is_following}, ${postId})">
-                                    ${s.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
-                                </button>
-                            ` : ''}
-                        </div>
-                    `).join('');
-                } else {
-                    listContainer.innerHTML = `<p style="text-align:center; color:#65676b; padding:15px;">${currentLang === 'km' ? 'មិនទាន់មានការចែករំលែកនៅឡើយទេ។' : 'No shares yet.'}</p>`;
-                }
-            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load sharers.</p>'; }
-        }
-
-        function closeSharersModal() { document.getElementById('sharersModal').style.display = 'none'; }
-
-        async function toggleFollowSharer(targetEmail, isFollowing, postId) {
-            await fetch('/api/follow', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
-            });
-            openSharersList(postId);
-        }
-
-        function initAutoPlayVideos() {
-            const videoElements = document.querySelectorAll('.autoplay-video');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const video = entry.target;
-                    if (entry.isIntersecting) {
-                        if (globalVideoUnmuted) {
-                            video.muted = false;
-                            video.removeAttribute('muted');
-                            if (video.volume === 0) video.volume = 1.0;
-                        } else {
-                            video.muted = true;
-                        }
-                        video.play().catch(() => {
-                            video.muted = true;
-                            video.play().catch(() => {});
-                        });
-                    } else {
-                        video.pause();
-                    }
-                });
-            }, { threshold: 0.6 });
-            videoElements.forEach(video => observer.observe(video));
-        }
-
-        function toggleCommentBox(postId) {
-            const sec = document.getElementById(`commentsSection-${postId}`);
-            if (!sec) return;
-            sec.classList.toggle('open');
-            if (sec.classList.contains('open')) { loadComments(postId); }
-        }
-
-        function sortComments(postId, sortType) { loadComments(postId); }
-
-        async function loadComments(postId) {
-            try {
-                const res = await fetch(`/api/comments/${postId}`);
-                const data = await res.json();
-                if (data.success) {
-                    const list = document.getElementById(`commentList-${postId}`);
-                    if (!list) return;
-
-                    list.innerHTML = data.comments.map(c => {
-                        const isOwner = currentUser.email === c.user_email;
-                        return `
-                            <div class="comment-container" id="comment-${c.id}">
-                                <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${c.user_email}'" title="View Profile">
-                                <div class="comment-content-wrapper">
-                                    <div style="flex: 1;">
-                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${c.user_email}'">${c.first_name} ${c.last_name}</span>
-                                        <div id="comment-text-${c.id}">${c.content}</div>
-                                    </div>
-                                    <button class="comment-options-btn" onclick="toggleCommentMenu(event, ${c.id})">⋮</button>
-                                </div>
-                                
-                                <div class="comment-menu-dropdown" id="comment-menu-${c.id}">
-                                    ${isOwner ? `
-                                        <button onclick="enableEditComment(${c.id}, '${encodeURIComponent(c.content)}')">Edit</button>
-                                        <button onclick="deleteComment(${c.id}, ${postId})" style="color: red;">Delete</button>
-                                    ` : `
-                                        <button onclick="reportComment(${c.id})">Report</button>
-                                    `}
-                                </div>
+                            <div class="user-actions">
+                                <button class="btn-follow ${btnClass}" onclick="toggleFollow('${u.email}')">${btnText}</button>
+                                <button class="btn-remove" onclick="this.closest('.user-card').remove()">Remove</button>
                             </div>
                         `;
-                    }).join('');
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function toggleCommentMenu(event, commentId) {
-            event.stopPropagation();
-            const menu = document.getElementById(`comment-menu-${commentId}`);
-            document.querySelectorAll('.comment-menu-dropdown').forEach(m => {
-                if(m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
-            });
-            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-        }
-
-        async function deleteComment(commentId, postId) {
-            if (!confirm('តើអ្នកពិតជាចង់លុប Comment នេះមែនទេ?')) return;
-            try {
-                const res = await fetch(`/api/comments/${commentId}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    loadComments(postId);
-                    const countElem = document.getElementById(`commentCount-${postId}`);
-                    if (countElem) {
-                        let parts = countElem.innerText.split(' ');
-                        let currentComments = parseInt(parts[0]) || 1;
-                        countElem.innerText = `${Math.max(0, currentComments - 1)} Comments`;
-                    }
+                        container.appendChild(div);
+                    });
                 } else {
-                    alert(data.message || 'មិនអាចលុប Comment នេះបានទេ');
+                    container.innerHTML = `<p style="color: #65676b; text-align: center; padding: 20px;">No new users to follow.</p>`;
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) {
+                console.error("Error loading users:", err);
+                document.getElementById('friendsContainer').innerHTML = `<p style="color: red; text-align: center; padding: 20px;">Failed to load users.</p>`;
+            }
         }
 
-        async function reportComment(commentId) {
-            const reason = prompt('សូមបញ្ជាក់ពីមូលហេតុដែលត្រូវ Report Comment នេះ៖');
-            if (!reason) return;
-
+        async function toggleFollow(targetEmail) {
             try {
-                const res = await fetch('/api/comments/report', {
+                const res = await fetch('/api/follow', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ commentId, email: currentUser.email, reason })
+                    body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: 'follow' })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert('ការរាយការណ៍ (Report) របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់អ្នកគ្រប់គ្រងប្រព័ន្ធជោគជ័យ។');
+                    if (currentSearchKeyword) executeSearch();
+                    else loadUsers();
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error("Error following user:", err); }
         }
 
-        function enableEditComment(commentId, encodedContent) {
-            const content = decodeURIComponent(encodedContent);
-            document.getElementById(`comment-menu-${commentId}`).style.display = 'none';
-            const textDiv = document.getElementById(`comment-text-${commentId}`);
-            
-            textDiv.innerHTML = `
-                <div style="display: flex; gap: 5px; margin-top: 5px;">
-                    <input type="text" id="edit-input-${commentId}" value="${content}" style="padding: 4px 8px; font-size: 12px; border-radius: 12px; border: 1px solid #ddd;">
-                    <button onclick="submitEditComment(${commentId})" style="background: #1877f2; color: white; border: none; border-radius: 10px; padding: 4px 8px; cursor: pointer;">Save</button>
-                </div>
-            `;
+        function closeNotifPostModal() {
+            document.getElementById('notifPostModal').style.display = 'none';
+            document.getElementById('notifPostModalBody').innerHTML = '';
         }
 
-        async function submitEditComment(commentId) {
-            const newContent = document.getElementById(`edit-input-${commentId}`).value.trim();
-            if (!newContent) return;
-
-            try {
-                const res = await fetch(`/api/comments/${commentId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email, content: newContent })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const commentContainer = document.getElementById(`comment-${commentId}`);
-                    if (commentContainer) {
-                        const section = commentContainer.closest('.comments-section');
-                        if (section) {
-                            const postId = section.id.split('-')[1];
-                            loadComments(postId);
-                        }
-                    }
-                } else {
-                    alert(data.message || 'កែប្រែមិនបានជោគជ័យ');
-                }
-            } catch (err) { console.error(err); }
+        function logout() {
+            localStorage.removeItem('camfeed_user');
+            window.location.href = 'index.html';
         }
-
-        async function addComment(postId) {
-            const input = document.getElementById(`commentInput-${postId}`);
-            if (!input || !input.value.trim()) return;
-            const content = input.value;
-
-            await fetch('/api/comments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, email: currentUser.email, content })
-            });
-            input.value = '';
-            loadComments(postId);
-        }
-
-
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>

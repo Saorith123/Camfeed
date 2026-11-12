@@ -26,8 +26,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Super Admin Emails (Can also be configured via Render Env SUPER_ADMIN_EMAIL)
-const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAIL || 'rossaorith@gmail.com,saorithkh2018@gmail.com')
+// Super Admin Account (0962829738 + optional Render Env SUPER_ADMIN_EMAIL)
+const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAIL || '0962829738,rossaorith@gmail.com,saorithkh2018@gmail.com')
   .split(',')
   .map(e => e.trim().toLowerCase())
   .filter(Boolean);
@@ -68,7 +68,31 @@ pool.connect(async (err, client, release) => {
       );
     }
 
-    // 3. Views analytics table
+    // 3. Notifications read-status & comment_id columns
+    await client.query(`
+      ALTER TABLE notifications
+      ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS comment_id INTEGER DEFAULT NULL
+    `);
+
+    // 4. Comments reply_to_id column & Comment Reactions table
+    await client.query(`
+      ALTER TABLE comments
+      ADD COLUMN IF NOT EXISTS reply_to_id INTEGER DEFAULT NULL
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS comment_likes (
+        id SERIAL PRIMARY KEY,
+        comment_id INTEGER NOT NULL,
+        user_email VARCHAR(255) NOT NULL,
+        reaction_type VARCHAR(20) DEFAULT '👍',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(comment_id, user_email)
+      )
+    `);
+
+    // 5. Views analytics table
     await client.query(`
       CREATE TABLE IF NOT EXISTS post_views (
         id SERIAL PRIMARY KEY,
@@ -79,7 +103,7 @@ pool.connect(async (err, client, release) => {
       )
     `);
 
-    // 4. Blocked users table
+    // 6. Blocked users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS blocked_users (
         id SERIAL PRIMARY KEY,
@@ -90,7 +114,7 @@ pool.connect(async (err, client, release) => {
       )
     `);
 
-    // 5. Moderation Reports table
+    // 7. Moderation Reports table
     await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,
@@ -303,7 +327,7 @@ app.post('/api/posts/share', async (req, res) => {
         : `${sharerName} បានចែករំលែក${targetLabel}`;
 
       await pool.query(
-        'INSERT INTO notifications (recipient_email, sender_email, post_id, type, message) VALUES ($1, $2, $3, $4, $5)',
+        'INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, FALSE)',
         [ownerEmail, email, rootPostId, 'share', notifMsg]
       );
     }
@@ -335,7 +359,7 @@ app.get('/api/shares/:postId', async (req, res) => {
   }
 });
 
-// Track Post / Video View & Country Metadata (Increments immediately on every view)
+// Track Post / Video View & Country Metadata
 app.post('/api/posts/:id/view', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
@@ -425,7 +449,7 @@ app.post('/api/unblock', async (req, res) => {
   }
 });
 
-// Get Feed, Profile & Video Posts (Fixed SQL Query + 85-90% Following Priority + Viral & Random)
+// Get Feed, Profile & Video Posts
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type } = req.query;
   const safeViewer = email || '';
@@ -704,7 +728,7 @@ app.post('/api/reaction', async (req, res) => {
           : `${likerName} បានបញ្ចេញប្រតិកម្ម ${emojiIcon} លើ${targetLabel}`;
 
         await pool.query(
-          'INSERT INTO notifications (recipient_email, sender_email, post_id, type, message) VALUES ($1, $2, $3, $4, $5)',
+          'INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, FALSE)',
           [ownerEmail, email, postId, 'reaction', notifMsg]
         );
       }
@@ -737,18 +761,74 @@ app.get('/api/reactions/:postId', async (req, res) => {
   }
 });
 
+// Get Comments with Reaction Counts & User Reaction
 app.get('/api/comments/:postId', async (req, res) => {
   const { postId } = req.params;
+  const { email } = req.query;
   try {
     const query = `
-      SELECT c.*, u.first_name, u.last_name, u.profile_pic 
+      SELECT c.*, u.first_name, u.last_name, u.profile_pic,
+             (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS likes_count,
+             (SELECT reaction_type FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_email = $2) AS user_reaction,
+             (SELECT ARRAY_AGG(DISTINCT reaction_type) FROM comment_likes cl WHERE cl.comment_id = c.id) AS reaction_types
       FROM comments c 
       JOIN users u ON c.user_email = u.email 
       WHERE c.post_id = $1 
       ORDER BY c.created_at ASC
     `;
-    const result = await pool.query(query, [postId]);
+    const result = await pool.query(query, [postId, email || '']);
     res.json({ success: true, comments: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// React to a Comment (👍 ❤️ 😆 😮 😢 😡)
+app.post('/api/comments/:id/reaction', async (req, res) => {
+  const { id } = req.params;
+  const { email, reactionType } = req.body;
+  try {
+    const check = await pool.query('SELECT * FROM comment_likes WHERE comment_id = $1 AND user_email = $2', [id, email]);
+    const cInfo = await pool.query(
+      'SELECT c.*, u.first_name, u.last_name FROM comments c JOIN users u ON u.email = $2 WHERE c.id = $1',
+      [id, email]
+    );
+    const commentRow = cInfo.rows[0];
+    if (!commentRow) return res.status(404).json({ success: false, error: 'Comment not found' });
+
+    let reacted = false;
+    const emoji = reactionType || '👍';
+    if (check.rows.length > 0) {
+      if (check.rows[0].reaction_type === emoji) {
+        await pool.query('DELETE FROM comment_likes WHERE comment_id = $1 AND user_email = $2', [id, email]);
+        reacted = false;
+      } else {
+        await pool.query('UPDATE comment_likes SET reaction_type = $1 WHERE comment_id = $2 AND user_email = $3', [emoji, id, email]);
+        reacted = true;
+      }
+    } else {
+      await pool.query('INSERT INTO comment_likes (comment_id, user_email, reaction_type) VALUES ($1, $2, $3)', [id, email, emoji]);
+      reacted = true;
+
+      if (commentRow.user_email && commentRow.user_email !== email) {
+        const reactorName = `${commentRow.first_name || ''} ${commentRow.last_name || ''}`.trim();
+        const snippet = (commentRow.content || '').slice(0, 40);
+        const notifMsg = `${reactorName} បានបញ្ចេញប្រតិកម្ម ${emoji} លើមតិរបស់អ្នក៖ "${snippet}"`;
+        await pool.query(
+          'INSERT INTO notifications (recipient_email, sender_email, post_id, comment_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, $6, FALSE)',
+          [commentRow.user_email, email, commentRow.post_id, id, 'comment_reaction', notifMsg]
+        );
+      }
+    }
+
+    const countRes = await pool.query('SELECT COUNT(*) FROM comment_likes WHERE comment_id = $1', [id]);
+    const typesRes = await pool.query('SELECT DISTINCT reaction_type FROM comment_likes WHERE comment_id = $1', [id]);
+    res.json({
+      success: true,
+      reacted,
+      likes_count: parseInt(countRes.rows[0].count) || 0,
+      reaction_types: typesRes.rows.map(r => r.reaction_type)
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -776,7 +856,7 @@ app.post('/api/comments', async (req, res) => {
       if (parentAuthorEmail && parentAuthorEmail !== email) {
         const notifMsg = `${commenterName} បានឆ្លើយតបមតិរបស់អ្នក៖ "${content}"`;
         await pool.query(
-          'INSERT INTO notifications (recipient_email, sender_email, post_id, comment_id, type, message) VALUES ($1, $2, $3, $4, $5, $6)',
+          'INSERT INTO notifications (recipient_email, sender_email, post_id, comment_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, $6, FALSE)',
           [parentAuthorEmail, email, postId, newComment.id, 'reply', notifMsg]
         );
       }
@@ -789,7 +869,7 @@ app.post('/api/comments', async (req, res) => {
           : `${commenterName} បានបញ្ចេញមតិលើ${targetLabel}៖ "${content}"`;
 
         await pool.query(
-          'INSERT INTO notifications (recipient_email, sender_email, post_id, comment_id, type, message) VALUES ($1, $2, $3, $4, $5, $6)',
+          'INSERT INTO notifications (recipient_email, sender_email, post_id, comment_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, $6, FALSE)',
           [ownerEmail, email, postId, newComment.id, 'comment', notifMsg]
         );
       }
@@ -858,6 +938,7 @@ app.post('/api/comments/report', async (req, res) => {
   }
 });
 
+// Get Notifications & Mark Read
 app.get('/api/notifications', async (req, res) => {
   const { email } = req.query;
   try {
@@ -872,6 +953,26 @@ app.get('/api/notifications', async (req, res) => {
     `;
     const result = await pool.query(query, [email]);
     res.json({ success: true, notifications: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/notifications/mark-read', async (req, res) => {
+  const { email, notificationId } = req.body;
+  try {
+    if (notificationId) {
+      await pool.query(
+        'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND recipient_email = $2',
+        [notificationId, email]
+      );
+    } else if (email) {
+      await pool.query(
+        'UPDATE notifications SET is_read = TRUE WHERE recipient_email = $1 AND COALESCE(is_read, FALSE) = FALSE',
+        [email]
+      );
+    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1018,7 +1119,7 @@ app.post('/api/follow', async (req, res) => {
       await pool.query('INSERT INTO follows (follower_email, following_email) VALUES ($1, $2) ON CONFLICT DO NOTHING', [followerEmail, followingEmail]);
       if (followerEmail !== followingEmail) {
         await pool.query(
-          'INSERT INTO notifications (recipient_email, sender_email, type, message) VALUES ($1, $2, $3, $4)',
+          'INSERT INTO notifications (recipient_email, sender_email, type, message, is_read) VALUES ($1, $2, $3, $4, FALSE)',
           [followingEmail, followerEmail, 'follow', `${followerName} បានចាប់ផ្តើមតាមដាន (Follow) អ្នក។`]
         );
       }
