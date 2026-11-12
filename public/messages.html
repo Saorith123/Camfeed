@@ -27,7 +27,7 @@
         .contact-avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #e4e6eb; }
         .contact-info { flex: 1; min-width: 0; }
         .contact-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .contact-sub { font-size: 12px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .contact-sub { font-size: 12.5px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 
         /* Chat Area */
         .chat-panel { flex: 1; display: flex; flex-direction: column; background: #fff; min-width: 0; }
@@ -44,7 +44,7 @@
         .msg-row.sent .msg-bubble { background: #0084ff; color: #fff; border-bottom-right-radius: 4px; }
         .msg-row.received .msg-bubble { background: #f0f2f5; color: #050505; border-bottom-left-radius: 4px; }
 
-        .msg-media { max-width: 240px; border-radius: 12px; margin-top: 4px; display: block; }
+        .msg-media { max-width: 240px; border-radius: 12px; margin-top: 4px; display: block; cursor: pointer; }
         .msg-audio { max-width: 240px; height: 36px; margin-top: 4px; }
         .msg-time { font-size: 11px; color: #8a8d91; margin-top: 3px; padding: 0 4px; }
 
@@ -82,10 +82,10 @@
         <!-- Contacts Sidebar -->
         <div class="contacts-panel" id="contactsPanel">
             <div class="search-box">
-                <input type="text" id="searchContactInput" placeholder="Search friends..." oninput="filterContacts()">
+                <input type="text" id="searchContactInput" placeholder="Search people..." oninput="handleSearch(this.value)">
             </div>
             <div class="contacts-list" id="contactsList">
-                <div style="padding: 20px; text-align: center; color: #65676b;">Loading contacts...</div>
+                <div style="padding: 20px; text-align: center; color: #65676b;">Loading conversations...</div>
             </div>
         </div>
 
@@ -93,9 +93,9 @@
         <div class="chat-panel hidden" id="chatPanel">
             <div class="chat-header" id="chatHeader">
                 <button class="mobile-back-btn" onclick="showContactsMobile()">←</button>
-                <img src="https://via.placeholder.com/40" id="activeChatAvatar" class="contact-avatar" style="width: 40px; height: 40px;">
-                <div>
-                    <div id="activeChatName" style="font-weight: 600; font-size: 15px;">Select a friend</div>
+                <img src="https://via.placeholder.com/40" id="activeChatAvatar" class="contact-avatar" style="width: 40px; height: 40px; cursor:pointer;" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                <div style="cursor:pointer;" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                    <div id="activeChatName" style="font-weight: 600; font-size: 15px;">Select a conversation</div>
                     <div id="activeChatEmail" style="font-size: 12px; color: #65676b;"></div>
                 </div>
             </div>
@@ -104,7 +104,7 @@
                 <div class="empty-state">
                     <div style="font-size: 40px; margin-bottom: 10px;">💬</div>
                     <div style="font-weight: 600; font-size: 16px;">Your Messages</div>
-                    <div style="font-size: 13px; margin-top: 4px;">Select a friend from the list to start chatting.</div>
+                    <div style="font-size: 13px; margin-top: 4px;">Select a person from the list to view chat history.</div>
                 </div>
             </div>
 
@@ -120,7 +120,7 @@
 
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        let allFriends = [];
+        let allConversations = [];
         let activeFriend = null;
         let pollInterval = null;
         let mediaRecorder = null;
@@ -131,78 +131,86 @@
             window.location.href = 'index.html';
         } else {
             document.getElementById('userBadge').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
-            loadContacts();
+            loadConversations();
         }
 
-        async function loadContacts() {
+        async function loadConversations() {
             try {
-                const res = await fetch(`/api/friends/${encodeURIComponent(currentUser.email)}`);
+                const res = await fetch(`/api/chat-conversations?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
-                if (data.success && Array.isArray(data.friends)) {
-                    allFriends = data.friends;
-                    renderContacts(allFriends);
+                if (data.success && Array.isArray(data.conversations)) {
+                    allConversations = data.conversations;
+                    renderContacts(allConversations);
 
                     const urlParams = new URLSearchParams(window.location.search);
-                    const targetEmail = urlParams.get('user');
+                    const targetEmail = urlParams.get('chat') || urlParams.get('user');
                     if (targetEmail) {
-                        const found = allFriends.find(f => f.email === targetEmail);
-                        if (found) openChat(found);
+                        const found = allConversations.find(f => f.email === targetEmail);
+                        if (found) {
+                            openChat(found);
+                        } else {
+                            // If not in list yet, fetch user profile and open chat
+                            const uRes = await fetch(`/api/user-profile?email=${encodeURIComponent(targetEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
+                            const uData = await uRes.json();
+                            if (uData.success && uData.user) {
+                                openChat(uData.user);
+                            }
+                        }
                     }
-                } else {
-                    loadFallbackUsers();
                 }
             } catch (err) {
-                console.error('Error loading contacts:', err);
-                loadFallbackUsers();
+                console.error('Error loading conversations:', err);
+                document.getElementById('contactsList').innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">Unable to load conversations.</div>';
             }
         }
 
-        async function loadFallbackUsers() {
+        async function handleSearch(keyword) {
+            const q = keyword.trim();
+            if (!q) {
+                renderContacts(allConversations);
+                return;
+            }
             try {
-                const res = await fetch('/api/users');
+                const res = await fetch(`/api/search-users?email=${encodeURIComponent(currentUser.email)}&keyword=${encodeURIComponent(q)}`);
                 const data = await res.json();
                 if (data.success && Array.isArray(data.users)) {
-                    allFriends = data.users.filter(u => u.email !== currentUser.email);
-                    renderContacts(allFriends);
-                } else {
-                    document.getElementById('contactsList').innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">No contacts found.</div>';
+                    renderContacts(data.users);
                 }
             } catch (err) {
-                document.getElementById('contactsList').innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">Unable to load contacts.</div>';
+                console.error('Search error:', err);
             }
         }
 
         function renderContacts(list) {
             const container = document.getElementById('contactsList');
             if (!list || list.length === 0) {
-                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">No friends available yet.</div>';
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">No conversations found.</div>';
                 return;
             }
-            container.innerHTML = list.map(friend => {
-                const isActive = activeFriend && activeFriend.email === friend.email ? 'active' : '';
-                const avatar = friend.profile_pic || 'https://via.placeholder.com/46';
+            container.innerHTML = list.map(person => {
+                const isActive = activeFriend && activeFriend.email === person.email ? 'active' : '';
+                const avatar = person.profile_pic || 'https://via.placeholder.com/46';
+                const subtitle = person.last_message || person.email;
+                const safeData = JSON.stringify({
+                    email: person.email,
+                    first_name: person.first_name,
+                    last_name: person.last_name,
+                    profile_pic: person.profile_pic
+                }).replace(/'/g, "&#39;");
+
                 return `
-                    <div class="contact-item ${isActive}" onclick='openChat(${JSON.stringify(friend).replace(/'/g, "&#39;")})'>
+                    <div class="contact-item ${isActive}" onclick='openChat(${safeData})'>
                         <img src="${avatar}" class="contact-avatar">
                         <div class="contact-info">
-                            <div class="contact-name">${friend.first_name || ''} ${friend.last_name || ''}</div>
-                            <div class="contact-sub">${friend.email}</div>
+                            <div class="contact-name">${person.first_name || ''} ${person.last_name || ''}</div>
+                            <div class="contact-sub">${escapeHtml(subtitle)}</div>
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        function filterContacts() {
-            const q = document.getElementById('searchContactInput').value.toLowerCase().trim();
-            const filtered = allFriends.filter(f =>
-                `${f.first_name || ''} ${f.last_name || ''}`.toLowerCase().includes(q) ||
-                (f.email && f.email.toLowerCase().includes(q))
-            );
-            renderContacts(filtered);
-        }
-
-        function openChat(friend) {
+        async function openChat(friend) {
             activeFriend = friend;
             document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
             document.getElementById('activeChatEmail').innerText = friend.email;
@@ -216,40 +224,48 @@
                 document.getElementById('chatPanel').classList.remove('hidden');
             }
 
-            renderContacts(allFriends);
-            fetchMessages();
+            renderContacts(allConversations);
+            await fetchMessages(true);
+
+            // Mark messages as read
+            fetch('/api/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail: currentUser.email, senderEmail: friend.email })
+            }).catch(() => {});
 
             if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(fetchMessages, 3000);
+            pollInterval = setInterval(() => fetchMessages(false), 3000);
         }
 
         function showContactsMobile() {
             document.getElementById('contactsPanel').classList.remove('hidden');
             document.getElementById('chatPanel').classList.add('hidden');
             if (pollInterval) clearInterval(pollInterval);
+            loadConversations();
         }
 
-        async function fetchMessages() {
+        async function fetchMessages(forceScroll = false) {
             if (!activeFriend) return;
             try {
                 const res = await fetch(`/api/messages?user1=${encodeURIComponent(currentUser.email)}&user2=${encodeURIComponent(activeFriend.email)}`);
                 const data = await res.json();
                 if (data.success && Array.isArray(data.messages)) {
-                    renderMessages(data.messages);
+                    renderMessages(data.messages, forceScroll);
                 }
             } catch (err) {
                 console.error('Error fetching messages:', err);
             }
         }
 
-        function renderMessages(messages) {
+        function renderMessages(messages, forceScroll) {
             const box = document.getElementById('chatMessages');
             if (messages.length === 0) {
                 box.innerHTML = '<div class="empty-state"><div>Say hi to start the conversation! 👋</div></div>';
                 return;
             }
 
-            const wasAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 60;
+            const wasAtBottom = forceScroll || (box.scrollHeight - box.scrollTop <= box.clientHeight + 80);
 
             box.innerHTML = messages.map(m => {
                 const isSent = m.sender_email === currentUser.email;
@@ -258,16 +274,20 @@
 
                 let mediaHtml = '';
                 if (m.media_url) {
-                    if (m.media_type === 'video' || m.media_url.match(/\.(mp4|webm|mov)$/i)) {
+                    if (m.message_type === 'video' || m.media_url.match(/\.(mp4|webm|mov)$/i)) {
                         mediaHtml = `<video src="${m.media_url}" class="msg-media" controls playsinline></video>`;
-                    } else if (m.media_type === 'audio' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+                    } else if (m.message_type === 'audio' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i)) {
                         mediaHtml = `<audio src="${m.media_url}" class="msg-audio" controls></audio>`;
                     } else {
                         mediaHtml = `<img src="${m.media_url}" class="msg-media" onclick="window.open('${m.media_url}', '_blank')">`;
                     }
                 }
 
-                const textHtml = m.content ? `<div class="msg-bubble">${escapeHtml(m.content)}</div>` : '';
+                // Hide placeholder text if media is present
+                const isPlaceholder = ['[Image Message]', '[Video Message]', '[Voice Message]'].includes(m.message);
+                const textHtml = (m.message && !(m.media_url && isPlaceholder))
+                    ? `<div class="msg-bubble">${escapeHtml(m.message)}</div>`
+                    : '';
 
                 return `
                     <div class="msg-row ${rowClass}">
@@ -284,6 +304,7 @@
         }
 
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -291,8 +312,8 @@
 
         async function sendTextMessage() {
             const input = document.getElementById('messageTextInput');
-            const content = input.value.trim();
-            if (!content || !activeFriend) return;
+            const text = input.value.trim();
+            if (!text || !activeFriend) return;
 
             input.value = '';
             try {
@@ -300,16 +321,15 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        sender_email: currentUser.email,
-                        receiver_email: activeFriend.email,
-                        content: content
+                        sender: currentUser.email,
+                        receiver: activeFriend.email,
+                        message: text
                     })
                 });
                 const data = await res.json();
                 if (data.success) {
-                    await fetchMessages();
-                    const box = document.getElementById('chatMessages');
-                    box.scrollTop = box.scrollHeight;
+                    await fetchMessages(true);
+                    loadConversations();
                 }
             } catch (err) {
                 console.error('Send error:', err);
@@ -321,22 +341,21 @@
             if (!file || !activeFriend) return;
 
             const formData = new FormData();
-            formData.append('sender_email', currentUser.email);
-            formData.append('receiver_email', activeFriend.email);
-            formData.append('media', file);
+            formData.append('sender', currentUser.email);
+            formData.append('receiver', activeFriend.email);
+            formData.append('mediaFile', file);
 
             try {
-                const res = await fetch('/api/messages/media', {
+                const res = await fetch('/api/messages', {
                     method: 'POST',
                     body: formData
                 });
                 const data = await res.json();
                 if (data.success) {
-                    await fetchMessages();
-                    const box = document.getElementById('chatMessages');
-                    box.scrollTop = box.scrollHeight;
+                    await fetchMessages(true);
+                    loadConversations();
                 } else {
-                    alert(data.message || 'Failed to send media.');
+                    alert(data.error || 'Failed to send media.');
                 }
             } catch (err) {
                 console.error('Media upload error:', err);
@@ -363,20 +382,19 @@
 
                         if (!activeFriend) return;
                         const formData = new FormData();
-                        formData.append('sender_email', currentUser.email);
-                        formData.append('receiver_email', activeFriend.email);
-                        formData.append('media', audioBlob, 'voice-message.webm');
+                        formData.append('sender', currentUser.email);
+                        formData.append('receiver', activeFriend.email);
+                        formData.append('mediaFile', audioBlob, 'voice-message.webm');
 
                         try {
-                            const res = await fetch('/api/messages/media', {
+                            const res = await fetch('/api/messages', {
                                 method: 'POST',
                                 body: formData
                             });
                             const data = await res.json();
                             if (data.success) {
-                                await fetchMessages();
-                                const box = document.getElementById('chatMessages');
-                                box.scrollTop = box.scrollHeight;
+                                await fetchMessages(true);
+                                loadConversations();
                             }
                         } catch (err) {
                             console.error('Voice upload error:', err);

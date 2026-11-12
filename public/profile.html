@@ -15,7 +15,6 @@
 
         .profile-container { max-width: 900px; margin: 0 auto 40px; }
 
-        /* Cover & Avatar Header */
         .profile-header-card { background: #fff; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 16px; }
         .cover-wrapper { position: relative; width: 100%; height: 280px; background: linear-gradient(135deg, #1877f2, #42b72a); overflow: hidden; }
         .cover-img { width: 100%; height: 100%; object-fit: cover; }
@@ -39,15 +38,12 @@
         .btn-secondary { background: #e4e6eb; color: #050505; }
         .btn-secondary:hover { background: #d8dadf; }
 
-        /* Tabs */
         .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 24px; gap: 8px; }
         .tab-btn { padding: 14px 16px; background: none; border: none; font-size: 15px; font-weight: 600; color: #65676b; cursor: pointer; border-bottom: 3px solid transparent; }
         .tab-btn.active { color: #1877f2; border-bottom-color: #1877f2; }
 
-        /* Content Area */
         .content-area { max-width: 680px; margin: 0 auto; padding: 0 12px; }
 
-        /* Post Card */
         .post-card { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
         .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .post-author-info { display: flex; align-items: center; gap: 10px; cursor: pointer; }
@@ -62,28 +58,21 @@
         .post-action-btn { flex: 1; background: none; border: none; padding: 8px; font-size: 14px; font-weight: 600; color: #65676b; cursor: pointer; border-radius: 6px; }
         .post-action-btn:hover { background: #f0f2f5; }
 
-        /* Dropdown Menu */
         .options-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 50%; color: #65676b; }
-        .options-btn:hover { background: #f0f2f5; }
         .dropdown-menu { display: none; position: absolute; right: 16px; top: 48px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 50; overflow: hidden; border: 1px solid #e4e6eb; min-width: 130px; }
         .dropdown-menu button { width: 100%; text-align: left; background: none; border: none; padding: 10px 14px; font-size: 14px; cursor: pointer; display: block; }
-        .dropdown-menu button:hover { background: #f2f2f2; }
 
-        /* User Row (Followers/Following) */
         .user-row { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 
-        /* Modal */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
         .modal-card { background: #fff; width: 100%; max-width: 460px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-height: 80vh; display: flex; flex-direction: column; }
         .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-        .comment-container { display: flex; gap: 10px; align-items: flex-start; position: relative; }
+        .comment-container { display: flex; gap: 10px; align-items: flex-start; }
         .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; }
         .comment-content-wrapper { flex: 1; background: #f0f2f5; padding: 8px 12px; border-radius: 14px; display: flex; justify-content: space-between; font-size: 13.5px; }
         .comment-author { font-weight: 600; font-size: 12.5px; cursor: pointer; display: block; margin-bottom: 2px; }
         .comment-options-btn { background: none; border: none; cursor: pointer; color: #65676b; padding: 0 4px; }
-        .comment-menu-dropdown { display: none; position: absolute; right: 10px; top: 28px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1100; border: 1px solid #e4e6eb; }
-        .comment-menu-dropdown button { display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; font-size: 13px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -97,7 +86,7 @@
         <div class="profile-header-card">
             <div class="cover-wrapper">
                 <img id="coverPhoto" src="" class="cover-img" style="display:none;">
-                <input type="file" id="coverInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('cover', this)">
+                <input type="file" id="coverInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('coverPic', this)">
                 <button id="editCoverBtn" class="edit-cover-btn" style="display:none;" onclick="document.getElementById('coverInput').click()">📷 Edit Cover Photo</button>
             </div>
 
@@ -105,7 +94,7 @@
                 <div class="avatar-and-name">
                     <div class="avatar-wrapper">
                         <img id="profileAvatar" src="https://via.placeholder.com/140" class="profile-avatar">
-                        <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('avatar', this)">
+                        <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('profilePic', this)">
                         <button id="editAvatarBtn" class="edit-avatar-btn" style="display:none;" onclick="document.getElementById('avatarInput').click()" title="Change Profile Picture">📷</button>
                     </div>
                     <div class="user-details">
@@ -120,6 +109,7 @@
 
             <div class="profile-tabs">
                 <button class="tab-btn active" id="tab-posts" onclick="switchProfileTab('posts')">Posts</button>
+                <button class="tab-btn" id="tab-videos" onclick="switchProfileTab('videos')">Videos</button>
                 <button class="tab-btn" id="tab-followers" onclick="switchProfileTab('followers')">Followers</button>
                 <button class="tab-btn" id="tab-following" onclick="switchProfileTab('following')">Following</button>
             </div>
@@ -159,6 +149,7 @@
 
         let currentTab = 'posts';
         let targetUserIsFollowing = false;
+        let currentProfileBio = '';
         let activePostIdForComment = null;
 
         if (!currentUser || !profileEmail) {
@@ -169,7 +160,7 @@
 
         async function loadProfileData() {
             try {
-                const res = await fetch(`/api/profile/${encodeURIComponent(profileEmail)}?viewer=${encodeURIComponent(currentUser.email)}`);
+                const res = await fetch(`/api/user-profile?email=${encodeURIComponent(profileEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
 
                 if (!data.success || !data.user) {
@@ -178,9 +169,10 @@
                 }
 
                 const user = data.user;
+                currentProfileBio = user.bio || '';
                 document.getElementById('profileName').innerText = `${user.first_name || ''} ${user.last_name || ''}`;
-                document.getElementById('profileStats').innerText = `${data.followers_count || 0} Followers · ${data.following_count || 0} Following`;
-                document.getElementById('profileBio').innerText = user.bio || '';
+                document.getElementById('profileStats').innerText = `${user.followers_count || 0} Followers · ${user.following_count || 0} Following`;
+                document.getElementById('profileBio').innerText = currentProfileBio;
 
                 if (user.profile_pic) {
                     document.getElementById('profileAvatar').src = user.profile_pic;
@@ -201,10 +193,10 @@
                     const editBioBtn = document.createElement('button');
                     editBioBtn.className = 'btn-action btn-secondary';
                     editBioBtn.innerText = '✏️ Edit Bio';
-                    editBioBtn.onclick = () => editBio(user.bio || '');
+                    editBioBtn.onclick = () => editBio(currentProfileBio);
                     actionContainer.appendChild(editBioBtn);
                 } else {
-                    targetUserIsFollowing = !!data.is_following;
+                    targetUserIsFollowing = !!user.is_following;
                     const followBtn = document.createElement('button');
                     followBtn.id = 'followToggleBtn';
                     followBtn.className = `btn-action ${targetUserIsFollowing ? 'btn-secondary' : 'btn-primary'}`;
@@ -216,12 +208,12 @@
                     messageBtn.className = 'btn-action btn-secondary';
                     messageBtn.innerText = '💬 Message';
                     messageBtn.onclick = () => {
-                        window.location.href = `messages.html?user=${encodeURIComponent(user.email)}`;
+                        window.location.href = `messages.html?chat=${encodeURIComponent(user.email)}`;
                     };
                     actionContainer.appendChild(messageBtn);
                 }
 
-                loadTabContent('posts');
+                loadTabContent(currentTab);
             } catch (err) {
                 console.error('Error loading profile:', err);
                 document.getElementById('profileContent').innerHTML = '<div style="text-align:center; padding:30px; color:red;">Failed to load profile data.</div>';
@@ -240,13 +232,14 @@
             content.innerHTML = '<div style="text-align:center; padding:30px; color:#65676b;">Loading...</div>';
 
             try {
-                if (tab === 'posts') {
-                    const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}`);
+                if (tab === 'posts' || tab === 'videos') {
+                    const typeParam = tab === 'videos' ? '&type=videos' : '';
+                    const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&profileEmail=${encodeURIComponent(profileEmail)}${typeParam}`);
                     const data = await res.json();
                     if (data.success) {
-                        const userPosts = data.posts.filter(p => p.user_email === profileEmail);
+                        const userPosts = data.posts || [];
                         if (userPosts.length === 0) {
-                            content.innerHTML = '<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">No posts yet.</div>';
+                            content.innerHTML = `<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">No ${tab} yet.</div>`;
                             return;
                         }
                         content.innerHTML = '';
@@ -300,7 +293,7 @@
                         });
                     }
                 } else if (tab === 'followers' || tab === 'following') {
-                    const res = await fetch(`/api/profile/${encodeURIComponent(profileEmail)}/${tab}`);
+                    const res = await fetch(`/api/follow-list?email=${encodeURIComponent(profileEmail)}&type=${tab}`);
                     const data = await res.json();
                     if (data.success && data.users && data.users.length > 0) {
                         content.innerHTML = data.users.map(u => `
@@ -323,11 +316,12 @@
         }
 
         async function toggleFollow(targetEmail) {
+            const action = targetUserIsFollowing ? 'unfollow' : 'follow';
             try {
                 const res = await fetch('/api/follow', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ follower_email: currentUser.email, following_email: targetEmail })
+                    body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -336,29 +330,29 @@
             } catch (err) { console.error(err); }
         }
 
-        async function uploadProfileImage(type, input) {
+        async function uploadProfileImage(fieldName, input) {
             const file = input.files[0];
             if (!file) return;
 
             const formData = new FormData();
             formData.append('email', currentUser.email);
-            formData.append('type', type);
-            formData.append('image', file);
+            formData.append('bio', currentProfileBio);
+            formData.append(fieldName, file);
 
             try {
-                const res = await fetch('/api/profile/upload', {
+                const res = await fetch('/api/update-profile-pics', {
                     method: 'POST',
                     body: formData
                 });
                 const data = await res.json();
-                if (data.success) {
-                    if (type === 'avatar' && data.url) {
-                        currentUser.profile_pic = data.url;
-                        localStorage.setItem('camfeed_user', JSON.stringify(currentUser));
+                if (data.success && data.user) {
+                    if (currentUser.email === data.user.email) {
+                        localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                        currentUser = data.user;
                     }
                     loadProfileData();
                 } else {
-                    alert(data.message || 'Upload failed.');
+                    alert(data.error || 'Upload failed.');
                 }
             } catch (err) {
                 console.error(err);
@@ -369,14 +363,20 @@
         async function editBio(currentBio) {
             const newBio = prompt('Enter your new bio:', currentBio);
             if (newBio === null) return;
+
+            const formData = new FormData();
+            formData.append('email', currentUser.email);
+            formData.append('bio', newBio);
+
             try {
-                const res = await fetch('/api/profile/bio', {
+                const res = await fetch('/api/update-profile-pics', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email, bio: newBio })
+                    body: formData
                 });
                 const data = await res.json();
-                if (data.success) {
+                if (data.success && data.user) {
+                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                    currentUser = data.user;
                     loadProfileData();
                 }
             } catch (err) { console.error(err); }
@@ -392,7 +392,7 @@
         }
 
         window.onclick = function() {
-            document.querySelectorAll('.dropdown-menu, .comment-menu-dropdown').forEach(m => m.style.display = 'none');
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
         };
 
         async function deletePost(postId) {
@@ -405,7 +405,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    loadTabContent('posts');
+                    loadTabContent(currentTab);
                 }
             } catch (err) { console.error(err); }
         }
