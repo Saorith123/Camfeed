@@ -10,7 +10,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const memUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 },
 });
 
 module.exports = function createVideoRouter(pool) {
@@ -59,34 +59,46 @@ module.exports = function createVideoRouter(pool) {
   });
 
   // ---------------------------------------------------------------------------
-  // 1B. Direct Server-to-R2 Image Upload (Bypasses Mobile Browser CORS Issues)
-  // POST /api/videos/upload-image
+  // 1B. Direct Server-to-R2 Media Upload (Images & Videos - Bypasses Mobile Browser CORS Issues)
+  // POST /api/videos/upload-image  &  POST /api/videos/upload-direct
   // ---------------------------------------------------------------------------
-  router.post('/upload-image', memUpload.single('file'), async (req, res) => {
+  async function handleDirectServerR2Upload(req, res) {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'No image file provided' });
+        return res.status(400).json({ error: 'No media file provided' });
       }
 
-      const safeName = (req.file.originalname || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
-      const r2Key = `images/${Date.now()}-${safeName}`;
+      const mime = req.file.mimetype || 'application/octet-stream';
+      const isVideo = mime.startsWith('video/');
+      const folder = isVideo ? 'videos' : 'images';
+      const defaultName = isVideo ? 'video.mp4' : 'photo.jpg';
+      const safeName = (req.file.originalname || defaultName).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const r2Key = `${folder}/${Date.now()}-${safeName}`;
 
       await r2.send(
         new PutObjectCommand({
           Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage',
           Key: r2Key,
           Body: req.file.buffer,
-          ContentType: req.file.mimetype || 'image/jpeg',
+          ContentType: mime,
         })
       );
 
       const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com'}/${r2Key}`;
-      res.json({ success: true, publicUrl, r2Key });
+      res.json({
+        success: true,
+        publicUrl,
+        r2Key,
+        type: isVideo ? 'video' : 'image'
+      });
     } catch (err) {
-      console.error('Direct R2 image upload error:', err);
-      res.status(500).json({ error: 'Failed to upload image to R2: ' + err.message });
+      console.error('Direct R2 media upload error:', err);
+      res.status(500).json({ error: 'Failed to upload media to R2: ' + err.message });
     }
-  });
+  }
+
+  router.post('/upload-image', memUpload.single('file'), handleDirectServerR2Upload);
+  router.post('/upload-direct', memUpload.single('file'), handleDirectServerR2Upload);
 
   // ---------------------------------------------------------------------------
   // 2. Save Video Metadata & Trigger AI Moderation + Auto-Classification

@@ -1417,6 +1417,40 @@
             });
         }
 
+        function uploadViaServerFallback(file, onProgress) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('user_email', currentUser.email);
+                formData.append('file', file);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/videos/upload-direct', true);
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable && onProgress) {
+                        onProgress(e.loaded / e.total);
+                    }
+                };
+                xhr.onload = function() {
+                    try {
+                        const data = JSON.parse(xhr.responseText || '{}');
+                        if (xhr.status >= 200 && xhr.status < 300 && data.publicUrl) {
+                            resolve({
+                                url: data.publicUrl,
+                                r2Key: data.r2Key,
+                                type: data.type || (file.type.startsWith('video') ? 'video' : 'image')
+                            });
+                        } else {
+                            reject(new Error(data.error || 'Server upload failed (' + xhr.status + ')'));
+                        }
+                    } catch (e) {
+                        reject(new Error('Invalid server response during upload'));
+                    }
+                };
+                xhr.onerror = () => reject(new Error('Connection error while uploading file'));
+                xhr.send(formData);
+            });
+        }
+
         function uploadFileToR2(file, onProgress) {
             return new Promise(async (resolve, reject) => {
                 try {
@@ -1431,7 +1465,7 @@
                     });
                     const urlData = await urlRes.json();
                     if (!urlRes.ok || !urlData.uploadUrl) {
-                        return reject(new Error(urlData.error || 'Failed to get R2 upload URL'));
+                        return uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
                     }
 
                     const xhr = new XMLHttpRequest();
@@ -1451,13 +1485,16 @@
                                 type: file.type.startsWith('video') ? 'video' : 'image'
                             });
                         } else {
-                            reject(new Error('R2 upload failed (' + xhr.status + ')'));
+                            uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
                         }
                     };
-                    xhr.onerror = () => reject(new Error('Network error during R2 upload'));
+                    xhr.onerror = () => {
+                        // Automatically fallback to server-side R2 upload if mobile browser blocks direct PUT
+                        uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
+                    };
                     xhr.send(file);
                 } catch (err) {
-                    reject(err);
+                    uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
                 }
             });
         }
