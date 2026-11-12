@@ -357,6 +357,93 @@
             justify-content: center;
         }
 
+        /* Dual Progress (Compress % & Upload %) + Floating Corner Mini-Widget */
+        .dual-progress-card {
+            display: none;
+            background: #0f172a;
+            color: #ffffff;
+            border-radius: 14px;
+            padding: 14px 16px;
+            box-shadow: 0 6px 22px rgba(15, 23, 42, 0.22);
+            flex-direction: column;
+            gap: 10px;
+            transition: all 0.22s ease;
+        }
+        .dual-progress-card.visible { display: flex; }
+        .dual-progress-card.floating-corner {
+            position: fixed;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            right: 14px;
+            width: 295px;
+            max-width: calc(100vw - 28px);
+            z-index: 3000;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.16);
+        }
+        .dp-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .dp-title {
+            font-size: 13px;
+            font-weight: 800;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+        .dp-icon-btn {
+            background: rgba(255,255,255,0.14);
+            border: none;
+            color: #fff;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .dp-icon-btn:hover { background: rgba(255,255,255,0.26); }
+        .dp-bar-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .dp-bar-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+        .dp-track {
+            width: 100%;
+            height: 7px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .dp-fill-compress {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            transition: width 0.2s ease;
+        }
+        .dp-fill-upload {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #38bdf8, #1877f2);
+            transition: width 0.2s ease;
+        }
+
         /* Progress Bar */
         .progress-wrapper {
             display: none;
@@ -471,14 +558,30 @@
             <!-- Selected Files Preview -->
             <div id="previewGrid" class="preview-grid hidden"></div>
 
-            <!-- Upload Progress Bar -->
-            <div id="progressWrapper" class="progress-wrapper">
-                <div class="progress-header">
-                    <span id="progressStatusLabel">កំពុងរៀបចំឯកសារ...</span>
-                    <span id="progressPercentLabel">0%</span>
+            <!-- Dual Live Progress Card: 1. Compress %  &  2. Upload % -->
+            <div id="dualProgressCard" class="dual-progress-card">
+                <div class="dp-top-row">
+                    <span class="dp-title" id="dpStatusTitle">⚙️ កំពុងរៀបចំឯកសារ...</span>
+                    <button type="button" class="dp-icon-btn" id="dpFloatToggleBtn" onclick="toggleProgressCornerFloat()" title="បង្រួមដាក់ជ្រុងអេក្រង់">◳</button>
+                    <button type="button" class="dp-icon-btn" onclick="cancelUploadJob()" title="បោះបង់ (Cancel)">✕</button>
                 </div>
-                <div class="progress-track">
-                    <div id="progressFill" class="progress-fill"></div>
+                <div class="dp-bar-group">
+                    <div class="dp-bar-labels">
+                        <span>⚙️ កំហាប់ (Compress)</span>
+                        <span id="dpCompressPct">0%</span>
+                    </div>
+                    <div class="dp-track">
+                        <div class="dp-fill-compress" id="dpCompressFill"></div>
+                    </div>
+                </div>
+                <div class="dp-bar-group">
+                    <div class="dp-bar-labels">
+                        <span>☁️ បង្ហោះ (Upload)</span>
+                        <span id="dpUploadPct">0%</span>
+                    </div>
+                    <div class="dp-track">
+                        <div class="dp-fill-upload" id="dpUploadFill"></div>
+                    </div>
                 </div>
             </div>
 
@@ -812,6 +915,178 @@
             });
         }
 
+        let uploadJobCancelled = false;
+        let activeUploadXhr = null;
+
+        function toggleProgressCornerFloat() {
+            const card = document.getElementById('dualProgressCard');
+            if (card) card.classList.toggle('floating-corner');
+        }
+
+        function cancelUploadJob() {
+            if (!isUploading) return;
+            if (!confirm('តើអ្នកពិតជាចង់បោះបង់ការកំហាប់ និងបង្ហោះនេះមែនទេ?')) return;
+            uploadJobCancelled = true;
+            if (activeUploadXhr) {
+                try { activeUploadXhr.abort(); } catch (e) {}
+                activeUploadXhr = null;
+            }
+            isUploading = false;
+            document.getElementById('dualProgressCard')?.classList.remove('visible', 'floating-corner');
+            const topBtn = document.getElementById('topPostBtn');
+            const botBtn = document.getElementById('bottomPostBtn');
+            if (topBtn) { topBtn.disabled = false; topBtn.innerText = 'បង្ហោះ'; }
+            if (botBtn) { botBtn.disabled = false; botBtn.innerText = 'បង្ហោះឥឡូវនេះ (Post)'; }
+        }
+
+        function updateDualProgressUI({ visible, title, compressPct, uploadPct }) {
+            const card = document.getElementById('dualProgressCard');
+            if (!card) return;
+            if (visible !== undefined) card.classList.toggle('visible', !!visible);
+            if (title !== undefined) document.getElementById('dpStatusTitle').innerText = title;
+            if (compressPct !== undefined) {
+                const c = Math.min(100, Math.max(0, Math.round(compressPct)));
+                document.getElementById('dpCompressPct').innerText = c + '%';
+                document.getElementById('dpCompressFill').style.width = c + '%';
+            }
+            if (uploadPct !== undefined) {
+                const u = Math.min(100, Math.max(0, Math.round(uploadPct)));
+                document.getElementById('dpUploadPct').innerText = u + '%';
+                document.getElementById('dpUploadFill').style.width = u + '%';
+            }
+        }
+
+        // Smart Adaptive Video Compressor (Estimates duration & size -> 720p HD with adaptive bitrate so video stays crisp & compact!)
+        function smartCompressVideoFile(file, onProgress) {
+            return new Promise((resolve) => {
+                // Skip re-encoding if file is already compact (<= 12MB) so small clips upload immediately at 100% original clarity
+                if (file.size <= 12 * 1024 * 1024) {
+                    if (onProgress) onProgress(100);
+                    return resolve(file);
+                }
+
+                const url = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.src = url;
+                video.muted = true;
+                video.playsInline = true;
+                video.setAttribute('webkit-playsinline', 'true');
+                video.preload = 'auto';
+
+                let settled = false;
+                const finish = (outFile) => {
+                    if (settled) return;
+                    settled = true;
+                    URL.revokeObjectURL(url);
+                    if (onProgress) onProgress(100);
+                    resolve(outFile);
+                };
+
+                video.onerror = () => finish(file);
+
+                video.onloadedmetadata = async () => {
+                    const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 15;
+                    const origW = video.videoWidth || 720;
+                    const origH = video.videoHeight || 1280;
+
+                    // Scale >720p down to 720p HD preserving exact aspect ratio
+                    const maxShortSide = 720;
+                    const shortSide = Math.min(origW, origH);
+                    const scale = shortSide > maxShortSide ? (maxShortSide / shortSide) : 1;
+                    const targetW = Math.round((origW * scale) / 2) * 2;
+                    const targetH = Math.round((origH * scale) / 2) * 2;
+
+                    // Adaptive bitrate based on video duration (minutes)
+                    let targetVideoBps = 2400000; // <= 1 min: 2.4 Mbps HD
+                    if (duration > 300) targetVideoBps = 1350000; // > 5 min: 1.35 Mbps
+                    else if (duration > 60) targetVideoBps = 1800000; // 1-5 min: 1.8 Mbps
+
+                    const estimatedCompressedBytes = ((targetVideoBps + 128000) / 8) * duration;
+                    if (estimatedCompressedBytes >= file.size * 0.92) {
+                        return finish(file);
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetW;
+                    canvas.height = targetH;
+                    const ctx = canvas.getContext('2d');
+
+                    if (!canvas.captureStream || typeof MediaRecorder === 'undefined') {
+                        return finish(file);
+                    }
+
+                    const mimeCandidates = [
+                        'video/mp4;codecs=avc1,mp4a.40.2',
+                        'video/mp4',
+                        'video/webm;codecs=vp9,opus',
+                        'video/webm;codecs=vp8,opus',
+                        'video/webm'
+                    ];
+                    const supportedMime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || '';
+                    if (!supportedMime) {
+                        return finish(file);
+                    }
+
+                    try {
+                        const stream = canvas.captureStream(30);
+                        try {
+                            const vStream = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
+                            if (vStream) {
+                                vStream.getAudioTracks().forEach(t => stream.addTrack(t));
+                            }
+                        } catch (e) {}
+
+                        const recorder = new MediaRecorder(stream, {
+                            mimeType: supportedMime,
+                            videoBitsPerSecond: targetVideoBps,
+                            audioBitsPerSecond: 128000
+                        });
+                        const chunks = [];
+                        recorder.ondataavailable = (e) => {
+                            if (e.data && e.data.size > 0) chunks.push(e.data);
+                        };
+                        recorder.onstop = () => {
+                            if (uploadJobCancelled || chunks.length === 0) return finish(file);
+                            const outBlob = new Blob(chunks, { type: supportedMime });
+                            if (outBlob.size > 0 && outBlob.size < file.size) {
+                                const ext = supportedMime.includes('mp4') ? 'mp4' : 'webm';
+                                const baseName = (file.name || 'video').replace(/\.[^/.]+$/, '');
+                                finish(new File([outBlob], `${baseName}-hd.${ext}`, { type: supportedMime }));
+                            } else {
+                                finish(file);
+                            }
+                        };
+
+                        recorder.start(250);
+                        video.currentTime = 0;
+                        await video.play();
+
+                        const drawFrame = () => {
+                            if (uploadJobCancelled) {
+                                try { recorder.stop(); } catch (e) {}
+                                return;
+                            }
+                            if (video.paused || video.ended) {
+                                if (recorder.state === 'recording') {
+                                    try { recorder.stop(); } catch (e) {}
+                                }
+                                return;
+                            }
+                            ctx.drawImage(video, 0, 0, targetW, targetH);
+                            if (onProgress && duration > 0) {
+                                const pct = Math.min(99, Math.round((video.currentTime / duration) * 100));
+                                onProgress(pct);
+                            }
+                            requestAnimationFrame(drawFrame);
+                        };
+                        drawFrame();
+                    } catch (err) {
+                        finish(file);
+                    }
+                };
+            });
+        }
+
         function uploadViaServerFallback(file, onProgress) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
@@ -819,13 +1094,15 @@
                 formData.append('file', file);
 
                 const xhr = new XMLHttpRequest();
+                activeUploadXhr = xhr;
                 xhr.open('POST', '/api/videos/upload-direct', true);
-                xhr.timeout = 60000;
-                xhr.ontimeout = () => reject(new Error('Server upload timed out'));
+                xhr.timeout = 90000;
+                xhr.ontimeout = () => { activeUploadXhr = null; reject(new Error('Server upload timed out')); };
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
                 };
                 xhr.onload = () => {
+                    activeUploadXhr = null;
                     try {
                         const data = JSON.parse(xhr.responseText || '{}');
                         if (xhr.status >= 200 && xhr.status < 300 && data.publicUrl) {
@@ -841,7 +1118,8 @@
                         reject(new Error('Invalid server response'));
                     }
                 };
-                xhr.onerror = () => reject(new Error('Connection error while uploading'));
+                xhr.onerror = () => { activeUploadXhr = null; reject(new Error('Connection error while uploading')); };
+                xhr.onabort = () => { activeUploadXhr = null; reject(new Error('Cancelled')); };
                 xhr.send(formData);
             });
         }
@@ -864,6 +1142,7 @@
                     }
 
                     const xhr = new XMLHttpRequest();
+                    activeUploadXhr = xhr;
                     xhr.open('PUT', urlData.uploadUrl, true);
                     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
@@ -871,6 +1150,7 @@
                         if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
                     };
                     xhr.onload = () => {
+                        activeUploadXhr = null;
                         if (xhr.status >= 200 && xhr.status < 300) {
                             const isVid = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
                             resolve({
@@ -883,25 +1163,15 @@
                         }
                     };
                     xhr.onerror = () => {
+                        activeUploadXhr = null;
                         uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
                     };
+                    xhr.onabort = () => { activeUploadXhr = null; reject(new Error('Cancelled')); };
                     xhr.send(file);
                 } catch (err) {
                     uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
                 }
             });
-        }
-
-        function updateProgressUI(label, percent) {
-            const wrap = document.getElementById('progressWrapper');
-            const lbl = document.getElementById('progressStatusLabel');
-            const pct = document.getElementById('progressPercentLabel');
-            const fill = document.getElementById('progressFill');
-            wrap.style.display = 'block';
-            lbl.innerText = label;
-            const p = Math.min(100, Math.max(0, Math.round(percent)));
-            pct.innerText = p + '%';
-            fill.style.width = p + '%';
         }
 
         async function submitNewPost() {
@@ -918,55 +1188,90 @@
             }
             msgEl.innerText = '';
 
+            uploadJobCancelled = false;
             isUploading = true;
             topBtn.disabled = true;
             botBtn.disabled = true;
             topBtn.innerText = '...';
-            botBtn.innerText = 'កំពុងបង្ហោះ...';
+            botBtn.innerText = 'កំពុងដំណើរការ...';
+
+            updateDualProgressUI({
+                visible: true,
+                title: selectedFiles.length > 0 ? '⚙️ កំពុងកំហាប់ និងរៀបចំឯកសារ...' : '☁️ កំពុងបង្ហោះអត្ថបទ...',
+                compressPct: selectedFiles.length > 0 ? 0 : 100,
+                uploadPct: 0
+            });
 
             try {
-                const uploadedItems = [];
+                const compressedFiles = [];
                 let thumbnailBase64 = null;
                 let detectedMediaAspect = '';
 
                 if (selectedFiles.length > 0) {
-                    updateProgressUI('កំពុងរៀបចំឯកសារ...', 2);
                     detectedMediaAspect = await detectMediaAspectRatio(selectedFiles[0]);
+                    // Extract thumbnail from first media (video frame or photo) so Gemini AI classifies the video/post category automatically!
                     thumbnailBase64 = await extractThumbnailBase64(selectedFiles[0]);
 
+                    // Stage 1: Smart Compress all photos & videos with live Compress %
                     for (let i = 0; i < selectedFiles.length; i++) {
-                        let fileToUpload = selectedFiles[i];
-                        const isVideo = (fileToUpload.type && fileToUpload.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(fileToUpload.name || '');
+                        if (uploadJobCancelled) return;
+                        const rawFile = selectedFiles[i];
+                        const isVideo = (rawFile.type && rawFile.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(rawFile.name || '');
 
-                        if (!isVideo) {
-                            updateProgressUI(`កំពុងបង្រួមរូបភាព (${i + 1}/${selectedFiles.length})...`, (i / selectedFiles.length) * 100);
-                            fileToUpload = await compressImageOnClient(fileToUpload);
-                        }
-
-                        const uploaded = await uploadFileToR2(fileToUpload, (ratio) => {
-                            const overallPct = ((i + ratio) / selectedFiles.length) * 95;
-                            updateProgressUI(`កំពុងបង្ហោះ (${i + 1}/${selectedFiles.length})...`, overallPct);
+                        updateDualProgressUI({
+                            title: `⚙️ កំពុងកំហាប់ (${i + 1}/${selectedFiles.length})...`
                         });
-                        uploadedItems.push({ url: uploaded.url, type: uploaded.type });
 
-                        if (uploaded.type === 'video') {
-                            fetch('/api/videos/complete', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    user_email: currentUser.email,
-                                    title: content.trim() ? content.trim().slice(0, 120) : fileToUpload.name,
-                                    description: content.trim(),
-                                    r2_key: uploaded.r2Key,
-                                    video_url: uploaded.url,
-                                    thumbnailBase64: thumbnailBase64
-                                })
-                            }).catch(() => {});
+                        if (isVideo) {
+                            const compVid = await smartCompressVideoFile(rawFile, (subPct) => {
+                                const overall = ((i + (subPct / 100)) / selectedFiles.length) * 100;
+                                updateDualProgressUI({ compressPct: overall });
+                            });
+                            compressedFiles.push(compVid);
+                        } else {
+                            const compImg = await compressImageOnClient(rawFile);
+                            compressedFiles.push(compImg);
+                            updateDualProgressUI({ compressPct: ((i + 1) / selectedFiles.length) * 100 });
                         }
                     }
                 }
 
-                updateProgressUI('កំពុងរក្សាទុកការបង្ហោះ...', 98);
+                if (uploadJobCancelled) return;
+                updateDualProgressUI({ compressPct: 100, title: '☁️ កំពុងបង្ហោះឡើង Server...' });
+
+                // Stage 2: Upload compressed files to Cloudflare R2 + AI Video Classification
+                const uploadedItems = [];
+                for (let i = 0; i < compressedFiles.length; i++) {
+                    if (uploadJobCancelled) return;
+                    const fileToUpload = compressedFiles[i];
+                    const uploaded = await uploadFileToR2(fileToUpload, (ratio) => {
+                        const overallPct = ((i + ratio) / compressedFiles.length) * 95;
+                        updateDualProgressUI({
+                            title: `☁️ កំពុងបង្ហោះ (${i + 1}/${compressedFiles.length})...`,
+                            uploadPct: overallPct
+                        });
+                    });
+                    uploadedItems.push({ url: uploaded.url, type: uploaded.type });
+
+                    // Trigger AI Video Classification & Recommendation indexing when a video is uploaded
+                    if (uploaded.type === 'video') {
+                        fetch('/api/videos/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                            body: JSON.stringify({
+                                user_email: currentUser.email,
+                                title: content.trim() ? content.trim().slice(0, 120) : fileToUpload.name,
+                                description: content.trim(),
+                                r2_key: uploaded.r2Key,
+                                video_url: uploaded.url,
+                                thumbnailBase64: thumbnailBase64
+                            })
+                        }).catch(() => {});
+                    }
+                }
+
+                if (uploadJobCancelled) return;
+                updateDualProgressUI({ title: '🤖 AI កំពុងចាត់ប្រភេទ និងរក្សាទុក...', uploadPct: 98 });
 
                 let finalMediaType = undefined;
                 let finalMediaUrl = undefined;
@@ -1001,21 +1306,27 @@
                 const postData = await postRes.json();
 
                 if (postData.success) {
-                    updateProgressUI('✓ បង្ហោះជោគជ័យ!', 100);
+                    updateDualProgressUI({
+                        title: '✅ បង្ហោះជោគជ័យ 100%!',
+                        compressPct: 100,
+                        uploadPct: 100
+                    });
                     setTimeout(() => {
                         window.location.href = 'feed.html';
-                    }, 450);
+                    }, 500);
                 } else {
                     throw new Error(postData.error || 'Failed to save post');
                 }
             } catch (err) {
-                console.error(err);
-                isUploading = false;
-                topBtn.disabled = false;
-                botBtn.disabled = false;
-                topBtn.innerText = 'បង្ហោះ';
-                botBtn.innerText = 'បង្ហោះឥឡូវនេះ (Post)';
-                msgEl.innerText = 'បរាជ័យ៖ ' + err.message;
+                if (!uploadJobCancelled) {
+                    console.error(err);
+                    isUploading = false;
+                    topBtn.disabled = false;
+                    botBtn.disabled = false;
+                    topBtn.innerText = 'បង្ហោះ';
+                    botBtn.innerText = 'បង្ហោះឥឡូវនេះ (Post)';
+                    msgEl.innerText = 'បរាជ័យ៖ ' + err.message;
+                }
             }
         }
     
