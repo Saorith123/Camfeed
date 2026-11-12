@@ -17,6 +17,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -57,7 +61,6 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE
     `);
 
-    // Ensure Super Admin emails always have super_admin role
     if (SUPER_ADMIN_EMAILS.length > 0) {
       await client.query(
         `UPDATE users SET role = 'super_admin' WHERE LOWER(email) = ANY($1::text[])`,
@@ -87,7 +90,7 @@ pool.connect(async (err, client, release) => {
       )
     `);
 
-    // 5. Moderation Reports table (Posts, Videos & User Profiles)
+    // 5. Moderation Reports table
     await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,
@@ -109,7 +112,6 @@ pool.connect(async (err, client, release) => {
 // Mount Cloudflare R2 Video/Media Upload, AI Classification & Recommendation Routes
 app.use('/api/videos', createVideoRouter(pool));
 
-// Helper: Check if user is Super Admin or appointed Team Admin
 async function verifyAdminAccess(email, secretKey) {
   if (!email) return { allowed: false, error: 'Missing admin email' };
   const normalized = email.trim().toLowerCase();
@@ -333,7 +335,7 @@ app.get('/api/shares/:postId', async (req, res) => {
   }
 });
 
-// Track Post / Video View & Country Metadata
+// Track Post / Video View & Country Metadata (Increments immediately on every view)
 app.post('/api/posts/:id/view', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
@@ -342,17 +344,6 @@ app.post('/api/posts/:id/view', async (req, res) => {
     if (email) {
       const uRes = await pool.query('SELECT country FROM users WHERE email = $1', [email]);
       if (uRes.rows[0]?.country) viewerCountry = uRes.rows[0].country;
-    }
-
-    if (email) {
-      const recentCheck = await pool.query(
-        `SELECT 1 FROM post_views WHERE post_id = $1 AND viewer_email = $2 AND created_at > NOW() - INTERVAL '30 minutes' LIMIT 1`,
-        [id, email]
-      );
-      if (recentCheck.rows.length > 0) {
-        const cur = await pool.query('SELECT views_count FROM posts WHERE id = $1', [id]);
-        return res.json({ success: true, views_count: cur.rows[0]?.views_count || 0 });
-      }
     }
 
     await pool.query(
@@ -411,7 +402,6 @@ app.post('/api/block', async (req, res) => {
       'INSERT INTO blocked_users (blocker_email, blocked_email) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [blockerEmail, blockedEmail]
     );
-    // Automatically unfollow each other when blocked
     await pool.query(
       'DELETE FROM follows WHERE (follower_email = $1 AND following_email = $2) OR (follower_email = $2 AND following_email = $1)',
       [blockerEmail, blockedEmail]
@@ -435,21 +425,22 @@ app.post('/api/unblock', async (req, res) => {
   }
 });
 
-// Get Feed & Profile Posts (Excludes Blocked Users + 85-90% Following Priority + Viral & Random)
+// Get Feed, Profile & Video Posts (Fixed SQL Query + 85-90% Following Priority + Viral & Random)
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type } = req.query;
+  const safeViewer = email || '';
   try {
     const blockFilter = `
       AND p.user_email NOT IN (
         SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
         UNION
-        SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
+        SELECT blocker_email FROM blocked_users WHERE blocker_email = $1
       )
       AND COALESCE(u.is_banned, FALSE) = FALSE
     `;
 
-    let baseSelect = `
-      SELECT p.*, u.first_name, u.last_name, u.profile_pic,
+    const selectColumns = `
+      p.*, u.first_name, u.last_name, u.profile_pic,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comments_count,
       (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id) as shares_count,
@@ -465,6 +456,9 @@ app.get('/api/posts', async (req, res) => {
       ou.first_name as orig_first_name,
       ou.last_name as orig_last_name,
       ou.profile_pic as orig_profile_pic
+    `;
+
+    const joinTables = `
       FROM posts p 
       JOIN users u ON p.user_email = u.email
       LEFT JOIN posts op ON p.shared_post_id = op.id
@@ -472,8 +466,8 @@ app.get('/api/posts', async (req, res) => {
     `;
 
     if (profileEmail) {
-      let query = baseSelect;
-      if (profileEmail === email) {
+      let query = `SELECT ${selectColumns} ${joinTables}`;
+      if (profileEmail === safeViewer) {
         if (type === 'videos') {
           query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video')`;
         } else {
@@ -487,45 +481,49 @@ app.get('/api/posts', async (req, res) => {
         }
       }
       query += ` ORDER BY p.created_at DESC`;
-      const result = await pool.query(query, [email, profileEmail]);
+      const result = await pool.query(query, [safeViewer, profileEmail]);
       return res.json({ success: true, posts: result.rows });
     }
 
+    const videoOnlyCondition = type === 'videos'
+      ? ` AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video')`
+      : '';
+
     const feedQuery = `
-      WITH scored_posts AS (
-        ${baseSelect},
-        (
-          CASE 
-            WHEN p.user_email = $1 THEN 85
-            WHEN EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = p.user_email) THEN 90
-            ELSE 12
-          END
-          + (SELECT COUNT(*) * 3.0 FROM likes l WHERE l.post_id = p.id)
-          + (SELECT COUNT(*) * 4.5 FROM comments c WHERE c.post_id = p.id)
-          + (SELECT COUNT(*) * 6.0 FROM posts sp WHERE sp.shared_post_id = p.id)
-          + (COALESCE(p.views_count, 0) * 0.15)
-          + (
-              SELECT COUNT(*) * 3.5 FROM likes l2 
-              JOIN posts p2 ON l2.post_id = p2.id 
-              WHERE l2.user_email = $1 AND p2.ai_category = p.ai_category AND p.ai_category != 'General'
-            )
-          + (CASE WHEN EXISTS (SELECT 1 FROM post_views pv WHERE pv.post_id = p.id AND pv.viewer_email = $1) THEN -25 ELSE 18 END)
-          + (25.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
-          + (RANDOM() * 35.0)
-        ) AS feed_rank_score
-        WHERE (p.privacy = 'public' 
-           OR p.user_email = $1 
-           OR p.user_email IN (SELECT following_email FROM follows WHERE follower_email = $1))
-          ${blockFilter}
-      )
-      SELECT * FROM scored_posts
+      SELECT ${selectColumns},
+      (
+        CASE 
+          WHEN p.user_email = $1 THEN 85
+          WHEN EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = p.user_email) THEN 90
+          ELSE 12
+        END
+        + (SELECT COUNT(*) * 3.0 FROM likes l WHERE l.post_id = p.id)
+        + (SELECT COUNT(*) * 4.5 FROM comments c WHERE c.post_id = p.id)
+        + (SELECT COUNT(*) * 6.0 FROM posts sp WHERE sp.shared_post_id = p.id)
+        + (COALESCE(p.views_count, 0) * 0.15)
+        + (
+            SELECT COUNT(*) * 3.5 FROM likes l2 
+            JOIN posts p2 ON l2.post_id = p2.id 
+            WHERE l2.user_email = $1 AND p2.ai_category = p.ai_category AND p.ai_category != 'General'
+          )
+        + (CASE WHEN EXISTS (SELECT 1 FROM post_views pv WHERE pv.post_id = p.id AND pv.viewer_email = $1) THEN -25 ELSE 18 END)
+        + (25.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
+        + (RANDOM() * 35.0)
+      ) AS feed_rank_score
+      ${joinTables}
+      WHERE (p.privacy = 'public' 
+         OR p.user_email = $1 
+         OR p.user_email IN (SELECT following_email FROM follows WHERE follower_email = $1))
+        ${videoOnlyCondition}
+        ${blockFilter}
       ORDER BY feed_rank_score DESC
       LIMIT 60
     `;
 
-    const result = await pool.query(feedQuery, [email]);
+    const result = await pool.query(feedQuery, [safeViewer]);
     res.json({ success: true, posts: result.rows });
   } catch (err) {
+    console.error('Error loading posts:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -907,7 +905,6 @@ app.get('/api/user-profile', async (req, res) => {
       delete u.password;
       u.is_friend = u.is_following && u.is_followed_by;
 
-      // Strip private fields when viewed by someone else
       if (viewerEmail !== email) {
         if (u.location_privacy === 'private') u.location = '';
         if (u.birthdate_privacy === 'private') u.birthdate = '';
@@ -1218,7 +1215,6 @@ app.post('/api/messages', (req, res, next) => {
 // ADMIN CONTROL CENTER ROUTES (Protected by Super Admin / Team Admin Role + PIN)
 // =============================================================================
 
-// 1. Verify Admin Login & Fetch Full Dashboard Data
 app.post('/api/admin/dashboard', async (req, res) => {
   const { adminEmail, adminKey } = req.body;
   try {
@@ -1277,7 +1273,6 @@ app.post('/api/admin/dashboard', async (req, res) => {
   }
 });
 
-// 2. Super Admin: Promote or Demote Team Admins (e.g. your 5-member Admin team)
 app.post('/api/admin/set-role', async (req, res) => {
   const { adminEmail, adminKey, targetEmail, newRole } = req.body;
   try {
@@ -1296,7 +1291,6 @@ app.post('/api/admin/set-role', async (req, res) => {
   }
 });
 
-// 3. Admin: Ban or Unban a User Account
 app.post('/api/admin/ban-user', async (req, res) => {
   const { adminEmail, adminKey, targetEmail, ban } = req.body;
   try {
@@ -1313,7 +1307,6 @@ app.post('/api/admin/ban-user', async (req, res) => {
   }
 });
 
-// 4. Super Admin: Delete a User Account Permanently
 app.delete('/api/admin/users/:targetEmail', async (req, res) => {
   const { targetEmail } = req.params;
   const { adminEmail, adminKey } = req.body;
@@ -1333,7 +1326,6 @@ app.delete('/api/admin/users/:targetEmail', async (req, res) => {
   }
 });
 
-// 5. Admin: Delete Any Violating Post or Video
 app.delete('/api/admin/posts/:postId', async (req, res) => {
   const { postId } = req.params;
   const { adminEmail, adminKey } = req.body;
@@ -1349,7 +1341,6 @@ app.delete('/api/admin/posts/:postId', async (req, res) => {
   }
 });
 
-// 6. Admin: Resolve or Dismiss Report
 app.post('/api/admin/reports/:reportId/status', async (req, res) => {
   const { reportId } = req.params;
   const { adminEmail, adminKey, status } = req.body;
