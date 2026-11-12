@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Profile</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="apple-touch-icon" href="logo-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
@@ -183,7 +185,30 @@
         .post-author { font-weight: 600; font-size: 15px; }
         .post-time { font-size: 12px; color: #65676b; }
         .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
-        .post-media { width: 100%; max-height: 500px; object-fit: contain; background: #000; border-radius: 8px; margin-bottom: 10px; display: block; }
+        .post-media { width: 100%; height: auto; max-height: none; object-fit: cover; background: #000; border-radius: 0; margin-bottom: 10px; display: block; }
+        .see-translation-btn {
+            background: none;
+            border: none;
+            color: #65676b;
+            font-size: 12.5px;
+            font-weight: 700;
+            padding: 2px 0 8px 0;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .see-translation-btn:hover { text-decoration: underline; color: #1877f2; }
+        .translated-box {
+            margin: 0 0 10px 0;
+            padding: 8px 12px;
+            background: #f0f2f5;
+            border-left: 3px solid #1877f2;
+            border-radius: 6px;
+            font-size: 14.5px;
+            color: #050505;
+            white-space: pre-wrap;
+        }
 
         /* Embedded Shared Post / Profile Card */
         .embedded-shared-card {
@@ -210,7 +235,7 @@
         .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .carousel-track::-webkit-scrollbar { display: none; }
         .carousel-slide { flex: 0 0 100%; width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; background: #000; }
-        .carousel-slide img, .carousel-slide video { width: 100%; max-height: 480px; object-fit: contain; display: block; }
+        .carousel-slide img, .carousel-slide video { width: 100%; height: auto; max-height: none; object-fit: cover; display: block; }
         .carousel-counter { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 14px; pointer-events: none; }
         .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -4px; margin-bottom: 8px; }
         .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; }
@@ -299,7 +324,7 @@
 <body>
 
     <div class="top-bar">
-        <div class="logo-nav" onclick="window.location.href='feed.html'">CamFeed</div>
+        <div class="logo-nav notranslate" translate="no" onclick="window.location.href='feed.html'">CamFeed</div>
         <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
     </div>
 
@@ -320,7 +345,7 @@
                     </div>
                     <div class="user-details">
                         <div class="name-and-badge">
-                            <div class="user-fullname" id="profileName">Loading...</div>
+                            <div class="user-fullname notranslate" translate="no" id="profileName">Loading...</div>
                             <span id="friendBadge" class="friend-badge" style="display:none;">🤝 Friends</span>
                         </div>
                         <div class="user-stats" id="profileStats">0 Followers · 0 Following</div>
@@ -933,18 +958,18 @@
                 const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
                 const origMedia = renderRawMediaBlock(post.orig_id, post.orig_media_type, post.orig_media_url);
                 return `
-                    <div class="embedded-shared-card">
-                        <div class="embedded-shared-media">${origMedia}</div>
-                        <div class="embedded-shared-info">
+                    <div class="embedded-shared-card" style="border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden; margin-bottom: 10px;">
+                        <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
                             <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
-                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/32'}" class="embedded-shared-avatar">
+                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                 <div>
-                                    <div class="embedded-shared-author">${origAuthor}</div>
+                                    <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
                                     <div class="embedded-shared-time">${origDate} · 🌐</div>
                                 </div>
                             </div>
-                            ${post.orig_content ? `<div class="embedded-shared-text">${post.orig_content}</div>` : ''}
+                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${post.orig_content}</div>` : ''}
                         </div>
+                        <div class="embedded-shared-media">${origMedia}</div>
                     </div>
                 `;
             }
@@ -1013,20 +1038,24 @@
                                     <div class="post-author-info" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                                         <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
                                         <div>
-                                            <div class="post-author">${post.first_name || ''} ${post.last_name || ''}</div>
+                                            <div class="post-author notranslate" translate="no">${post.first_name || ''} ${post.last_name || ''}</div>
                                             <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
                                         </div>
                                     </div>
                                     ${optionsHtml}
                                 </div>
-                                ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
+                                ${post.content ? `
+                                    <div class="post-content notranslate" translate="no" id="prof-post-orig-${post.id}" style="margin-bottom:4px;">${post.content}</div>
+                                    <div id="prof-post-trans-${post.id}" class="translated-box notranslate" translate="no" style="display:none;"></div>
+                                    <button type="button" class="see-translation-btn notranslate" translate="no" id="prof-trans-btn-${post.id}" onclick="translateProfilePost(${post.id})">🌐 បកប្រែ (See translation)</button>
+                                ` : ''}
                                 ${mediaHtml}
                                 <div class="post-stats">
                                     <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
                                         ${buildReactionSummaryHtml(post.id)}
                                     </div>
                                     <div class="right-stats-group">
-                                        <span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>
+                                        ${(post.media_type === "video" || post.orig_media_type === "video" || (post.media_url && post.media_url.includes('"type":"video"'))) ? `<span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>` : ""}
                                         <span class="stat-link" id="commentCount-${post.id}" style="cursor:pointer;" onclick="openCommentsModal(${post.id})">${formatCompactNumber(post.comments_count)} Comments</span>
                                         <span class="stat-link" style="cursor:pointer;" onclick="openSharersList(${post.id})">${formatCompactNumber(sharesCount)} Shares</span>
                                     </div>
@@ -1079,6 +1108,50 @@
             } catch (err) {
                 console.error(err);
                 content.innerHTML = '<div style="text-align:center; padding:30px; color:red;">Error loading content.</div>';
+            }
+        }
+
+        async function translateProfilePost(postId) {
+            const origEl = document.getElementById(`prof-post-orig-${postId}`);
+            const transBox = document.getElementById(`prof-post-trans-${postId}`);
+            const btn = document.getElementById(`prof-trans-btn-${postId}`);
+            if (!origEl || !transBox || !btn) return;
+
+            if (transBox.style.display !== 'none') {
+                transBox.style.display = 'none';
+                btn.innerText = '🌐 បកប្រែ (See translation)';
+                return;
+            }
+
+            if (transBox.dataset.cachedTranslation) {
+                transBox.innerText = transBox.dataset.cachedTranslation;
+                transBox.style.display = 'block';
+                btn.innerText = '↩️ លាក់ការបកប្រែ (Hide translation)';
+                return;
+            }
+
+            const rawText = origEl.innerText.trim();
+            const isKhmerText = /[\u1780-\u17FF]/.test(rawText);
+            const targetLang = isKhmerText ? 'en' : 'km';
+
+            btn.innerText = '⏳ កំពុងបកប្រែ...';
+            try {
+                const res = await fetch('/api/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: rawText, targetLang })
+                });
+                const data = await res.json();
+                if (data.success && data.translatedText) {
+                    transBox.dataset.cachedTranslation = data.translatedText;
+                    transBox.innerText = data.translatedText;
+                    transBox.style.display = 'block';
+                    btn.innerText = '↩️ លាក់ការបកប្រែ (Hide translation)';
+                } else {
+                    btn.innerText = '🌐 បកប្រែ (See translation)';
+                }
+            } catch (e) {
+                btn.innerText = '🌐 បកប្រែ (See translation)';
             }
         }
 

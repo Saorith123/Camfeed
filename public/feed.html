@@ -1682,18 +1682,18 @@
                     post.comments_count || 0
                 );
                 return `
-                    <div class="embedded-shared-card">
-                        <div class="embedded-shared-media">${origMedia}</div>
-                        <div class="embedded-shared-info">
+                    <div class="embedded-shared-card" style="margin: 0 12px 8px 12px; border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden;">
+                        <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
                             <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
-                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/32'}" class="embedded-shared-avatar">
+                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                 <div>
-                                    <div class="embedded-shared-author">${origAuthor}</div>
+                                    <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
                                     <div class="embedded-shared-time">${origDate} · 🌐</div>
                                 </div>
                             </div>
-                            ${post.orig_content ? `<div class="embedded-shared-text">${post.orig_content}</div>` : ''}
+                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${post.orig_content}</div>` : ''}
                         </div>
+                        <div class="embedded-shared-media">${origMedia}</div>
                     </div>
                 `;
             }
