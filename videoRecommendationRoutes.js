@@ -1,17 +1,6 @@
 /**
- * Camfeed (camfeedkh.com) - Video Upload, AI Classification & Recommendation Routes
+ * CamFeed (camfeedkh.com) - Unified R2 Upload, AI Visual/Text Classification & Recommendation Routes
  * Compatible with existing PostgreSQL schema (user_email, SERIAL PRIMARY KEY)
- *
- * Required npm packages:
- *   npm install express @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
- *
- * Required Environment Variables (Render):
- *   R2_ACCOUNT_ID=ed2b89227460d6fe48457faeed87b37f
- *   R2_ACCESS_KEY_ID=your_r2_access_key_id
- *   R2_SECRET_ACCESS_KEY=your_r2_secret_access_key
- *   R2_BUCKET_NAME=camfeed-storage
- *   R2_PUBLIC_URL=https://media.camfeedkh.com
- *   GEMINI_API_KEY=your_google_ai_studio_api_key
  */
 
 const express = require('express');
@@ -32,7 +21,7 @@ module.exports = function createVideoRouter(pool) {
   });
 
   // ---------------------------------------------------------------------------
-  // 1. Generate Presigned Upload URL (Frontend uploads directly to Cloudflare R2)
+  // 1. Generate Presigned Upload URL (Supports both Images & Videos to R2)
   // POST /api/videos/upload-url
   // Body: { user_email, file_name, content_type }
   // ---------------------------------------------------------------------------
@@ -44,7 +33,8 @@ module.exports = function createVideoRouter(pool) {
       }
 
       const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const r2Key = `videos/${Date.now()}-${safeName}`;
+      const folder = content_type.startsWith('image/') ? 'images' : 'videos';
+      const r2Key = `${folder}/${Date.now()}-${safeName}`;
 
       const command = new PutObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage',
@@ -65,30 +55,39 @@ module.exports = function createVideoRouter(pool) {
   // ---------------------------------------------------------------------------
   // 2. Save Video Metadata & Trigger AI Moderation + Auto-Classification
   // POST /api/videos/complete
-  // Body: { user_email, title, description, r2_key, video_url, thumbnail_url }
+  // Body: { user_email, title, description, r2_key, video_url, thumbnail_url, thumbnailBase64 }
   // ---------------------------------------------------------------------------
   router.post('/complete', async (req, res) => {
     try {
-      const { user_email, title, description = '', r2_key, video_url, thumbnail_url = null } = req.body;
+      const {
+        user_email,
+        title,
+        description = '',
+        r2_key,
+        video_url,
+        thumbnail_url = null,
+        thumbnailBase64 = null
+      } = req.body;
+
       if (!user_email || !title || !r2_key || !video_url) {
         return res.status(400).json({ error: 'Missing required video fields' });
       }
 
       const insertResult = await pool.query(
         `INSERT INTO videos (user_email, title, description, r2_key, video_url, thumbnail_url, moderation_status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+         VALUES ($1, $2, $3, $4, $5, $6, 'approved')
          RETURNING *`,
         [user_email, title, description, r2_key, video_url, thumbnail_url]
       );
 
       const video = insertResult.rows[0];
 
-      // Run AI classification & safety moderation asynchronously
-      classifyAndModerateVideo(pool, video).catch((err) =>
+      // Run AI classification & safety moderation asynchronously (with visual thumbnail if provided)
+      classifyAndModerateVideo(pool, video, thumbnailBase64).catch((err) =>
         console.error(`AI classification failed for video ${video.id}:`, err)
       );
 
-      res.status(201).json({ message: 'Video saved and queued for AI review', video });
+      res.status(201).json({ message: 'Video saved and queued for AI classification', video });
     } catch (err) {
       console.error('Save video error:', err);
       res.status(500).json({ error: 'Failed to save video' });
@@ -176,20 +175,21 @@ module.exports = function createVideoRouter(pool) {
       const parsedLimit = Math.min(parseInt(limit, 10) || 20, 50);
       const parsedOffset = parseInt(offset, 10) || 0;
 
-      // Score = (User Category Interest * 2.0) + (Following Creator Boost * 15) + (Popularity) + (Freshness) + (Random Explore)
       const feedQuery = `
         SELECT
           v.*,
+          u.first_name,
+          u.last_name,
           u.profile_pic AS author_profile_pic,
           COALESCE(uis.score, 0) AS category_affinity,
           CASE WHEN f.id IS NOT NULL THEN 15 ELSE 0 END AS following_boost,
           (
-            (COALESCE(uis.score, 0) * 2.0)
+            (COALESCE(uis.score, 0) * 2.5)
             + (CASE WHEN f.id IS NOT NULL THEN 15 ELSE 0 END)
             + (LN(GREATEST(v.likes_count, 1)) * 3.0)
             + (LN(GREATEST(v.views_count, 1)) * 1.5)
             + (10.0 / (EXTRACT(EPOCH FROM (NOW() - v.created_at)) / 3600.0 + 2.0))
-            + (RANDOM() * 8.0)
+            + (RANDOM() * 6.0)
           ) AS recommendation_score
         FROM videos v
         LEFT JOIN users u ON u.email = v.user_email
@@ -198,16 +198,12 @@ module.exports = function createVideoRouter(pool) {
         LEFT JOIN follows f
           ON f.follower_email = $1 AND f.following_email = v.user_email
         WHERE v.moderation_status = 'approved'
-          AND NOT EXISTS (
-            SELECT 1 FROM user_video_logs uvl
-            WHERE uvl.user_email = $1 AND uvl.video_id = v.id
-          )
         ORDER BY recommendation_score DESC, v.created_at DESC
         LIMIT $2 OFFSET $3
       `;
 
       const result = await pool.query(feedQuery, [user_email, parsedLimit, parsedOffset]);
-      res.json({ videos: result.rows });
+      res.json({ success: true, videos: result.rows });
     } catch (err) {
       console.error('Feed error:', err);
       res.status(500).json({ error: 'Failed to fetch recommendation feed' });
@@ -218,12 +214,11 @@ module.exports = function createVideoRouter(pool) {
 };
 
 // =============================================================================
-// Helper: Gemini AI Moderation & Auto-Classification
+// Helper: Gemini AI Moderation & Auto-Classification (Text + Visual Frame)
 // =============================================================================
-async function classifyAndModerateVideo(pool, video) {
+async function classifyAndModerateVideo(pool, video, thumbnailBase64) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    // Fallback if no API key is configured yet
     await pool.query(
       `UPDATE videos SET moderation_status = 'approved', category = 'General' WHERE id = $1`,
       [video.id]
@@ -231,18 +226,25 @@ async function classifyAndModerateVideo(pool, video) {
     return;
   }
 
-  const prompt = `Analyze this video post for a Cambodian social & fitness video platform (Camfeed).
+  const prompt = `Analyze this video post for a Cambodian social video platform (CamFeed).
 Title: "${video.title}"
 Description: "${video.description || ''}"
 
 Tasks:
-1. Content Moderation: Check if the title/description promotes explicit pornography, severe violence, or illegal content. Set status to "rejected" if unsafe, otherwise "approved".
+1. Content Moderation: Check if the content promotes explicit pornography, severe violence, or illegal content. Set status to "rejected" if unsafe, otherwise "approved".
 2. Category: Classify into ONE primary category from:
-   ["Fitness & Workout", "Boxing & Martial Arts", "Yoga & Stretching", "Nutrition & Diet", "Sports", "Entertainment", "Lifestyle", "Education & Tech", "Food & Travel", "Other"]
+   ["Comedy", "Music", "Gaming", "Food", "Vehicles & Motorcycles", "Technology", "News", "Sports", "Education", "Travel", "Lifestyle", "General"]
 3. Tags: Extract 3 to 5 concise lowercase tags (English or Khmer).
 
 Respond ONLY with valid JSON:
 {"moderation_status": "approved", "category": "...", "tags": ["...", "..."]}`;
+
+  const parts = [{ text: prompt }];
+  if (thumbnailBase64 && thumbnailBase64.startsWith('data:image')) {
+    const base64Data = thumbnailBase64.split(',')[1];
+    const mimeType = thumbnailBase64.substring(5, thumbnailBase64.indexOf(';'));
+    parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+  }
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -250,7 +252,7 @@ Respond ONLY with valid JSON:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
         generationConfig: { responseMimeType: 'application/json' },
       }),
     }
@@ -262,7 +264,7 @@ Respond ONLY with valid JSON:
 
   const parsed = JSON.parse(rawText);
   const status = parsed.moderation_status === 'rejected' ? 'rejected' : 'approved';
-  const category = parsed.category || 'Other';
+  const category = parsed.category || 'General';
   const tags = Array.isArray(parsed.tags) ? parsed.tags.slice(0, 5) : [];
 
   await pool.query(

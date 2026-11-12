@@ -8,8 +8,8 @@ const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
 const createVideoRouter = require('./videoRecommendationRoutes');
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -22,14 +22,68 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-pool.connect((err, client, release) => {
+pool.connect(async (err, client, release) => {
   if (err) return console.error('Error connecting to Database:', err.stack);
   console.log('Database connected successfully to Supabase for Camfeed!');
+  try {
+    // Ensure AI categorization columns exist on posts table
+    await client.query(`
+      ALTER TABLE posts 
+      ADD COLUMN IF NOT EXISTS ai_category VARCHAR(100) DEFAULT 'General',
+      ADD COLUMN IF NOT EXISTS ai_tags TEXT DEFAULT ''
+    `);
+  } catch (e) {
+    console.error('Schema check notice:', e.message);
+  }
   release();
 });
 
 // Mount Cloudflare R2 Video/Media Upload, AI Classification & Recommendation Routes
 app.use('/api/videos', createVideoRouter(pool));
+
+// Helper: Analyze Post/Video content & thumbnail with Gemini AI
+async function classifyPostWithGemini(content, mediaType, thumbnailBase64) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { category: 'General', tags: '' };
+
+  try {
+    const promptText = `Analyze this social media post (${mediaType}) and classify it into ONE primary category from: [Comedy, Music, Gaming, Food, Vehicles & Motorcycles, Technology, News, Sports, Education, Travel, Lifestyle, General]. Also extract 3-5 short comma-separated keywords/tags (in English and/or Khmer).
+Caption: "${content || ''}"
+Respond strictly in JSON format: {"category": "CategoryName", "tags": "tag1, tag2, tag3"}`;
+
+    const parts = [{ text: promptText }];
+    if (thumbnailBase64 && thumbnailBase64.startsWith('data:image')) {
+      const base64Data = thumbnailBase64.split(',')[1];
+      const mimeType = thumbnailBase64.substring(5, thumbnailBase64.indexOf(';'));
+      parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: { responseMimeType: 'application/json' }
+        })
+      }
+    );
+
+    const data = await response.json();
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (rawText) {
+      const parsed = JSON.parse(rawText);
+      return {
+        category: parsed.category || 'General',
+        tags: parsed.tags || ''
+      };
+    }
+  } catch (err) {
+    console.error('Gemini AI classification skipped:', err.message);
+  }
+  return { category: 'General', tags: '' };
+}
 
 // Register
 app.post('/api/register', async (req, res) => {
@@ -64,7 +118,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Create Post (Supports single or multiple images/videos combined in one post via Cloudflare R2)
+// Create Post (Supports single/multiple media via R2 + Gemini AI Auto-Tagging)
 app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -73,13 +127,11 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   const email = req.body.email;
   const content = req.body.content || '';
   const privacy = req.body.privacy || 'public';
+  const thumbnailBase64 = req.body.thumbnailBase64 || null;
 
   let mediaUrl = req.file ? req.file.path : (req.body.mediaUrl || null);
-  let mediaType = req.file
-    ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image')
-    : (req.body.mediaType || 'text');
+  let mediaType = req.file ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image') : (req.body.mediaType || 'text');
 
-  // Handle multiple media items array sent as JSON
   if (Array.isArray(req.body.mediaItems) && req.body.mediaItems.length > 0) {
     if (req.body.mediaItems.length === 1) {
       mediaUrl = req.body.mediaItems[0].url;
@@ -91,8 +143,15 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   }
 
   try {
-    const query = 'INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, $3, $4, $5) RETURNING *';
-    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy]);
+    // Run Gemini AI classification to tag content category for targeted delivery
+    const aiResult = await classifyPostWithGemini(content, mediaType, thumbnailBase64);
+
+    const query = `
+      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      RETURNING *
+    `;
+    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags]);
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -112,8 +171,8 @@ app.post('/api/posts/share', async (req, res) => {
     const p = orig.rows[0];
     const sharedText = `${caption ? caption + '\n\n' : ''}🔁 Shared from ${p.first_name} ${p.last_name}:\n${p.content || ''}`;
     const result = await pool.query(
-      'INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [email, sharedText, p.media_type, p.media_url, 'public']
+      'INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [email, sharedText, p.media_type, p.media_url, 'public', p.ai_category || 'General', p.ai_tags || '']
     );
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
@@ -121,7 +180,7 @@ app.post('/api/posts/share', async (req, res) => {
   }
 });
 
-// Get Feed & Profile Posts
+// Get Feed & Profile Posts (With AI Interest-Based Targeted Ranking)
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type } = req.query;
   try {
@@ -130,7 +189,12 @@ app.get('/api/posts', async (req, res) => {
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comments_count,
       (SELECT reaction_type FROM likes l WHERE l.post_id = p.id AND l.user_email = $1) as user_reaction,
-      (SELECT ARRAY_AGG(DISTINCT reaction_type) FROM likes l WHERE l.post_id = p.id) as reaction_types
+      (SELECT ARRAY_AGG(DISTINCT reaction_type) FROM likes l WHERE l.post_id = p.id) as reaction_types,
+      (
+        SELECT COUNT(*) FROM likes l2 
+        JOIN posts p2 ON l2.post_id = p2.id 
+        WHERE l2.user_email = $1 AND p2.ai_category = p.ai_category AND p.ai_category != 'General'
+      ) as user_interest_score
       FROM posts p 
       JOIN users u ON p.user_email = u.email
     `;
@@ -139,23 +203,25 @@ app.get('/api/posts', async (req, res) => {
     if (profileEmail) {
       if (profileEmail === email) {
         if (type === 'videos') {
-          query += ` WHERE p.user_email = $2 AND p.media_type = 'video'`;
+          query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%')`;
         } else {
           query += ` WHERE p.user_email = $2`;
         }
       } else {
         if (type === 'videos') {
-          query += ` WHERE p.user_email = $2 AND p.media_type = 'video' AND p.privacy = 'public'`;
+          query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%') AND p.privacy = 'public'`;
         } else {
           query += ` WHERE p.user_email = $2 AND p.privacy = 'public'`;
         }
       }
       params.push(profileEmail);
+      query += ` ORDER BY p.created_at DESC`;
     } else {
       query += ` WHERE p.privacy = 'public' OR p.user_email = $1 OR p.user_email IN (SELECT following_email FROM follows WHERE follower_email = $1)`;
+      // Smart ranking: balance fresh posts with user's AI-matched interest categories
+      query += ` ORDER BY DATE(p.created_at) DESC, user_interest_score DESC, p.created_at DESC`;
     }
 
-    query += ` ORDER BY p.created_at DESC`;
     const result = await pool.query(query, params);
     res.json({ success: true, posts: result.rows });
   } catch (err) {
