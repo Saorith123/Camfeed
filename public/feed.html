@@ -335,7 +335,6 @@
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
         }
 
-        // ⏱️ សម្រាប់ចាប់ពេលចុចប៊ូតុង Home ពីរដងជាប់គ្នា (Double Click)
         let lastHomeClickTime = 0;
 
         function switchTab(tab) {
@@ -364,22 +363,18 @@
                 return; 
             }
             
-            // 🏠 ករណីចុចប៊ូតុង Home (Feed)
             const isAlreadyOnFeed = window.location.pathname.includes('feed.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
             
             if (isAlreadyOnFeed) {
                 const currentTime = new Date().getTime();
-                // ⏱️ បើចុចពីរដងជាប់គ្នា (ក្នុងរង្វង់ ៥០០ មីលីវិនាទី) ទើបทำการ Reload ទិន្នន័យ
                 if (currentTime - lastHomeClickTime < 500) {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
-                    loadPosts(); // 🔄 Reload Feed ថ្មី
+                    loadPosts();
                 } else {
-                    // បើចុចធម្មតាមួយដង គ្រាន់តែរមូរឡើងលើ មិនបាច់ Reload ទេ
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
                 lastHomeClickTime = currentTime;
             } else {
-                // បើមកពីទំព័រផ្សេង (ឧ. Friends) គ្រាន់តែប្ដូរមក feed.html ធម្មតា (រក្សាទីតាំងចាស់)
                 window.location.href = 'feed.html';
             }
         }
@@ -423,7 +418,7 @@
             document.getElementById('videoPreview').src = '';
         }
 
-        function createPost() {
+        async function createPost() {
             const content = document.getElementById('postContent').value;
             const privacy = document.getElementById('postPrivacy').value;
             const fileInput = document.getElementById('mediaFile').files[0];
@@ -439,17 +434,105 @@
             }
             msg.innerText = '';
 
-            const formData = new FormData();
-            formData.append('email', currentUser.email);
-            formData.append('content', content);
-            formData.append('privacy', privacy);
-            if (fileInput) formData.append('mediaFile', fileInput);
-
             submitBtn.disabled = true;
             submitBtn.innerText = 'Posting...';
             progressContainer.style.display = 'block';
             progressBarFill.style.width = '0%';
             progressText.innerText = 'Uploading... 0%';
+
+            // 🚀 បើជាវីដេអូ -> បង្ហោះផ្ទាល់ទៅ Cloudflare R2 + ឱ្យ Gemini AI ចាត់ប្រភេទស្វ័យប្រវត្តិ
+            if (fileInput && fileInput.type.startsWith('video')) {
+                try {
+                    // ១. សុំ Presigned Upload URL ពី Server
+                    const urlRes = await fetch('/api/videos/upload-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_email: currentUser.email,
+                            file_name: fileInput.name,
+                            content_type: fileInput.type || 'video/mp4'
+                        })
+                    });
+                    const urlData = await urlRes.json();
+                    if (!urlRes.ok || !urlData.uploadUrl) {
+                        throw new Error(urlData.error || 'Failed to get R2 upload URL');
+                    }
+
+                    // ២. Upload វីដេអូផ្ទាល់ទៅ Cloudflare R2 ជាមួយ Progress Bar
+                    await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('PUT', urlData.uploadUrl, true);
+                        xhr.setRequestHeader('Content-Type', fileInput.type || 'video/mp4');
+
+                        xhr.upload.onprogress = function(e) {
+                            if (e.lengthComputable) {
+                                const percent = Math.round((e.loaded / e.total) * 100);
+                                progressBarFill.style.width = percent + '%';
+                                progressText.innerText = `Uploading to R2... ${percent}%`;
+                            }
+                        };
+                        xhr.onload = function() {
+                            if (xhr.status >= 200 && xhr.status < 300) resolve();
+                            else reject(new Error('R2 upload failed with status ' + xhr.status));
+                        };
+                        xhr.onerror = () => reject(new Error('Network error during R2 upload'));
+                        xhr.send(fileInput);
+                    });
+
+                    // ៣. រក្សាទុកក្នុងតារាង videos (AI Moderation + Auto-Classification)
+                    await fetch('/api/videos/complete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_email: currentUser.email,
+                            title: content.trim() ? content.trim().slice(0, 120) : fileInput.name,
+                            description: content.trim(),
+                            r2_key: urlData.r2Key,
+                            video_url: urlData.publicUrl
+                        })
+                    });
+
+                    // ៤. រក្សាទុកក្នុងតារាង posts ដើម្បីបង្ហាញលើ News Feed ភ្លាមៗ
+                    const postRes = await fetch('/api/posts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: currentUser.email,
+                            content: content,
+                            privacy: privacy,
+                            mediaUrl: urlData.publicUrl,
+                            mediaType: 'video'
+                        })
+                    });
+                    const postData = await postRes.json();
+
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
+                    progressContainer.style.display = 'none';
+
+                    if (postData.success) {
+                        document.getElementById('postContent').value = '';
+                        removeMedia();
+                        loadPosts();
+                    } else {
+                        msg.innerText = 'Error: ' + (postData.error || 'Failed to save post.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
+                    progressContainer.style.display = 'none';
+                    msg.innerText = 'Video upload failed: ' + err.message;
+                }
+                return;
+            }
+
+            // 📷 បើជារូបភាព ឬអក្សរ -> ប្រើប្រព័ន្ធចាស់ (/api/posts) ដដែល
+            const formData = new FormData();
+            formData.append('email', currentUser.email);
+            formData.append('content', content);
+            formData.append('privacy', privacy);
+            if (fileInput) formData.append('mediaFile', fileInput);
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', '/api/posts', true);
@@ -464,7 +547,7 @@
 
             xhr.onload = function() {
                 submitBtn.disabled = false;
-                submitBtn.innerText = 'Post';
+                submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
                 progressContainer.style.display = 'none';
 
                 if (xhr.status === 201 || xhr.status === 200) {
