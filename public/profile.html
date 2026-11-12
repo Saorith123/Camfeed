@@ -210,6 +210,25 @@
             white-space: pre-wrap;
         }
 
+        /* Facebook-Style Styled Text Background Card */
+        .styled-text-post-card {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            min-height: 290px;
+            max-height: 460px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 22px;
+            margin: 0 0 8px 0;
+            text-align: center;
+            font-weight: 800;
+            line-height: 1.42;
+            word-break: break-word;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+
         /* Embedded Shared Post / Profile Card */
         .embedded-shared-card {
             border: 1px solid #dddfe2;
@@ -952,6 +971,20 @@
             return `<img src="${mediaUrl}" class="post-media">`;
         }
 
+        function buildStyledTextCardHtml(textContent, rawStyleJson) {
+            let st = { bg: 'linear-gradient(135deg, #1877f2, #00c6ff)', color: '#ffffff', shadow: '0 2px 8px rgba(0,0,0,0.35)' };
+            try {
+                if (rawStyleJson) {
+                    const parsed = typeof rawStyleJson === 'string' ? JSON.parse(rawStyleJson) : rawStyleJson;
+                    st = { ...st, ...parsed };
+                }
+            } catch (e) {}
+            const len = (textContent || '').trim().length;
+            const fontSize = len <= 35 ? '28px' : (len <= 85 ? '23px' : (len <= 150 ? '19px' : '16.5px'));
+            const safeText = (textContent || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<div class="styled-text-post-card notranslate" translate="no" style="background:${st.bg}; color:${st.color}; text-shadow:${st.shadow || 'none'}; font-size:${fontSize};">${safeText}</div>`;
+        }
+
         function renderPostMediaHtml(post) {
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
@@ -969,6 +1002,10 @@
                         </div>
                     `;
                 } catch (e) {}
+            }
+
+            if (post.media_type === 'styled_text') {
+                return buildStyledTextCardHtml(post.content || '', post.media_url);
             }
 
             if (post.shared_post_id || post.media_type === 'shared') {
@@ -1072,7 +1109,7 @@
                                     ${optionsHtml}
                                 </div>
                                 ${post.content ? `
-                                    <div class="post-content notranslate" translate="no" id="prof-post-orig-${post.id}" style="margin-bottom:4px;">${post.content}</div>
+                                    <div class="post-content notranslate" translate="no" id="prof-post-orig-${post.id}" style="${post.media_type === 'styled_text' ? 'display:none;' : 'margin-bottom:4px;'}">${post.content}</div>
                                     <div id="prof-post-trans-${post.id}" class="translated-box notranslate" translate="no" style="display:none;"></div>
                                     <button type="button" class="see-translation-btn notranslate" translate="no" id="prof-trans-btn-${post.id}" onclick="translateProfilePost(${post.id})">🌐 បកប្រែ (See translation)</button>
                                 ` : ''}

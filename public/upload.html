@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="logo-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@500;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -19,6 +19,152 @@
             min-height: 100dvh;
             display: flex;
             flex-direction: column;
+        }
+
+        body, textarea, input, select, button {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Facebook-Style Text Background Canvas & Aa Style Picker */
+        .caption-stage-wrap {
+            position: relative;
+            width: 100%;
+            border-radius: 14px;
+            overflow: hidden;
+            transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .caption-stage-wrap.has-bg-style {
+            aspect-ratio: 1 / 1;
+            min-height: 310px;
+            max-height: 440px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 22px;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+        }
+        .caption-stage-wrap.has-bg-style .caption-textarea {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+            text-align: center;
+            font-size: 26px;
+            font-weight: 800;
+            line-height: 1.4;
+            min-height: unset;
+            height: auto;
+            max-height: 100%;
+            resize: none;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .caption-stage-wrap.has-bg-style .caption-textarea::placeholder {
+            color: rgba(255, 255, 255, 0.72);
+        }
+        .caption-stage-wrap.has-bg-style.dark-ink .caption-textarea::placeholder {
+            color: rgba(15, 23, 42, 0.5);
+        }
+
+        /* Floating Aa Toggle Button inside Caption Box */
+        .aa-toggle-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 15;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1.5px solid rgba(255,255,255,0.85);
+            background: conic-gradient(from 45deg, #ff5f6d, #ffc371, #42e695, #4776e6, #8e54e9, #ff5f6d);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.65);
+            transition: transform 0.15s;
+        }
+        .aa-toggle-btn:active { transform: scale(0.92); }
+
+        /* Horizontal Quick Swatch Strip */
+        .style-quick-strip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 2px;
+            scrollbar-width: none;
+        }
+        .style-quick-strip::-webkit-scrollbar { display: none; }
+        .style-swatch-item {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            flex-shrink: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 800;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+            transition: transform 0.12s, border-color 0.12s;
+        }
+        .style-swatch-item:hover { transform: scale(1.06); }
+        .style-swatch-item.selected {
+            border-color: #1877f2;
+            box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1877f2;
+        }
+
+        /* Facebook-Style Full Style Grid Sheet */
+        .style-drawer-sheet {
+            display: none;
+            background: #ffffff;
+            border: 1px solid #e4e6eb;
+            border-radius: 16px;
+            padding: 12px 14px 14px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+            animation: fadeSlideUp 0.2s ease;
+        }
+        .style-drawer-sheet.open { display: block; }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .style-drawer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            color: #050505;
+        }
+        .style-grid-5 {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 9px;
+        }
+        .style-grid-tile {
+            aspect-ratio: 1 / 1;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            transition: transform 0.12s;
+        }
+        .style-grid-tile:active { transform: scale(0.94); }
+        .style-grid-tile.selected {
+            border-color: #050505;
+            box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1877f2;
         }
 
         /* Sticky Header */
@@ -290,7 +436,23 @@
                 </div>
             </div>
 
-            <textarea id="postContent" class="caption-textarea" placeholder="តើអ្នកកំពុងគិតអ្វីខ្លះ? សរសេររៀបរាប់នៅទីនេះ..."></textarea>
+            <div class="caption-stage-wrap" id="captionStageWrap">
+                <button type="button" class="aa-toggle-btn" id="aaToggleBtn" onclick="toggleStyleDrawer()" title="ជ្រើសរើសផ្ទៃខាងក្រោយអត្ថបទ (Text Background Style)">Aa</button>
+                <textarea id="postContent" class="caption-textarea" placeholder="តើអ្នកកំពុងគិតអ្វីខ្លះ? សរសេររៀបរាប់នៅទីនេះ..." oninput="autoAdjustStyledTextSize()"></textarea>
+            </div>
+
+            <!-- Quick Horizontal Style Swatch Strip -->
+            <div class="style-quick-strip" id="styleQuickStrip"></div>
+
+            <!-- Full Facebook-Style Background Style Grid -->
+            <div class="style-drawer-sheet" id="styleDrawerSheet">
+                <div class="style-drawer-head">
+                    <span style="width:24px;"></span>
+                    <span id="styleDrawerTitle">Style (ជ្រើសរើសផ្ទៃខាងក្រោយ)</span>
+                    <button type="button" onclick="closeStyleDrawer()" style="background:none; border:none; font-size:18px; font-weight:800; color:#050505; cursor:pointer;">✓</button>
+                </div>
+                <div class="style-grid-5" id="styleGridContainer"></div>
+            </div>
 
             <!-- Photo & Video Selection Buttons -->
             <div class="media-picker-grid">
@@ -354,6 +516,108 @@
             }
         }
 
+        // =========================================================================
+        // TEXT BACKGROUND STYLES CATALOG (20 Artistic Styles like Facebook)
+        // =========================================================================
+        const TEXT_BG_STYLES = [
+            { id: 'none', name: 'None', bg: '', color: '#050505', darkInk: true, icon: '🚫' },
+            { id: 'wave-horizon', name: 'Wavy Horizon', bg: 'repeating-radial-gradient(circle at 50% -20%, #4b6cb7 0px, #6c859e 18px, #b99ca4 36px, #415a77 54px)', color: '#ffffff', darkInk: false, shadow: '0 2px 8px rgba(0,0,0,0.45)' },
+            { id: 'starry-night', name: 'Starry Night', bg: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.45) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(99,102,241,0.5) 0%, transparent 45%), linear-gradient(135deg, #04091a 0%, #0f294a 55%, #061224 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.6)' },
+            { id: 'birthday-cake', name: 'Celebration Pink', bg: 'linear-gradient(160deg, #fbcfe8 0%, #f9a8d4 50%, #f472b6 100%)', color: '#ffffff', darkInk: false, icon: '🎂', shadow: '0 2px 8px rgba(190,24,93,0.4)' },
+            { id: 'aurora-silk', name: 'Aurora Silk', bg: 'linear-gradient(135deg, #0f2027 0%, #203a43 45%, #2c5364 75%, #10b981 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.55)' },
+            { id: 'ocean-sky', name: 'Ocean Sky', bg: 'linear-gradient(180deg, #0284c7 0%, #38bdf8 55%, #bae6fd 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 8px rgba(3,105,161,0.4)' },
+            { id: 'pastel-bubbles', name: 'Pastel Orbs', bg: 'radial-gradient(circle at 25% 25%, #e0f2fe 0%, transparent 50%), radial-gradient(circle at 75% 70%, #f5d0fe 0%, transparent 55%), linear-gradient(135deg, #c7d2fe 0%, #fbcfe8 100%)', color: '#1e1b4b', darkInk: true },
+            { id: 'cosmic-violet', name: 'Cosmic Violet', bg: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.35)' },
+            { id: 'warm-sand', name: 'Warm Sand', bg: 'linear-gradient(135deg, #f3e7d3 0%, #e6ccb2 50%, #ddb892 100%)', color: '#3d2c1e', darkInk: true },
+            { id: 'velvet-rose', name: 'Velvet Rose', bg: 'linear-gradient(135deg, #881337 0%, #be123c 50%, #fb7185 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.4)' },
+            { id: 'midnight-wave', name: 'Midnight Wave', bg: 'linear-gradient(145deg, #090d16 0%, #1e293b 60%, #334155 100%)', color: '#ffffff', darkInk: false },
+            { id: 'misty-cloud', name: 'Misty Cloud', bg: 'linear-gradient(135deg, #cbd5e1 0%, #e2e8f0 50%, #94a3b8 100%)', color: '#0f172a', darkInk: true },
+            { id: 'sunset-peach', name: 'Sunset Peach', bg: 'linear-gradient(160deg, #fdba74 0%, #f9a8d4 55%, #c4b5fd 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 8px rgba(0,0,0,0.35)' },
+            { id: 'crimson-red', name: 'Crimson Red', bg: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', color: '#ffffff', darkInk: false },
+            { id: 'lime-neon', name: 'Fresh Lime', bg: 'linear-gradient(135deg, #84cc16 0%, #bef264 100%)', color: '#1a2e05', darkInk: true },
+            { id: 'cream-soft', name: 'Soft Cream', bg: '#fef3c7', color: '#451a03', darkInk: true },
+            { id: 'lavender-geo', name: 'Soft Lavender', bg: 'linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%)', color: '#2e1065', darkInk: true },
+            { id: 'mint-grid', name: 'Mint Grid', bg: 'linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%)', color: '#115e59', darkInk: true },
+            { id: 'mango-gold', name: 'Mango Gold', bg: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 6px rgba(180,83,9,0.4)' },
+            { id: 'bokeh-dark', name: 'City Bokeh', bg: 'radial-gradient(circle at 25% 30%, rgba(244,63,94,0.65) 0%, transparent 35%), radial-gradient(circle at 75% 65%, rgba(56,189,248,0.6) 0%, transparent 40%), #09090b', color: '#ffffff', darkInk: false }
+        ];
+
+        let selectedTextStyleId = 'none';
+
+        function initTextBackgroundPickers() {
+            const strip = document.getElementById('styleQuickStrip');
+            const grid = document.getElementById('styleGridContainer');
+            if (!strip || !grid) return;
+
+            strip.innerHTML = TEXT_BG_STYLES.slice(0, 10).map(st => {
+                const isSel = st.id === selectedTextStyleId;
+                const bgCss = st.id === 'none' ? '#f0f2f5' : st.bg;
+                return `<div class="style-swatch-item ${isSel ? 'selected' : ''}" style="background:${bgCss}; color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${st.name}">${st.id === 'none' ? '🚫' : (st.icon || 'Aa')}</div>`;
+            }).join('') + `<div class="style-swatch-item" style="background:#e4e6eb; color:#050505; font-size:16px;" onclick="toggleStyleDrawer()" title="More Styles">⊞</div>`;
+
+            grid.innerHTML = TEXT_BG_STYLES.map(st => {
+                const isSel = st.id === selectedTextStyleId;
+                const bgCss = st.id === 'none' ? '#ffffff' : st.bg;
+                const borderExtra = st.id === 'none' ? 'border:1.5px solid #cbd5e1;' : '';
+                return `<div class="style-grid-tile ${isSel ? 'selected' : ''}" style="background:${bgCss}; ${borderExtra} color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${st.name}">${st.id === 'none' ? '🚫' : (st.icon || '')}</div>`;
+            }).join('');
+        }
+
+        function toggleStyleDrawer() {
+            if (selectedFiles.length > 0) {
+                alert('ផ្ទៃខាងក្រោយអត្ថបទប្រើបានតែសម្រាប់ការបង្ហោះអត្ថបទសុទ្ធ (គ្មានរូបភាព/វីដេអូ) ប៉ុណ្ណោះ!');
+                return;
+            }
+            const drawer = document.getElementById('styleDrawerSheet');
+            if (drawer) drawer.classList.toggle('open');
+        }
+
+        function closeStyleDrawer() {
+            const drawer = document.getElementById('styleDrawerSheet');
+            if (drawer) drawer.classList.remove('open');
+        }
+
+        function selectTextBgStyle(styleId) {
+            if (selectedFiles.length > 0 && styleId !== 'none') {
+                alert('សូមលុបរូបភាព/វីដេអូចេញសិន ប្រសិនបើអ្នកចង់ប្រើផ្ទៃខាងក្រោយអត្ថបទ!');
+                return;
+            }
+            selectedTextStyleId = styleId;
+            const st = TEXT_BG_STYLES.find(s => s.id === styleId) || TEXT_BG_STYLES[0];
+            const stage = document.getElementById('captionStageWrap');
+            const textarea = document.getElementById('postContent');
+
+            if (st.id === 'none') {
+                stage.classList.remove('has-bg-style', 'dark-ink');
+                stage.style.background = '';
+                textarea.style.color = '#050505';
+                textarea.style.textShadow = 'none';
+                textarea.style.fontSize = '16px';
+            } else {
+                stage.classList.add('has-bg-style');
+                stage.classList.toggle('dark-ink', !!st.darkInk);
+                stage.style.background = st.bg;
+                textarea.style.color = st.color;
+                textarea.style.textShadow = st.shadow || 'none';
+                autoAdjustStyledTextSize();
+            }
+            initTextBackgroundPickers();
+            textarea.focus();
+        }
+
+        function autoAdjustStyledTextSize() {
+            if (selectedTextStyleId === 'none') return;
+            const textarea = document.getElementById('postContent');
+            if (!textarea) return;
+            const len = (textarea.value || '').trim().length;
+            if (len <= 35) textarea.style.fontSize = '28px';
+            else if (len <= 85) textarea.style.fontSize = '23px';
+            else if (len <= 150) textarea.style.fontSize = '19px';
+            else textarea.style.fontSize = '16.5px';
+        }
+
+        initTextBackgroundPickers();
+
         function goBackToFeed() {
             if (isUploading && !confirm('កំពុងបង្ហោះឯកសារ តើអ្នកពិតជាចង់ចាកចេញមែនទេ?')) {
                 return;
@@ -364,6 +628,10 @@
         function handleFilesSelected(event) {
             const files = Array.from(event.target.files || []);
             if (files.length === 0) return;
+            if (selectedTextStyleId !== 'none') {
+                selectTextBgStyle('none');
+                closeStyleDrawer();
+            }
             files.forEach(f => selectedFiles.push(f));
             event.target.value = '';
             renderPreviews();
@@ -700,13 +968,31 @@
 
                 updateProgressUI('កំពុងរក្សាទុកការបង្ហោះ...', 98);
 
+                let finalMediaType = undefined;
+                let finalMediaUrl = undefined;
+                if (uploadedItems.length === 0 && selectedTextStyleId !== 'none') {
+                    const stObj = TEXT_BG_STYLES.find(s => s.id === selectedTextStyleId);
+                    if (stObj) {
+                        finalMediaType = 'styled_text';
+                        finalMediaUrl = JSON.stringify({
+                            styleId: stObj.id,
+                            bg: stObj.bg,
+                            color: stObj.color,
+                            shadow: stObj.shadow || 'none',
+                            icon: stObj.icon || ''
+                        });
+                    }
+                }
+
                 const postRes = await fetch('/api/posts', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
                     body: JSON.stringify({
                         email: currentUser.email,
                         content: content,
                         privacy: privacy,
+                        mediaType: finalMediaType,
+                        mediaUrl: finalMediaUrl,
                         mediaItems: uploadedItems,
                         thumbnailBase64: thumbnailBase64,
                         mediaAspect: detectedMediaAspect
