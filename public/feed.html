@@ -3,16 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camfeed - News Feed</title>
+    <title>CamFeed - News Feed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; }
         
         .top-bar { display: flex; flex-direction: column; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; padding: 0 10px; }
-        .top-bar-row1 { display: flex; justify-content: space-between; align-items: center; height: 50px; border-bottom: 1px solid #f0f2f5; width: 100%; }
-        .top-left { display: flex; align-items: center; gap: 8px; position: relative; }
+        .top-bar-row1 { display: flex; justify-content: space-between; align-items: center; height: 52px; border-bottom: 1px solid #f0f2f5; width: 100%; }
+        .top-left { display: flex; align-items: center; gap: 10px; position: relative; }
         .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
         .menu-icon-btn:hover { background: #d8dadf; }
-        .logo-nav { font-size: 22px; font-weight: bold; color: #1877f2; cursor: pointer; letter-spacing: -0.5px; }
+
+        /* Attractive Brand Logo: CamFeed */
+        .logo-nav {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 25px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+            letter-spacing: -0.8px;
+            user-select: none;
+            transition: transform 0.15s ease;
+        }
+        .logo-nav:hover { transform: scale(1.03); }
         
         .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
@@ -25,8 +42,8 @@
 
         /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
-        .search-input { padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 120px; transition: width 0.3s, border-color 0.3s; }
-        .search-input:focus { width: 180px; background: white; border-color: #1877f2; }
+        .search-input { padding: 6px 10px 6px 30px; border-radius: 20px; border: 1px solid #dddfe2; background: #f0f2f5; outline: none; font-size: 13px; width: 115px; transition: width 0.3s, border-color 0.3s; }
+        .search-input:focus { width: 175px; background: white; border-color: #1877f2; }
         .search-icon-abs { position: absolute; left: 8px; font-size: 13px; color: #65676b; cursor: pointer; }
 
         .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 48px; width: 100%; border-top: 1px solid #f0f2f5; position: relative; }
@@ -57,32 +74,74 @@
         .progress-bar-fill { width: 0%; height: 100%; background-color: #1877f2; transition: width 0.2s; }
         .progress-text { font-size: 12px; font-weight: bold; color: #65676b; text-align: right; margin-top: 4px; }
 
-        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; transition: all 0.5s; }
+        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; transition: all 0.3s; }
         .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
         .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
         .post-author { font-weight: bold; color: #050505; }
         .post-author:hover { text-decoration: underline; }
         .post-time { font-size: 11px; color: #90949c; }
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
-        
-        .post-media { width: 100%; max-height: 400px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
+        .post-media { width: 100%; max-height: 450px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
 
-        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 5px 0; margin-top: 10px; justify-content: space-around; position: relative; }
-        .action-btn { background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 6px 12px; border-radius: 4px; display: flex; align-items: center; gap: 4px; font-size: 13px; }
+        /* Reaction Summary Bar (Shows only actual reactions, no auto-3) */
+        .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #65676b; margin-bottom: 6px; padding: 0 4px; min-height: 24px; }
+        .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
+
+        /* Action Buttons & Cute Reaction Bar */
+        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 0; margin-top: 6px; justify-content: space-around; position: relative; }
+        .reaction-wrapper { flex: 1; position: relative; display: flex; }
+        .action-btn { flex: 1; background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 7px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; transition: transform 0.1s ease, background 0.15s; user-select: none; }
         .action-btn:hover { background: #f2f2f2; }
-        .action-btn.liked { color: #1877f2; }
+        .action-btn:active { transform: scale(0.94); }
 
-        /* Reaction Popup */
-        .reaction-popup { position: absolute; bottom: 42px; left: 0; background: white; border-radius: 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); padding: 6px 10px; display: flex; gap: 8px; z-index: 100; border: 1px solid #dddfe2; display: none; }
-        .reaction-emoji { font-size: 22px; cursor: pointer; transition: transform 0.2s; }
-        .reaction-emoji:hover { transform: scale(1.35); }
+        /* Active Reaction Highlight Colors */
+        .action-btn.reacted-like { color: #1877f2; font-weight: 700; }
+        .action-btn.reacted-love { color: #f33e58; font-weight: 700; }
+        .action-btn.reacted-care,
+        .action-btn.reacted-haha,
+        .action-btn.reacted-wow,
+        .action-btn.reacted-sad { color: #f7b125; font-weight: 700; }
+        .action-btn.reacted-angry { color: #e9710f; font-weight: 700; }
+
+        /* Floating Cute Reaction Bar */
+        .reaction-picker {
+            display: none;
+            position: absolute;
+            bottom: 44px;
+            left: 0;
+            background: #fff;
+            padding: 6px 10px;
+            border-radius: 30px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+            border: 1px solid #e4e6eb;
+            gap: 8px;
+            z-index: 200;
+            animation: popUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .reaction-wrapper:hover .reaction-picker,
+        .reaction-picker.show { display: flex; }
+
+        @keyframes popUp {
+            from { opacity: 0; transform: translateY(8px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .emoji-option {
+            font-size: 26px;
+            cursor: pointer;
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            user-select: none;
+            line-height: 1;
+        }
+        .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
 
         /* Comments Section */
-        .comments-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f2f5; background: #fff; padding: 10px 12px; border-radius: 0 0 8px 8px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
-        .comments-section.open { max-height: 800px; overflow-y: auto; }
+        .comments-section { margin-top: 10px; border-top: 1px solid #f0f2f5; background: #fff; padding: 0 12px; border-radius: 0 0 8px 8px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
+        .comments-section.open { max-height: 800px; overflow-y: auto; padding: 10px 12px; }
 
         .comment-filter-bar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #65676b; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e4e6eb; }
-        .comment-filter-select { border: none; background: transparent; font-weight: bold; color: #1877f2; cursor: pointer; font-size: 12px; outline: none; }
+        .comment-filter-select { border: none; background: transparent; font-weight: bold; color: #1877f2; cursor: pointer; font-size: 12px; outline: none; width: auto; padding: 0; margin: 0; }
 
         .comment-container { display: flex; gap: 8px; margin-bottom: 12px; font-size: 13px; align-items: flex-start; position: relative; width: 100%; }
         .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid #dddfe2; flex-shrink: 0; }
@@ -95,12 +154,16 @@
         .comment-menu-dropdown button { width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; font-size: 13px; cursor: pointer; }
         .comment-menu-dropdown button:hover { background: #f2f2f2; }
 
-        /* Reactions Modal / List Popup */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; display: none; }
-        .modal-card { background: white; width: 100%; max-width: 400px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); overflow: hidden; max-height: 80vh; display: flex; flex-direction: column; }
-        .modal-header { padding: 12px 15px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 10px 15px; overflow-y: auto; flex: 1; }
-        .reactor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
+        .modal-card { background: white; width: 100%; max-width: 430px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .reactor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+
+        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14px; font-weight: 600; color: #050505; transition: background 0.15s; }
+        .share-option-btn:hover { background: #e4e6eb; }
+        .share-icon { font-size: 20px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
 
         .btn-follow { padding: 6px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
         .btn-follow:hover { background: #166fe5; }
@@ -116,7 +179,7 @@
         <div class="top-bar-row1">
             <div class="top-left">
                 <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
-                <div class="logo-nav" onclick="switchTab('feed')">camfeed</div>
+                <div class="logo-nav" onclick="switchTab('feed')">CamFeed</div>
                 <div class="dropdown-menu" id="menuDropdown">
                     <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
                     <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
@@ -164,9 +227,46 @@
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <span id="modalReactorTitle">People who reacted</span>
-                <span style="cursor: pointer; font-size: 18px;" onclick="closeReactionsModal()">×</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeReactionsModal()">×</span>
             </div>
             <div class="modal-body" id="reactionsModalList"></div>
+        </div>
+    </div>
+
+    <!-- Modal for Share Options -->
+    <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="shareModalTitle">Share Post</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeShareModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="shareCaptionInput" placeholder="Say something about this post (optional)..." style="margin: 0; border-radius: 10px;">
+                
+                <button class="share-option-btn" onclick="shareToMyProfile()">
+                    <span class="share-icon">👤</span>
+                    <div>
+                        <div id="shareProfileTitle">Share to My Profile</div>
+                        <div id="shareProfileSub" style="font-size: 12px; color: #65676b; font-weight: normal;">Post directly to your timeline</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="shareToSocialMedia()">
+                    <span class="share-icon">🌐</span>
+                    <div>
+                        <div id="shareSocialTitle">Share to Social Media</div>
+                        <div id="shareSocialSub" style="font-size: 12px; color: #65676b; font-weight: normal;">Telegram, Facebook, Messenger & more</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="copyCurrentShareLink()">
+                    <span class="share-icon">🔗</span>
+                    <div>
+                        <div id="copyLinkLabel">Copy Link</div>
+                        <div id="copyLinkSub" style="font-size: 12px; color: #65676b; font-weight: normal;">Copy URL to paste on other websites</div>
+                    </div>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -218,6 +318,22 @@
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         let globalVideoUnmuted = false;
+        let activePostIdForShare = null;
+        let activePostTextForShare = '';
+        let pressTimer = null;
+
+        // Track reaction state locally for 0ms instant UI updates
+        const postReactionsState = {};
+
+        const REACTION_META = {
+            '👍': { en: 'Liked', km: 'បានចូលចិត្ត', cls: 'reacted-like' },
+            '❤️': { en: 'Love', km: 'ស្រឡាញ់', cls: 'reacted-love' },
+            '🥰': { en: 'Care', km: 'បារម្ភ', cls: 'reacted-care' },
+            '😆': { en: 'Haha', km: 'សើច', cls: 'reacted-haha' },
+            '😮': { en: 'Wow', km: 'ភ្ញាក់ផ្អើល', cls: 'reacted-wow' },
+            '😢': { en: 'Sad', km: 'សោកសៅ', cls: 'reacted-sad' },
+            '😡': { en: 'Angry', km: 'ខឹង', cls: 'reacted-angry' }
+        };
 
         const uiTexts = {
             en: {
@@ -237,7 +353,15 @@
                 sortAll: "All comments",
                 likeBtn: "👍 Like",
                 commentAction: "💬 Comment",
-                shareAction: "🔗 Share"
+                shareAction: "↗️ Share",
+                shareModalTitle: "Share Post",
+                shareCaptionPlaceholder: "Say something about this post (optional)...",
+                shareProfileTitle: "Share to My Profile",
+                shareProfileSub: "Post directly to your timeline",
+                shareSocialTitle: "Share to Social Media",
+                shareSocialSub: "Telegram, Facebook, Messenger & more",
+                copyLinkLabel: "Copy Link",
+                copyLinkSub: "Copy URL to paste on other websites"
             },
             km: {
                 searchPlaceholder: "ស្វែងរក...",
@@ -256,7 +380,15 @@
                 sortAll: "មតិយោបល់ទាំងអស់",
                 likeBtn: "👍 ចូលចិត្ត",
                 commentAction: "💬 ខមមិន",
-                shareAction: "🔗 ចែករំលែក"
+                shareAction: "↗️ ចែករំលែក",
+                shareModalTitle: "ចែករំលែកការបង្ហោះ",
+                shareCaptionPlaceholder: "សរសេរអ្វីមួយអំពីការបង្ហោះនេះ (ស្រេចចិត្ត)...",
+                shareProfileTitle: "ស៊ែរចូលទៅក្នុង Profile របស់ខ្ញុំ",
+                shareProfileSub: "បង្ហោះផ្ទាល់ទៅលើទំព័រផ្ទាល់ខ្លួនរបស់អ្នក",
+                shareSocialTitle: "ចែករំលែកទៅកាន់បណ្ដាញសង្គមផ្សេងៗ",
+                shareSocialSub: "Telegram, Facebook, Messenger និងកម្មវិធីផ្សេងទៀត",
+                copyLinkLabel: "ចម្លងតំណភ្ជាប់ (Copy Link)",
+                copyLinkSub: "ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ"
             }
         };
 
@@ -275,12 +407,20 @@
             document.getElementById('photoVideoLabel').innerText = t.photoVideoLabel;
             document.getElementById('postSubmitBtn').innerText = t.postBtn;
             document.getElementById('modalReactorTitle').innerText = t.reactionsModalTitle;
+            document.getElementById('shareModalTitle').innerText = t.shareModalTitle;
+            document.getElementById('shareCaptionInput').placeholder = t.shareCaptionPlaceholder;
+            document.getElementById('shareProfileTitle').innerText = t.shareProfileTitle;
+            document.getElementById('shareProfileSub').innerText = t.shareProfileSub;
+            document.getElementById('shareSocialTitle').innerText = t.shareSocialTitle;
+            document.getElementById('shareSocialSub').innerText = t.shareSocialSub;
+            document.getElementById('copyLinkLabel').innerText = t.copyLinkLabel;
+            document.getElementById('copyLinkSub').innerText = t.copyLinkSub;
         }
 
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            if(currentUser.profile_pic) {
+            if (currentUser.profile_pic) {
                 document.getElementById('navUserAvatar').src = currentUser.profile_pic;
                 document.getElementById('feedUserAvatar').src = currentUser.profile_pic;
             }
@@ -331,9 +471,9 @@
         window.onclick = function() {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
-            document.querySelectorAll('.reaction-popup').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
-        }
+        };
 
         let lastHomeClickTime = 0;
 
@@ -440,10 +580,8 @@
             progressBarFill.style.width = '0%';
             progressText.innerText = 'Uploading... 0%';
 
-            // 🚀 បើជាវីដេអូ -> បង្ហោះផ្ទាល់ទៅ Cloudflare R2 + ឱ្យ Gemini AI ចាត់ប្រភេទស្វ័យប្រវត្តិ
             if (fileInput && fileInput.type.startsWith('video')) {
                 try {
-                    // ១. សុំ Presigned Upload URL ពី Server
                     const urlRes = await fetch('/api/videos/upload-url', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -458,7 +596,6 @@
                         throw new Error(urlData.error || 'Failed to get R2 upload URL');
                     }
 
-                    // ២. Upload វីដេអូផ្ទាល់ទៅ Cloudflare R2 ជាមួយ Progress Bar
                     await new Promise((resolve, reject) => {
                         const xhr = new XMLHttpRequest();
                         xhr.open('PUT', urlData.uploadUrl, true);
@@ -479,7 +616,6 @@
                         xhr.send(fileInput);
                     });
 
-                    // ៣. រក្សាទុកក្នុងតារាង videos (AI Moderation + Auto-Classification)
                     await fetch('/api/videos/complete', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -492,7 +628,6 @@
                         })
                     });
 
-                    // ៤. រក្សាទុកក្នុងតារាង posts ដើម្បីបង្ហាញលើ News Feed ភ្លាមៗ
                     const postRes = await fetch('/api/posts', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -527,7 +662,6 @@
                 return;
             }
 
-            // 📷 បើជារូបភាព ឬអក្សរ -> ប្រើប្រព័ន្ធចាស់ (/api/posts) ដដែល
             const formData = new FormData();
             formData.append('email', currentUser.email);
             formData.append('content', content);
@@ -569,6 +703,30 @@
             xhr.send(formData);
         }
 
+        function buildReactionSummaryHtml(postId) {
+            const state = postReactionsState[postId];
+            if (!state || state.count <= 0) return '';
+            // Show ONLY actual reaction icons present on the post (no auto-3)
+            const uniqueIcons = (state.types && state.types.length > 0)
+                ? state.types.join('')
+                : (state.userReaction || '👍');
+            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${state.count}</span>`;
+        }
+
+        function buildActionBtnContent(userReaction, lang) {
+            if (userReaction && REACTION_META[userReaction]) {
+                return `${userReaction} ${REACTION_META[userReaction][lang] || REACTION_META[userReaction].en}`;
+            }
+            return uiTexts[lang].likeBtn;
+        }
+
+        function buildActionBtnClass(userReaction) {
+            if (userReaction && REACTION_META[userReaction]) {
+                return `action-btn ${REACTION_META[userReaction].cls}`;
+            }
+            return `action-btn`;
+        }
+
         async function loadPosts() {
             try {
                 const res = await fetch(`/api/posts?email=${currentUser.email}`);
@@ -583,16 +741,23 @@
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const t = uiTexts[currentLang];
+
             if (posts.length === 0) {
-                const currentLang = localStorage.getItem('camfeed_lang') || 'en';
                 container.innerHTML = `<p style="text-align: center; color: #65676b;">${currentLang === 'km' ? 'រកមិនឃើញការបង្ហោះទេ។' : 'No posts found.'}</p>`;
                 return;
             }
 
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            const t = uiTexts[currentLang];
-
             posts.forEach(post => {
+                const count = parseInt(post.likes_count) || 0;
+                const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
+                postReactionsState[post.id] = {
+                    count: count,
+                    userReaction: post.user_reaction || null,
+                    types: types
+                };
+
                 const dateStr = new Date(post.created_at).toLocaleString();
                 const div = document.createElement('div');
                 div.className = 'post-item';
@@ -607,8 +772,6 @@
                     }
                 }
 
-                let currentReactionIcon = post.user_reaction ? post.user_reaction : t.likeBtn;
-
                 div.innerHTML = `
                     <div class="post-header" onclick="window.location.href='profile.html?email=${post.user_email}'">
                         <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
@@ -619,27 +782,33 @@
                     </div>
                     <div class="post-content">${post.content}</div>
                     ${mediaHtml}
-                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #65676b; margin-bottom: 5px; padding: 0 5px;">
-                        <div style="display: flex; align-items: center; gap: 4px; cursor: pointer;" onclick="openReactionsList(${post.id})">
-                            <span>👍 ❤️ 😂</span>
-                            <span id="likeCount-${post.id}">${post.likes_count || 0}</span>
+                    <div class="post-stats-row">
+                        <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
+                            ${buildReactionSummaryHtml(post.id)}
                         </div>
                         <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} ${currentLang === 'km' ? 'មតិយោបល់' : 'Comments'}</span>
                     </div>
                     <div class="post-actions">
-                        <div style="position: relative;">
-                            <button id="likeBtn-${post.id}" class="action-btn ${post.user_reaction ? 'liked' : ''}" onclick="toggleReactionPopup(event, ${post.id})">${currentReactionIcon}</button>
-                            <div id="reactionPopup-${post.id}" class="reaction-popup" onclick="event.stopPropagation()">
-                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '👍')">👍</span>
-                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '❤️')">❤️</span>
-                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😂')">😂</span>
-                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😮')">😮</span>
-                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😢')">😢</span>
-                                <span class="reaction-emoji" onclick="sendReaction(${post.id}, '😡')">😡</span>
+                        <div class="reaction-wrapper"
+                             ontouchstart="startLongPress(${post.id})"
+                             ontouchend="cancelLongPress()">
+                            <div id="picker-${post.id}" class="reaction-picker" onclick="event.stopPropagation()">
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '👍')">👍</span>
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '❤️')">❤️</span>
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '🥰')">🥰</span>
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😆')">😆</span>
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😮')">😮</span>
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😢')">😢</span>
+                                <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😡')">😡</span>
                             </div>
+                            <button id="likeBtn-${post.id}"
+                                    class="${buildActionBtnClass(post.user_reaction)}"
+                                    onclick="quickToggleLike(${post.id})">
+                                ${buildActionBtnContent(post.user_reaction, currentLang)}
+                            </button>
                         </div>
                         <button class="action-btn" onclick="toggleCommentBox(${post.id})">${t.commentAction}</button>
-                        <button class="action-btn" onclick="openShareMenu(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on Camfeed!')}')" title="Share Link">${t.shareAction}</button>
+                        <button class="action-btn" onclick="openShareModal(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on CamFeed!')}')" title="Share">${t.shareAction}</button>
                     </div>
 
                     <!-- Comments Section -->
@@ -664,6 +833,152 @@
                 container.appendChild(div);
             });
             initAutoPlayVideos();
+        }
+
+        // Long press support on mobile to open cute reaction bar
+        function startLongPress(postId) {
+            pressTimer = setTimeout(() => {
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker) picker.classList.add('show');
+            }, 350);
+        }
+
+        function cancelLongPress() {
+            if (pressTimer) clearTimeout(pressTimer);
+        }
+
+        // Instant click toggle (0ms lag)
+        function quickToggleLike(postId) {
+            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
+            const emojiToSend = state.userReaction ? state.userReaction : '👍';
+            applyReactionOptimistically(postId, emojiToSend);
+        }
+
+        function selectReaction(event, postId, emoji) {
+            event.stopPropagation();
+            const picker = document.getElementById(`picker-${postId}`);
+            if (picker) picker.classList.remove('show');
+            applyReactionOptimistically(postId, emoji);
+        }
+
+        async function applyReactionOptimistically(postId, emoji) {
+            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
+
+            // Immediate UI update before network request completes
+            if (state.userReaction === emoji) {
+                state.userReaction = null;
+                state.count = Math.max(0, state.count - 1);
+                if (state.count === 0) state.types = [];
+            } else {
+                if (!state.userReaction) {
+                    state.count += 1;
+                }
+                state.userReaction = emoji;
+                if (!state.types.includes(emoji)) {
+                    state.types.push(emoji);
+                }
+            }
+            postReactionsState[postId] = state;
+            updatePostReactionUI(postId);
+
+            // Sync with server in background
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    state.count = parseInt(data.likes_count) || 0;
+                    state.userReaction = data.reacted ? emoji : null;
+                    if (Array.isArray(data.reaction_types)) {
+                        state.types = data.reaction_types;
+                    }
+                    postReactionsState[postId] = state;
+                    updatePostReactionUI(postId);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function updatePostReactionUI(postId) {
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const state = postReactionsState[postId];
+            const btn = document.getElementById(`likeBtn-${postId}`);
+            const summary = document.getElementById(`reactionSummary-${postId}`);
+            if (btn) {
+                btn.className = buildActionBtnClass(state.userReaction);
+                btn.innerHTML = buildActionBtnContent(state.userReaction, currentLang);
+            }
+            if (summary) {
+                summary.innerHTML = buildReactionSummaryHtml(postId);
+            }
+        }
+
+        // Share Modal Functions
+        function openShareModal(postId, encodedContent) {
+            activePostIdForShare = postId;
+            activePostTextForShare = decodeURIComponent(encodedContent || '');
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = uiTexts[currentLang].copyLinkLabel;
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+            activePostIdForShare = null;
+        }
+
+        async function shareToMyProfile() {
+            if (!activePostIdForShare) return;
+            const caption = document.getElementById('shareCaptionInput').value.trim();
+            try {
+                const res = await fetch('/api/posts/share', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        postId: activePostIdForShare,
+                        email: currentUser.email,
+                        caption: caption
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeShareModal();
+                    const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                    alert(currentLang === 'km' ? 'បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!' : 'Shared to your profile successfully!');
+                    loadPosts();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function shareToSocialMedia() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'CamFeed Post',
+                        text: activePostTextForShare || 'Check out this post on CamFeed!',
+                        url: shareUrl
+                    });
+                    closeShareModal();
+                } catch (err) {}
+            } else {
+                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(activePostTextForShare)}`, '_blank');
+                closeShareModal();
+            }
+        }
+
+        function copyCurrentShareLink() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            navigator.clipboard.writeText(shareUrl);
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            document.getElementById('copyLinkLabel').innerText = currentLang === 'km' ? '✓ បានចម្លងតំណភ្ជាប់!' : '✓ Link Copied!';
+            setTimeout(() => closeShareModal(), 900);
         }
 
         function handleVideoVolumeChange(videoElem) {
@@ -715,52 +1030,6 @@
                 body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
             });
             openReactionsList(postId);
-        }
-
-        function toggleReactionPopup(event, postId) {
-            event.stopPropagation();
-            document.querySelectorAll('.reaction-popup').forEach(p => { if (p.id !== `reactionPopup-${postId}`) p.style.display = 'none'; });
-            const popup = document.getElementById(`reactionPopup-${postId}`);
-            popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
-        }
-
-        function copyPostLink(postId) {
-            const link = `${window.location.origin}/feed.html?post=${postId}`;
-            navigator.clipboard.writeText(link).then(() => { alert('Post link copied to clipboard!'); });
-        }
-
-        function openShareMenu(postId, encodedContent) {
-            const shareUrl = `${window.location.origin}/feed.html?post=${postId}`;
-            const postText = decodeURIComponent(encodedContent);
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            const msgConfirm = currentLang === 'km' ? "ចុច 'OK' ដើម្បីស៊ែរទៅកាន់ Telegram ឬចុច 'Cancel' ដើម្បី Copy Link!" : "Click 'OK' to share to Telegram or 'Cancel' to Copy Link!";
-            if (confirm(msgConfirm)) {
-                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(postText)}`, '_blank');
-            } else { copyPostLink(postId); }
-        }
-
-        async function sendReaction(postId, emoji) {
-            document.getElementById(`reactionPopup-${postId}`).style.display = 'none';
-            try {
-                const res = await fetch('/api/reaction', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const btn = document.getElementById(`likeBtn-${postId}`);
-                    const countElem = document.getElementById(`likeCount-${postId}`);
-                    btn.innerText = emoji;
-                    if (data.reacted) { btn.classList.add('liked'); } 
-                    else {
-                        btn.classList.remove('liked');
-                        const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-                        btn.innerText = uiTexts[currentLang].likeBtn;
-                    }
-                    countElem.innerText = data.likes_count;
-                }
-            } catch (err) { console.error(err); }
         }
 
         function initAutoPlayVideos() {
@@ -825,7 +1094,7 @@
             event.stopPropagation();
             const menu = document.getElementById(`comment-menu-${commentId}`);
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => {
-                if(m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
+                if (m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
             });
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }

@@ -28,7 +28,7 @@ pool.connect((err, client, release) => {
   release();
 });
 
-// Mount Cloudflare R2 Video Upload, AI Classification & Recommendation Routes
+// Mount Cloudflare R2 Video/Media Upload, AI Classification & Recommendation Routes
 app.use('/api/videos', createVideoRouter(pool));
 
 // Register
@@ -86,6 +86,28 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   }
 });
 
+// Share Post to Profile
+app.post('/api/posts/share', async (req, res) => {
+  const { postId, email, caption } = req.body;
+  try {
+    const orig = await pool.query(
+      'SELECT p.*, u.first_name, u.last_name FROM posts p JOIN users u ON p.user_email = u.email WHERE p.id = $1',
+      [postId]
+    );
+    if (orig.rows.length === 0) return res.status(404).json({ success: false, error: 'Post not found' });
+
+    const p = orig.rows[0];
+    const sharedText = `${caption ? caption + '\n\n' : ''}🔁 Shared from ${p.first_name} ${p.last_name}:\n${p.content || ''}`;
+    const result = await pool.query(
+      'INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [email, sharedText, p.media_type, p.media_url, 'public']
+    );
+    res.status(201).json({ success: true, post: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get Feed & Profile Posts
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type } = req.query;
@@ -94,7 +116,8 @@ app.get('/api/posts', async (req, res) => {
       SELECT p.*, u.first_name, u.last_name, u.profile_pic,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comments_count,
-      (SELECT reaction_type FROM likes l WHERE l.post_id = p.id AND l.user_email = $1) as user_reaction
+      (SELECT reaction_type FROM likes l WHERE l.post_id = p.id AND l.user_email = $1) as user_reaction,
+      (SELECT ARRAY_AGG(DISTINCT reaction_type) FROM likes l WHERE l.post_id = p.id) as reaction_types
       FROM posts p 
       JOIN users u ON p.user_email = u.email
     `;
@@ -183,11 +206,12 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
+// Update Profile & Cover Pictures (Prioritizes Cloudflare R2 URLs)
 app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
-  const { email, bio } = req.body;
+  const { email, bio, profilePicUrl, coverPicUrl } = req.body;
   try {
-    let profileUrl = req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null;
-    let coverUrl = req.files && req.files['coverPic'] ? req.files['coverPic'][0].path : null;
+    let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
+    let coverUrl = coverPicUrl || (req.files && req.files['coverPic'] ? req.files['coverPic'][0].path : null);
 
     let query = 'UPDATE users SET bio = $1';
     let params = [bio || ''];
@@ -257,7 +281,9 @@ app.post('/api/reaction', async (req, res) => {
     }
 
     const countRes = await pool.query('SELECT COUNT(*) FROM likes WHERE post_id = $1', [postId]);
-    res.json({ success: true, reacted, likes_count: countRes.rows[0].count });
+    const typesRes = await pool.query('SELECT DISTINCT reaction_type FROM likes WHERE post_id = $1', [postId]);
+    const reaction_types = typesRes.rows.map(r => r.reaction_type);
+    res.json({ success: true, reacted, likes_count: countRes.rows[0].count, reaction_types });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -429,7 +455,6 @@ app.get('/api/user-profile', async (req, res) => {
   }
 });
 
-// API សម្រាប់ទាញយក User ទាំងអស់
 app.get('/api/users', async (req, res) => {
   const { email } = req.query;
   try {
@@ -456,9 +481,7 @@ app.get('/api/users', async (req, res) => {
           [u.email, email]
         );
         is_followed_by = followedByCheck.rows.length > 0;
-      } catch (e) {
-        // Fallback ករណីតារាង follows មានបញ្ហា
-      }
+      } catch (e) {}
 
       return {
         ...u,

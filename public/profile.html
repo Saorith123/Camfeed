@@ -3,13 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camfeed - Profile</title>
+    <title>CamFeed - Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #050505; }
 
         .top-bar { background: #fff; height: 56px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
-        .logo-nav { font-size: 24px; font-weight: bold; color: #1877f2; cursor: pointer; }
+        .logo-nav {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 25px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+            letter-spacing: -0.8px;
+        }
         .back-btn { background: #e4e6eb; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; color: #050505; }
         .back-btn:hover { background: #d8dadf; }
 
@@ -34,9 +46,7 @@
         .action-buttons { display: flex; gap: 10px; padding-bottom: 8px; }
         .btn-action { padding: 9px 18px; border-radius: 6px; font-weight: 600; font-size: 14px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; }
         .btn-primary { background: #1877f2; color: #fff; }
-        .btn-primary:hover { background: #166fe5; }
         .btn-secondary { background: #e4e6eb; color: #050505; }
-        .btn-secondary:hover { background: #d8dadf; }
 
         .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 24px; gap: 8px; }
         .tab-btn { padding: 14px 16px; background: none; border: none; font-size: 15px; font-weight: 600; color: #65676b; cursor: pointer; border-bottom: 3px solid transparent; }
@@ -44,6 +54,7 @@
 
         .content-area { max-width: 680px; margin: 0 auto; padding: 0 12px; }
 
+        /* Post Card */
         .post-card { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
         .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .post-author-info { display: flex; align-items: center; gap: 10px; cursor: pointer; }
@@ -53,10 +64,54 @@
         .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
         .post-media { width: 100%; max-height: 500px; object-fit: contain; background: #000; border-radius: 8px; margin-bottom: 10px; display: block; }
 
-        .post-stats { display: flex; justify-content: space-between; font-size: 13px; color: #65676b; padding-bottom: 8px; border-bottom: 1px solid #e4e6eb; }
-        .post-actions { display: flex; justify-content: space-around; padding-top: 6px; }
-        .post-action-btn { flex: 1; background: none; border: none; padding: 8px; font-size: 14px; font-weight: 600; color: #65676b; cursor: pointer; border-radius: 6px; }
+        .post-stats { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #65676b; padding-bottom: 8px; border-bottom: 1px solid #e4e6eb; min-height: 28px; }
+        .reaction-summary { display: flex; align-items: center; gap: 5px; }
+        .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
+
+        .post-actions { display: flex; justify-content: space-around; padding-top: 6px; position: relative; }
+        .reaction-wrapper { flex: 1; position: relative; display: flex; }
+        .post-action-btn { flex: 1; background: none; border: none; padding: 8px 4px; font-size: 14px; font-weight: 600; color: #65676b; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: transform 0.1s ease, background 0.15s; user-select: none; }
         .post-action-btn:hover { background: #f0f2f5; }
+        .post-action-btn:active { transform: scale(0.95); }
+
+        .post-action-btn.reacted-like { color: #1877f2; font-weight: 700; }
+        .post-action-btn.reacted-love { color: #f33e58; font-weight: 700; }
+        .post-action-btn.reacted-care,
+        .post-action-btn.reacted-haha,
+        .post-action-btn.reacted-wow,
+        .post-action-btn.reacted-sad { color: #f7b125; font-weight: 700; }
+        .post-action-btn.reacted-angry { color: #e9710f; font-weight: 700; }
+
+        .reaction-picker {
+            display: none;
+            position: absolute;
+            bottom: 44px;
+            left: 0;
+            background: #fff;
+            padding: 6px 10px;
+            border-radius: 30px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            border: 1px solid #e4e6eb;
+            gap: 8px;
+            z-index: 200;
+            animation: popUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .reaction-wrapper:hover .reaction-picker,
+        .reaction-picker.show { display: flex; }
+
+        @keyframes popUp {
+            from { opacity: 0; transform: translateY(8px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .emoji-option {
+            font-size: 26px;
+            cursor: pointer;
+            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            user-select: none;
+            line-height: 1;
+        }
+        .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
 
         .options-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 50%; color: #65676b; }
         .dropdown-menu { display: none; position: absolute; right: 16px; top: 48px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 50; overflow: hidden; border: 1px solid #e4e6eb; min-width: 130px; }
@@ -65,9 +120,14 @@
         .user-row { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
-        .modal-card { background: #fff; width: 100%; max-width: 460px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-card { background: #fff; width: 100%; max-width: 440px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-height: 80vh; display: flex; flex-direction: column; }
         .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14.5px; font-weight: 600; color: #050505; transition: background 0.15s; }
+        .share-option-btn:hover { background: #e4e6eb; }
+        .share-icon { font-size: 22px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
         .comment-container { display: flex; gap: 10px; align-items: flex-start; }
         .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; }
         .comment-content-wrapper { flex: 1; background: #f0f2f5; padding: 8px 12px; border-radius: 14px; display: flex; justify-content: space-between; font-size: 13.5px; }
@@ -78,7 +138,7 @@
 <body>
 
     <div class="top-bar">
-        <div class="logo-nav" onclick="window.location.href='feed.html'">camfeed</div>
+        <div class="logo-nav" onclick="window.location.href='feed.html'">CamFeed</div>
         <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
     </div>
 
@@ -135,6 +195,43 @@
         </div>
     </div>
 
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>Share Post</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeShareModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="shareCaptionInput" placeholder="Say something about this post (optional)..." style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid #dddfe2; outline:none; font-size:14px;">
+                
+                <button class="share-option-btn" onclick="shareToMyProfile()">
+                    <span class="share-icon">👤</span>
+                    <div>
+                        <div>Share to My Profile</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Post directly to your timeline</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="shareToSocialMedia()">
+                    <span class="share-icon">🌐</span>
+                    <div>
+                        <div>Share to Social Media</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Telegram, Facebook, Messenger & more</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="copyPostLink()">
+                    <span class="share-icon">🔗</span>
+                    <div>
+                        <div id="copyLinkLabel">Copy Link</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Copy URL to paste on other websites</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentUser = null;
         try {
@@ -151,6 +248,20 @@
         let targetUserIsFollowing = false;
         let currentProfileBio = '';
         let activePostIdForComment = null;
+        let activePostIdForShare = null;
+        let pressTimer = null;
+
+        const postReactionsState = {};
+
+        const REACTION_META = {
+            '👍': { label: 'Liked', cls: 'reacted-like' },
+            '❤️': { label: 'Love', cls: 'reacted-love' },
+            '🥰': { label: 'Care', cls: 'reacted-care' },
+            '😆': { label: 'Haha', cls: 'reacted-haha' },
+            '😮': { label: 'Wow', cls: 'reacted-wow' },
+            '😢': { label: 'Sad', cls: 'reacted-sad' },
+            '😡': { label: 'Angry', cls: 'reacted-angry' }
+        };
 
         if (!currentUser || !profileEmail) {
             window.location.href = 'index.html';
@@ -227,6 +338,29 @@
             loadTabContent(tab);
         }
 
+        function buildReactionSummaryHtml(postId) {
+            const state = postReactionsState[postId];
+            if (!state || state.count <= 0) return '';
+            const uniqueIcons = (state.types && state.types.length > 0)
+                ? state.types.join('')
+                : (state.userReaction || '👍');
+            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${state.count}</span>`;
+        }
+
+        function buildActionBtnContent(userReaction) {
+            if (userReaction && REACTION_META[userReaction]) {
+                return `${userReaction} ${REACTION_META[userReaction].label}`;
+            }
+            return `👍 Like`;
+        }
+
+        function buildActionBtnClass(userReaction) {
+            if (userReaction && REACTION_META[userReaction]) {
+                return `post-action-btn ${REACTION_META[userReaction].cls}`;
+            }
+            return `post-action-btn`;
+        }
+
         async function loadTabContent(tab) {
             const content = document.getElementById('profileContent');
             content.innerHTML = '<div style="text-align:center; padding:30px; color:#65676b;">Loading...</div>';
@@ -244,6 +378,14 @@
                         }
                         content.innerHTML = '';
                         userPosts.forEach(post => {
+                            const count = parseInt(post.likes_count) || 0;
+                            const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
+                            postReactionsState[post.id] = {
+                                count: count,
+                                userReaction: post.user_reaction || null,
+                                types: types
+                            };
+
                             const div = document.createElement('div');
                             div.className = 'post-card';
                             const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString() : '';
@@ -281,12 +423,32 @@
                                 <div class="post-content">${post.content || ''}</div>
                                 ${mediaHtml}
                                 <div class="post-stats">
-                                    <span id="likeCount-${post.id}">👍 ${post.likes_count || 0}</span>
-                                    <span id="commentCount-${post.id}">${post.comments_count || 0} Comments</span>
+                                    <div class="reaction-summary" id="reactionSummary-${post.id}">
+                                        ${buildReactionSummaryHtml(post.id)}
+                                    </div>
+                                    <span id="commentCount-${post.id}" style="cursor:pointer;" onclick="openCommentsModal(${post.id})">${post.comments_count || 0} Comments</span>
                                 </div>
                                 <div class="post-actions">
-                                    <button class="post-action-btn" onclick="sendReaction(${post.id}, '👍')">👍 Like</button>
+                                    <div class="reaction-wrapper"
+                                         ontouchstart="startLongPress(${post.id})"
+                                         ontouchend="cancelLongPress()">
+                                        <div class="reaction-picker" id="picker-${post.id}">
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '👍')">👍</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '❤️')">❤️</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '🥰')">🥰</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😆')">😆</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😮')">😮</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😢')">😢</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😡')">😡</span>
+                                        </div>
+                                        <button id="reactBtn-${post.id}"
+                                                class="${buildActionBtnClass(post.user_reaction)}"
+                                                onclick="quickToggleLike(${post.id})">
+                                            ${buildActionBtnContent(post.user_reaction)}
+                                        </button>
+                                    </div>
                                     <button class="post-action-btn" onclick="openCommentsModal(${post.id})">💬 Comment</button>
+                                    <button class="post-action-btn" onclick="openShareModal(${post.id})">↗️ Share</button>
                                 </div>
                             `;
                             content.appendChild(div);
@@ -315,6 +477,143 @@
             }
         }
 
+        function startLongPress(postId) {
+            pressTimer = setTimeout(() => {
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker) picker.classList.add('show');
+            }, 350);
+        }
+
+        function cancelLongPress() {
+            if (pressTimer) clearTimeout(pressTimer);
+        }
+
+        function quickToggleLike(postId) {
+            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
+            const emojiToSend = state.userReaction ? state.userReaction : '👍';
+            applyReactionOptimistically(postId, emojiToSend);
+        }
+
+        function selectReaction(event, postId, emoji) {
+            event.stopPropagation();
+            const picker = document.getElementById(`picker-${postId}`);
+            if (picker) picker.classList.remove('show');
+            applyReactionOptimistically(postId, emoji);
+        }
+
+        async function applyReactionOptimistically(postId, emoji) {
+            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
+
+            if (state.userReaction === emoji) {
+                state.userReaction = null;
+                state.count = Math.max(0, state.count - 1);
+                if (state.count === 0) state.types = [];
+            } else {
+                if (!state.userReaction) {
+                    state.count += 1;
+                }
+                state.userReaction = emoji;
+                if (!state.types.includes(emoji)) {
+                    state.types.push(emoji);
+                }
+            }
+            postReactionsState[postId] = state;
+            updatePostReactionUI(postId);
+
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    state.count = parseInt(data.likes_count) || 0;
+                    state.userReaction = data.reacted ? emoji : null;
+                    if (Array.isArray(data.reaction_types)) {
+                        state.types = data.reaction_types;
+                    }
+                    postReactionsState[postId] = state;
+                    updatePostReactionUI(postId);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function updatePostReactionUI(postId) {
+            const state = postReactionsState[postId];
+            const btn = document.getElementById(`reactBtn-${postId}`);
+            const summary = document.getElementById(`reactionSummary-${postId}`);
+            if (btn) {
+                btn.className = buildActionBtnClass(state.userReaction);
+                btn.innerHTML = buildActionBtnContent(state.userReaction);
+            }
+            if (summary) {
+                summary.innerHTML = buildReactionSummaryHtml(postId);
+            }
+        }
+
+        function openShareModal(postId) {
+            activePostIdForShare = postId;
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = 'Copy Link';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+            activePostIdForShare = null;
+        }
+
+        async function shareToMyProfile() {
+            if (!activePostIdForShare) return;
+            const caption = document.getElementById('shareCaptionInput').value.trim();
+            try {
+                const res = await fetch('/api/posts/share', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        postId: activePostIdForShare,
+                        email: currentUser.email,
+                        caption: caption
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeShareModal();
+                    alert('បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
+                    if (profileEmail === currentUser.email) {
+                        loadTabContent('posts');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function shareToSocialMedia() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'CamFeed Post',
+                        text: 'Check out this post on CamFeed!',
+                        url: shareUrl
+                    });
+                    closeShareModal();
+                } catch (err) {}
+            } else {
+                copyPostLink();
+            }
+        }
+
+        function copyPostLink() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            navigator.clipboard.writeText(shareUrl);
+            document.getElementById('copyLinkLabel').innerText = '✓ Link Copied!';
+            setTimeout(() => closeShareModal(), 900);
+        }
+
         async function toggleFollow(targetEmail) {
             const action = targetUserIsFollowing ? 'unfollow' : 'follow';
             try {
@@ -324,25 +623,48 @@
                     body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
                 });
                 const data = await res.json();
-                if (data.success) {
-                    loadProfileData();
-                }
+                if (data.success) loadProfileData();
             } catch (err) { console.error(err); }
         }
 
+        // Upload Profile / Cover picture directly to Cloudflare R2 (New Storage)
         async function uploadProfileImage(fieldName, input) {
             const file = input.files[0];
             if (!file) return;
 
-            const formData = new FormData();
-            formData.append('email', currentUser.email);
-            formData.append('bio', currentProfileBio);
-            formData.append(fieldName, file);
-
             try {
+                const urlRes = await fetch('/api/videos/upload-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_email: currentUser.email,
+                        file_name: file.name,
+                        content_type: file.type || 'image/jpeg'
+                    })
+                });
+                const urlData = await urlRes.json();
+                if (!urlRes.ok || !urlData.uploadUrl) {
+                    throw new Error(urlData.error || 'Failed to get R2 upload URL');
+                }
+
+                const uploadRes = await fetch(urlData.uploadUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': file.type || 'image/jpeg' },
+                    body: file
+                });
+                if (!uploadRes.ok) throw new Error('R2 upload failed');
+
+                const payload = {
+                    email: currentUser.email,
+                    bio: currentProfileBio
+                };
+                if (fieldName === 'profilePic') payload.profilePicUrl = urlData.publicUrl;
+                if (fieldName === 'coverPic') payload.coverPicUrl = urlData.publicUrl;
+
                 const res = await fetch('/api/update-profile-pics', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (data.success && data.user) {
@@ -351,27 +673,21 @@
                         currentUser = data.user;
                     }
                     loadProfileData();
-                } else {
-                    alert(data.error || 'Upload failed.');
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error uploading image.');
+                alert('Error uploading image to R2: ' + err.message);
             }
         }
 
         async function editBio(currentBio) {
             const newBio = prompt('Enter your new bio:', currentBio);
             if (newBio === null) return;
-
-            const formData = new FormData();
-            formData.append('email', currentUser.email);
-            formData.append('bio', newBio);
-
             try {
                 const res = await fetch('/api/update-profile-pics', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, bio: newBio })
                 });
                 const data = await res.json();
                 if (data.success && data.user) {
@@ -392,7 +708,10 @@
         }
 
         window.onclick = function() {
-            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            document.querySelectorAll('.dropdown-menu, .reaction-picker').forEach(el => {
+                el.style.display = 'none';
+                el.classList.remove('show');
+            });
         };
 
         async function deletePost(postId) {
@@ -404,24 +723,7 @@
                     body: JSON.stringify({ email: currentUser.email })
                 });
                 const data = await res.json();
-                if (data.success) {
-                    loadTabContent(currentTab);
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        async function sendReaction(postId, emoji) {
-            try {
-                const res = await fetch('/api/reaction', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const el = document.getElementById(`likeCount-${postId}`);
-                    if (el) el.innerText = `👍 ${data.likes_count}`;
-                }
+                if (data.success) loadTabContent(currentTab);
             } catch (err) { console.error(err); }
         }
 
@@ -444,13 +746,13 @@
                         const isOwner = currentUser.email === c.user_email;
                         return `
                             <div class="comment-container" id="comment-${c.id}">
-                                <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'" title="View Profile">
+                                <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                                 <div class="comment-content-wrapper">
                                     <div style="flex: 1;">
                                         <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name || ''} ${c.last_name || ''}</span>
-                                        <div id="comment-text-${c.id}">${c.content}</div>
+                                        <div>${c.content}</div>
                                     </div>
-                                    ${isOwner ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})" title="Delete">🗑️</button>` : ''}
+                                    ${isOwner ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})">🗑️</button>` : ''}
                                 </div>
                             </div>
                         `;
@@ -470,9 +772,7 @@
                     body: JSON.stringify({ email: currentUser.email })
                 });
                 const data = await res.json();
-                if (data.success) {
-                    openCommentsModal(postId);
-                }
+                if (data.success) openCommentsModal(postId);
             } catch (err) { console.error(err); }
         }
 
@@ -485,7 +785,6 @@
             const input = document.getElementById('modalCommentInput');
             const content = input.value.trim();
             if (!content || !activePostIdForComment) return;
-
             try {
                 const res = await fetch('/api/comments', {
                     method: 'POST',

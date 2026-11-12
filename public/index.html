@@ -3,14 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camfeed - Login</title>
+    <title>CamFeed - Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; display: flex; flex-direction: column; min-height: 100vh; justify-content: center; align-items: center; }
 
         .container { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 440px; padding: 20px; box-sizing: border-box; }
         
         .logo-container { text-align: center; margin-bottom: 20px; }
-        .logo { font-size: 52px; font-weight: bold; color: #1877f2; letter-spacing: -1px; margin-bottom: 8px; }
+        .logo {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 52px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1.2px;
+            margin-bottom: 8px;
+        }
         .logo-tagline { font-size: 18px; color: #606770; line-height: 1.2; text-align: center; }
         
         .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1); width: 100%; box-sizing: border-box; }
@@ -27,6 +39,7 @@
 
         .btn-primary { width: 100%; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
         .btn-primary:hover { background: #166fe5; }
+        .btn-primary:disabled { background: #b0d3f8; cursor: not-allowed; }
         
         .btn-create { width: 100%; padding: 12px; background: #42b72a; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center; display: block; text-decoration: none; box-sizing: border-box; }
         .btn-create:hover { background: #36a420; }
@@ -39,7 +52,6 @@
         .lang-container { margin-top: 20px; text-align: center; }
         .lang-select { padding: 6px 12px; border: 1px solid #ccd0d5; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; outline: none; width: auto; display: inline-block; }
         
-        /* 🎨 Modern Facebook Style Profile & Cover Upload Box */
         .upload-section { background: #f7f8fa; border: 2px dashed #ccd0d5; border-radius: 10px; padding: 15px; margin-top: 10px; text-align: center; transition: all 0.3s; position: relative; }
         .upload-section:hover { border-color: #1877f2; background: #e7f3ff55; }
         
@@ -67,8 +79,8 @@
 
     <div class="container">
         <div class="logo-container">
-            <div class="logo">camfeed</div>
-            <div class="logo-tagline" id="logoTagline">Connect with friends and the world around you on Camfeed.</div>
+            <div class="logo">CamFeed</div>
+            <div class="logo-tagline" id="logoTagline">Connect with friends and the world around you on CamFeed.</div>
         </div>
 
         <!-- LOGIN VIEW -->
@@ -157,14 +169,13 @@
 
         <!-- REGISTER STEP 2: WELCOME & PROFILE WIZARD -->
         <div class="card hidden" id="welcomeWizardCard">
-            <h3 id="welcomeTitle" style="margin-top: 0; color: #1877f2; text-align: center;">សូមស្វាគមន៍មកកាន់ Camfeed!</h3>
+            <h3 id="welcomeTitle" style="margin-top: 0; color: #1877f2; text-align: center;">សូមស្វាគមន៍មកកាន់ CamFeed!</h3>
             <p id="welcomeDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;">
-                Camfeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។
+                CamFeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។
             </p>
             <div class="divider"></div>
             
             <form onsubmit="event.preventDefault(); finalizeRegistration();">
-                <!-- 🎨 Upload Profile Box with Preview & Delete -->
                 <label id="lblProfilePic" style="font-weight: bold; margin-bottom: 5px;">Profile Picture</label>
                 <div class="upload-section">
                     <div class="preview-avatar-container">
@@ -177,7 +188,6 @@
                     </label>
                 </div>
 
-                <!-- 🎨 Upload Cover Box with Preview, Delete & Change -->
                 <label id="lblCoverPic" style="font-weight: bold; margin-top: 15px; margin-bottom: 5px;">Cover Photo</label>
                 <div class="upload-section">
                     <div id="previewCoverContainer" class="preview-cover-container">
@@ -235,28 +245,28 @@
 
         const texts = {
             en: {
-                logoTagline: "Connect with friends and the world around you on Camfeed.",
+                logoTagline: "Connect with friends and the world around you on CamFeed.",
                 loginEmail: "Mobile number or email", password: "Password", btnLoginText: "Log In",
                 forgotText: "Forgot password?", btnCreateText: "Create new account", regTitle: "Sign Up",
                 regSubtitle: "It's quick and easy.", firstName: "First name", lastName: "Surname",
                 regEmail: "Mobile number or email", regPassword: "New password", lblDob: "Date of birth",
                 lblGender: "Gender", optGenderDefault: "Select gender", optMale: "Male", optFemale: "Female",
                 optCustom: "Custom", lblCountry: "Country", btnNextStep: "Next", haveAccText: "Already have an account?",
-                welcomeTitle: "Welcome to Camfeed!",
-                welcomeDesc: "Camfeed is an amazing community platform designed to help you connect with friends, family, and share your daily life stories with the world.",
+                welcomeTitle: "Welcome to CamFeed!",
+                welcomeDesc: "CamFeed is an amazing community platform designed to help you connect with friends, family, and share your daily life stories with the world.",
                 lblProfilePic: "Profile Picture", lblCoverPic: "Cover Photo", btnFinishReg: "Get Started & Finish",
                 chooseProfile: "📁 Choose Profile Photo", chooseCover: "🖼️ Choose Cover Photo", noCover: "No cover photo chosen"
             },
             km: {
-                logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ Camfeed។",
+                logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ CamFeed។",
                 loginEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", password: "ពាក្យសម្ងាត់", btnLoginText: "ចូលគណនី",
                 forgotText: "ភ្លេចពាក្យសម្ងាត់?", btnCreateText: "បង្កើតគណនីថ្មី", regTitle: "ចុះឈ្មោះ",
                 regSubtitle: "រហ័ស និងងាយស្រួល។", firstName: "នាមខ្លួន", lastName: "នាមត្រកូល",
                 regEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
                 lblGender: "ភេទ", optGenderDefault: "ជ្រើសរើសភេទ", optMale: "ប្រុស", optFemale: "ស្រី",
                 optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnNextStep: "បន្ទាប់", haveAccText: "មានគណនីរួចហើយ?",
-                welcomeTitle: "សូមស្វាគមន៍មកកាន់ Camfeed!",
-                welcomeDesc: "Camfeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។",
+                welcomeTitle: "សូមស្វាគមន៍មកកាន់ CamFeed!",
+                welcomeDesc: "CamFeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។",
                 lblProfilePic: "រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "រូបភាពគម្រប (Cover Photo)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់",
                 chooseProfile: "📁 ជ្រើសរើសរូបប្រវត្តិរូប", chooseCover: "🖼️ ជ្រើសរើសរូបគម្រប", noCover: "មិនទាន់បានជ្រើសរើសរូបគម្របទេ"
             }
@@ -348,7 +358,6 @@
             document.getElementById('welcomeWizardCard').classList.remove('hidden');
         }
 
-        /* 🖼️ Profile Picture Preview & Management */
         function previewAvatar(event) {
             const file = event.target.files[0];
             if (file) {
@@ -363,7 +372,6 @@
             document.getElementById('removeAvatarBtn').classList.add('hidden');
         }
 
-        /* 🖼️ Cover Photo Preview, Delete & Change Management */
         function previewCover(event) {
             const file = event.target.files[0];
             if (file) {
@@ -387,6 +395,33 @@
             document.getElementById('coverUploadLabel').childNodes[0].nodeValue = texts[lang].chooseCover + " ";
         }
 
+        // Upload image directly to Cloudflare R2 (New Storage)
+        async function uploadImageToR2(file, userEmail) {
+            const urlRes = await fetch('/api/videos/upload-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_email: userEmail,
+                    file_name: file.name,
+                    content_type: file.type || 'image/jpeg'
+                })
+            });
+            const urlData = await urlRes.json();
+            if (!urlRes.ok || !urlData.uploadUrl) {
+                throw new Error(urlData.error || 'Failed to get R2 upload URL');
+            }
+
+            const uploadRes = await fetch(urlData.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'image/jpeg' },
+                body: file
+            });
+            if (!uploadRes.ok) {
+                throw new Error('Failed to upload image to Cloudflare R2');
+            }
+            return urlData.publicUrl;
+        }
+
         async function finalizeRegistration() {
             const profileFile = document.getElementById('regProfileFile').files[0];
             const coverFile = document.getElementById('regCoverFile').files[0];
@@ -408,15 +443,26 @@
                     let user = data.user;
 
                     if (profileFile || coverFile) {
-                        const formData = new FormData();
-                        formData.append('email', user.email);
-                        formData.append('bio', '');
-                        if (profileFile) formData.append('profilePic', profileFile);
-                        if (coverFile) formData.append('coverPic', coverFile);
+                        finishBtn.innerText = "Uploading photos to R2...";
+                        let profilePicUrl = null;
+                        let coverPicUrl = null;
+
+                        if (profileFile) {
+                            profilePicUrl = await uploadImageToR2(profileFile, user.email);
+                        }
+                        if (coverFile) {
+                            coverPicUrl = await uploadImageToR2(coverFile, user.email);
+                        }
 
                         const picRes = await fetch('/api/update-profile-pics', {
                             method: 'POST',
-                            body: formData
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: user.email,
+                                bio: '',
+                                profilePicUrl: profilePicUrl,
+                                coverPicUrl: coverPicUrl
+                            })
                         });
                         const picData = await picRes.json();
                         if (picData.success) {
@@ -437,7 +483,7 @@
                 finishBtn.disabled = false;
                 finishBtn.innerText = "Get Started & Finish";
                 msg.style.color = 'red';
-                msg.innerText = 'Server connection error';
+                msg.innerText = err.message || 'Server connection error';
             }
         }
 
