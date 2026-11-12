@@ -177,20 +177,34 @@
             bottom: calc(16px + env(safe-area-inset-bottom, 0px));
             right: 14px;
             z-index: 4500;
-            width: 295px;
-            max-width: calc(100vw - 28px);
-            background: rgba(15, 23, 42, 0.94);
+            width: 305px;
+            max-width: calc(100vw - 24px);
+            background: rgba(15, 23, 42, 0.95);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             color: #ffffff;
             border-radius: 16px;
             padding: 12px 14px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.38);
+            border: 1px solid rgba(255, 255, 255, 0.18);
             display: none;
             flex-direction: column;
-            gap: 9px;
-            transition: all 0.22s ease;
+            gap: 8px;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: grab;
+        }
+        .bg-upload-floating-widget:active { cursor: grabbing; }
+        .bg-widget-warning-note {
+            font-size: 11px;
+            line-height: 1.35;
+            color: #fde68a;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.32);
+            padding: 5px 8px;
+            border-radius: 8px;
+            font-weight: 600;
         }
         .bg-upload-floating-widget.visible { display: flex; }
         .bg-upload-floating-widget.minimized {
@@ -1084,7 +1098,7 @@
     </div>
 
     <!-- Non-Blocking Floating Corner Progress Mini-Widget (Shows Compress % & Upload %) -->
-    <div id="bgUploadFloatingWidget" class="bg-upload-floating-widget" onclick="if(this.classList.contains('minimized')) toggleBgWidgetMinimize(event)">
+    <div id="bgUploadFloatingWidget" class="bg-upload-floating-widget" onclick="if(this.classList.contains('minimized') && this.dataset.justDragged !== 'true') toggleBgWidgetMinimize(event)">
         <div class="bg-widget-top">
             <span class="bg-widget-title" id="bgWidgetMainTitle">⚙️ កំពុងរៀបចំឯកសារ...</span>
             <span id="bgWidgetMiniPillText" class="hidden" style="font-size:12px; font-weight:800; color:#38bdf8;">0%</span>
@@ -1110,6 +1124,7 @@
                     <div class="bg-metric-bar-fill-upload" id="bgUploadBarFill"></div>
                 </div>
             </div>
+            <div class="bg-widget-warning-note">⚠️ វីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។ (អាចអូសផ្ទាំងនេះទៅទីតាំងណាក៏បាន)</div>
         </div>
     </div>
 
@@ -1728,6 +1743,11 @@
         let lastHomeClickTime = 0;
 
         function switchTab(tab) {
+            if (bgJobRunning && tab !== 'feed') {
+                if (!confirm('កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ?\nវីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។')) {
+                    return;
+                }
+            }
             if (tab === 'videos') { 
                 if (window.location.pathname.includes('videos.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
                 else window.location.href = 'videos.html'; 
@@ -2169,8 +2189,13 @@
 
         function formatVideoClock(sec) {
             if (!sec || !isFinite(sec) || sec < 0) return '0:00';
-            const m = Math.floor(sec / 60);
-            const s = Math.floor(sec % 60);
+            const totalSec = Math.floor(sec);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h > 0) {
+                return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            }
             return `${m}:${s < 10 ? '0' : ''}${s}`;
         }
 
@@ -2210,8 +2235,9 @@
 
                     <div class="feed-video-controls-bar" onclick="event.stopPropagation()">
                         <button type="button" class="fvc-btn" id="vplay-${uid}" onclick="toggleFeedVideoPlayPause('${uid}', event)" title="Play/Pause">⏸</button>
-                        <span class="fvc-time" id="vtime-${uid}">0:00 / 0:00</span>
+                        <span class="fvc-time" id="vcur-${uid}">0:00</span>
                         <input type="range" class="fvc-seek" id="vseek-${uid}" min="0" max="100" value="0" step="0.1" oninput="seekFeedVideo('${uid}', this.value)">
+                        <span class="fvc-time" id="vdur-${uid}">0:00</span>
                         <button type="button" class="fvc-btn feed-mute-btn" onclick="toggleSingleFeedVideoMute(event)" title="Mute / Unmute">${globalVideoUnmuted ? '🔊' : '🔇'}</button>
                         <button type="button" class="fvc-btn" onclick="fullscreenFeedVideo('${uid}', event)" title="Fullscreen">⛶</button>
                     </div>
@@ -2244,14 +2270,14 @@
 
         function updateFeedVideoClock(uid) {
             const vid = document.getElementById(`vid-${uid}`);
-            const timeEl = document.getElementById(`vtime-${uid}`);
+            const curEl = document.getElementById(`vcur-${uid}`);
+            const durEl = document.getElementById(`vdur-${uid}`);
             const seekEl = document.getElementById(`vseek-${uid}`);
             if (!vid) return;
             const cur = vid.currentTime || 0;
             const dur = isFinite(vid.duration) ? vid.duration : 0;
-            if (timeEl) {
-                timeEl.innerText = `${formatVideoClock(cur)} / ${formatVideoClock(dur)}`;
-            }
+            if (curEl) curEl.innerText = formatVideoClock(cur);
+            if (durEl) durEl.innerText = formatVideoClock(dur);
             if (seekEl && dur > 0) {
                 seekEl.value = ((cur / dur) * 100).toFixed(1);
             }
@@ -4297,6 +4323,86 @@
                 }
             }
         }
+
+    
+        // =========================================================================
+        // DRAGGABLE FLOATING WIDGET + BEFOREUNLOAD NAVIGATION GUARD
+        // =========================================================================
+        (function initDraggableUploadWidget() {
+            const widget = document.getElementById('bgUploadFloatingWidget');
+            if (!widget) return;
+
+            let isDragging = false;
+            let hasMoved = false;
+            let startX = 0, startY = 0;
+            let origLeft = 0, origTop = 0;
+
+            widget.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('button')) return;
+                isDragging = true;
+                hasMoved = false;
+                const rect = widget.getBoundingClientRect();
+                origLeft = rect.left;
+                origTop = rect.top;
+                startX = e.clientX;
+                startY = e.clientY;
+                widget.style.left = origLeft + 'px';
+                widget.style.top = origTop + 'px';
+                widget.style.right = 'auto';
+                widget.style.bottom = 'auto';
+                try { widget.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+
+            widget.addEventListener('pointermove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) hasMoved = true;
+
+                const maxLeft = Math.max(6, window.innerWidth - widget.offsetWidth - 6);
+                const maxTop = Math.max(6, window.innerHeight - widget.offsetHeight - 6);
+                const nextLeft = Math.min(maxLeft, Math.max(6, origLeft + dx));
+                const nextTop = Math.min(maxTop, Math.max(6, origTop + dy));
+                widget.style.left = nextLeft + 'px';
+                widget.style.top = nextTop + 'px';
+            });
+
+            const endDrag = (e) => {
+                if (!isDragging) return;
+                isDragging = false;
+                try { widget.releasePointerCapture(e.pointerId); } catch (err) {}
+                if (hasMoved) {
+                    widget.dataset.justDragged = 'true';
+                    setTimeout(() => { widget.dataset.justDragged = 'false'; }, 150);
+                }
+            };
+            widget.addEventListener('pointerup', endDrag);
+            widget.addEventListener('pointercancel', endDrag);
+        })();
+
+        // Prevent accidental page reload, tab close, or link navigation while compressing/uploading
+        window.addEventListener('beforeunload', (e) => {
+            if (bgJobRunning) {
+                const msg = 'កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ? វីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។';
+                e.preventDefault();
+                e.returnValue = msg;
+                return msg;
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!bgJobRunning) return;
+            const anchor = e.target.closest('a[href]');
+            if (anchor) {
+                const href = anchor.getAttribute('href') || '';
+                if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+                    if (!confirm('កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ?\nវីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                }
+            }
+        }, true);
 
     </script>
 </body>

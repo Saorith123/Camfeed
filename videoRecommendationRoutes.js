@@ -9,7 +9,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFile } = require('child_process');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 let ffmpegBin = 'ffmpeg';
@@ -21,7 +21,6 @@ try {
 
 function compressVideoBufferOnServer(inputBuffer, originalName) {
   return new Promise((resolve) => {
-    // If video is already compact (<= 15MB), skip heavy CPU re-encoding so Render 512MB RAM never OOMs (502)
     if (!inputBuffer || inputBuffer.length <= 15 * 1024 * 1024) {
       return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
     }
@@ -30,62 +29,7 @@ function compressVideoBufferOnServer(inputBuffer, originalName) {
     const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const ext = path.extname(originalName || '.mp4') || '.mp4';
     const inPath = path.join(tmpDir, `camfeed-in-${uid}${ext}`);
-    const outPath = path.join(tmpDir, `camfeed-out-${uid}.mp4`);
-
-    fs.writeFile(inPath, inputBuffer, (writeErr) => {
-      if (writeErr) {
-        return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
-      }
-
-      // Low-memory single-thread 720p H.264 compression safe for 512MB Render containers
-      const args = [
-        '-y',
-        '-threads', '1',
-        '-i', inPath,
-        '-vf', "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '27',
-        '-maxrate', '1800k',
-        '-bufsize', '2000k',
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
-        '-c:a', 'aac',
-        '-b:a', '96k',
-        outPath
-      ];
-
-      execFile(ffmpegBin, args, { timeout: 120000 }, (err) => {
-        fs.unlink(inPath, () => {});
-        if (err || !fs.existsSync(outPath)) {
-          fs.unlink(outPath, () => {});
-          return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
-        }
-
-        fs.readFile(outPath, (readErr, outBuffer) => {
-          fs.unlink(outPath, () => {});
-          if (readErr || !outBuffer || outBuffer.length === 0 || outBuffer.length >= inputBuffer.length) {
-            return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
-          }
-          resolve({ buffer: outBuffer, contentType: 'video/mp4', compressed: true });
-        });
-      });
-    });
-  });
-}
-
-const memUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 },
-});
-
-module.exports = function createVideoRouter(pool) {
-  const router = express.Router();
-
-  // 1. Initialize Cloudflare R2 S3 Client
-  const r2 = new S3Client({
-    region: 'auto',
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    const outPath = path.join(tmpDir, `camfeed-out-${uid}.mp4`);  fs.writeFile(inPath, inputBuffer, (writeErr) => { if (writeErr) { return resolve({ buffer: inputBuffer, contentType: null, compressed: false }); }  const args = [ '-y', '-threads', '1', '-i', inPath, '-vf', "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '27', '-maxrate', '1800k', '-bufsize', '2000k', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '96k', outPath ];  execFile(ffmpegBin, args, { timeout: 120000 }, (err) => { fs.unlink(inPath, () => {}); if (err \vert{}\vert{} !fs.existsSync(outPath)) { fs.unlink(outPath, () => {}); return resolve({ buffer: inputBuffer, contentType: null, compressed: false }); }  fs.readFile(outPath, (readErr, outBuffer) => { fs.unlink(outPath, () => {}); if (readErr \vert{}\vert{} !outBuffer \vert{}\vert{} outBuffer.length === 0 \vert{}\vert{} outBuffer.length >= inputBuffer.length) { return resolve({ buffer: inputBuffer, contentType: null, compressed: false }); } resolve({ buffer: outBuffer, contentType: 'video/mp4', compressed: true }); }); }); }); }); }  const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 }, });  module.exports = function createVideoRouter(pool) { const router = express.Router();  // 1. Initialize Cloudflare R2 S3 Client const r2 = new S3Client({ region: 'auto', endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
     credentials: {
       accessKeyId: process.env.R2_ACCESS_KEY_ID,
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
@@ -94,8 +38,6 @@ module.exports = function createVideoRouter(pool) {
 
   // ---------------------------------------------------------------------------
   // 1. Generate Presigned Upload URL (Supports both Images & Videos to R2)
-  // POST /api/videos/upload-url
-  // Body: { user_email, file_name, content_type }
   // ---------------------------------------------------------------------------
   router.post('/upload-url', async (req, res) => {
     try {
@@ -106,53 +48,7 @@ module.exports = function createVideoRouter(pool) {
 
       const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const folder = content_type.startsWith('image/') ? 'images' : 'videos';
-      const r2Key = `${folder}/${Date.now()}-${safeName}`;
-
-      const command = new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage',
-        Key: r2Key,
-        ContentType: content_type,
-      });
-
-      const uploadUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
-      const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com'}/${r2Key}`;
-
-      res.json({ uploadUrl, publicUrl, r2Key });
-    } catch (err) {
-      console.error('Presigned URL error:', err);
-      res.status(500).json({ error: 'Failed to generate upload URL' });
-    }
-  });
-
-  // ---------------------------------------------------------------------------
-  // 1B. Direct Server-to-R2 Media Upload (Images & Videos - Bypasses Mobile Browser CORS Issues)
-  // POST /api/videos/upload-image  &  POST /api/videos/upload-direct
-  // ---------------------------------------------------------------------------
-  async function handleDirectServerR2Upload(req, res) {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'No media file provided' });
-      }
-
-      let mime = req.file.mimetype || 'application/octet-stream';
-      const isVideo = mime.startsWith('video/') || /\.(mp4|mov|webm|m4v|avi)$/i.test(req.file.originalname || '');
-      const folder = isVideo ? 'videos' : 'images';
-      const defaultName = isVideo ? 'video.mp4' : 'photo.jpg';
-      let safeName = (req.file.originalname || defaultName).replace(/[^a-zA-Z0-9._-]/g, '_');
-      let uploadBuffer = req.file.buffer;
-      let wasCompressed = false;
-
-      if (isVideo) {
-        const comp = await compressVideoBufferOnServer(req.file.buffer, safeName);
-        if (comp.compressed) {
-          uploadBuffer = comp.buffer;
-          mime = comp.contentType || 'video/mp4';
-          safeName = safeName.replace(/\.[^/.]+$/, '') + '.mp4';
-          wasCompressed = true;
-        }
-      }
-
-      const r2Key = `${folder}/${Date.now()}-${safeName}`;
+      const r2Key = `${folder}/${Date.now()}-${safeName}`;  const command = new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME \vert{}\vert{} 'camfeed-storage', Key: r2Key, ContentType: content_type, });  const uploadUrl = await getSignedUrl(r2, command, { expiresIn: 300 }); const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com'}/${r2Key}`;  res.json({ uploadUrl, publicUrl, r2Key }); } catch (err) { console.error('Presigned URL error:', err); res.status(500).json({ error: 'Failed to generate upload URL' }); } });  // --------------------------------------------------------------------------- // 1B. Direct Server-to-R2 Media Upload (Images & Videos) // --------------------------------------------------------------------------- async function handleDirectServerR2Upload(req, res) { try { if (!req.file) { return res.status(400).json({ error: 'No media file provided' }); }  let mime = req.file.mimetype \vert{}\vert{} 'application/octet-stream'; const isVideo = mime.startsWith('video/') \vert{}\vert{} /\.(mp4\vert{}mov\vert{}webm\vert{}m4v\vert{}avi)$/i.test(req.file.originalname \vert{}\vert{} ''); const folder = isVideo ? 'videos' : 'images'; const defaultName = isVideo ? 'video.mp4' : 'photo.jpg'; let safeName = (req.file.originalname \vert{}\vert{} defaultName).replace(/[^a-zA-Z0-9._-]/g, '_'); let uploadBuffer = req.file.buffer; let wasCompressed = false;  if (isVideo) { const comp = await compressVideoBufferOnServer(req.file.buffer, safeName); if (comp.compressed) { uploadBuffer = comp.buffer; mime = comp.contentType \vert{}\vert{} 'video/mp4'; safeName = safeName.replace(/\.[^/.]+$/, '') + '.mp4'; wasCompressed = true; } }  const r2Key = `${folder}/${Date.now()}-${safeName}`;
 
       await r2.send(
         new PutObjectCommand({
@@ -163,7 +59,7 @@ module.exports = function createVideoRouter(pool) {
         })
       );
 
-      const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com'}/${r2Key}`;
+      const publicUrl = `${process.env.R2_PUBLIC_URL \vert{}\vert{} 'https://media.camfeedkh.com'}/${r2Key}`;
       res.json({
         success: true,
         publicUrl,
@@ -183,8 +79,6 @@ module.exports = function createVideoRouter(pool) {
 
   // ---------------------------------------------------------------------------
   // 2. Save Video Metadata & Trigger AI Moderation + Auto-Classification
-  // POST /api/videos/complete
-  // Body: { user_email, title, description, r2_key, video_url, thumbnail_url, thumbnailBase64 }
   // ---------------------------------------------------------------------------
   router.post('/complete', async (req, res) => {
     try {
@@ -211,7 +105,6 @@ module.exports = function createVideoRouter(pool) {
 
       const video = insertResult.rows[0];
 
-      // Run AI classification & safety moderation asynchronously (with visual thumbnail if provided)
       classifyAndModerateVideo(pool, video, thumbnailBase64).catch((err) =>
         console.error(`AI classification failed for video ${video.id}:`, err)
       );
@@ -225,8 +118,6 @@ module.exports = function createVideoRouter(pool) {
 
   // ---------------------------------------------------------------------------
   // 3. Track User Behavior & Update Interest Profile
-  // POST /api/videos/track
-  // Body: { user_email, video_id, watch_duration_sec, video_duration_sec, completed, interaction_type }
   // ---------------------------------------------------------------------------
   router.post('/track', async (req, res) => {
     try {
@@ -243,21 +134,18 @@ module.exports = function createVideoRouter(pool) {
         return res.status(400).json({ error: 'user_email and video_id are required' });
       }
 
-      // Log raw interaction
       await pool.query(
         `INSERT INTO user_video_logs (user_email, video_id, watch_duration_sec, video_duration_sec, completed, interaction_type)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [user_email, video_id, watch_duration_sec, video_duration_sec, completed, interaction_type]
       );
 
-      // Update video counters
       if (interaction_type === 'view') {
         await pool.query(`UPDATE videos SET views_count = views_count + 1 WHERE id = $1`, [video_id]);
       } else if (interaction_type === 'like') {
         await pool.query(`UPDATE videos SET likes_count = likes_count + 1 WHERE id = $1`, [video_id]);
       }
 
-      // Calculate interest weight
       const videoRes = await pool.query(`SELECT category FROM videos WHERE id = $1`, [video_id]);
       if (videoRes.rows.length > 0) {
         const category = videoRes.rows[0].category;
@@ -296,7 +184,6 @@ module.exports = function createVideoRouter(pool) {
 
   // ---------------------------------------------------------------------------
   // 4. Personalized Recommendation Feed
-  // GET /api/videos/feed?user_email=...&limit=20&offset=0
   // ---------------------------------------------------------------------------
   router.get('/feed', async (req, res) => {
     try {
@@ -338,6 +225,54 @@ module.exports = function createVideoRouter(pool) {
       res.status(500).json({ error: 'Failed to fetch recommendation feed' });
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // 5. Auto-Delete Media Files from Cloudflare R2 Storage
+  // ---------------------------------------------------------------------------
+  async function deleteR2ObjectsFromMedia(mediaUrlRaw) {
+    if (!mediaUrlRaw || typeof mediaUrlRaw !== 'string') return;
+    const publicBase = (process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/$/, '');
+    const bucket = process.env.R2_BUCKET_NAME || 'camfeed-storage';
+    const urls = [];
+
+    const trimmed = mediaUrlRaw.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmed);
+        if (Array.isArray(arr)) {
+          arr.forEach(it => { if (it && it.url) urls.push(it.url); });
+        }
+      } catch (e) {}
+    } else if (trimmed.startsWith('http')) {
+      urls.push(trimmed);
+    }
+
+    for (const u of urls) {
+      try {
+        const cleanUrl = u.split('#')[0].split('?')[0];
+        let key = '';
+        if (cleanUrl.startsWith(publicBase + '/')) {
+          key = cleanUrl.slice((publicBase + '/').length);
+        } else {
+          const parsed = new URL(cleanUrl);
+          if (parsed.hostname.includes('camfeedkh.com') || parsed.hostname.includes('r2.dev') || parsed.hostname.includes('r2.cloudflarestorage.com')) {
+            key = parsed.pathname.replace(/^\//, '');
+          }
+        }
+        if (key && (key.startsWith('videos/') || key.startsWith('images/') || key.startsWith('audio/'))) {
+          await r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: decodeURIComponent(key) }));
+          if (key.startsWith('videos/')) {
+            await pool.query('DELETE FROM videos WHERE r2_key = $1 OR video_url LIKE $2', [key, `%${key}%`]).catch(() => {});
+          }
+          console.log('[R2 Storage] Deleted file:', key);
+        }
+      } catch (err) {
+        console.error('[R2 Storage] Delete skipped/error:', err.message);
+      }
+    }
+  }
+
+  router.deleteR2ObjectsFromMedia = deleteR2ObjectsFromMedia;
 
   return router;
 };
