@@ -324,7 +324,7 @@
                 <div class="logo-nav" onclick="switchTab('feed')">CamFeed</div>
                 <div class="dropdown-menu" id="menuDropdown">
                     <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
-                    <div class="dropdown-item" id="menuAdminText" onclick="window.location.href='admin.html'">🛡️ Admin Reports</div>
+                    <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'">🛡️ Admin Reports</div>
                     <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
                 </div>
             </div>
@@ -631,6 +631,13 @@
             }
             document.getElementById('modalAuthorName').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
             
+            // Show Admin menu item only for Super Admin or Team Admins
+            const adminEmails = ['rossaorith@gmail.com', 'saorithkh2018@gmail.com'];
+            if (currentUser.role === 'super_admin' || currentUser.role === 'admin' || adminEmails.includes((currentUser.email || '').toLowerCase())) {
+                const adminMenuEl = document.getElementById('menuAdminText');
+                if (adminMenuEl) adminMenuEl.classList.remove('hidden');
+            }
+
             applyLanguage();
             loadPosts();
             loadNotifications();
@@ -1133,6 +1140,25 @@
         }
 
         function renderPostMediaHtml(post, dateStr) {
+            // Render Facebook-Style Embedded Shared Profile Card
+            if (post.media_type === 'shared_profile' && post.media_url) {
+                try {
+                    const sp = JSON.parse(post.media_url);
+                    return `
+                        <div class="embedded-shared-card" style="cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(sp.email)}'">
+                            ${sp.cover_pic ? `<img src="${sp.cover_pic}" style="width:100%; height:130px; object-fit:cover; display:block;">` : ''}
+                            <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
+                                <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
+                                <div>
+                                    <div style="font-weight:700; font-size:15px; color:#050505;">${sp.name}</div>
+                                    <div style="font-size:12.5px; color:#65676b;">${sp.bio || 'View Profile on CamFeed'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } catch (e) {}
+            }
+
             // Render Facebook-Style Embedded Shared Post Card
             if (post.shared_post_id || post.media_type === 'shared') {
                 if (!post.orig_id) {
@@ -1199,7 +1225,6 @@
                 if (data.success) {
                     let postsList = data.posts || [];
 
-                    // If opened from a Notification (?post=ID), fetch & place that post at the very top and highlight it
                     const urlParams = new URLSearchParams(window.location.search);
                     const targetPostId = urlParams.get('post');
                     if (targetPostId) {
@@ -1284,7 +1309,7 @@
                             ${buildReactionSummaryHtml(post.id)}
                         </div>
                         <div class="right-stats-group">
-                            <span id="viewCount-${post.id}">👁️ ${formatCompactNumber(viewsCount)}</span>
+                            <span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>
                             <span class="stat-link" style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${formatCompactNumber(post.comments_count)} ${currentLang === 'km' ? 'មតិ' : 'Comments'}</span>
                             <span class="stat-link" style="cursor: pointer;" onclick="openSharersList(${post.id})" id="shareCount-${post.id}">${formatCompactNumber(sharesCount)} ${currentLang === 'km' ? 'ចែករំលែក' : 'Shares'}</span>
                         </div>
@@ -1346,7 +1371,6 @@
             }
         }
 
-        // Compact 3-dot Post Menu & Report Modal Logic
         function togglePostOptionsMenu(event, postId) {
             event.stopPropagation();
             document.querySelectorAll('.post-options-dropdown').forEach(m => {
@@ -1437,7 +1461,7 @@
                             .then(data => {
                                 if (data.success && data.views_count !== undefined) {
                                     const viewEl = document.getElementById(`viewCount-${postId}`);
-                                    if (viewEl) viewEl.innerText = `👁️ ${formatCompactNumber(data.views_count)}`;
+                                    if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
                                 }
                             })
                             .catch(() => {});
@@ -1449,7 +1473,6 @@
             postCards.forEach(card => viewObserver.observe(card));
         }
 
-        // Hold 1 second (1000ms) on thumb button to open persistent reaction bar
         function startHoldReaction(event, postId) {
             if (event.button && event.button !== 0) return;
             isLongPressTriggered = false;
@@ -1617,7 +1640,6 @@
             }
         }
 
-        // Open List of People Who Reacted
         async function openReactionsList(postId) {
             const modal = document.getElementById('reactionsModal');
             const listContainer = document.getElementById('reactionsModalList');
@@ -1662,7 +1684,6 @@
             openReactionsList(postId);
         }
 
-        // Open List of People Who Shared (Matches Reactors Modal)
         async function openSharersList(postId) {
             const modal = document.getElementById('sharersModal');
             const listContainer = document.getElementById('sharersModalList');
@@ -1867,7 +1888,6 @@
             loadComments(postId);
         }
 
-        // Load Notifications: Clicking Avatar opens Sender Profile; Clicking Message opens the exact Video/Post
         async function loadNotifications() {
             try {
                 const res = await fetch(`/api/notifications?email=${encodeURIComponent(currentUser.email)}`);
