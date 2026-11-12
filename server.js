@@ -1049,7 +1049,7 @@ app.get('/api/user-profile', async (req, res) => {
     }
 
     const query = `
-      SELECT u.*,
+      SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds') AS is_online,
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
@@ -1193,7 +1193,7 @@ app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active,
+      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds') AS is_online,
       (
         SELECT m.message FROM messages m 
         WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
@@ -1224,7 +1224,7 @@ app.get('/api/chat-conversations', async (req, res) => {
       
       UNION
       
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active,
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds') AS is_online,
       'Start a conversation' as last_message,
       NULL as last_sender_email,
       0 as unread_count,
@@ -1256,7 +1256,7 @@ app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
     const query = `
-      SELECT email, first_name, last_name, profile_pic, last_active 
+      SELECT email, first_name, last_name, profile_pic, last_active, (last_active IS NOT NULL AND last_active >= NOW() - INTERVAL '35 seconds') AS is_online 
       FROM users 
       WHERE email != $1 
         AND COALESCE(is_banned, FALSE) = FALSE
@@ -1321,11 +1321,16 @@ app.get('/api/messages', async (req, res) => {
 });
 
 // Real-Time Online / Offline Presence Endpoints
+let presenceColReady = false;
 app.post('/api/presence/ping', async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.json({ success: false });
   try {
-    await pool.query('UPDATE users SET last_active = NOW() WHERE email = $1', [email]);
+    if (!presenceColReady) {
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active TIMESTAMP DEFAULT NULL').catch(() => {});
+      presenceColReady = true;
+    }
+    await pool.query('UPDATE users SET last_active = NOW() WHERE LOWER(email) = LOWER($1)', [email.toString().trim()]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1335,9 +1340,10 @@ app.post('/api/presence/ping', async (req, res) => {
 app.post('/api/presence/offline', async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.json({ success: false });
-  lastGlobalPingMap.delete(email.toString().trim().toLowerCase());
-  try;
-    await pool.query("UPDATE users SET last_active = NOW() - INTERVAL '10 minutes' WHERE email = $1", [email]);
+  const norm = email.toString().trim().toLowerCase();
+  lastGlobalPingMap.delete(norm);
+  try {
+    await pool.query("UPDATE users SET last_active = NOW() - INTERVAL '45 seconds' WHERE LOWER(email) = $1", [norm]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
