@@ -5,8 +5,66 @@
 
 const express = require('express');
 const multer = require('multer');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFile } = require('child_process');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
+let ffmpegBin = 'ffmpeg';
+try {
+  ffmpegBin = require('ffmpeg-static') || 'ffmpeg';
+} catch (e) {
+  ffmpegBin = 'ffmpeg';
+}
+
+function compressVideoBufferOnServer(inputBuffer, originalName) {
+  return new Promise((resolve) => {
+    const tmpDir = os.tmpdir();
+    const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const ext = path.extname(originalName || '.mp4') || '.mp4';
+    const inPath = path.join(tmpDir, `camfeed-in-${uid}${ext}`);
+    const outPath = path.join(tmpDir, `camfeed-out-${uid}.mp4`);
+
+    fs.writeFile(inPath, inputBuffer, (writeErr) => {
+      if (writeErr) {
+        return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
+      }
+
+      // Scale max dimension to 720p, H.264 CRF 26 (high visual clarity, ~60-80% smaller size), AAC 128k audio, +faststart for instant streaming
+      const args = [
+        '-y',
+        '-i', inPath,
+        '-vf', "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-crf', '26',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        outPath
+      ];
+
+      execFile(ffmpegBin, args, { timeout: 120000 }, (err) => {
+        fs.unlink(inPath, () => {});
+        if (err || !fs.existsSync(outPath)) {
+          fs.unlink(outPath, () => {});
+          return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
+        }
+
+        fs.readFile(outPath, (readErr, outBuffer) => {
+          fs.unlink(outPath, () => {});
+          if (readErr || !outBuffer || outBuffer.length === 0 || outBuffer.length >= inputBuffer.length) {
+            return resolve({ buffer: inputBuffer, contentType: null, compressed: false });
+          }
+          resolve({ buffer: outBuffer, contentType: 'video/mp4', compressed: true });
+        });
+      });
+    });
+  });
+}
 
 const memUpload = multer({
   storage: multer.memoryStorage(),
@@ -68,18 +126,31 @@ module.exports = function createVideoRouter(pool) {
         return res.status(400).json({ error: 'No media file provided' });
       }
 
-      const mime = req.file.mimetype || 'application/octet-stream';
-      const isVideo = mime.startsWith('video/');
+      let mime = req.file.mimetype || 'application/octet-stream';
+      const isVideo = mime.startsWith('video/') || /\.(mp4|mov|webm|m4v|avi)$/i.test(req.file.originalname || '');
       const folder = isVideo ? 'videos' : 'images';
       const defaultName = isVideo ? 'video.mp4' : 'photo.jpg';
-      const safeName = (req.file.originalname || defaultName).replace(/[^a-zA-Z0-9._-]/g, '_');
+      let safeName = (req.file.originalname || defaultName).replace(/[^a-zA-Z0-9._-]/g, '_');
+      let uploadBuffer = req.file.buffer;
+      let wasCompressed = false;
+
+      if (isVideo) {
+        const comp = await compressVideoBufferOnServer(req.file.buffer, safeName);
+        if (comp.compressed) {
+          uploadBuffer = comp.buffer;
+          mime = comp.contentType || 'video/mp4';
+          safeName = safeName.replace(/\.[^/.]+$/, '') + '.mp4';
+          wasCompressed = true;
+        }
+      }
+
       const r2Key = `${folder}/${Date.now()}-${safeName}`;
 
       await r2.send(
         new PutObjectCommand({
           Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage',
           Key: r2Key,
-          Body: req.file.buffer,
+          Body: uploadBuffer,
           ContentType: mime,
         })
       );
@@ -89,7 +160,9 @@ module.exports = function createVideoRouter(pool) {
         success: true,
         publicUrl,
         r2Key,
-        type: isVideo ? 'video' : 'image'
+        type: isVideo ? 'video' : 'image',
+        compressed: wasCompressed,
+        finalSize: uploadBuffer.length
       });
     } catch (err) {
       console.error('Direct R2 media upload error:', err);
