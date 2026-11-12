@@ -241,33 +241,107 @@
 
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
 
-        /* Inline Video Wrapper with Custom Mute Button (Prevents iOS Dynamic Island Media Player) */
+        /* Custom Video Player Controls (Scrubbing Bar, Minutes/Seconds, Play/Pause, Mute, Fullscreen - Zero iOS Dynamic Island Interference) */
         .feed-video-wrap {
             position: relative;
             width: 100%;
             background: #000;
             margin: 0 0 8px 0;
+            overflow: hidden;
         }
         .feed-video-wrap .post-media {
             margin: 0;
         }
-        .feed-mute-btn {
+        .feed-video-center-play {
             position: absolute;
-            bottom: 12px;
-            right: 12px;
-            z-index: 20;
-            width: 34px;
-            height: 34px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 18;
+            width: 54px;
+            height: 54px;
             border-radius: 50%;
             border: none;
-            background: rgba(0, 0, 0, 0.65);
+            background: rgba(0, 0, 0, 0.58);
             color: #fff;
-            font-size: 16px;
-            display: flex;
+            font-size: 22px;
+            display: none;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             backdrop-filter: blur(4px);
+        }
+        .feed-video-wrap.is-paused .feed-video-center-play {
+            display: flex;
+        }
+        .feed-video-controls-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 22;
+            background: linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 70%, transparent 100%);
+            padding: 16px 10px 8px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .fvc-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            padding: 0;
+        }
+        .fvc-btn:active { transform: scale(0.9); }
+        .fvc-time {
+            font-size: 11.5px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+        .fvc-seek {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255,255,255,0.35);
+            border-radius: 4px;
+            outline: none;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+        }
+        .fvc-seek::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #1877f2;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .fvc-seek::-moz-range-thumb {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #1877f2;
+            border: 2px solid #fff;
+            cursor: pointer;
         }
 
         /* Edge-to-Edge Full-Width Media (Portrait Videos Fill 100% Width Without Side Bars or Clipping) */
@@ -1606,6 +1680,8 @@
 
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', '/api/videos/upload-direct', true);
+                xhr.timeout = 45000;
+                xhr.ontimeout = () => reject(new Error('Upload timed out'));
                 xhr.upload.onprogress = function(e) {
                     if (e.lengthComputable && onProgress) {
                         onProgress(e.loaded / e.total);
@@ -1674,19 +1750,8 @@
         }
 
         function uploadFileToR2(file, onProgress) {
-            return new Promise(async (resolve, reject) => {
-                const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
-                // Only route large videos (> 15MB) through server FFmpeg compression; smaller videos upload straight to R2 at full speed
-                if (isVideo && file.size > 15 * 1024 * 1024) {
-                    return uploadViaServerFallback(file, onProgress)
-                        .then(resolve)
-                        .catch(() => {
-                            // If server hits 502/timeout on large file, fall back to direct R2 Presigned URL
-                            uploadDirectPresignedR2(file, onProgress).then(resolve).catch(reject);
-                        });
-                }
-                return uploadDirectPresignedR2(file, onProgress).then(resolve).catch(reject);
-            });
+            // Upload directly to Cloudflare R2 via Presigned URL at full speed (and auto-fallback to server if CORS blocked)
+            return uploadDirectPresignedR2(file, onProgress);
         }
 
         function uploadDirectPresignedR2(file, onProgress) {
@@ -1904,13 +1969,76 @@
             return `action-btn`;
         }
 
+        function formatVideoClock(sec) {
+            if (!sec || !isFinite(sec) || sec < 0) return '0:00';
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
         function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video') {
+            const uid = `${postId}-${Math.random().toString(36).slice(2, 7)}`;
             return `
-                <div class="feed-video-wrap">
-                    <video src="${videoUrl}" class="${extraClass}" data-post-id="${postId}" ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback style="width:100%; height:auto; object-fit:cover; background:#000; display:block;" onclick="toggleSingleFeedVideoMute(event)"></video>
-                    <button type="button" class="feed-mute-btn" onclick="toggleSingleFeedVideoMute(event)" title="Mute / Unmute">${globalVideoUnmuted ? '🔊' : '🔇'}</button>
+                <div class="feed-video-wrap" id="vwrap-${uid}" onclick="toggleFeedVideoPlayPause('${uid}', event)">
+                    <video id="vid-${uid}" src="${videoUrl}" class="${extraClass}" data-post-id="${postId}" ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
+                        style="width:100%; height:auto; object-fit:cover; background:#000; display:block;"
+                        onloadedmetadata="updateFeedVideoClock('${uid}')"
+                        ontimeupdate="updateFeedVideoClock('${uid}')"
+                        onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='⏸';"
+                        onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='▶';"></video>
+
+                    <button type="button" class="feed-video-center-play" onclick="toggleFeedVideoPlayPause('${uid}', event)">▶</button>
+
+                    <div class="feed-video-controls-bar" onclick="event.stopPropagation()">
+                        <button type="button" class="fvc-btn" id="vplay-${uid}" onclick="toggleFeedVideoPlayPause('${uid}', event)" title="Play/Pause">⏸</button>
+                        <span class="fvc-time" id="vtime-${uid}">0:00 / 0:00</span>
+                        <input type="range" class="fvc-seek" id="vseek-${uid}" min="0" max="100" value="0" step="0.1" oninput="seekFeedVideo('${uid}', this.value)">
+                        <button type="button" class="fvc-btn feed-mute-btn" onclick="toggleSingleFeedVideoMute(event)" title="Mute / Unmute">${globalVideoUnmuted ? '🔊' : '🔇'}</button>
+                        <button type="button" class="fvc-btn" onclick="fullscreenFeedVideo('${uid}', event)" title="Fullscreen">⛶</button>
+                    </div>
                 </div>
             `;
+        }
+
+        function toggleFeedVideoPlayPause(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`vid-${uid}`);
+            if (!vid) return;
+            if (vid.paused) {
+                vid.play().catch(() => {});
+            } else {
+                vid.pause();
+            }
+        }
+
+        function updateFeedVideoClock(uid) {
+            const vid = document.getElementById(`vid-${uid}`);
+            const timeEl = document.getElementById(`vtime-${uid}`);
+            const seekEl = document.getElementById(`vseek-${uid}`);
+            if (!vid) return;
+            const cur = vid.currentTime || 0;
+            const dur = isFinite(vid.duration) ? vid.duration : 0;
+            if (timeEl) {
+                timeEl.innerText = `${formatVideoClock(cur)} / ${formatVideoClock(dur)}`;
+            }
+            if (seekEl && dur > 0) {
+                seekEl.value = ((cur / dur) * 100).toFixed(1);
+            }
+        }
+
+        function seekFeedVideo(uid, pct) {
+            const vid = document.getElementById(`vid-${uid}`);
+            if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
+            vid.currentTime = (parseFloat(pct) / 100) * vid.duration;
+            updateFeedVideoClock(uid);
+        }
+
+        function fullscreenFeedVideo(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`vid-${uid}`);
+            if (!vid) return;
+            if (vid.requestFullscreen) vid.requestFullscreen().catch(() => {});
+            else if (vid.webkitEnterFullscreen) vid.webkitEnterFullscreen();
         }
 
         function toggleSingleFeedVideoMute(event) {
