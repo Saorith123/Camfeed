@@ -399,6 +399,25 @@
             white-space: pre-wrap;
         }
 
+        /* Facebook-Style Styled Text Background Card */
+        .styled-text-post-card {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            min-height: 290px;
+            max-height: 460px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 22px;
+            margin: 0 0 8px 0;
+            text-align: center;
+            font-weight: 800;
+            line-height: 1.42;
+            word-break: break-word;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+
         /* Embedded Shared Post Card */
         .embedded-shared-card {
             border-top: 1px solid #dddfe2;
@@ -1823,7 +1842,7 @@
 
         function normalizeVideoFrameUrl(url) {
             if (!url) return '';
-            return url.includes('#') ? url : `${url}#t=0.001`;
+            return url.split('#')[0];
         }
 
         function adjustVideoContainerAspect(uid) {
@@ -1846,11 +1865,11 @@
             const frameUrl = normalizeVideoFrameUrl(videoUrl);
             return `
                 <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};" onclick="toggleFeedVideoPlayPause('${uid}', event)">
-                    <video id="vid-${uid}" src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="${preloadMode}"
+                    <video id="vid-${uid}" src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
                         onloadedmetadata="adjustVideoContainerAspect('${uid}')"
                         onloadeddata="updateFeedVideoClock('${uid}')"
                         ontimeupdate="updateFeedVideoClock('${uid}')"
-                        onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='⏸'; if('mediaSession' in navigator){ try{ navigator.mediaSession.metadata=null; }catch(e){} }"
+                        onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='⏸'; clearIosMediaSessionWidget();"
                         onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='▶';"></video>
 
                     <button type="button" class="feed-video-center-play" onclick="toggleFeedVideoPlayPause('${uid}', event)">▶</button>
@@ -1972,6 +1991,20 @@
             return false;
         }
 
+        function buildStyledTextCardHtml(textContent, rawStyleJson) {
+            let st = { bg: 'linear-gradient(135deg, #1877f2, #00c6ff)', color: '#ffffff', shadow: '0 2px 8px rgba(0,0,0,0.35)' };
+            try {
+                if (rawStyleJson) {
+                    const parsed = typeof rawStyleJson === 'string' ? JSON.parse(rawStyleJson) : rawStyleJson;
+                    st = { ...st, ...parsed };
+                }
+            } catch (e) {}
+            const len = (textContent || '').trim().length;
+            const fontSize = len <= 35 ? '28px' : (len <= 85 ? '23px' : (len <= 150 ? '19px' : '16.5px'));
+            const safeText = (textContent || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<div class="styled-text-post-card notranslate" translate="no" style="background:${st.bg}; color:${st.color}; text-shadow:${st.shadow || 'none'}; font-size:${fontSize};">${safeText}</div>`;
+        }
+
         function renderPostMediaHtml(post, dateStr, isPriority = false) {
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
@@ -1991,12 +2024,32 @@
                 } catch (e) {}
             }
 
+            if (post.media_type === 'styled_text') {
+                return buildStyledTextCardHtml(post.content || '', post.media_url);
+            }
+
             if (post.shared_post_id || post.media_type === 'shared') {
                 if (!post.orig_id) {
                     return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
                 }
                 const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
                 const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
+                if (post.orig_media_type === 'styled_text') {
+                    return `
+                        <div class="embedded-shared-card" style="margin: 0 12px 8px 12px; border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden;">
+                            <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
+                                <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
+                                    <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
+                                    <div>
+                                        <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
+                                        <div class="embedded-shared-time">${origDate} · 🌐</div>
+                                    </div>
+                                </div>
+                            </div>
+                            ${buildStyledTextCardHtml(post.orig_content || '', post.orig_media_url)}
+                        </div>
+                    `;
+                }
                 const origMedia = renderRawMediaBlock(
                     post.orig_id,
                     post.orig_media_type,
@@ -2185,7 +2238,7 @@
                         </div>
                     </div>
                     ${post.content ? `
-                        <div class="post-content notranslate" translate="no" id="post-content-orig-${post.id}" style="padding: 0 14px; margin-bottom: 4px;">${post.content}</div>
+                        <div class="post-content notranslate ${post.media_type === 'styled_text' ? 'hidden' : ''}" translate="no" id="post-content-orig-${post.id}" style="padding: 0 14px; margin-bottom: 4px;">${post.content}</div>
                         <div id="post-translated-${post.id}" class="translated-box notranslate hidden" translate="no"></div>
                         <button type="button" class="see-translation-btn notranslate" translate="no" id="trans-btn-${post.id}" onclick="translateSinglePost(${post.id})">🌐 បកប្រែ (See translation)</button>
                     ` : ''}
@@ -2639,14 +2692,18 @@
         }
 
         function syncAllVideosMuteState(unmute) {
+            iosAudioSessionUnlocked = true;
             globalVideoUnmuted = unmute;
             sessionStorage.setItem('camfeed_unmuted', unmute ? 'true' : 'false');
             document.querySelectorAll('.autoplay-video').forEach(v => {
-                const isCurrentCenter = (v === activeCenterFeedVideo && !v.paused);
+                const isCurrentCenter = (v === activeCenterFeedVideo);
                 if (unmute && isCurrentCenter) {
                     v.muted = false;
                     v.removeAttribute('muted');
-                    if (v.volume === 0) v.volume = 1.0;
+                    v.volume = 1.0;
+                    if (v.paused && v.dataset.userPaused !== 'true') {
+                        v.play().catch(() => {});
+                    }
                 } else {
                     v.muted = true;
                 }
@@ -2654,6 +2711,7 @@
             document.querySelectorAll('.feed-mute-btn').forEach(btn => {
                 btn.innerText = unmute ? '🔊' : '🔇';
             });
+            clearIosMediaSessionWidget();
             evaluateCenterFeedVideo();
         }
 
@@ -2755,6 +2813,89 @@
 
         let activeCenterFeedVideo = null;
         let feedVideoScrollRaf = null;
+        let iosAudioSessionUnlocked = false;
+
+        function clearIosMediaSessionWidget() {
+            if ('mediaSession' in navigator) {
+                try {
+                    navigator.mediaSession.metadata = null;
+                    navigator.mediaSession.playbackState = 'none';
+                    ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack'].forEach(act => {
+                        try { navigator.mediaSession.setActionHandler(act, null); } catch (e) {}
+                    });
+                } catch (e) {}
+            }
+        }
+
+        function unlockIosAudioOnGesture() {
+            if (iosAudioSessionUnlocked) return;
+            iosAudioSessionUnlocked = true;
+            clearIosMediaSessionWidget();
+            if (activeCenterFeedVideo && !activeCenterFeedVideo.paused && globalVideoUnmuted) {
+                activeCenterFeedVideo.muted = false;
+                activeCenterFeedVideo.removeAttribute('muted');
+                activeCenterFeedVideo.volume = 1.0;
+            }
+        }
+        ['touchstart', 'pointerdown', 'click'].forEach(evt => {
+            document.addEventListener(evt, unlockIosAudioOnGesture, { passive: true });
+        });
+
+        function applyAudioStateToActiveVideo(video) {
+            if (!video) return;
+            if (globalVideoUnmuted) {
+                video.muted = false;
+                video.removeAttribute('muted');
+                video.volume = 1.0;
+                // If iOS blocked unmuted audio before first touch, gracefully keep playing muted until first touch
+                if (video.paused && video.dataset.userPaused !== 'true') {
+                    video.play().catch(() => {
+                        video.muted = true;
+                        video.play().catch(() => {});
+                    });
+                }
+            } else {
+                video.muted = true;
+            }
+            document.querySelectorAll('.feed-mute-btn').forEach(btn => {
+                btn.innerText = globalVideoUnmuted ? '🔊' : '🔇';
+            });
+            clearIosMediaSessionWidget();
+        }
+
+        function startSingleCenterVideo(video) {
+            if (!video || video.dataset.userPaused === 'true') return;
+            if (video.readyState === 0) {
+                try { video.load(); } catch (e) {}
+            }
+            if (video.paused) {
+                // Always initiate play() cleanly on iOS, then sync audio state immediately
+                video.muted = !globalVideoUnmuted;
+                if (globalVideoUnmuted) {
+                    video.removeAttribute('muted');
+                    video.volume = 1.0;
+                }
+                const playPromise = video.play();
+                if (playPromise && typeof playPromise.then === 'function') {
+                    playPromise.then(() => {
+                        applyAudioStateToActiveVideo(video);
+                    }).catch(() => {
+                        // Fallback if iOS requires muted start prior to gesture
+                        video.muted = true;
+                        video.play().then(() => {
+                            if (iosAudioSessionUnlocked && globalVideoUnmuted) {
+                                video.muted = false;
+                                video.removeAttribute('muted');
+                                video.volume = 1.0;
+                            }
+                            clearIosMediaSessionWidget();
+                        }).catch(() => {});
+                    });
+                }
+            } else {
+                applyAudioStateToActiveVideo(video);
+            }
+        }
 
         function evaluateCenterFeedVideo() {
             const videos = Array.from(document.querySelectorAll('.autoplay-video'));
@@ -2763,31 +2904,32 @@
             const vh = window.innerHeight || document.documentElement.clientHeight || 800;
             const screenMidY = vh * 0.5;
             let bestVideo = null;
+            let bestIdx = -1;
             let bestDist = Infinity;
 
-            videos.forEach(v => {
+            videos.forEach((v, idx) => {
                 const wrap = v.closest('.feed-video-wrap') || v;
                 const rect = wrap.getBoundingClientRect();
                 if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) return;
 
-                // Only play when the video reaches/crosses the vertical center (50%) of the phone screen
                 const visibleTop = Math.max(0, rect.top);
                 const visibleBottom = Math.min(vh, rect.bottom);
                 const visibleHeight = Math.max(0, visibleBottom - visibleTop);
                 const visibleRatio = visibleHeight / rect.height;
                 const crossesScreenCenter = (rect.top <= screenMidY && rect.bottom >= screenMidY);
 
-                if (crossesScreenCenter || visibleRatio >= 0.7) {
+                if (crossesScreenCenter || visibleRatio >= 0.65) {
                     const videoMidY = rect.top + (rect.height * 0.5);
                     const dist = Math.abs(videoMidY - screenMidY);
                     if (dist < bestDist) {
                         bestDist = dist;
                         bestVideo = v;
+                        bestIdx = idx;
                     }
                 }
             });
 
-            // Strictly pause & mute every other video so two videos NEVER play sound simultaneously
+            // Strictly pause & mute every non-active video so two videos NEVER play sound simultaneously
             videos.forEach(v => {
                 if (v !== bestVideo) {
                     if (!v.paused) v.pause();
@@ -2797,18 +2939,15 @@
 
             if (bestVideo) {
                 activeCenterFeedVideo = bestVideo;
-                if (globalVideoUnmuted) {
-                    bestVideo.muted = false;
-                    bestVideo.removeAttribute('muted');
-                    if (bestVideo.volume === 0) bestVideo.volume = 1.0;
-                } else {
-                    bestVideo.muted = true;
-                }
-                if (bestVideo.paused && bestVideo.dataset.userPaused !== 'true') {
-                    bestVideo.play().catch(() => {
-                        bestVideo.muted = true;
-                        bestVideo.play().catch(() => {});
-                    });
+                startSingleCenterVideo(bestVideo);
+
+                // Pre-buffer the next video so scrolling to it starts instantaneously on iOS
+                if (bestIdx >= 0 && bestIdx + 1 < videos.length) {
+                    const nextVid = videos[bestIdx + 1];
+                    if (nextVid && nextVid.readyState === 0) {
+                        nextVid.preload = 'auto';
+                        try { nextVid.load(); } catch (e) {}
+                    }
                 }
             } else {
                 activeCenterFeedVideo = null;
@@ -2826,17 +2965,12 @@
         window.addEventListener('scroll', onFeedScrollEvaluateVideo, { passive: true });
         window.addEventListener('resize', onFeedScrollEvaluateVideo, { passive: true });
 
-        // Prevent iOS Dynamic Island / top audio wave widget from hijacking feed videos
-        if ('mediaSession' in navigator) {
-            try {
-                navigator.mediaSession.metadata = null;
-                navigator.mediaSession.playbackState = 'none';
-            } catch (e) {}
-        }
+        clearIosMediaSessionWidget();
 
         function initAutoPlayVideos() {
             evaluateCenterFeedVideo();
-            setTimeout(evaluateCenterFeedVideo, 180);
+            setTimeout(evaluateCenterFeedVideo, 150);
+            setTimeout(evaluateCenterFeedVideo, 450);
         }
 
         let activeCommentSheetPostId = null;
