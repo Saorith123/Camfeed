@@ -554,7 +554,8 @@
     <!-- Hidden Google Translate Engine -->
     <div id="google_translate_element" style="display:none;"></div>
 
-    <script src="imageModal.js"></script>
+  <script src="imageModal.js"></script>
+<script src="notification.js"></script>
 
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
@@ -752,12 +753,7 @@
             dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
 
-        function toggleNotifications(event) {
-            event.stopPropagation();
-            document.getElementById('menuDropdown').style.display = 'none';
-            const dropdown = document.getElementById('notifDropdown');
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-        }
+
 
         async function loadFeedMessengerBadge() {
             if (!currentUser) return;
@@ -2039,56 +2035,7 @@
             loadComments(postId);
         }
 
-        async function loadNotifications() {
-            try {
-                const res = await fetch(`/api/notifications?email=${encodeURIComponent(currentUser.email)}`);
-                const data = await res.json();
-                if (data.success) {
-                    const badge = document.getElementById('notifBadge');
-                    const list = document.getElementById('notifList');
-                    const notifs = data.notifications;
-                    if (notifs.length > 0) {
-                        badge.innerText = notifs.length;
-                        badge.classList.remove('hidden');
-                        list.innerHTML = notifs.map(n => {
-                            const clickTargetAction = n.post_id
-                                ? `openNotificationTargetPost(${n.post_id}, '${n.post_media_type || ''}')`
-                                : `window.location.href='profile.html?email=${encodeURIComponent(n.sender_email)}'`;
 
-                            return `
-                                <div class="notification-item" onclick="${clickTargetAction}">
-                                    <img src="${n.profile_pic || 'https://via.placeholder.com/38'}"
-                                         class="notif-avatar"
-                                         title="មើល Profile របស់ ${n.first_name || ''}"
-                                         onclick="event.stopPropagation(); window.location.href='profile.html?email=${encodeURIComponent(n.sender_email)}'">
-                                    <div style="flex: 1;">
-                                        <div style="line-height: 1.35;">${n.message}</div>
-                                        <div style="font-size: 10.5px; color: #90949c; margin-top: 3px;">${new Date(n.created_at).toLocaleString()}</div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('');
-                    }
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function openNotificationTargetPost(postId, mediaType) {
-            document.getElementById('notifDropdown').style.display = 'none';
-            const existingPostCard = document.getElementById(`post-${postId}`);
-            if (existingPostCard) {
-                document.querySelectorAll('.post-item').forEach(p => p.classList.remove('highlight-target'));
-                existingPostCard.classList.add('highlight-target');
-                existingPostCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
-            window.location.href = `feed.html?post=${postId}`;
-        }
-
-        function logout() {
-            localStorage.removeItem('camfeed_user');
-            window.location.href = 'index.html';
-        }
     </script>
     <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
