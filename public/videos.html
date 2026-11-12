@@ -3,63 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camfeed - Videos</title>
+    <title>CamFeed - Videos</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html { width: 100%; height: 100vh; background-color: black; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+        body, html { width: 100%; height: 100vh; background-color: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
 
-        .reels-top-bar { position: fixed; top: 15px; left: 15px; right: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
-        .back-btn { background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .reels-top-bar { position: fixed; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; pointer-events: none; }
+        .top-circle-btn { pointer-events: auto; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .top-circle-btn:hover { background: rgba(255,255,255,0.2); }
 
         .reels-container { width: 100vw; height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none; }
         .reels-container::-webkit-scrollbar { display: none; }
 
         .reel-item { width: 100vw; height: 100vh; scroll-snap-align: start; position: relative; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden; }
-        .reel-bg-blur { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; filter: blur(20px) brightness(0.5); transform: scale(1.1); z-index: 1; }
-        .reel-video { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; z-index: 2; }
+        .reel-video { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; z-index: 2; cursor: pointer; }
 
-        .reel-overlay { position: absolute; bottom: 30px; left: 15px; right: 70px; z-index: 10; color: white; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+        /* Bottom Gradient for Readability */
+        .reel-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 42%; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 60%, transparent 100%); z-index: 5; pointer-events: none; }
+
+        .reel-overlay { position: absolute; bottom: 26px; left: 15px; right: 82px; z-index: 10; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.85); }
         .reel-author-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
-        .reel-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid white; }
-        .reel-caption { font-size: 14px; color: #f1f1f1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .reel-category-badge { display: inline-block; background: rgba(24, 119, 242, 0.85); color: white; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; margin-bottom: 6px; }
+        .reel-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; background: #333; }
+        .reel-caption { font-size: 14.5px; line-height: 1.4; color: #f5f5f5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; white-space: pre-wrap; }
+        .reel-category-badge { display: inline-block; background: rgba(24, 119, 242, 0.9); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 12px; margin-bottom: 7px; }
+        .reel-views-text { font-size: 12.5px; color: #e4e6eb; font-weight: 600; }
 
-        .reel-actions { position: absolute; bottom: 30px; right: 15px; z-index: 10; display: flex; flex-direction: column; gap: 20px; align-items: center; color: white; }
-        .action-icon-btn { background: rgba(0,0,0,0.4); border: none; color: white; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; backdrop-filter: blur(4px); }
-        .action-icon-btn.liked { background: rgba(24, 119, 242, 0.85); }
-        .action-count { font-size: 12px; font-weight: bold; text-align: center; margin-top: 2px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        /* Right Side Action Buttons */
+        .reel-actions { position: absolute; bottom: 26px; right: 12px; z-index: 15; display: flex; flex-direction: column; gap: 16px; align-items: center; color: #fff; }
+        .action-slot { position: relative; display: flex; flex-direction: column; align-items: center; }
+        .action-icon-btn { background: rgba(255,255,255,0.16); border: none; color: #fff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 21px; cursor: pointer; backdrop-filter: blur(6px); transition: transform 0.12s, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        .action-icon-btn:active { transform: scale(0.9); }
+        .action-icon-btn.reacted { background: rgba(24, 119, 242, 0.92); box-shadow: 0 2px 10px rgba(24,119,242,0.5); }
+        .action-count { font-size: 12px; font-weight: 700; text-align: center; margin-top: 4px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); cursor: pointer; padding: 2px 6px; border-radius: 8px; }
+        .action-count:hover { background: rgba(255,255,255,0.18); }
 
-        /* Comments Modal Popup & Options Menu Styles */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; display: none; padding: 15px; box-sizing: border-box; }
-        .modal-card { background: white; width: 100%; max-width: 450px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); overflow: hidden; max-height: 75vh; display: flex; flex-direction: column; }
-        .modal-header { padding: 12px 15px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; color: #050505; }
-        .modal-body { padding: 15px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-        
+        /* Floating Cute Reaction Bar */
+        .reaction-picker {
+            display: none;
+            position: absolute;
+            right: 54px;
+            top: 0;
+            background: #fff;
+            padding: 7px 12px;
+            border-radius: 30px;
+            box-shadow: 0 6px 22px rgba(0,0,0,0.4);
+            gap: 10px;
+            z-index: 300;
+            animation: popLeft 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .reaction-picker.show { display: flex; }
+
+        @keyframes popLeft {
+            from { opacity: 0; transform: translateX(10px) scale(0.9); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .emoji-option { font-size: 26px; cursor: pointer; transition: transform 0.15s; user-select: none; line-height: 1; }
+        .emoji-option:hover { transform: scale(1.35) translateY(-3px); }
+
+        /* Video 3-Dots Menu */
+        .video-options-dropdown {
+            display: none;
+            position: absolute;
+            right: 52px;
+            bottom: 0;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            min-width: 165px;
+            z-index: 400;
+            overflow: hidden;
+        }
+        .video-options-dropdown button {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 11px 14px;
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #050505;
+        }
+        .video-options-dropdown button:hover { background: #f2f3f5; }
+
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
+        .modal-card { background: #fff; width: 100%; max-width: 450px; border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); overflow: hidden; max-height: 82vh; display: flex; flex-direction: column; color: #050505; }
+        .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14px; font-weight: 600; color: #050505; }
+        .share-option-btn:hover { background: #e4e6eb; }
+        .share-icon { font-size: 20px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
+
+        .reactor-row { display: flex; justify-content: space-between; align-items: center; }
+        .btn-follow-mini { padding: 6px 14px; background: #1877f2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12.5px; }
+        .btn-unfollow-mini { background: #e4e6eb; color: #050505; }
+
+        .report-reason-btn { width: 100%; text-align: left; padding: 11px 14px; border: 1px solid #e4e6eb; border-radius: 8px; background: #f8f9fa; font-size: 14px; font-weight: 600; cursor: pointer; color: #050505; }
+        .report-reason-btn:hover, .report-reason-btn.selected { background: #ffebe9; border-color: #fa383e; color: #d93025; }
+
         .comment-container { display: flex; gap: 10px; font-size: 13px; align-items: flex-start; position: relative; width: 100%; }
-        .comment-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .comment-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; cursor: pointer; }
         .comment-content-wrapper { flex: 1; display: flex; justify-content: space-between; align-items: flex-start; background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; }
         .comment-bubble { word-break: break-word; flex: 1; }
-        .comment-author { font-weight: bold; color: #050505; font-size: 12.5px; margin-bottom: 2px; display: block; }
-        
+        .comment-author { font-weight: bold; color: #050505; font-size: 12.5px; margin-bottom: 2px; display: block; cursor: pointer; }
         .comment-options-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #65676b; padding: 0 5px; }
-        .comment-menu-dropdown { display: none; position: absolute; right: 10px; top: 30px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 3000; overflow: hidden; width: 120px; border: 1px solid #e4e6eb; }
-        .comment-menu-dropdown button { width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; font-size: 13px; cursor: pointer; color: #050505; }
-        .comment-menu-dropdown button:hover { background: #f2f2f2; }
 
-        input[type="text"] { width: 100%; padding: 10px 14px; border: 1px solid #dddfe2; border-radius: 20px; outline: none; font-size: 14px; }
-        .send-comment-btn { padding: 8px 16px; background: #1877f2; color: white; border: none; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        input[type="text"], textarea { width: 100%; padding: 10px 14px; border: 1px solid #dddfe2; border-radius: 12px; outline: none; font-size: 14px; font-family: inherit; }
+        .send-comment-btn { padding: 9px 16px; background: #1877f2; color: #fff; border: none; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; white-space: nowrap; }
     </style>
 </head>
 <body>
 
     <div class="reels-top-bar">
-        <button class="back-btn" onclick="switchTab('feed')">🡠</button>
-        <div style="font-weight: bold; font-size: 18px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Videos</div>
-        <div style="width: 40px;"></div>
+        <button class="top-circle-btn" onclick="window.location.href='feed.html'" title="Back to Feed">🡠</button>
+        <div style="font-weight: 800; font-size: 18px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.85);">Videos</div>
+        <button class="top-circle-btn" id="globalMuteBtn" onclick="toggleGlobalMute()" title="Mute / Unmute">🔇</button>
     </div>
 
     <div class="reels-container" id="reelsFeedContainer">
-        <div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Loading Videos...</div>
+        <div style="color: #fff; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Loading Videos...</div>
     </div>
 
     <!-- Comments Modal Popup -->
@@ -77,10 +144,96 @@
         </div>
     </div>
 
+    <!-- Share Video Modal (Matches Feed 100%) -->
+    <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="shareModalTitle">ចែករំលែកវីដេអូ (Share Video)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeShareModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="shareCaptionInput" placeholder="សរសេរអ្វីមួយអំពីវីដេអូនេះ (ស្រេចចិត្ត)...">
+                
+                <button class="share-option-btn" onclick="shareToMyProfile()">
+                    <span class="share-icon">👤</span>
+                    <div>
+                        <div>ស៊ែរចូលទៅក្នុង Profile របស់ខ្ញុំ</div>
+                        <div style="font-size: 12px; color: #65676b; font-weight: normal;">បង្ហោះផ្ទាល់ទៅលើទំព័រផ្ទាល់ខ្លួនរបស់អ្នក</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="shareToSocialMedia()">
+                    <span class="share-icon">🌐</span>
+                    <div>
+                        <div>ចែករំលែកទៅកាន់បណ្ដាញសង្គមផ្សេងៗ</div>
+                        <div style="font-size: 12px; color: #65676b; font-weight: normal;">Telegram, Facebook, Messenger និងកម្មវិធីផ្សេងទៀត</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="copyVideoLink()">
+                    <span class="share-icon">🔗</span>
+                    <div>
+                        <div id="copyLinkLabel">ចម្លងតំណភ្ជាប់ (Copy Link)</div>
+                        <div style="font-size: 12px; color: #65676b; font-weight: normal;">ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reactors List Modal -->
+    <div id="reactionsModal" class="modal-overlay" onclick="closeReactionsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>អ្នកដែលបានប្រតិកម្ម</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeReactionsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="reactionsModalList"></div>
+        </div>
+    </div>
+
+    <!-- Sharers List Modal -->
+    <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>អ្នកដែលបានចែករំលែក</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeSharersModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="sharersModalList"></div>
+        </div>
+    </div>
+
+    <!-- Report Video Modal -->
+    <div id="reportModal" class="modal-overlay" onclick="closeReportModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>🚩 រាយការណ៍វីដេអូ (Report Video)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeReportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #65676b;">សូមជ្រើសរើសមូលហេតុដែលវីដេអូនេះរំលោភបំពានគោលការណ៍៖</p>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Violence or Harmful Content (អំពើហិង្សា)')">⚠️ អំពើហិង្សា ឬគ្រោះថ្នាក់ធ្ងន់ធ្ងរ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Harassment or Hate Speech (រំលោភបំពាន)')">💢 ការជេរប្រមាថ ឬរំលោភបំពាន</button>
+                <textarea id="reportCustomDetails" rows="2" placeholder="បញ្ជាក់ព័ត៌មានបន្ថែម (ស្រេចចិត្ត)..."></textarea>
+                <button type="button" class="send-comment-btn" style="background: #fa383e; width: 100%; border-radius: 8px; padding: 11px;" onclick="submitVideoReport()">បញ្ជូនរបាយការណ៍ទៅ Admin</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let globalMuted = true;
         let activePostIdForComment = null;
-        const watchStartTimes = new Map();
+        let activePostIdForShare = null;
+        let activeCaptionForShare = '';
+        let activePostIdForReport = null;
+        let selectedReportReasonText = '';
+        let pressTimer = null;
+        let isLongPressTriggered = false;
+        const trackedVideoViews = new Set();
+        const videoReactionState = {};
 
         if (!currentUser) {
             window.location.href = 'index.html';
@@ -88,134 +241,159 @@
             loadVideosFeed();
         }
 
-        let lastVideoClickTime = 0;
+        function formatCompactNumber(num) {
+            const n = parseInt(num) || 0;
+            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return n.toString();
+        }
 
-        function switchTab(tab) {
-            if (tab === 'videos') {
-                const isAlreadyOnVideos = window.location.pathname.includes('videos.html');
-                if (isAlreadyOnVideos) {
-                    const currentTime = new Date().getTime();
-                    if (currentTime - lastVideoClickTime < 500) {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                        loadVideosFeed();
-                    } else {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                    lastVideoClickTime = currentTime;
-                } else {
-                    window.location.href = 'videos.html';
-                }
-                return;
+        function toggleGlobalMute() {
+            globalMuted = !globalMuted;
+            document.getElementById('globalMuteBtn').innerText = globalMuted ? '🔇' : '🔊';
+            document.querySelectorAll('.reel-video').forEach(v => {
+                v.muted = globalMuted;
+            });
+        }
+
+        function extractVideoUrlFromPost(post) {
+            if (post.media_type === 'video' && post.media_url) return post.media_url;
+            if (post.orig_media_type === 'video' && post.orig_media_url) return post.orig_media_url;
+
+            const rawUrl = post.media_url || post.orig_media_url || '';
+            if (rawUrl.trim().startsWith('[')) {
+                try {
+                    const items = JSON.parse(rawUrl);
+                    const vid = items.find(it => it.type === 'video');
+                    if (vid) return vid.url;
+                } catch (e) {}
             }
-            if (tab === 'friends') { window.location.href = 'friends.html'; return; }
-            if (tab === 'chat') { window.location.href = 'messages.html'; return; }
-            window.location.href = 'feed.html';
+            return null;
         }
 
         async function loadVideosFeed() {
             const container = document.getElementById('reelsFeedContainer');
             try {
-                // ១. សាកល្បងទាញវីដេអូតាម AI Recommendation (/api/videos/feed) ជាមុន
-                let videoItems = [];
-                let isRecommendedFeed = false;
+                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos`);
+                const data = await res.json();
 
-                try {
-                    const recRes = await fetch(`/api/videos/feed?user_email=${encodeURIComponent(currentUser.email)}&limit=30`);
-                    const recData = await recRes.json();
-                    if (recRes.ok && Array.isArray(recData.videos) && recData.videos.length > 0) {
-                        videoItems = recData.videos.map(v => ({
-                            id: v.id,
-                            source: 'videos',
-                            user_email: v.user_email,
-                            author_name: v.user_email.split('@')[0],
-                            profile_pic: v.author_profile_pic || 'https://via.placeholder.com/40',
-                            media_url: v.video_url,
-                            caption: v.description || v.title || '',
-                            category: v.category || '',
-                            likes_count: v.likes_count || 0,
-                            comments_count: 0
-                        }));
-                        isRecommendedFeed = true;
-                    }
-                } catch (recErr) {
-                    console.log('Recommendation feed fallback to posts:', recErr);
+                let videoItems = [];
+                if (data.success && Array.isArray(data.posts)) {
+                    videoItems = data.posts
+                        .map(p => {
+                            const vidUrl = extractVideoUrlFromPost(p);
+                            if (!vidUrl) return null;
+                            const targetId = p.shared_post_id && p.orig_id ? p.orig_id : p.id;
+                            return {
+                                id: targetId,
+                                renderKey: p.id,
+                                user_email: p.user_email,
+                                author_name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+                                profile_pic: p.profile_pic || 'https://via.placeholder.com/42',
+                                media_url: vidUrl,
+                                caption: p.content || p.orig_content || '',
+                                category: (p.ai_category && p.ai_category !== 'General') ? p.ai_category : '',
+                                likes_count: parseInt(p.likes_count) || 0,
+                                comments_count: parseInt(p.comments_count) || 0,
+                                shares_count: parseInt(p.shares_count) || 0,
+                                views_count: parseInt(p.views_count) || 0,
+                                user_reaction: p.user_reaction || null
+                            };
+                        })
+                        .filter(Boolean);
                 }
 
-                // ២. បើមិនទាន់មានវីដេអូថ្មីក្នុងតារាង videos ទេ ទាញពី /api/posts ចាស់មកបង្ហាញជំនួស
-                if (videoItems.length === 0) {
-                    const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}`);
-                    const data = await res.json();
-                    if (data.success) {
-                        videoItems = data.posts
-                            .filter(p => p.media_type === 'video')
-                            .map(p => ({
-                                id: p.id,
-                                source: 'posts',
-                                user_email: p.user_email,
-                                author_name: `${p.first_name} ${p.last_name}`,
-                                profile_pic: p.profile_pic || 'https://via.placeholder.com/40',
-                                media_url: p.media_url,
-                                caption: p.content || '',
-                                category: '',
-                                likes_count: p.likes_count || 0,
-                                comments_count: p.comments_count || 0
-                            }));
+                // If opened from Notification (?v=ID), ensure that video is placed first
+                const urlParams = new URLSearchParams(window.location.search);
+                const targetVideoId = urlParams.get('v') || urlParams.get('post');
+                if (targetVideoId) {
+                    const idx = videoItems.findIndex(v => String(v.id) === String(targetVideoId) || String(v.renderKey) === String(targetVideoId));
+                    if (idx > 0) {
+                        const [targetVid] = videoItems.splice(idx, 1);
+                        videoItems.unshift(targetVid);
                     }
                 }
 
                 container.innerHTML = '';
                 if (videoItems.length === 0) {
-                    container.innerHTML = '<div style="color: white; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
+                    container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
                     return;
                 }
 
-                container.innerHTML = videoItems.map(video => `
-                    <div class="reel-item" id="reel-${video.id}" data-video-id="${video.id}" data-source="${video.source}">
-                        <div class="reel-bg-blur" style="background-image: url('${video.media_url}')"></div>
-                        
-                        <video src="${video.media_url}" class="reel-video" loop playsinline preload="auto" onclick="togglePlayPause(this)"></video>
-                        
-                        <div class="reel-overlay">
-                            ${video.category ? `<div class="reel-category-badge"># ${video.category}</div>` : ''}
-                            <div class="reel-author-row" onclick="window.location.href='profile.html?email=${video.user_email}'">
-                                <img src="${video.profile_pic}" class="reel-avatar">
-                                <div style="font-weight: bold; font-size: 15px;">${video.author_name}</div>
+                container.innerHTML = videoItems.map(video => {
+                    videoReactionState[video.id] = {
+                        count: video.likes_count,
+                        userReaction: video.user_reaction
+                    };
+                    const isOwn = currentUser.email === video.user_email;
+
+                    return `
+                        <div class="reel-item" id="reel-${video.id}" data-post-id="${video.id}">
+                            <video src="${video.media_url}" class="reel-video" muted loop playsinline preload="auto" onclick="togglePlayPause(this)"></video>
+                            <div class="reel-gradient"></div>
+
+                            <div class="reel-overlay">
+                                ${video.category ? `<div class="reel-category-badge">#${video.category}</div>` : ''}
+                                <div class="reel-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(video.user_email)}'">
+                                    <img src="${video.profile_pic}" class="reel-avatar">
+                                    <div style="font-weight: 700; font-size: 15.5px;">${video.author_name}</div>
+                                </div>
+                                ${video.caption ? `<div class="reel-caption">${video.caption}</div>` : ''}
+                                <div class="reel-views-text" id="viewCount-${video.id}">${formatCompactNumber(video.views_count)} Views</div>
                             </div>
-                            <div class="reel-caption">${video.caption}</div>
+
+                            <div class="reel-actions">
+                                <!-- Reaction Button (Tap = Like, Hold 1s = 7 Emojis, Tap Count = Reactors List) -->
+                                <div class="action-slot">
+                                    <div id="picker-${video.id}" class="reaction-picker" onclick="event.stopPropagation()">
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '👍')">👍</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '❤️')">❤️</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '🥰')">🥰</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😆')">😆</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😮')">😮</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😢')">😢</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😡')">😡</span>
+                                    </div>
+                                    <button class="action-icon-btn ${video.user_reaction ? 'reacted' : ''}"
+                                            id="likeBtn-${video.id}"
+                                            onpointerdown="startHoldReaction(event, ${video.id})"
+                                            onpointerup="endHoldReaction(event, ${video.id})"
+                                            onpointerleave="cancelHoldTimer()"
+                                            oncontextmenu="event.preventDefault()">
+                                        ${video.user_reaction || '👍'}
+                                    </button>
+                                    <div class="action-count" id="likeCount-${video.id}" onclick="openReactionsList(${video.id})">${formatCompactNumber(video.likes_count)}</div>
+                                </div>
+
+                                <!-- Comments Button -->
+                                <div class="action-slot">
+                                    <button class="action-icon-btn" onclick="openCommentsModal(${video.id})">💬</button>
+                                    <div class="action-count" id="commentCount-${video.id}" onclick="openCommentsModal(${video.id})">${formatCompactNumber(video.comments_count)}</div>
+                                </div>
+
+                                <!-- Share Button & Sharers List -->
+                                <div class="action-slot">
+                                    <button class="action-icon-btn" onclick="openShareModal(${video.id}, '${encodeURIComponent(video.caption)}')">↗️</button>
+                                    <div class="action-count" id="shareCount-${video.id}" onclick="openSharersList(${video.id})">${formatCompactNumber(video.shares_count)}</div>
+                                </div>
+
+                                <!-- 3-Dot Menu (Report Video / Delete Own Video) -->
+                                <div class="action-slot">
+                                    <button class="action-icon-btn" style="width:40px; height:40px; font-size:18px;" onclick="toggleVideoOptions(event, ${video.id})">⋮</button>
+                                    <div class="video-options-dropdown" id="videoOptions-${video.id}" onclick="event.stopPropagation()">
+                                        ${isOwn ? `<button onclick="deleteOwnVideo(${video.id})" style="color:#fa383e;">🗑️ លុបវីដេអូនេះ</button>` : ''}
+                                        <button onclick="openReportModal(${video.id})" style="color:#d93025;">🚩 រាយការណ៍វីដេអូ</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    `;
+                }).join('');
 
-                        <div class="reel-actions">
-                            <div>
-                                <button class="action-icon-btn" id="likeBtn-${video.source}-${video.id}" onclick="handleLike(${video.id}, '${video.source}')">👍</button>
-                                <div class="action-count" id="likeCount-${video.source}-${video.id}">${video.likes_count}</div>
-                            </div>
-                            ${video.source === 'posts' ? `
-                            <div>
-                                <button class="action-icon-btn" onclick="openCommentsModal(${video.id})">💬</button>
-                                <div class="action-count" id="commentCount-${video.id}">${video.comments_count}</div>
-                            </div>
-                            ` : ''}
-                            <div>
-                                <button class="action-icon-btn" onclick="handleShare(${video.id}, '${video.source}')">🔗</button>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-
-                initReelsAutoplay(isRecommendedFeed);
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const targetVideoId = urlParams.get('v');
-                if (targetVideoId) {
-                    setTimeout(() => {
-                        const targetEl = document.getElementById(`reel-${targetVideoId}`);
-                        if (targetEl) {
-                            targetEl.scrollIntoView({ behavior: 'auto' });
-                        }
-                    }, 100);
-                }
+                initReelsAutoplayAndViews();
             } catch (err) {
                 console.error(err);
+                container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh;">Error loading videos.</div>';
             }
         }
 
@@ -227,80 +405,343 @@
             }
         }
 
-        async function handleLike(id, source) {
-            const btn = document.getElementById(`likeBtn-${source}-${id}`);
-            const countElem = document.getElementById(`likeCount-${source}-${id}`);
+        // Autoplay + Accurate View Counter
+        function initReelsAutoplayAndViews() {
+            const reelItems = document.querySelectorAll('.reel-item');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const item = entry.target;
+                    const video = item.querySelector('.reel-video');
+                    const postId = item.getAttribute('data-post-id');
 
-            if (source === 'videos') {
-                if (btn && btn.classList.contains('liked')) return;
-                try {
-                    await fetch('/api/videos/track', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_email: currentUser.email,
-                            video_id: id,
-                            interaction_type: 'like'
-                        })
-                    });
-                    if (btn) btn.classList.add('liked');
-                    if (countElem) countElem.innerText = (parseInt(countElem.innerText, 10) || 0) + 1;
-                } catch (err) { console.error(err); }
-            } else {
-                try {
-                    const res = await fetch('/api/reaction', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ postId: id, email: currentUser.email, reactionType: '👍' })
-                    });
-                    const data = await res.json();
-                    if (data.success && countElem) {
-                        countElem.innerText = data.likes_count;
+                    if (entry.isIntersecting) {
+                        video.muted = globalMuted;
+                        video.play().catch(() => {});
+
+                        if (postId && !trackedVideoViews.has(postId)) {
+                            trackedVideoViews.add(postId);
+                            fetch(`/api/posts/${postId}/view`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: currentUser.email })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success && data.views_count !== undefined) {
+                                    const viewEl = document.getElementById(`viewCount-${postId}`);
+                                    if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
+                                }
+                            })
+                            .catch(() => {});
+                        }
+                    } else {
+                        video.pause();
+                        video.currentTime = 0;
                     }
-                } catch (err) { console.error(err); }
+                });
+            }, { threshold: 0.7 });
+
+            reelItems.forEach(item => observer.observe(item));
+        }
+
+        // Reactions (Tap = Like, Hold 1s = 7 Emojis)
+        function startHoldReaction(event, postId) {
+            if (event.button && event.button !== 0) return;
+            isLongPressTriggered = false;
+            cancelHoldTimer();
+            pressTimer = setTimeout(() => {
+                isLongPressTriggered = true;
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker) picker.classList.add('show');
+            }, 1000);
+        }
+
+        function endHoldReaction(event, postId) {
+            cancelHoldTimer();
+            if (!isLongPressTriggered) {
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker && picker.classList.contains('show')) {
+                    picker.classList.remove('show');
+                    return;
+                }
+                const state = videoReactionState[postId] || { count: 0, userReaction: null };
+                applyReaction(postId, state.userReaction || '👍');
             }
         }
 
-        async function handleShare(id, source) {
-            navigator.clipboard.writeText(`${window.location.origin}/videos.html?v=${id}`);
-            alert('Video link copied!');
-            if (source === 'videos') {
-                fetch('/api/videos/track', {
+        function cancelHoldTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        }
+
+        function selectReaction(event, postId, emoji) {
+            event.stopPropagation();
+            const picker = document.getElementById(`picker-${postId}`);
+            if (picker) picker.classList.remove('show');
+            applyReaction(postId, emoji);
+        }
+
+        async function applyReaction(postId, emoji) {
+            const state = videoReactionState[postId] || { count: 0, userReaction: null };
+            const btn = document.getElementById(`likeBtn-${postId}`);
+            const countEl = document.getElementById(`likeCount-${postId}`);
+
+            if (state.userReaction === emoji) {
+                state.userReaction = null;
+                state.count = Math.max(0, state.count - 1);
+            } else {
+                if (!state.userReaction) state.count += 1;
+                state.userReaction = emoji;
+            }
+            videoReactionState[postId] = state;
+
+            if (btn) {
+                btn.innerText = state.userReaction || '👍';
+                btn.classList.toggle('reacted', !!state.userReaction);
+            }
+            if (countEl) countEl.innerText = formatCompactNumber(state.count);
+
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    state.count = parseInt(data.likes_count) || 0;
+                    state.userReaction = data.reacted ? emoji : null;
+                    if (btn) {
+                        btn.innerText = state.userReaction || '👍';
+                        btn.classList.toggle('reacted', !!state.userReaction);
+                    }
+                    if (countEl) countEl.innerText = formatCompactNumber(state.count);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        // Share Video Modal (Share to Profile, Social Media, Copy Link)
+        function openShareModal(postId, encodedCaption) {
+            activePostIdForShare = postId;
+            activeCaptionForShare = decodeURIComponent(encodedCaption || '');
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = 'ចម្លងតំណភ្ជាប់ (Copy Link)';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+            activePostIdForShare = null;
+        }
+
+        async function shareToMyProfile() {
+            if (!activePostIdForShare) return;
+            const caption = document.getElementById('shareCaptionInput').value.trim();
+            try {
+                const res = await fetch('/api/posts/share', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        user_email: currentUser.email,
-                        video_id: id,
-                        interaction_type: 'share'
+                        postId: activePostIdForShare,
+                        email: currentUser.email,
+                        caption: caption
                     })
-                }).catch(() => {});
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const shareCountEl = document.getElementById(`shareCount-${activePostIdForShare}`);
+                    if (shareCountEl) {
+                        const cur = parseInt(shareCountEl.innerText) || 0;
+                        shareCountEl.innerText = formatCompactNumber(cur + 1);
+                    }
+                    closeShareModal();
+                    alert('បានស៊ែរវីដេអូចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function shareToSocialMedia() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/videos.html?v=${activePostIdForShare}`;
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'CamFeed Video',
+                        text: activeCaptionForShare || 'ទស្សនាវីដេអូនេះនៅលើ CamFeed!',
+                        url: shareUrl
+                    });
+                    closeShareModal();
+                } catch (err) {}
+            } else {
+                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(activeCaptionForShare)}`, '_blank');
+                closeShareModal();
             }
         }
 
-        function sendWatchLog(videoId, videoElem) {
-            const startTime = watchStartTimes.get(videoId);
-            if (!startTime) return;
-            watchStartTimes.delete(videoId);
-
-            const watchDurationSec = (Date.now() - startTime) / 1000;
-            const videoDurationSec = videoElem && isFinite(videoElem.duration) ? videoElem.duration : 0;
-            const completed = videoDurationSec > 0 && watchDurationSec >= videoDurationSec * 0.7;
-            const interactionType = (watchDurationSec < 2 && videoDurationSec > 5) ? 'skip' : 'view';
-
-            fetch('/api/videos/track', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_email: currentUser.email,
-                    video_id: Number(videoId),
-                    watch_duration_sec: Number(watchDurationSec.toFixed(2)),
-                    video_duration_sec: Number(videoDurationSec.toFixed(2)),
-                    completed,
-                    interaction_type: interactionType
-                })
-            }).catch(() => {});
+        function copyVideoLink() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/videos.html?v=${activePostIdForShare}`;
+            navigator.clipboard.writeText(shareUrl);
+            document.getElementById('copyLinkLabel').innerText = '✓ បានចម្លងតំណភ្ជាប់!';
+            setTimeout(() => closeShareModal(), 900);
         }
 
+        // Reactors & Sharers List Modals
+        async function openReactionsList(postId) {
+            const modal = document.getElementById('reactionsModal');
+            const listContainer = document.getElementById('reactionsModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">កំពុងផ្ទុក...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/reactions/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.reactors.length > 0) {
+                    listContainer.innerHTML = data.reactors.map(r => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
+                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
+                                </div>
+                            </div>
+                            ${r.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser('${r.email}', ${r.is_following}, 'react', ${postId})">
+                                    ${r.is_following ? 'កំពុងតាមដាន' : 'តាមដាន'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">មិនទាន់មានប្រតិកម្មនៅឡើយទេ។</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeReactionsModal() { document.getElementById('reactionsModal').style.display = 'none'; }
+
+        async function openSharersList(postId) {
+            const modal = document.getElementById('sharersModal');
+            const listContainer = document.getElementById('sharersModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">កំពុងផ្ទុក...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/shares/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.sharers.length > 0) {
+                    listContainer.innerHTML = data.sharers.map(s => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
+                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            ${s.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser('${s.email}', ${s.is_following}, 'share', ${postId})">
+                                    ${s.is_following ? 'កំពុងតាមដាន' : 'តាមដាន'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">មិនទាន់មានការចែករំលែកនៅឡើយទេ។</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeSharersModal() { document.getElementById('sharersModal').style.display = 'none'; }
+
+        async function toggleFollowUser(targetEmail, isFollowing, mode, postId) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            if (mode === 'react') openReactionsList(postId);
+            else openSharersList(postId);
+        }
+
+        // Video 3-Dot Menu & Report
+        function toggleVideoOptions(event, postId) {
+            event.stopPropagation();
+            document.querySelectorAll('.video-options-dropdown').forEach(m => {
+                if (m.id !== `videoOptions-${postId}`) m.style.display = 'none';
+            });
+            const menu = document.getElementById(`videoOptions-${postId}`);
+            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function deleteOwnVideo(postId) {
+            if (!confirm('តើអ្នកពិតជាចង់លុបវីដេអូនេះមែនទេ?')) return;
+            try {
+                const res = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const el = document.getElementById(`reel-${postId}`);
+                    if (el) el.remove();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function openReportModal(postId) {
+            document.querySelectorAll('.video-options-dropdown').forEach(m => m.style.display = 'none');
+            activePostIdForReport = postId;
+            selectedReportReasonText = '';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+            activePostIdForReport = null;
+        }
+
+        function selectReportReason(btn, reason) {
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedReportReasonText = reason;
+        }
+
+        async function submitVideoReport() {
+            if (!activePostIdForReport) return;
+            const customNote = document.getElementById('reportCustomDetails').value.trim();
+            const fullReason = selectedReportReasonText
+                ? (customNote ? `${selectedReportReasonText} - ${customNote}` : selectedReportReasonText)
+                : customNote;
+
+            if (!fullReason) {
+                alert('សូមជ្រើសរើសមូលហេតុ ឬសរសេរបញ្ជាក់មុននឹងបញ្ជូន!');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/posts/${activePostIdForReport}/report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, reason: fullReason })
+                });
+                const data = await res.json();
+                closeReportModal();
+                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
+            } catch (err) {
+                console.error(err);
+                closeReportModal();
+            }
+        }
+
+        // Comments Modal
         async function openCommentsModal(postId) {
             activePostIdForComment = postId;
             const modal = document.getElementById('commentsModal');
@@ -320,22 +761,13 @@
                         const isOwner = currentUser.email === c.user_email;
                         return `
                             <div class="comment-container" id="comment-${c.id}">
-                                <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar">
+                                <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                                 <div class="comment-content-wrapper">
                                     <div class="comment-bubble">
-                                        <span class="comment-author">${c.first_name} ${c.last_name}</span>
-                                        <div id="comment-text-${c.id}">${c.content}</div>
+                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name} ${c.last_name}</span>
+                                        <div>${c.content}</div>
                                     </div>
-                                    <button class="comment-options-btn" onclick="toggleCommentMenu(event, ${c.id})">⋮</button>
-                                </div>
-                                
-                                <div class="comment-menu-dropdown" id="comment-menu-${c.id}">
-                                    ${isOwner ? `
-                                        <button onclick="enableEditComment(${c.id}, '${encodeURIComponent(c.content)}')">Edit</button>
-                                        <button onclick="deleteComment(${c.id}, ${postId})" style="color: red;">Delete</button>
-                                    ` : `
-                                        <button onclick="reportComment(${c.id})">Report</button>
-                                    `}
+                                    ${isOwner ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})">🗑️</button>` : ''}
                                 </div>
                             </div>
                         `;
@@ -346,21 +778,8 @@
             }
         }
 
-        function toggleCommentMenu(event, commentId) {
-            event.stopPropagation();
-            const menu = document.getElementById(`comment-menu-${commentId}`);
-            document.querySelectorAll('.comment-menu-dropdown').forEach(m => {
-                if(m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
-            });
-            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-        }
-
-        window.onclick = function() {
-            document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
-        }
-
         async function deleteComment(commentId, postId) {
-            if (!confirm('តើអ្នកពិតជាចង់លុប Comment នេះមែនទេ?')) return;
+            if (!confirm('លុប Comment នេះមែនទេ?')) return;
             try {
                 const res = await fetch(`/api/comments/${commentId}`, {
                     method: 'DELETE',
@@ -375,57 +794,6 @@
                         let currentCount = parseInt(countElem.innerText) || 1;
                         countElem.innerText = Math.max(0, currentCount - 1);
                     }
-                } else {
-                    alert(data.message || 'មិនអាចលុប Comment នេះបានទេ');
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        async function reportComment(commentId) {
-            const reason = prompt('សូមបញ្ជាក់ពីមូលហេតុដែលត្រូវ Report Comment នេះ៖');
-            if (!reason) return;
-
-            try {
-                const res = await fetch('/api/comments/report', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ commentId, email: currentUser.email, reason })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert('ការរាយការណ៍ (Report) របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់អ្នកគ្រប់គ្រងប្រព័ន្ធជោគជ័យ។');
-                }
-            } catch (err) { console.error(err); }
-        }
-
-        function enableEditComment(commentId, encodedContent) {
-            const content = decodeURIComponent(encodedContent);
-            document.getElementById(`comment-menu-${commentId}`).style.display = 'none';
-            const textDiv = document.getElementById(`comment-text-${commentId}`);
-            
-            textDiv.innerHTML = `
-                <div style="display: flex; gap: 5px; margin-top: 5px;">
-                    <input type="text" id="edit-input-${commentId}" value="${content}" style="padding: 4px 8px; font-size: 12px; border-radius: 12px; border: 1px solid #ddd; width: 100%;">
-                    <button onclick="submitEditComment(${commentId})" style="background: #1877f2; color: white; border: none; border-radius: 10px; padding: 4px 8px; cursor: pointer; white-space: nowrap;">Save</button>
-                </div>
-            `;
-        }
-
-        async function submitEditComment(commentId) {
-            const newContent = document.getElementById(`edit-input-${commentId}`).value.trim();
-            if (!newContent || !activePostIdForComment) return;
-
-            try {
-                const res = await fetch(`/api/comments/${commentId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email, content: newContent })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    openCommentsModal(activePostIdForComment);
-                } else {
-                    alert(data.message || 'កែប្រែមិនបានជោគជ័យ');
                 }
             } catch (err) { console.error(err); }
         }
@@ -450,45 +818,21 @@
                 if (data.success) {
                     input.value = '';
                     openCommentsModal(activePostIdForComment);
-
                     const countElem = document.getElementById(`commentCount-${activePostIdForComment}`);
                     if (countElem) {
                         let currentCount = parseInt(countElem.innerText) || 0;
                         countElem.innerText = currentCount + 1;
                     }
                 }
-            } catch (err) {
-                console.error(err);
+            } catch (err) { console.error(err); }
+        }
+
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('.video-options-dropdown').forEach(m => m.style.display = 'none');
+            if (!e.target.closest('.action-slot')) {
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
             }
-        }
-
-        function initReelsAutoplay(isRecommendedFeed) {
-            const reelItems = document.querySelectorAll('.reel-item');
-            
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    const item = entry.target;
-                    const video = item.querySelector('.reel-video');
-                    const videoId = item.dataset.videoId;
-                    const source = item.dataset.source;
-
-                    if (entry.isIntersecting) {
-                        video.play().catch(err => console.log("Autoplay blocked:", err));
-                        if (isRecommendedFeed && source === 'videos') {
-                            watchStartTimes.set(videoId, Date.now());
-                        }
-                    } else {
-                        video.pause();
-                        if (isRecommendedFeed && source === 'videos') {
-                            sendWatchLog(videoId, video);
-                        }
-                        video.currentTime = 0;
-                    }
-                });
-            }, { threshold: 0.7 });
-
-            reelItems.forEach(item => observer.observe(item));
-        }
+        });
     </script>
 </body>
 </html>
