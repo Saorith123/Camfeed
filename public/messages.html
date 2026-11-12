@@ -1,17 +1,34 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="km">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CamFeed - Messages</title>
+    <title>CamFeed - Direct Connect</title>
     <link rel="icon" type="image/png" href="logo-icon.png">
     <link rel="apple-touch-icon" href="logo-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --cf-bg: #f1f5f9;
+            --cf-surface: #ffffff;
+            --cf-surface-soft: #f8fafc;
+            --cf-border: #e2e8f0;
+            --cf-primary: #4f46e5;
+            --cf-primary-grad: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --cf-text: #0f172a;
+            --cf-muted: #64748b;
+            --cf-online: #10b981;
+            --cf-offline: #94a3b8;
+            --cf-danger: #ef4444;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #ffffff;
-            color: #050505;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--cf-bg);
+            color: var(--cf-text);
             height: 100vh;
             height: 100dvh;
             display: flex;
@@ -19,366 +36,600 @@
             overflow: hidden;
         }
 
-        /* Contacts List Top Bar */
-        .top-nav {
-            background: #fff;
-            height: 56px;
-            padding: 0 14px;
+        /* Sleek Modern Top Navigation */
+        .cf-top-bar {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            height: 60px;
+            padding: 0 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid #e4e6eb;
+            border-bottom: 1px solid var(--cf-border);
             flex-shrink: 0;
+            z-index: 20;
         }
-        .nav-left { display: flex; align-items: center; gap: 10px; }
-        .back-btn {
-            background: #f0f2f5;
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
+        .cf-nav-left { display: flex; align-items: center; gap: 12px; }
+        .cf-nav-back {
+            background: var(--cf-surface-soft);
+            border: 1px solid var(--cf-border);
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
             font-size: 18px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #050505;
+            color: var(--cf-text);
+            transition: all 0.15s;
         }
-        .back-btn:hover { background: #e4e6eb; }
-        .page-title {
+        .cf-nav-back:hover { background: #eef2ff; border-color: #c7d2fe; color: var(--cf-primary); }
+        .cf-brand-title {
             font-size: 20px;
             font-weight: 800;
-            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            background: var(--cf-primary-grad);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .cf-self-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #eef2ff;
+            color: var(--cf-primary);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12.5px;
+            font-weight: 700;
+        }
+        .cf-self-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--cf-online);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
         }
 
-        .chat-layout {
+        /* Split-Card Workspace Layout */
+        .cf-workspace {
             display: flex;
             flex: 1;
             overflow: hidden;
-            max-width: 1100px;
+            max-width: 1240px;
             width: 100%;
             margin: 0 auto;
-            background: #fff;
+            padding: 12px;
+            gap: 12px;
         }
 
-        /* Sidebar Contacts */
-        .contacts-panel {
-            width: 330px;
-            border-right: 1px solid #e4e6eb;
+        /* Left Contacts Card */
+        .cf-sidebar {
+            width: 340px;
+            background: var(--cf-surface);
+            border: 1px solid var(--cf-border);
+            border-radius: 20px;
             display: flex;
             flex-direction: column;
-            background: #fff;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
         }
-        .search-box { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; }
-        .search-box input {
+        .cf-sidebar-head {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .cf-search-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .cf-search-wrap input {
             width: 100%;
-            padding: 9px 14px;
-            border-radius: 20px;
-            border: none;
-            background: #f0f2f5;
+            padding: 10px 14px 10px 36px;
+            border-radius: 14px;
+            border: 1px solid var(--cf-border);
+            background: var(--cf-surface-soft);
             outline: none;
-            font-size: 14px;
+            font-size: 13.5px;
+            font-family: inherit;
+            color: var(--cf-text);
+            transition: border-color 0.15s, background 0.15s;
         }
-        .contacts-list { flex: 1; overflow-y: auto; }
-        .contact-item {
+        .cf-search-wrap input:focus {
+            background: #fff;
+            border-color: var(--cf-primary);
+        }
+        .cf-search-icon {
+            position: absolute;
+            left: 12px;
+            font-size: 14px;
+            color: var(--cf-muted);
+            pointer-events: none;
+        }
+        .cf-contacts-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .cf-contact-card {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 10px 14px;
+            padding: 10px 12px;
+            border-radius: 14px;
             cursor: pointer;
-            transition: background 0.15s;
+            transition: all 0.15s;
+            border: 1px solid transparent;
         }
-        .contact-item:hover { background: #f2f3f5; }
-        .contact-item.active { background: #ebf5ff; }
-        .contact-avatar {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            object-fit: cover;
-            flex-shrink: 0;
-            background: #e4e6eb;
+        .cf-contact-card:hover { background: var(--cf-surface-soft); }
+        .cf-contact-card.active {
+            background: #eef2ff;
+            border-color: #c7d2fe;
         }
-        .contact-info { flex: 1; min-width: 0; }
-        .contact-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .contact-sub { font-size: 13px; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-
-        /* Messenger Conversation Panel */
-        .chat-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #fff;
-            min-width: 0;
-            height: 100%;
-        }
-
-        /* Messenger Top Header (← Avatar Name / Active status + Call / Video / Info) */
-        .chat-header {
-            height: 58px;
-            padding: 0 12px;
-            border-bottom: 1px solid #f0f2f5;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-            background: #fff;
-            z-index: 10;
-        }
-        .chat-header-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 0;
-            flex: 1;
-        }
-        .header-back-arrow {
-            background: none;
-            border: none;
-            color: #1877f2;
-            font-size: 24px;
-            font-weight: 700;
-            cursor: pointer;
-            padding: 4px 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .header-avatar-wrap {
-            position: relative;
-            width: 38px;
-            height: 38px;
-            flex-shrink: 0;
-            cursor: pointer;
-        }
-        .header-avatar-wrap img {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #e4e6eb;
-        }
-        .online-green-dot {
-            display: none;
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 11px;
-            height: 11px;
-            border-radius: 50%;
-            background: #31a24c;
-            border: 2px solid #fff;
-        }
-        .online-green-dot.is-online {
-            display: block;
-        }
-        .contact-avatar-wrap {
+        .cf-avatar-box {
             position: relative;
             width: 48px;
             height: 48px;
             flex-shrink: 0;
         }
-        .contact-online-dot {
-            display: none;
+        .cf-avatar-box img {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            object-fit: cover;
+            background: #e2e8f0;
+        }
+        .cf-status-ring {
             position: absolute;
-            bottom: 1px;
-            right: 1px;
-            width: 12px;
-            height: 12px;
+            bottom: -2px;
+            right: -2px;
+            width: 13px;
+            height: 13px;
             border-radius: 50%;
-            background: #31a24c;
-            border: 2px solid #fff;
+            background: var(--cf-offline);
+            border: 2.5px solid #fff;
         }
-        .contact-online-dot.is-online {
-            display: block;
+        .cf-status-ring.online {
+            background: var(--cf-online);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
         }
-        /* Voice Review & Preview Bar Before Sending */
-        .voice-review-banner {
-            display: none;
-            align-items: center;
+        .cf-contact-meta { flex: 1; min-width: 0; }
+        .cf-contact-top {
+            display: flex;
             justify-content: space-between;
-            gap: 8px;
-            background: #eef5ff;
-            border-top: 1px solid #cce0ff;
-            padding: 8px 12px;
-        }
-        .voice-review-banner.active {
-            display: flex;
-        }
-        .review-audio-pill {
-            display: flex;
             align-items: center;
-            gap: 8px;
-            background: #0038b8;
-            color: #fff;
-            padding: 6px 12px;
-            border-radius: 20px;
-            flex: 1;
-            min-width: 0;
+            gap: 6px;
         }
-        .header-user-meta {
-            min-width: 0;
-            cursor: pointer;
-        }
-        .header-user-name {
+        .cf-contact-name {
             font-weight: 700;
-            font-size: 15.5px;
-            color: #050505;
+            font-size: 14.5px;
+            color: var(--cf-text);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .header-user-status {
-            font-size: 11.5px;
-            color: #65676b;
+        .cf-contact-state-tag {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 999px;
+            flex-shrink: 0;
         }
-        .chat-header-actions {
+        .cf-contact-state-tag.online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .cf-contact-state-tag.offline {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .cf-contact-preview {
+            font-size: 12.5px;
+            color: var(--cf-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 3px;
+        }
+
+        /* Right Conversation Card */
+        .cf-chat-card {
+            flex: 1;
+            background: var(--cf-surface);
+            border: 1px solid var(--cf-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            height: 100%;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        /* Conversation Header */
+        .cf-chat-header {
+            height: 64px;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--cf-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.95);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .cf-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+        .cf-mobile-back {
+            display: none;
+            background: var(--cf-surface-soft);
+            border: 1px solid var(--cf-border);
+            color: var(--cf-text);
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .cf-header-avatar {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .cf-header-avatar img {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            object-fit: cover;
+            background: #e2e8f0;
+        }
+        .cf-header-info { min-width: 0; cursor: pointer; }
+        .cf-header-name {
+            font-weight: 800;
+            font-size: 15.5px;
+            color: var(--cf-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .cf-presence-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            font-weight: 700;
+            margin-top: 2px;
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+        .cf-presence-badge.online {
+            background: #ecfdf5;
+            color: #059669;
+        }
+        .cf-presence-badge.offline {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .cf-presence-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .cf-header-tools {
             display: flex;
             align-items: center;
             gap: 6px;
-            flex-shrink: 0;
         }
-        .header-action-icon {
-            background: none;
-            border: none;
-            color: #1877f2;
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
+        .cf-tool-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: 1px solid var(--cf-border);
+            background: var(--cf-surface-soft);
+            color: var(--cf-text);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            transition: all 0.15s;
         }
-        .header-action-icon:hover { background: #f0f2f5; }
+        .cf-tool-circle:hover {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: var(--cf-primary);
+        }
 
-        /* Chat Messages Feed */
-        .chat-messages {
+        /* Messages Stream */
+        .cf-messages-feed {
             flex: 1;
-            padding: 12px 12px 16px;
+            padding: 16px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            background: #fff;
+            gap: 10px;
+            background-color: #f8fafc;
+            background-image: radial-gradient(#cbd5e1 0.65px, transparent 0.65px);
+            background-size: 18px 18px;
         }
-        .empty-state {
+        .cf-empty-box {
             flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            color: #65676b;
             text-align: center;
-            padding: 20px;
+            color: var(--cf-muted);
+            padding: 24px;
+        }
+        .cf-time-chip {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid var(--cf-border);
+            color: var(--cf-muted);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 999px;
+            margin: 6px 0;
         }
 
-        /* Timestamp Divider */
-        .time-divider {
-            text-align: center;
-            font-size: 11.5px;
-            font-weight: 600;
-            color: #8a8d91;
-            margin: 10px 0 6px;
-        }
-
-        /* Message Row */
-        .msg-row {
+        /* Message Row & Modern Asymmetric Bubbles */
+        .cf-msg-row {
             display: flex;
             align-items: flex-end;
             gap: 8px;
             width: 100%;
+            position: relative;
         }
-        .msg-row.sent {
-            justify-content: flex-end;
-        }
-        .msg-row.received {
-            justify-content: flex-start;
-        }
-        .msg-sender-avatar {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            object-fit: cover;
-            flex-shrink: 0;
-            background: #e4e6eb;
-        }
-        .msg-seen-avatar {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            object-fit: cover;
-            align-self: flex-end;
-            margin-top: 2px;
-        }
+        .cf-msg-row.sent { justify-content: flex-end; }
+        .cf-msg-row.received { justify-content: flex-start; }
 
-        /* Forward Button beside Audio & Media */
-        .forward-circle-btn {
+        .cf-msg-avatar {
             width: 30px;
             height: 30px;
-            border-radius: 50%;
-            background: #f0f2f5;
-            border: none;
-            color: #050505;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
+            border-radius: 10px;
+            object-fit: cover;
             flex-shrink: 0;
-            align-self: center;
+            background: #e2e8f0;
         }
-        .forward-circle-btn:hover { background: #e4e6eb; }
+        .cf-msg-stack {
+            display: flex;
+            flex-direction: column;
+            max-width: 76%;
+            position: relative;
+        }
+        .cf-msg-row.sent .cf-msg-stack { align-items: flex-end; }
+        .cf-msg-row.received .cf-msg-stack { align-items: flex-start; }
 
-        /* Text Bubble */
-        .msg-bubble {
-            padding: 9px 14px;
-            border-radius: 20px;
-            font-size: 15px;
-            line-height: 1.38;
+        .cf-bubble {
+            padding: 10px 15px;
+            font-size: 14.5px;
+            line-height: 1.45;
             word-break: break-word;
-            max-width: 75vw;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+            position: relative;
         }
-        .msg-row.sent .msg-bubble {
-            background: #0044cc;
-            color: #fff;
+        .cf-msg-row.sent .cf-bubble {
+            background: var(--cf-primary-grad);
+            color: #ffffff;
+            border-radius: 18px 18px 4px 18px;
         }
-        .msg-row.received .msg-bubble {
-            background: #f0f2f5;
-            color: #050505;
+        .cf-msg-row.received .cf-bubble {
+            background: #ffffff;
+            color: var(--cf-text);
+            border: 1px solid var(--cf-border);
+            border-radius: 18px 18px 18px 4px;
         }
 
-        /* Big Thumb Sticker */
-        .big-thumb-sticker {
-            font-size: 36px;
-            line-height: 1;
-            padding: 2px 4px;
+        /* Deleted Message Tombstone Trace */
+        .cf-bubble-deleted {
+            padding: 9px 14px;
+            font-size: 13px;
+            font-style: italic;
+            color: #64748b;
+            background: #f1f5f9;
+            border: 1px dashed #cbd5e1;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             user-select: none;
         }
 
-        /* Messenger Waveform Voice Message Pill */
-        .voice-pill-box {
+        .cf-edited-tag {
+            font-size: 10px;
+            opacity: 0.78;
+            margin-left: 6px;
+            font-weight: 600;
+        }
+
+        /* Sending / Delivery Status Indicator */
+        .cf-msg-footer {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 3px;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: var(--cf-muted);
+        }
+        .cf-sending-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #eef2ff;
+            color: var(--cf-primary);
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .cf-mini-spin {
+            width: 10px;
+            height: 10px;
+            border: 2px solid rgba(79, 70, 229, 0.25);
+            border-top-color: var(--cf-primary);
+            border-radius: 50%;
+            animation: spinFast 0.7s linear infinite;
+        }
+        @keyframes spinFast { to { transform: rotate(360deg); } }
+
+        /* Hover / Tap Action Controls for Sent & Received Messages (Edit / Delete / Forward) */
+        .cf-msg-actions-wrap {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            align-self: center;
+            position: relative;
+        }
+        .cf-msg-opt-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 10px;
+            border: 1px solid var(--cf-border);
+            background: #fff;
+            color: var(--cf-muted);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+        .cf-msg-opt-btn:hover {
+            background: #eef2ff;
+            color: var(--cf-primary);
+            border-color: #c7d2fe;
+        }
+        .cf-msg-popover {
+            display: none;
+            position: absolute;
+            bottom: 34px;
+            right: 0;
+            background: #fff;
+            border: 1px solid var(--cf-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+            min-width: 145px;
+            z-index: 60;
+            overflow: hidden;
+        }
+        .cf-msg-row.received .cf-msg-popover {
+            right: auto;
+            left: 0;
+        }
+        .cf-msg-popover.open { display: block; }
+        .cf-msg-popover button {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 9px 12px;
+            font-size: 12.5px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--cf-text);
+        }
+        .cf-msg-popover button:hover { background: #f1f5f9; }
+        .cf-msg-popover button.danger { color: var(--cf-danger); }
+
+        /* Modern Media Cards (Photos & Videos) */
+        .cf-media-card {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--cf-border);
+            background: #0f172a;
+            max-width: 250px;
+            position: relative;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+        }
+        .cf-media-card img {
+            width: 100%;
+            max-height: 320px;
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
+        }
+        .cf-media-card video {
+            width: 100%;
+            max-height: 330px;
+            object-fit: cover;
+            display: block;
+            background: #000;
+        }
+        .cf-media-uploading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.68);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #fff;
+            padding: 12px;
+            text-align: center;
+        }
+        .cf-upload-progress-bar {
+            width: 80%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .cf-upload-progress-fill {
+            height: 100%;
+            background: #38bdf8;
+            transition: width 0.2s;
+        }
+
+        /* Voice Waveform Pill */
+        .cf-voice-pill {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 8px 14px 8px 10px;
-            border-radius: 22px;
+            padding: 9px 14px 9px 10px;
+            border-radius: 18px;
             min-width: 225px;
             max-width: 74vw;
             user-select: none;
         }
-        .msg-row.sent .voice-pill-box {
-            background: #0038b8;
+        .cf-msg-row.sent .cf-voice-pill {
+            background: var(--cf-primary-grad);
             color: #fff;
         }
-        .msg-row.received .voice-pill-box {
-            background: #f0f2f5;
-            color: #050505;
+        .cf-msg-row.received .cf-voice-pill {
+            background: #fff;
+            color: var(--cf-text);
+            border: 1px solid var(--cf-border);
         }
-        .voice-play-btn {
+        .cf-voice-play {
             width: 32px;
             height: 32px;
-            border-radius: 50%;
+            border-radius: 11px;
             border: none;
             display: flex;
             align-items: center;
@@ -386,18 +637,16 @@
             cursor: pointer;
             flex-shrink: 0;
             font-size: 13px;
-            transition: transform 0.1s;
         }
-        .voice-play-btn:active { transform: scale(0.92); }
-        .msg-row.sent .voice-play-btn {
-            background: rgba(0, 0, 0, 0.35);
+        .cf-msg-row.sent .cf-voice-play {
+            background: rgba(255, 255, 255, 0.22);
             color: #fff;
         }
-        .msg-row.received .voice-play-btn {
-            background: #1877f2;
-            color: #fff;
+        .cf-msg-row.received .cf-voice-play {
+            background: #eef2ff;
+            color: var(--cf-primary);
         }
-        .voice-waveform {
+        .cf-waveform {
             display: flex;
             align-items: center;
             gap: 2.5px;
@@ -408,207 +657,115 @@
         .wave-bar {
             width: 2.5px;
             border-radius: 2px;
-            transition: opacity 0.15s, background-color 0.15s;
+            transition: background-color 0.15s;
         }
-        .msg-row.sent .wave-bar {
-            background-color: rgba(255, 255, 255, 0.42);
-        }
-        .msg-row.sent .wave-bar.played {
-            background-color: #ffffff;
-        }
-        .msg-row.received .wave-bar {
-            background-color: rgba(24, 119, 242, 0.3);
-        }
-        .msg-row.received .wave-bar.played {
-            background-color: #1877f2;
-        }
-        .voice-duration-text {
-            font-size: 12.5px;
+        .cf-msg-row.sent .wave-bar { background-color: rgba(255, 255, 255, 0.38); }
+        .cf-msg-row.sent .wave-bar.played { background-color: #ffffff; }
+        .cf-msg-row.received .wave-bar { background-color: #cbd5e1; }
+        .cf-msg-row.received .wave-bar.played { background-color: var(--cf-primary); }
+        .cf-voice-dur {
+            font-size: 12px;
             font-weight: 700;
             font-variant-numeric: tabular-nums;
             min-width: 34px;
             text-align: right;
-            flex-shrink: 0;
         }
 
-        /* Clean Standard Media Card (Images & Videos) */
-        .msg-media-card {
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid #e4e6eb;
-            background: #000;
-            max-width: 230px;
-            position: relative;
-        }
-        .msg-media-card img {
-            width: 100%;
-            max-height: 310px;
-            object-fit: cover;
-            display: block;
-            cursor: pointer;
-        }
-        .msg-media-card video {
-            width: 100%;
-            max-height: 320px;
-            object-fit: cover;
-            display: block;
-            background: #000;
-        }
+        .big-thumb-sticker { font-size: 38px; line-height: 1; user-select: none; }
 
-        /* Messenger Bottom Input Bar */
-        .chat-input-bar {
-            padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-            border-top: 1px solid #f0f2f5;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: #fff;
-            flex-shrink: 0;
-        }
-        .bar-icon-btn {
-            background: none;
-            border: none;
-            color: #1877f2;
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: background 0.15s, transform 0.1s;
-        }
-        .bar-icon-btn:hover { background: #f0f2f5; }
-        .bar-icon-btn:active { transform: scale(0.92); }
-        .bar-icon-btn.recording {
-            color: #fff;
-            background: #fa383e;
-            animation: pulseRec 1s infinite;
-        }
-        @keyframes pulseRec {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-
-        .message-pill-input-wrap {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            background: #f0f2f5;
-            border-radius: 20px;
-            padding: 4px 10px 4px 14px;
-            min-width: 0;
-        }
-        .msg-input {
-            flex: 1;
-            border: none;
-            background: transparent;
-            outline: none;
-            font-size: 15px;
-            color: #050505;
-            padding: 5px 0;
-            min-width: 0;
-        }
-        .emoji-inside-btn {
-            background: none;
-            border: none;
-            color: #1877f2;
-            font-size: 19px;
-            cursor: pointer;
-            padding: 2px 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Quick Emoji Picker Popup */
-        .emoji-popup-bar {
-            display: none;
-            position: fixed;
-            bottom: 62px;
-            left: 12px;
-            right: 12px;
-            max-width: 420px;
-            margin: 0 auto;
-            background: #fff;
-            border: 1px solid #e4e6eb;
-            border-radius: 16px;
-            padding: 10px;
-            box-shadow: 0 4px 18px rgba(0,0,0,0.18);
-            z-index: 500;
-            flex-wrap: wrap;
-            gap: 8px;
-            justify-content: center;
-        }
-        .emoji-popup-bar.show { display: flex; }
-        .emoji-item-btn {
-            font-size: 24px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 2px;
-        }
-
-        /* Recording Live Banner */
-        .recording-banner {
+        /* Edit Mode Banner above Composer */
+        .cf-edit-banner {
             display: none;
             align-items: center;
             justify-content: space-between;
-            background: #ffebe9;
-            color: #d93025;
+            gap: 10px;
+            background: #eef2ff;
+            border-top: 1px solid #c7d2fe;
             padding: 8px 14px;
-            font-size: 13.5px;
+            font-size: 12.5px;
+            color: var(--cf-primary);
             font-weight: 700;
-            border-top: 1px solid #ffcdd2;
         }
-        .recording-banner.active { display: flex; }
+        .cf-edit-banner.active { display: flex; }
 
-        /* Multi-Media Preview Tray (Choose Multiple Photos/Videos -> Edit or Send Immediately) */
-        .media-staging-tray {
+        /* Recording & Voice Review Banners */
+        .cf-rec-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 9px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            border-top: 1px solid #fecaca;
+        }
+        .cf-rec-banner.active { display: flex; }
+
+        .cf-review-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: #eef2ff;
+            border-top: 1px solid #c7d2fe;
+            padding: 8px 14px;
+        }
+        .cf-review-banner.active { display: flex; }
+        .cf-review-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--cf-primary-grad);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 14px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Staged Multi-Media Tray (Preview -> Edit or Click Send) */
+        .cf-staging-tray {
             display: none;
             flex-direction: column;
             gap: 8px;
-            background: #f8f9fa;
-            border-top: 1px solid #e4e6eb;
-            padding: 10px 12px;
+            background: #f8fafc;
+            border-top: 1px solid var(--cf-border);
+            padding: 10px 14px;
         }
-        .media-staging-tray.active {
-            display: flex;
-        }
-        .staging-items-scroll {
+        .cf-staging-tray.active { display: flex; }
+        .cf-staging-scroll {
             display: flex;
             gap: 10px;
             overflow-x: auto;
             padding-bottom: 4px;
             scrollbar-width: none;
         }
-        .staging-items-scroll::-webkit-scrollbar { display: none; }
-        .staging-thumb-card {
+        .cf-staging-scroll::-webkit-scrollbar { display: none; }
+        .cf-stage-card {
             position: relative;
-            width: 86px;
-            height: 86px;
-            border-radius: 12px;
+            width: 84px;
+            height: 84px;
+            border-radius: 14px;
             overflow: hidden;
-            background: #000;
-            border: 1.5px solid #dddfe2;
+            background: #0f172a;
+            border: 1.5px solid #cbd5e1;
             flex-shrink: 0;
         }
-        .staging-thumb-card img, .staging-thumb-card video {
+        .cf-stage-card img, .cf-stage-card video {
             width: 100%;
             height: 100%;
             object-fit: cover;
             display: block;
         }
-        .staging-remove-btn {
+        .cf-stage-del {
             position: absolute;
             top: 4px;
             right: 4px;
             width: 22px;
             height: 22px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.72);
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.78);
             color: #fff;
             border: none;
             font-size: 13px;
@@ -618,12 +775,12 @@
             align-items: center;
             justify-content: center;
         }
-        .staging-edit-badge {
+        .cf-stage-edit {
             position: absolute;
             bottom: 4px;
             left: 4px;
             right: 4px;
-            background: rgba(24, 119, 242, 0.92);
+            background: rgba(79, 70, 229, 0.92);
             color: #fff;
             border: none;
             border-radius: 8px;
@@ -631,62 +788,159 @@
             font-size: 11px;
             font-weight: 700;
             cursor: pointer;
-            text-align: center;
-        }
-        .staging-actions-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
         }
 
-        /* Full-Screen Photo Editor Modal (Crop, Draw Pen, Add Text) */
+        /* Modern Floating Dock Composer */
+        .cf-composer-dock {
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+            background: #fff;
+            border-top: 1px solid var(--cf-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .cf-dock-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            border: 1px solid var(--cf-border);
+            background: var(--cf-surface-soft);
+            color: var(--cf-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .cf-dock-icon:hover {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: var(--cf-primary);
+        }
+        .cf-dock-icon.recording {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: #fff;
+            animation: pulseRec 1s infinite;
+        }
+        @keyframes pulseRec {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+        .cf-input-capsule {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: var(--cf-surface-soft);
+            border: 1.5px solid var(--cf-border);
+            border-radius: 16px;
+            padding: 4px 10px 4px 14px;
+            min-width: 0;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .cf-input-capsule:focus-within {
+            background: #fff;
+            border-color: var(--cf-primary);
+        }
+        .cf-text-field {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 14.5px;
+            font-family: inherit;
+            color: var(--cf-text);
+            padding: 6px 0;
+            min-width: 0;
+        }
+        .cf-emoji-trigger {
+            background: none;
+            border: none;
+            font-size: 19px;
+            cursor: pointer;
+            padding: 2px 4px;
+        }
+        .cf-send-pill-btn {
+            background: var(--cf-primary-grad);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            height: 38px;
+            padding: 0 16px;
+            font-size: 13.5px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            flex-shrink: 0;
+            box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
+            transition: transform 0.1s, opacity 0.15s;
+        }
+        .cf-send-pill-btn:active { transform: scale(0.95); }
+        .cf-send-pill-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+        /* Quick Emoji Popup */
+        .emoji-popup-bar {
+            display: none;
+            position: fixed;
+            bottom: 68px;
+            left: 12px;
+            right: 12px;
+            max-width: 420px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid var(--cf-border);
+            border-radius: 16px;
+            padding: 10px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+            z-index: 500;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        .emoji-popup-bar.show { display: flex; }
+        .emoji-item-btn { font-size: 24px; background: none; border: none; cursor: pointer; padding: 2px; }
+
+        /* Photo Editor Modal */
         .photo-editor-overlay {
             display: none;
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            height: 100dvh;
-            background: #000;
+            inset: 0;
+            background: #090d16;
             z-index: 3000;
             flex-direction: column;
             color: #fff;
             user-select: none;
-            -webkit-user-select: none;
         }
         .photo-editor-overlay.active { display: flex; }
         .editor-top-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 14px calc(10px + env(safe-area-inset-top, 0px));
-            background: rgba(0, 0, 0, 0.85);
-            border-bottom: 1px solid rgba(255,255,255,0.12);
-            z-index: 10;
+            padding: 12px 14px;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .editor-tool-tabs {
-            display: flex;
-            gap: 8px;
-        }
+        .editor-tool-tabs { display: flex; gap: 8px; }
         .editor-tool-btn {
-            background: rgba(255,255,255,0.14);
-            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.18);
             color: #fff;
             padding: 7px 12px;
-            border-radius: 18px;
+            border-radius: 12px;
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
         }
-        .editor-tool-btn.active {
-            background: #1877f2;
-            border-color: #1877f2;
-        }
+        .editor-tool-btn.active { background: var(--cf-primary); border-color: var(--cf-primary); }
         .editor-canvas-stage {
             flex: 1;
-            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -694,13 +948,7 @@
             padding: 12px;
             touch-action: none;
         }
-        #photoEditorCanvas {
-            max-width: 100%;
-            max-height: 100%;
-            border-radius: 8px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.6);
-            touch-action: none;
-        }
+        #photoEditorCanvas { max-width: 100%; max-height: 100%; border-radius: 10px; touch-action: none; }
         .editor-sub-toolbar {
             display: flex;
             align-items: center;
@@ -708,36 +956,27 @@
             flex-wrap: wrap;
             gap: 8px;
             padding: 10px 12px;
-            background: rgba(18, 18, 18, 0.95);
-            border-top: 1px solid rgba(255,255,255,0.1);
+            background: #0f172a;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .color-swatch {
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            cursor: pointer;
-            transition: transform 0.12s;
-        }
-        .color-swatch.selected {
-            transform: scale(1.22);
-            box-shadow: 0 0 0 2px #1877f2;
-        }
+        .color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; }
+        .color-swatch.selected { transform: scale(1.22); box-shadow: 0 0 0 2px var(--cf-primary); }
         .editor-bottom-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-            background: #0a0a0a;
-            border-top: 1px solid rgba(255,255,255,0.12);
+            background: #090d16;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         /* Forward Modal */
         .modal-overlay {
             display: none;
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.55);
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(4px);
             z-index: 2000;
             align-items: center;
             justify-content: center;
@@ -747,18 +986,18 @@
             background: #fff;
             width: 100%;
             max-width: 400px;
-            border-radius: 14px;
+            border-radius: 18px;
             overflow: hidden;
-            box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
             max-height: 80vh;
             display: flex;
             flex-direction: column;
         }
         .modal-header {
             padding: 14px 16px;
-            font-weight: 700;
-            font-size: 16px;
-            border-bottom: 1px solid #e4e6eb;
+            font-weight: 800;
+            font-size: 15.5px;
+            border-bottom: 1px solid var(--cf-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -772,91 +1011,101 @@
         }
 
         @media (max-width: 768px) {
-            .top-nav.chat-open-hide { display: none; }
-            .contacts-panel { width: 100%; }
-            .contacts-panel.hidden { display: none; }
-            .chat-panel { width: 100%; }
-            .chat-panel.hidden { display: none; }
+            .cf-workspace { padding: 0; gap: 0; }
+            .cf-sidebar { width: 100%; border-radius: 0; border: none; }
+            .cf-sidebar.hidden { display: none; }
+            .cf-chat-card { width: 100%; border-radius: 0; border: none; }
+            .cf-chat-card.hidden { display: none; }
+            .cf-top-bar.chat-open-hide { display: none; }
+            .cf-mobile-back { display: flex; }
         }
     </style>
 </head>
 <body>
 
-    <div class="top-nav" id="mainTopNav">
-        <div class="nav-left">
-            <button class="back-btn" onclick="window.location.href='feed.html'" title="Back to Feed">←</button>
-            <div class="page-title notranslate" translate="no">CamFeed Chats</div>
+    <div class="cf-top-bar" id="mainTopNav">
+        <div class="cf-nav-left">
+            <button class="cf-nav-back" onclick="window.location.href='feed.html'" title="Back to Feed">←</button>
+            <div class="cf-brand-title notranslate" translate="no">CamFeed Connect</div>
         </div>
-        <div id="userBadge" class="notranslate" translate="no" style="font-size: 13px; color: #65676b; font-weight: 600;"></div>
+        <div class="cf-self-pill notranslate" translate="no">
+            <span class="cf-self-dot"></span>
+            <span id="userBadge">Online</span>
+        </div>
     </div>
 
-    <div class="chat-layout">
-        <!-- Contacts Sidebar -->
-        <div class="contacts-panel" id="contactsPanel">
-            <div class="search-box">
-                <input type="text" id="searchContactInput" placeholder="ស្វែងរកអ្នកជជែក (Search)..." oninput="handleSearch(this.value)">
+    <div class="cf-workspace">
+        <!-- Left Contacts Sidebar -->
+        <div class="cf-sidebar" id="contactsPanel">
+            <div class="cf-sidebar-head">
+                <div class="cf-search-wrap">
+                    <span class="cf-search-icon">🔍</span>
+                    <input type="text" id="searchContactInput" placeholder="ស្វែងរកអ្នកជជែក (Search)..." oninput="handleSearch(this.value)">
+                </div>
             </div>
-            <div class="contacts-list" id="contactsList">
-                <div style="padding: 20px; text-align: center; color: #65676b;">Loading conversations...</div>
+            <div class="cf-contacts-scroll" id="contactsList">
+                <div style="padding: 24px; text-align: center; color: #64748b; font-size: 13.5px;">កំពុងផ្ទុកបញ្ជីជជែក...</div>
             </div>
         </div>
 
-        <!-- Messenger Conversation Panel -->
-        <div class="chat-panel hidden" id="chatPanel">
-            <!-- Messenger Header -->
-            <div class="chat-header" id="chatHeader">
-                <div class="chat-header-left">
-                    <button class="header-back-arrow" onclick="showContactsMobile()" title="Back">←</button>
-                    <div class="header-avatar-wrap" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
-                        <img src="https://via.placeholder.com/38" id="activeChatAvatar">
-                        <span class="online-green-dot" id="activeChatOnlineDot"></span>
+        <!-- Right Conversation Panel -->
+        <div class="cf-chat-card hidden" id="chatPanel">
+            <div class="cf-chat-header" id="chatHeader">
+                <div class="cf-header-left">
+                    <button class="cf-mobile-back" onclick="showContactsMobile()" title="Back">←</button>
+                    <div class="cf-header-avatar" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                        <img src="https://via.placeholder.com/42" id="activeChatAvatar">
+                        <span class="cf-status-ring" id="activeChatOnlineDot"></span>
                     </div>
-                    <div class="header-user-meta" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
-                        <div class="header-user-name notranslate" translate="no" id="activeChatName">Select a conversation</div>
-                        <div class="header-user-status" id="activeChatStatus"></div>
+                    <div class="cf-header-info" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                        <div class="cf-header-name notranslate" translate="no" id="activeChatName">ជ្រើសរើសការជជែក</div>
+                        <div class="cf-presence-badge offline" id="activeChatPresenceBadge">
+                            <span class="cf-presence-dot"></span>
+                            <span id="activeChatStatus">Offline</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="chat-header-actions">
-                    <button class="header-action-icon" onclick="alert('មុខងារហៅជាសំឡេង (Audio Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Audio Call">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
-                    </button>
-                    <button class="header-action-icon" onclick="alert('មុខងារហៅជាវីដេអូ (Video Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Video Call">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                    </button>
-                    <button class="header-action-icon" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)" title="Profile Info">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                    </button>
+                <div class="cf-header-tools">
+                    <button class="cf-tool-circle" onclick="alert('មុខងារហៅជាសំឡេង (Audio Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Audio Call">📞</button>
+                    <button class="cf-tool-circle" onclick="alert('មុខងារហៅជាវីដេអូ (Video Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Video Call">📹</button>
+                    <button class="cf-tool-circle" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)" title="Profile Info">👤</button>
                 </div>
             </div>
 
-            <!-- Messages Scroll Feed -->
-            <div class="chat-messages" id="chatMessages">
-                <div class="empty-state">
-                    <div style="font-size: 42px; margin-bottom: 10px;">💬</div>
-                    <div style="font-weight: 700; font-size: 16px;">Your Messages</div>
-                    <div style="font-size: 13px; margin-top: 4px;">ជ្រើសរើសមិត្តភក្តិដើម្បីចាប់ផ្តើមជជែក។</div>
+            <!-- Messages Stream -->
+            <div class="cf-messages-feed" id="chatMessages">
+                <div class="cf-empty-box">
+                    <div style="font-size: 46px; margin-bottom: 10px;">✨</div>
+                    <div style="font-weight: 800; font-size: 16.5px; color: #0f172a;">CamFeed Direct Connect</div>
+                    <div style="font-size: 13.5px; margin-top: 4px;">ជ្រើសរើសមិត្តភក្តិដើម្បីចាប់ផ្តើមផ្ញើសារ រូបភាព ឬវីដេអូ។</div>
                 </div>
             </div>
 
-            <!-- Live Recording Bar -->
-            <div class="recording-banner" id="recordingBanner">
+            <!-- Edit Message Mode Banner -->
+            <div class="cf-edit-banner" id="editMessageBanner">
+                <span>✏️ កំពុងកែប្រែសារ៖ <span id="editingPreviewText" style="font-weight:600; opacity:0.85;"></span></span>
+                <button type="button" onclick="cancelEditMessage()" style="background:#fff; border:1px solid #c7d2fe; color:#4f46e5; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">✕ បោះបង់</button>
+            </div>
+
+            <!-- Live Recording Banner -->
+            <div class="cf-rec-banner" id="recordingBanner">
                 <span>🔴 កំពុងថតសំឡេង... <span id="recordingTimerText">0:00</span></span>
                 <div style="display:flex; gap:8px;">
-                    <button type="button" onclick="cancelVoiceRecording()" style="background:#fff; border:1px solid #d93025; color:#d93025; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">🗑️ បោះបង់</button>
-                    <button type="button" onclick="stopRecordingForReview()" style="background:#050505; border:none; color:#fff; padding:5px 12px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">⏹️ បញ្ឈប់ & ស្តាប់</button>
+                    <button type="button" onclick="cancelVoiceRecording()" style="background:#fff; border:1px solid #dc2626; color:#dc2626; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">🗑️ បោះបង់</button>
+                    <button type="button" onclick="stopRecordingForReview()" style="background:#0f172a; border:none; color:#fff; padding:5px 12px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">⏹️ បញ្ឈប់</button>
                 </div>
             </div>
 
-            <!-- Voice Review Before Sending Bar -->
-            <div class="voice-review-banner" id="voiceReviewBanner">
-                <button type="button" onclick="discardReviewedVoice()" style="background:#fff; border:1px solid #d93025; color:#d93025; width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0;" title="លុបចោល">🗑️</button>
-                <div class="review-audio-pill">
-                    <button type="button" id="reviewPlayBtn" onclick="toggleReviewAudioPlay()" style="background:rgba(0,0,0,0.35); border:none; color:#fff; width:30px; height:30px; border-radius:50%; font-size:13px; cursor:pointer; flex-shrink:0;">▶</button>
+            <!-- Voice Review Before Sending Banner -->
+            <div class="cf-review-banner" id="voiceReviewBanner">
+                <button type="button" onclick="discardReviewedVoice()" style="background:#fff; border:1px solid #ef4444; color:#ef4444; width:36px; height:36px; border-radius:12px; font-size:15px; cursor:pointer; flex-shrink:0;" title="លុបចោល">🗑️</button>
+                <div class="cf-review-pill">
+                    <button type="button" id="reviewPlayBtn" onclick="toggleReviewAudioPlay()" style="background:rgba(255,255,255,0.22); border:none; color:#fff; width:30px; height:30px; border-radius:10px; font-size:13px; cursor:pointer; flex-shrink:0;">▶</button>
                     <span style="font-size:12.5px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ស្តាប់សំឡេងមុនផ្ញើ</span>
                     <span id="reviewDurationText" style="font-size:12px; font-weight:700;">0:00</span>
                 </div>
-                <button type="button" id="sendReviewedVoiceBtn" onclick="sendReviewedVoice()" style="background:#1877f2; border:none; color:#fff; padding:8px 14px; border-radius:18px; font-size:13px; font-weight:700; cursor:pointer; flex-shrink:0;">ផ្ញើ ➤</button>
+                <button type="button" id="sendReviewedVoiceBtn" onclick="sendReviewedVoice()" class="cf-send-pill-btn">Send ➤</button>
             </div>
 
             <!-- Emoji Picker Bar -->
@@ -873,49 +1122,40 @@
                 <button class="emoji-item-btn" onclick="insertEmoji('🎉')">🎉</button>
             </div>
 
-            <!-- Multi-Media Preview Tray (Send Immediately or Click Edit to Crop/Draw/Text) -->
-            <div class="media-staging-tray" id="mediaStagingTray">
-                <div class="staging-items-scroll" id="stagingItemsScroll"></div>
-                <div class="staging-actions-row">
+            <!-- Staged Multi-Media Tray (Click Send to Upload to Server/R2 first, then deliver) -->
+            <div class="cf-staging-tray" id="mediaStagingTray">
+                <div class="cf-staging-scroll" id="stagingItemsScroll"></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <button type="button" onclick="document.getElementById('chatMediaInput').click()" style="background:#e4e6eb; color:#050505; border:none; padding:6px 12px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមទៀត</button>
-                        <button type="button" onclick="clearStagedMedia()" style="background:none; border:none; color:#65676b; font-size:12.5px; font-weight:700; cursor:pointer;">លុបទាំងអស់</button>
+                        <button type="button" onclick="document.getElementById('chatMediaInput').click()" style="background:#e2e8f0; color:#0f172a; border:none; padding:6px 12px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមទៀត</button>
+                        <button type="button" onclick="clearStagedMedia()" style="background:none; border:none; color:#64748b; font-size:12.5px; font-weight:700; cursor:pointer;">លុបទាំងអស់</button>
                     </div>
-                    <button type="button" id="sendStagedMediaBtn" onclick="sendAllStagedMedia()" style="background:#1877f2; color:#fff; border:none; padding:7px 18px; border-radius:18px; font-size:13.5px; font-weight:700; cursor:pointer;">Send ➤</button>
+                    <button type="button" id="sendStagedMediaBtn" onclick="sendAllStagedMedia()" class="cf-send-pill-btn">Send ➤</button>
                 </div>
             </div>
 
-            <!-- Messenger Bottom Bar: [+] [Camera] [Gallery] [Mic] [Message input + 😊] [👍 / Send] -->
-            <div class="chat-input-bar" id="chatInputBar" style="display: none;">
+            <!-- Bottom Input Composer -->
+            <div class="cf-composer-dock" id="chatInputBar" style="display: none;">
                 <input type="file" id="chatCameraInput" accept="image/*,video/*" capture="environment" style="display: none;" onchange="sendMediaMessage(this)">
                 <input type="file" id="chatMediaInput" accept="image/*,video/*" multiple style="display: none;" onchange="sendMediaMessage(this)">
 
-                <button class="bar-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="More">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-                </button>
-                <button class="bar-icon-btn" onclick="document.getElementById('chatCameraInput').click()" title="Camera">
-                    <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
-                </button>
-                <button class="bar-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="Photo / Video">
-                    <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-                </button>
-                <button class="bar-icon-btn" id="voiceRecordBtn" onclick="toggleVoiceRecord()" title="Voice Message">
-                    <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-                </button>
+                <button class="cf-dock-icon" onclick="document.getElementById('chatCameraInput').click()" title="Camera">📷</button>
+                <button class="cf-dock-icon" onclick="document.getElementById('chatMediaInput').click()" title="Photo / Video">🖼️</button>
+                <button class="cf-dock-icon" id="voiceRecordBtn" onclick="toggleVoiceRecord()" title="Voice Message">🎙️</button>
 
-                <div class="message-pill-input-wrap">
-                    <input type="text" id="messageTextInput" class="msg-input" placeholder="Message" oninput="updateSendOrThumbIcon()" onkeypress="if(event.key==='Enter') handlePrimaryActionBtn()">
-                    <button type="button" class="emoji-inside-btn" onclick="toggleEmojiPopup(event)" title="Emoji">😊</button>
+                <div class="cf-input-capsule">
+                    <input type="text" id="messageTextInput" class="cf-text-field" placeholder="សរសេរសារនៅទីនេះ..." oninput="updateSendOrThumbIcon()" onkeypress="if(event.key==='Enter') handlePrimaryActionBtn()">
+                    <button type="button" class="cf-emoji-trigger" onclick="toggleEmojiPopup(event)" title="Emoji">😊</button>
                 </div>
 
-                <button class="bar-icon-btn" id="primaryActionBtn" onclick="handlePrimaryActionBtn()" title="Like / Send">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+                <button class="cf-send-pill-btn" id="primaryActionBtn" onclick="handlePrimaryActionBtn()" title="Send">
+                    <span id="primaryBtnLabel">👍</span>
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Interactive Photo Editor Modal (Crop, Draw Pen, Add Text) -->
+    <!-- Interactive Photo Editor Modal -->
     <div id="photoEditorModal" class="photo-editor-overlay">
         <div class="editor-top-bar">
             <button type="button" onclick="closePhotoEditor()" style="background:none; border:none; color:#fff; font-size:22px; font-weight:700; cursor:pointer; padding:4px 8px;">✕</button>
@@ -924,19 +1164,18 @@
                 <button type="button" class="editor-tool-btn" id="toolBtn-pen" onclick="setEditorMode('pen')">✏️ គូរ (Pen)</button>
                 <button type="button" class="editor-tool-btn" id="toolBtn-text" onclick="setEditorMode('text')">🔤 អក្សរ (Text)</button>
             </div>
-            <button type="button" onclick="undoEditorAction()" style="background:rgba(255,255,255,0.16); border:none; color:#fff; padding:6px 12px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer;">↩️ ត្រឡប់</button>
+            <button type="button" onclick="undoEditorAction()" style="background:rgba(255,255,255,0.16); border:none; color:#fff; padding:6px 12px; border-radius:12px; font-size:12.5px; font-weight:700; cursor:pointer;">↩️ ត្រឡប់</button>
         </div>
 
         <div class="editor-canvas-stage" id="editorCanvasStage">
             <canvas id="photoEditorCanvas"></canvas>
         </div>
 
-        <!-- Dynamic Sub-Toolbar per Tool -->
         <div class="editor-sub-toolbar" id="editorSubToolbar"></div>
 
         <div class="editor-bottom-bar">
-            <span style="font-size:12.5px; color:#b0b3b8;" id="editorHintText">អូសកែងប្រអប់ដើម្បីកាត់រូបភាព (Crop)</span>
-            <button type="button" id="sendEditedPhotoBtn" onclick="applyEditedPhotoToStage()" style="background:#1877f2; color:#fff; border:none; padding:10px 22px; border-radius:22px; font-size:14.5px; font-weight:700; cursor:pointer;">✓ រួចរាល់ (Done)</button>
+            <span style="font-size:12.5px; color:#94a3b8;" id="editorHintText">អូសកែងប្រអប់ដើម្បីកាត់រូបភាព (Crop)</span>
+            <button type="button" id="sendEditedPhotoBtn" onclick="applyEditedPhotoToStage()" class="cf-send-pill-btn">✓ រួចរាល់ (Done)</button>
         </div>
     </div>
 
@@ -958,15 +1197,32 @@
         let pollInterval = null;
         let lastMessagesSignature = '';
 
+        // Local Optimistic Queue for Outgoing Items ("Sending..." until uploaded to R2 & confirmed by server)
+        let pendingOutgoingMessages = []; // [{ tempId, receiverEmail, type, text, previewUrl, progress }]
+
+        // Edit Message State
+        let editingMessageId = null;
+
+        // Local fallback cache for edited/deleted messages if backend route isn't updated yet
+        const DELETED_MARKER = '__CAMFEED_MSG_DELETED__';
+        const EDITED_PREFIX = '__CAMFEED_EDITED__:';
+
+        function getLocalOverrides() {
+            try { return JSON.parse(localStorage.getItem('camfeed_chat_overrides') || '{}'); } catch (e) { return {}; }
+        }
+        function setLocalOverride(msgId, data) {
+            const all = getLocalOverrides();
+            all[msgId] = { ...(all[msgId] || {}), ...data };
+            localStorage.setItem('camfeed_chat_overrides', JSON.stringify(all));
+        }
+
         // =========================================================================
         // PRE-FETCHED IN-MEMORY AUDIO BLOB CACHE (Zero-Stutter Smooth Playback)
         // =========================================================================
-        const audioBlobCache = new Map(); // url -> { blobUrl, durationSec, loadingPromise }
+        const audioBlobCache = new Map();
         let activeAudioPlayer = null;
         let activeAudioMsgId = null;
         let activeAnimFrame = null;
-
-        // Deterministic waveform bar heights for visual Messenger waveform
         const WAVEFORM_BARS = [35, 65, 95, 50, 80, 100, 60, 40, 85, 70, 95, 45, 75, 100, 65, 50, 90, 75, 45, 85, 60, 35, 70, 50];
 
         function formatSeconds(sec) {
@@ -976,7 +1232,6 @@
             return `${m}:${s < 10 ? '0' : ''}${s}`;
         }
 
-        // Pre-downloads the entire audio file into local RAM Blob BEFORE playback so it never stutters or jumps
         function preloadAudioBlob(remoteUrl, msgId) {
             if (!remoteUrl) return Promise.resolve(null);
             if (audioBlobCache.has(remoteUrl)) {
@@ -997,7 +1252,6 @@
                 .then(blob => {
                     const localBlobUrl = URL.createObjectURL(blob);
                     entry.blobUrl = localBlobUrl;
-
                     return new Promise((resolve) => {
                         const probe = new Audio();
                         probe.preload = 'metadata';
@@ -1005,8 +1259,10 @@
                         probe.onloadedmetadata = () => {
                             if (isFinite(probe.duration) && probe.duration > 0) {
                                 entry.durationSec = probe.duration;
+                                const durEl = document.getElementById(`voice-dur-${msgId}`);
+                                if (durEl && activeAudioMsgId !== msgId) durEl.innerText = formatSeconds(entry.durationSec);
+                                resolve(entry);
                             } else {
-                                // Fallback duration decode via Web Audio API if WebM header has Infinity duration
                                 blob.arrayBuffer().then(buf => {
                                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
                                     if (!AudioCtx) return resolve(entry);
@@ -1021,13 +1277,7 @@
                                         resolve(entry);
                                     }, () => resolve(entry));
                                 }).catch(() => resolve(entry));
-                                return;
                             }
-                            const durEl = document.getElementById(`voice-dur-${msgId}`);
-                            if (durEl && entry.durationSec > 0 && activeAudioMsgId !== msgId) {
-                                durEl.innerText = formatSeconds(entry.durationSec);
-                            }
-                            resolve(entry);
                         };
                         probe.onerror = () => resolve(entry);
                     });
@@ -1041,19 +1291,15 @@
         function resetVoiceUI(msgId) {
             const btn = document.getElementById(`voice-btn-${msgId}`);
             if (btn) btn.innerHTML = '▶';
-            const bars = document.querySelectorAll(`#voice-wave-${msgId} .wave-bar`);
-            bars.forEach(b => b.classList.remove('played'));
+            document.querySelectorAll(`#voice-wave-${msgId} .wave-bar`).forEach(b => b.classList.remove('played'));
             const durEl = document.getElementById(`voice-dur-${msgId}`);
-            if (durEl && durEl.dataset.totalDur) {
-                durEl.innerText = durEl.dataset.totalDur;
-            }
+            if (durEl && durEl.dataset.totalDur) durEl.innerText = durEl.dataset.totalDur;
         }
 
         async function togglePlayVoiceMessage(msgId, remoteUrl) {
             const btn = document.getElementById(`voice-btn-${msgId}`);
             const durEl = document.getElementById(`voice-dur-${msgId}`);
 
-            // If clicking the currently playing message -> pause cleanly
             if (activeAudioPlayer && activeAudioMsgId === msgId) {
                 if (!activeAudioPlayer.paused) {
                     activeAudioPlayer.pause();
@@ -1068,14 +1314,12 @@
                 }
             }
 
-            // Stop any other playing voice message
             if (activeAudioPlayer) {
                 activeAudioPlayer.pause();
                 if (activeAnimFrame) cancelAnimationFrame(activeAnimFrame);
                 if (activeAudioMsgId) resetVoiceUI(activeAudioMsgId);
             }
 
-            // Ensure audio is completely downloaded into RAM Blob BEFORE starting playback
             if (btn) btn.innerHTML = '⏳';
             const cached = await preloadAudioBlob(remoteUrl, msgId);
             const playableSrc = (cached && cached.blobUrl) ? cached.blobUrl : remoteUrl;
@@ -1086,9 +1330,7 @@
             activeAudioMsgId = msgId;
 
             const totalDur = (cached && cached.durationSec > 0) ? cached.durationSec : 0;
-            if (durEl && totalDur > 0) {
-                durEl.dataset.totalDur = formatSeconds(totalDur);
-            }
+            if (durEl && totalDur > 0) durEl.dataset.totalDur = formatSeconds(totalDur);
 
             audio.onended = () => {
                 resetVoiceUI(msgId);
@@ -1109,31 +1351,129 @@
         function animateVoiceProgress(msgId, knownDuration = 0) {
             const step = () => {
                 if (!activeAudioPlayer || activeAudioMsgId !== msgId || activeAudioPlayer.paused) return;
-                const dur = (isFinite(activeAudioPlayer.duration) && activeAudioPlayer.duration > 0)
-                    ? activeAudioPlayer.duration
-                    : knownDuration;
+                const dur = (isFinite(activeAudioPlayer.duration) && activeAudioPlayer.duration > 0) ? activeAudioPlayer.duration : knownDuration;
                 const cur = activeAudioPlayer.currentTime || 0;
                 const ratio = dur > 0 ? Math.min(1, cur / dur) : 0;
 
                 const bars = document.querySelectorAll(`#voice-wave-${msgId} .wave-bar`);
                 const activeCount = Math.round(ratio * bars.length);
-                bars.forEach((b, idx) => {
-                    b.classList.toggle('played', idx < activeCount);
-                });
+                bars.forEach((b, idx) => b.classList.toggle('played', idx < activeCount));
 
                 const durEl = document.getElementById(`voice-dur-${msgId}`);
                 if (durEl) {
                     const remaining = dur > 0 ? Math.max(0, dur - cur) : cur;
                     durEl.innerText = formatSeconds(remaining);
                 }
-
                 activeAnimFrame = requestAnimationFrame(step);
             };
             activeAnimFrame = requestAnimationFrame(step);
         }
 
         // =========================================================================
-        // VOICE RECORDING -> LISTEN & REVIEW -> SEND OR DISCARD
+        // DIRECT CLOUDFLARE R2 MEDIA UPLOADER FOR CHAT (Photos, Videos & Voice)
+        // Ensures media uploads to R2 FIRST ("Sending...") before saving message!
+        // =========================================================================
+        function compressChatImage(fileOrBlob) {
+            return new Promise((resolve) => {
+                if (!fileOrBlob.type || !fileOrBlob.type.startsWith('image/') || fileOrBlob.type === 'image/gif') {
+                    return resolve(fileOrBlob);
+                }
+                const img = new Image();
+                const objUrl = URL.createObjectURL(fileOrBlob);
+                img.onload = () => {
+                    URL.revokeObjectURL(objUrl);
+                    const maxDim = 1600;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w <= maxDim && h <= maxDim && fileOrBlob.size <= 600 * 1024) return resolve(fileOrBlob);
+                    if (w > maxDim || h > maxDim) {
+                        const scale = maxDim / Math.max(w, h);
+                        w = Math.round(w * scale);
+                        h = Math.round(h * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        if (blob && blob.size > 0 && blob.size < fileOrBlob.size) resolve(blob);
+                        else resolve(fileOrBlob);
+                    }, 'image/jpeg', 0.84);
+                };
+                img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(fileOrBlob); };
+                img.src = objUrl;
+            });
+        }
+
+        function uploadChatMediaToR2(fileOrBlob, fileName, onProgress) {
+            return new Promise(async (resolve, reject) => {
+                const contentType = fileOrBlob.type || 'application/octet-stream';
+                try {
+                    const urlRes = await fetch('/api/videos/upload-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_email: currentUser.email,
+                            file_name: fileName,
+                            content_type: contentType
+                        })
+                    });
+                    const urlData = await urlRes.json();
+                    if (urlRes.ok && urlData.uploadUrl && urlData.publicUrl) {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('PUT', urlData.uploadUrl, true);
+                        xhr.setRequestHeader('Content-Type', contentType);
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+                        };
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(urlData.publicUrl);
+                            } else {
+                                uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress).then(resolve).catch(reject);
+                            }
+                        };
+                        xhr.onerror = () => {
+                            uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress).then(resolve).catch(reject);
+                        };
+                        xhr.send(fileOrBlob);
+                        return;
+                    }
+                } catch (e) {}
+
+                uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress).then(resolve).catch(reject);
+            });
+        }
+
+        function uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress) {
+            return new Promise((resolve, reject) => {
+                const fd = new FormData();
+                fd.append('user_email', currentUser.email);
+                fd.append('file', fileOrBlob, fileName);
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/videos/upload-direct', true);
+                xhr.timeout = 60000;
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+                };
+                xhr.onload = () => {
+                    try {
+                        const data = JSON.parse(xhr.responseText || '{}');
+                        if (xhr.status >= 200 && xhr.status < 300 && data.publicUrl) {
+                            resolve(data.publicUrl);
+                        } else {
+                            reject(new Error(data.error || 'R2 Upload failed'));
+                        }
+                    } catch (e) { reject(new Error('Invalid upload response')); }
+                };
+                xhr.onerror = () => reject(new Error('Network error during upload'));
+                xhr.ontimeout = () => reject(new Error('Upload timed out'));
+                xhr.send(fd);
+            });
+        }
+
+        // =========================================================================
+        // VOICE RECORDING -> LISTEN & REVIEW -> SEND TO R2
         // =========================================================================
         let mediaRecorder = null;
         let audioChunks = [];
@@ -1228,20 +1568,12 @@
                 reviewAudioObj = new Audio(pendingVoiceUrl);
                 reviewAudioObj.onended = () => { btn.innerText = '▶'; };
             }
-            reviewAudioObj.play().then(() => {
-                btn.innerText = '⏸';
-            }).catch(() => {});
+            reviewAudioObj.play().then(() => { btn.innerText = '⏸'; }).catch(() => {});
         }
 
         function discardReviewedVoice() {
-            if (reviewAudioObj) {
-                reviewAudioObj.pause();
-                reviewAudioObj = null;
-            }
-            if (pendingVoiceUrl) {
-                URL.revokeObjectURL(pendingVoiceUrl);
-                pendingVoiceUrl = null;
-            }
+            if (reviewAudioObj) { reviewAudioObj.pause(); reviewAudioObj = null; }
+            if (pendingVoiceUrl) { URL.revokeObjectURL(pendingVoiceUrl); pendingVoiceUrl = null; }
             pendingVoiceBlob = null;
             const banner = document.getElementById('voiceReviewBanner');
             if (banner) banner.classList.remove('active');
@@ -1249,43 +1581,63 @@
 
         async function sendReviewedVoice() {
             if (!pendingVoiceBlob || !activeFriend) return;
-            const sendBtn = document.getElementById('sendReviewedVoiceBtn');
-            sendBtn.disabled = true;
-            sendBtn.innerText = 'កំពុងផ្ញើ...';
+            const blobToUpload = pendingVoiceBlob;
+            const ext = pendingVoiceExt;
+            const targetEmail = activeFriend.email;
+            discardReviewedVoice();
 
-            const formData = new FormData();
-            formData.append('sender', currentUser.email);
-            formData.append('receiver', activeFriend.email);
-            formData.append('mediaFile', pendingVoiceBlob, `voice-${Date.now()}.${pendingVoiceExt}`);
+            const tempId = 'temp-' + Date.now();
+            pendingOutgoingMessages.push({
+                tempId,
+                receiverEmail: targetEmail,
+                type: 'audio',
+                text: '[Voice Message]',
+                progress: 10
+            });
+            forceRenderCurrentFeed(true);
 
             try {
+                const r2Url = await uploadChatMediaToR2(blobToUpload, `voice-${Date.now()}.${ext}`, (pct) => {
+                    const item = pendingOutgoingMessages.find(p => p.tempId === tempId);
+                    if (item) { item.progress = pct; forceRenderCurrentFeed(false); }
+                });
+
                 const res = await fetch('/api/messages', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        receiver: targetEmail,
+                        message: '[Voice Message]',
+                        media_url: r2Url,
+                        message_type: 'audio'
+                    })
                 });
                 const data = await res.json();
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
                 if (data.success) {
-                    discardReviewedVoice();
                     await fetchMessages(true);
                     loadConversations();
+                } else {
+                    forceRenderCurrentFeed(false);
+                    alert(data.error || 'Failed to send voice message.');
                 }
             } catch (err) {
-                console.error('Voice upload error:', err);
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.innerText = 'ផ្ញើ ➤';
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                forceRenderCurrentFeed(false);
+                alert('មិនអាចផ្ញើសារសំឡេងបានទេ៖ ' + err.message);
             }
         }
 
         // =========================================================================
-        // CONVERSATIONS & MESSAGING LOGIC
+        // ACCURATE REAL-TIME ONLINE / OFFLINE PRESENCE ENGINE
         // =========================================================================
         function isUserActivelyOnline(lastActiveRaw) {
             if (!lastActiveRaw) return false;
             const ts = Date.parse(lastActiveRaw);
             if (isNaN(ts)) return false;
-            // Considered actively online ONLY if heartbeat was within the last 35 seconds
-            return (Date.now() - ts) <= 35000;
+            // Strictly online ONLY when user has active heartbeat within the last 25 seconds
+            return (Date.now() - ts) <= 25000;
         }
 
         function formatLastSeenStatus(lastActiveRaw) {
@@ -1293,22 +1645,34 @@
             const ts = Date.parse(lastActiveRaw);
             if (isNaN(ts)) return 'Offline';
             const diffSec = Math.floor((Date.now() - ts) / 1000);
-            if (diffSec <= 35) return 'Active now';
-            const diffMin = Math.floor(diffSec / 60);
-            if (diffMin < 60) return `Active ${diffMin}m ago`;
-            const diffHr = Math.floor(diffMin / 60);
-            if (diffHr < 24) return `Active ${diffHr}h ago`;
+            if (diffSec <= 25) return 'Online';
             return 'Offline';
         }
 
-        async function sendOnlineHeartbeat() {
-            if (!currentUser || document.visibilityState === 'hidden') return;
+        let lastHeartbeatSentAt = 0;
+        async function sendOnlineHeartbeat(force = false) {
+            if (!currentUser) return;
+            if (!force && document.visibilityState === 'hidden') return;
+            const now = Date.now();
+            if (!force && (now - lastHeartbeatSentAt) < 8000) return;
+            lastHeartbeatSentAt = now;
+
             try {
                 await fetch('/api/presence/ping', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email })
+                    body: JSON.stringify({ email: currentUser.email, online: true })
                 });
+            } catch (e) {}
+        }
+
+        function sendOfflineBeacon() {
+            if (!currentUser) return;
+            try {
+                const blob = new Blob([JSON.stringify({ email: currentUser.email, online: false })], { type: 'application/json' });
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/api/presence/offline', blob);
+                }
             } catch (e) {}
         }
 
@@ -1318,34 +1682,51 @@
                 const res = await fetch(`/api/user-profile?email=${encodeURIComponent(activeFriend.email)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 if (data.success && data.user) {
-                    const online = isUserActivelyOnline(data.user.last_active);
-                    const dotEl = document.getElementById('activeChatOnlineDot');
-                    const statusEl = document.getElementById('activeChatStatus');
-                    if (dotEl) dotEl.classList.toggle('is-online', online);
-                    if (statusEl) statusEl.innerText = formatLastSeenStatus(data.user.last_active);
+                    activeFriend.last_active = data.user.last_active;
+                    updateHeaderPresenceUI(data.user.last_active);
                 }
             } catch (e) {}
+        }
+
+        function updateHeaderPresenceUI(lastActiveRaw) {
+            const online = isUserActivelyOnline(lastActiveRaw);
+            const dotEl = document.getElementById('activeChatOnlineDot');
+            const badgeEl = document.getElementById('activeChatPresenceBadge');
+            const statusEl = document.getElementById('activeChatStatus');
+            if (dotEl) dotEl.classList.toggle('online', online);
+            if (badgeEl) {
+                badgeEl.classList.toggle('online', online);
+                badgeEl.classList.toggle('offline', !online);
+            }
+            if (statusEl) {
+                statusEl.innerText = online ? 'Online' : 'Offline';
+            }
         }
 
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            document.getElementById('userBadge').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
-            sendOnlineHeartbeat();
-            setInterval(sendOnlineHeartbeat, 15000);
+            document.getElementById('userBadge').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''} · Online`;
+            sendOnlineHeartbeat(true);
+            setInterval(() => sendOnlineHeartbeat(false), 10000);
+
+            ['click', 'touchstart', 'keydown'].forEach(evt => {
+                document.addEventListener(evt, () => sendOnlineHeartbeat(false), { passive: true });
+            });
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible') {
-                    sendOnlineHeartbeat();
-                    if (activeFriend) {
-                        fetch('/api/mark-read', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userEmail: currentUser.email, senderEmail: activeFriend.email })
-                        }).catch(() => {});
-                    }
+                    sendOnlineHeartbeat(true);
+                    loadConversations();
+                    refreshActiveFriendStatus();
+                } else {
+                    sendOfflineBeacon();
                 }
             });
+            window.addEventListener('beforeunload', sendOfflineBeacon);
+            window.addEventListener('pagehide', sendOfflineBeacon);
+
             loadConversations();
+            setInterval(loadConversations, 12000);
         }
 
         async function loadConversations() {
@@ -1354,7 +1735,8 @@
                 const data = await res.json();
                 if (data.success && Array.isArray(data.conversations)) {
                     allConversations = data.conversations;
-                    renderContacts(allConversations);
+                    const searchVal = (document.getElementById('searchContactInput')?.value || '').trim();
+                    if (!searchVal) renderContacts(allConversations);
 
                     const urlParams = new URLSearchParams(window.location.search);
                     const targetEmail = urlParams.get('chat') || urlParams.get('user');
@@ -1365,62 +1747,63 @@
                         } else {
                             const uRes = await fetch(`/api/user-profile?email=${encodeURIComponent(targetEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
                             const uData = await uRes.json();
-                            if (uData.success && uData.user) {
-                                openChat(uData.user);
-                            }
+                            if (uData.success && uData.user) openChat(uData.user);
                         }
                     }
                 }
             } catch (err) {
                 console.error('Error loading conversations:', err);
-                document.getElementById('contactsList').innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">Unable to load conversations.</div>';
             }
         }
 
         async function handleSearch(keyword) {
             const q = keyword.trim();
-            if (!q) {
-                renderContacts(allConversations);
-                return;
-            }
+            if (!q) { renderContacts(allConversations); return; }
             try {
                 const res = await fetch(`/api/search-users?email=${encodeURIComponent(currentUser.email)}&keyword=${encodeURIComponent(q)}`);
                 const data = await res.json();
-                if (data.success && Array.isArray(data.users)) {
-                    renderContacts(data.users);
-                }
-            } catch (err) {
-                console.error('Search error:', err);
-            }
+                if (data.success && Array.isArray(data.users)) renderContacts(data.users);
+            } catch (err) {}
+        }
+
+        function formatSidebarPreview(rawMsg) {
+            if (!rawMsg) return 'ចុចដើម្បីជជែក';
+            if (rawMsg === DELETED_MARKER) return '🚫 សារត្រូវបានលុប';
+            if (rawMsg.startsWith(EDITED_PREFIX)) return rawMsg.slice(EDITED_PREFIX.length);
+            return rawMsg;
         }
 
         function renderContacts(list) {
             const container = document.getElementById('contactsList');
             if (!list || list.length === 0) {
-                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #65676b;">No conversations found.</div>';
+                container.innerHTML = '<div style="padding: 24px; text-align: center; color: #64748b; font-size: 13.5px;">រកមិនឃើញអ្នកជជែកទេ។</div>';
                 return;
             }
             container.innerHTML = list.map(person => {
                 const isActive = activeFriend && activeFriend.email === person.email ? 'active' : '';
                 const avatar = person.profile_pic || 'https://via.placeholder.com/48';
-                const subtitle = person.last_message || person.email;
+                const subtitle = formatSidebarPreview(person.last_message || person.email);
+                const online = isUserActivelyOnline(person.last_active);
                 const safeData = JSON.stringify({
                     email: person.email,
                     first_name: person.first_name,
                     last_name: person.last_name,
-                    profile_pic: person.profile_pic
+                    profile_pic: person.profile_pic,
+                    last_active: person.last_active
                 }).replace(/'/g, "&#39;");
 
-                const onlineClass = isUserActivelyOnline(person.last_active) ? 'is-online' : '';
                 return `
-                    <div class="contact-item ${isActive}" onclick='openChat(${safeData})'>
-                        <div class="contact-avatar-wrap">
-                            <img src="${avatar}" class="contact-avatar">
-                            <span class="contact-online-dot ${onlineClass}"></span>
+                    <div class="cf-contact-card ${isActive}" onclick='openChat(${safeData})'>
+                        <div class="cf-avatar-box">
+                            <img src="${avatar}">
+                            <span class="cf-status-ring ${online ? 'online' : ''}"></span>
                         </div>
-                        <div class="contact-info">
-                            <div class="contact-name notranslate" translate="no">${person.first_name || ''} ${person.last_name || ''}</div>
-                            <div class="contact-sub notranslate" translate="no">${escapeHtml(subtitle)}</div>
+                        <div class="cf-contact-meta">
+                            <div class="cf-contact-top">
+                                <div class="cf-contact-name notranslate" translate="no">${person.first_name || ''} ${person.last_name || ''}</div>
+                                <span class="cf-contact-state-tag ${online ? 'online' : 'offline'}">${online ? 'Online' : 'Offline'}</span>
+                            </div>
+                            <div class="cf-contact-preview notranslate" translate="no">${escapeHtml(subtitle)}</div>
                         </div>
                     </div>
                 `;
@@ -1430,11 +1813,10 @@
         async function openChat(friend) {
             activeFriend = friend;
             lastMessagesSignature = '';
+            cancelEditMessage();
             document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
-            const onlineNow = isUserActivelyOnline(friend.last_active);
-            document.getElementById('activeChatOnlineDot').classList.toggle('is-online', onlineNow);
-            document.getElementById('activeChatStatus').innerText = formatLastSeenStatus(friend.last_active);
-            document.getElementById('activeChatAvatar').src = friend.profile_pic || 'https://via.placeholder.com/38';
+            document.getElementById('activeChatAvatar').src = friend.profile_pic || 'https://via.placeholder.com/42';
+            updateHeaderPresenceUI(friend.last_active);
             document.getElementById('chatInputBar').style.display = 'flex';
             refreshActiveFriendStatus();
 
@@ -1456,7 +1838,10 @@
             }).catch(() => {});
 
             if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(() => { fetchMessages(false); refreshActiveFriendStatus(); }, 3000);
+            pollInterval = setInterval(() => {
+                fetchMessages(false);
+                refreshActiveFriendStatus();
+            }, 3000);
         }
 
         function showContactsMobile() {
@@ -1472,13 +1857,17 @@
             loadConversations();
         }
 
+        let cachedServerMessages = [];
+
         async function fetchMessages(forceScroll = false) {
             if (!activeFriend) return;
             try {
                 const res = await fetch(`/api/messages?user1=${encodeURIComponent(currentUser.email)}&user2=${encodeURIComponent(activeFriend.email)}`);
                 const data = await res.json();
                 if (data.success && Array.isArray(data.messages)) {
-                    const sig = data.messages.map(m => `${m.id}:${m.is_read}`).join('|');
+                    cachedServerMessages = data.messages;
+                    const overrides = JSON.stringify(getLocalOverrides());
+                    const sig = data.messages.map(m => `${m.id}:${m.is_read}:${m.message}:${m.media_url}`).join('|') + '||' + pendingOutgoingMessages.length + '||' + overrides;
                     if (sig !== lastMessagesSignature || forceScroll) {
                         lastMessagesSignature = sig;
                         renderMessages(data.messages, forceScroll);
@@ -1489,15 +1878,39 @@
             }
         }
 
+        function forceRenderCurrentFeed(scrollBottom = false) {
+            renderMessages(cachedServerMessages, scrollBottom);
+        }
+
+        function toggleMsgOptionsMenu(msgId, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.cf-msg-popover').forEach(p => {
+                if (p.id !== `msg-pop-${msgId}`) p.classList.remove('open');
+            });
+            const pop = document.getElementById(`msg-pop-${msgId}`);
+            if (pop) pop.classList.toggle('open');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.cf-msg-actions-wrap')) {
+                document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            }
+            if (!e.target.closest('#emojiPopupBar') && !e.target.closest('.cf-emoji-trigger')) {
+                document.getElementById('emojiPopupBar').classList.remove('show');
+            }
+        });
+
         function renderMessages(messages, forceScroll) {
             const box = document.getElementById('chatMessages');
-            if (messages.length === 0) {
-                box.innerHTML = '<div class="empty-state"><div>សួស្តី! ចាប់ផ្តើមផ្ញើសារឥឡូវនេះ 👋</div></div>';
+            const activePending = activeFriend ? pendingOutgoingMessages.filter(p => p.receiverEmail === activeFriend.email) : [];
+
+            if (messages.length === 0 && activePending.length === 0) {
+                box.innerHTML = '<div class="cf-empty-box"><div>សួស្តី! ចាប់ផ្តើមផ្ញើសារឥឡូវនេះ 👋</div></div>';
                 return;
             }
 
-            const wasAtBottom = forceScroll || (box.scrollHeight - box.scrollTop <= box.clientHeight + 90);
-            const friendAvatar = (activeFriend && activeFriend.profile_pic) ? activeFriend.profile_pic : 'https://via.placeholder.com/28';
+            const wasAtBottom = forceScroll || (box.scrollHeight - box.scrollTop <= box.clientHeight + 100);
+            const friendAvatar = (activeFriend && activeFriend.profile_pic) ? activeFriend.profile_pic : 'https://via.placeholder.com/30';
             let lastTimeGroup = '';
             let lastSeenSentMsgId = null;
             messages.forEach(m => {
@@ -1506,69 +1919,152 @@
                 }
             });
 
+            const overrides = getLocalOverrides();
             const audioUrlsToPreload = [];
 
-            box.innerHTML = messages.map(m => {
+            let html = messages.map(m => {
                 const isSent = m.sender_email === currentUser.email;
                 const rowClass = isSent ? 'sent' : 'received';
                 const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
                 let timeDividerHtml = '';
                 if (timeStr && timeStr !== lastTimeGroup) {
-                    timeDividerHtml = `<div class="time-divider">${timeStr}</div>`;
+                    timeDividerHtml = `<div class="cf-time-chip">${timeStr}</div>`;
                     lastTimeGroup = timeStr;
                 }
 
-                const forwardBtnHtml = `
-                    <button type="button" class="forward-circle-btn" onclick="openForwardModal(${m.id}, '${encodeURIComponent(m.message || '')}', '${encodeURIComponent(m.media_url || '')}', '${m.message_type || 'text'}')" title="Forward">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg>
-                    </button>
+                const ov = overrides[m.id] || {};
+                const rawMsg = ov.deleted ? DELETED_MARKER : (ov.editedText !== undefined ? EDITED_PREFIX + ov.editedText : (m.message || ''));
+                const isDeleted = ov.deleted || m.is_deleted === true || rawMsg === DELETED_MARKER;
+
+                // If deleted, show permanent deleted trace ("Message deleted")
+                if (isDeleted) {
+                    const leftAv = !isSent ? `<img src="${friendAvatar}" class="cf-msg-avatar">` : '';
+                    return `
+                        ${timeDividerHtml}
+                        <div class="cf-msg-row ${rowClass}">
+                            ${leftAv}
+                            <div class="cf-msg-stack">
+                                <div class="cf-bubble-deleted">🚫 សារនេះត្រូវបានលុប (Message deleted)</div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                let isEdited = false;
+                let displayText = rawMsg;
+                if (displayText.startsWith(EDITED_PREFIX)) {
+                    isEdited = true;
+                    displayText = displayText.slice(EDITED_PREFIX.length);
+                } else if (m.is_edited) {
+                    isEdited = true;
+                }
+
+                const isVideo = !ov.deleted && m.media_url && (m.message_type === 'video' || (m.media_url.match(/\.(mp4|webm|mov|m4v)$/i) && m.message_type !== 'audio'));
+                const isAudio = !ov.deleted && m.media_url && (m.message_type === 'audio' || displayText === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
+                const isTextOnly = !m.media_url && displayText && displayText !== '👍';
+
+                // Action menu: Forward for all; Edit (text) + Delete (text, photo, video, voice) for sender!
+                const menuItems = `
+                    <button type="button" onclick="openForwardModal(${m.id}, '${encodeURIComponent(displayText)}', '${encodeURIComponent(m.media_url || '')}', '${m.message_type || 'text'}')">↪️ បញ្ជូនបន្ត (Forward)</button>
+                    ${(isSent && isTextOnly) ? `<button type="button" onclick="startEditMessage(${m.id}, '${encodeURIComponent(displayText)}')">✏️ កែប្រែ (Edit)</button>` : ''}
+                    ${isSent ? `<button type="button" class="danger" onclick="deleteSentMessage(${m.id})">🗑️ លុប (Delete)</button>` : ''}
                 `;
 
-                let contentHtml = '';
-                const isVideo = m.media_url && (m.message_type === 'video' || m.media_url.match(/\.(mp4|webm|mov)$/i) && m.message_type !== 'audio');
-                const isAudio = m.media_url && (m.message_type === 'audio' || m.message === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
+                const actionsHtml = `
+                    <div class="cf-msg-actions-wrap">
+                        <button type="button" class="cf-msg-opt-btn" onclick="toggleMsgOptionsMenu(${m.id}, event)" title="Options">⋮</button>
+                        <div class="cf-msg-popover" id="msg-pop-${m.id}">${menuItems}</div>
+                    </div>
+                `;
 
+                let bodyHtml = '';
                 if (isAudio) {
                     audioUrlsToPreload.push({ url: m.media_url, id: m.id });
                     const cached = audioBlobCache.get(m.media_url);
                     const initialDur = (cached && cached.durationSec > 0) ? formatSeconds(cached.durationSec) : '0:00';
                     const barsHtml = WAVEFORM_BARS.map(h => `<span class="wave-bar" style="height:${Math.round(h * 0.22)}px;"></span>`).join('');
-
-                    const pillHtml = `
-                        <div class="voice-pill-box">
-                            <button type="button" class="voice-play-btn" id="voice-btn-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">▶</button>
-                            <div class="voice-waveform" id="voice-wave-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">
-                                ${barsHtml}
-                            </div>
-                            <span class="voice-duration-text" id="voice-dur-${m.id}" data-total-dur="${initialDur}">${initialDur}</span>
+                    bodyHtml = `
+                        <div class="cf-voice-pill">
+                            <button type="button" class="cf-voice-play" id="voice-btn-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">▶</button>
+                            <div class="cf-waveform" id="voice-wave-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">${barsHtml}</div>
+                            <span class="cf-voice-dur" id="voice-dur-${m.id}" data-total-dur="${initialDur}">${initialDur}</span>
                         </div>
                     `;
-                    contentHtml = isSent ? `${forwardBtnHtml}${pillHtml}` : `${pillHtml}${forwardBtnHtml}`;
                 } else if (m.media_url) {
-                    const mediaTag = isVideo
-                        ? `<div class="msg-media-card"><video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
-                        : `<div class="msg-media-card"><img src="${m.media_url}" onclick="window.open('${m.media_url}', '_blank')"></div>`;
-                    contentHtml = isSent ? `${forwardBtnHtml}${mediaTag}` : `${mediaTag}${forwardBtnHtml}`;
-                } else if (m.message === '👍') {
-                    contentHtml = `<div class="big-thumb-sticker">👍</div>`;
-                } else if (m.message) {
-                    contentHtml = `<div class="msg-bubble notranslate" translate="no">${escapeHtml(m.message)}</div>`;
+                    bodyHtml = isVideo
+                        ? `<div class="cf-media-card"><video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
+                        : `<div class="cf-media-card"><img src="${m.media_url}" onclick="window.open('${m.media_url}', '_blank')"></div>`;
+                } else if (displayText === '👍') {
+                    bodyHtml = `<div class="big-thumb-sticker">👍</div>`;
+                } else if (displayText) {
+                    bodyHtml = `<div class="cf-bubble notranslate" translate="no">${escapeHtml(displayText)}${isEdited ? '<span class="cf-edited-tag">(បានកែ)</span>' : ''}</div>`;
                 }
 
-                const leftAvatarHtml = !isSent ? `<img src="${friendAvatar}" class="msg-sender-avatar">` : '';
-                const seenHtml = (isSent && m.id === lastSeenSentMsgId) ? `<img src="${friendAvatar}" class="msg-seen-avatar" title="Seen">` : '';
+                const seenFooter = (isSent && m.id === lastSeenSentMsgId)
+                    ? `<div class="cf-msg-footer"><span>✓✓ បានឃើញ (Seen)</span></div>`
+                    : (isSent ? `<div class="cf-msg-footer"><span>✓ បានផ្ញើ</span></div>` : '');
+
+                const leftAvatarHtml = !isSent ? `<img src="${friendAvatar}" class="cf-msg-avatar">` : '';
 
                 return `
                     ${timeDividerHtml}
-                    <div class="msg-row ${rowClass}">
+                    <div class="cf-msg-row ${rowClass}">
                         ${leftAvatarHtml}
-                        ${contentHtml}
-                        ${seenHtml}
+                        ${isSent ? actionsHtml : ''}
+                        <div class="cf-msg-stack">
+                            ${bodyHtml}
+                            ${seenFooter}
+                        </div>
+                        ${!isSent ? actionsHtml : ''}
                     </div>
                 `;
             }).join('');
 
-            // Pre-download all voice messages into memory immediately so clicking Play is instant and stutter-free
+            // Append optimistic "Sending..." bubbles ONLY on sender's screen until R2 + Server confirm!
+            if (activePending.length > 0) {
+                html += activePending.map(p => {
+                    let mediaPreview = '';
+                    if (p.type === 'video' && p.previewUrl) {
+                        mediaPreview = `
+                            <div class="cf-media-card">
+                                <video src="${p.previewUrl}" muted playsinline></video>
+                                <div class="cf-media-uploading-overlay">
+                                    <div class="cf-mini-spin" style="width:22px; height:22px; border-width:3px; border-color:rgba(255,255,255,0.3); border-top-color:#fff;"></div>
+                                    <div style="font-size:12px; font-weight:700;">Sending video... ${p.progress || 0}%</div>
+                                    <div class="cf-upload-progress-bar"><div class="cf-upload-progress-fill" style="width:${p.progress || 0}%"></div></div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (p.type === 'image' && p.previewUrl) {
+                        mediaPreview = `
+                            <div class="cf-media-card">
+                                <img src="${p.previewUrl}">
+                                <div class="cf-media-uploading-overlay">
+                                    <div class="cf-mini-spin" style="width:20px; height:20px; border-width:2.5px; border-color:rgba(255,255,255,0.3); border-top-color:#fff;"></div>
+                                    <div style="font-size:11.5px; font-weight:700;">Sending... ${p.progress || 0}%</div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (p.type === 'audio') {
+                        mediaPreview = `<div class="cf-bubble">🎙️ សារសំឡេង (Voice)</div>`;
+                    } else {
+                        mediaPreview = `<div class="cf-bubble">${escapeHtml(p.text)}</div>`;
+                    }
+
+                    return `
+                        <div class="cf-msg-row sent">
+                            <div class="cf-msg-stack">
+                                ${mediaPreview}
+                                <div class="cf-msg-footer">
+                                    <span class="cf-sending-pill"><span class="cf-mini-spin"></span> Sending...</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            box.innerHTML = html;
             audioUrlsToPreload.forEach(item => preloadAudioBlob(item.url, item.id));
 
             if (wasAtBottom) {
@@ -1583,19 +2079,102 @@
             return div.innerHTML;
         }
 
+        // =========================================================================
+        // EDIT & DELETE SENT MESSAGES (WITH PERMANENT DELETED TRACE)
+        // =========================================================================
+        function startEditMessage(msgId, encodedText) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            const origText = decodeURIComponent(encodedText || '');
+            editingMessageId = msgId;
+            document.getElementById('editingPreviewText').innerText = origText.slice(0, 42);
+            document.getElementById('editMessageBanner').classList.add('active');
+            const input = document.getElementById('messageTextInput');
+            input.value = origText;
+            input.focus();
+            updateSendOrThumbIcon();
+        }
+
+        function cancelEditMessage() {
+            editingMessageId = null;
+            const banner = document.getElementById('editMessageBanner');
+            if (banner) banner.classList.remove('active');
+            const input = document.getElementById('messageTextInput');
+            if (input) input.value = '';
+            updateSendOrThumbIcon();
+        }
+
+        async function submitEditedMessage(msgId, newText) {
+            cancelEditMessage();
+            setLocalOverride(msgId, { editedText: newText });
+            forceRenderCurrentFeed(false);
+
+            try {
+                await fetch(`/api/messages/${msgId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        message: EDITED_PREFIX + newText,
+                        plainText: newText
+                    })
+                });
+                await fetchMessages(false);
+                loadConversations();
+            } catch (e) {}
+        }
+
+        async function deleteSentMessage(msgId) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            if (!confirm('តើអ្នកចង់លុបសារ/ឯកសារនេះមែនទេ? (នឹងបន្សល់ទុកដានថា Message deleted)')) return;
+
+            setLocalOverride(msgId, { deleted: true });
+            forceRenderCurrentFeed(false);
+
+            try {
+                // Try dedicated DELETE endpoint first, then fallback to PUT tombstone update
+                const delRes = await fetch(`/api/messages/${msgId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender: currentUser.email, tombstone: DELETED_MARKER })
+                });
+                if (!delRes.ok) {
+                    await fetch(`/api/messages/${msgId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sender: currentUser.email, message: DELETED_MARKER, media_url: null })
+                    });
+                }
+                await fetchMessages(false);
+                loadConversations();
+            } catch (e) {}
+        }
+
+        // =========================================================================
+        // SEND TEXT / EMOJI / MEDIA WITH EXPLICIT "SEND" & "SENDING..."
+        // =========================================================================
         function updateSendOrThumbIcon() {
             const val = document.getElementById('messageTextInput').value.trim();
-            const btn = document.getElementById('primaryActionBtn');
-            if (val.length > 0) {
-                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`;
+            const lbl = document.getElementById('primaryBtnLabel');
+            if (!lbl) return;
+            if (editingMessageId) {
+                lbl.innerText = 'Save ✓';
+            } else if (val.length > 0) {
+                lbl.innerText = 'Send ➤';
             } else {
-                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>`;
+                lbl.innerText = '👍';
             }
         }
 
         function handlePrimaryActionBtn() {
             const input = document.getElementById('messageTextInput');
             const text = input.value.trim();
+
+            if (editingMessageId) {
+                if (!text) return;
+                submitEditedMessage(editingMessageId, text);
+                return;
+            }
+
             if (text.length > 0) {
                 sendTextMessage(text);
             } else {
@@ -1615,20 +2194,24 @@
             updateSendOrThumbIcon();
         }
 
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#emojiPopupBar') && !e.target.closest('.emoji-inside-btn')) {
-                document.getElementById('emojiPopupBar').classList.remove('show');
-            }
-        });
-
         async function sendTextMessage(customText) {
             const input = document.getElementById('messageTextInput');
             const text = (customText !== undefined ? customText : input.value).trim();
             if (!text || !activeFriend) return;
 
+            const targetEmail = activeFriend.email;
             input.value = '';
             updateSendOrThumbIcon();
             document.getElementById('emojiPopupBar').classList.remove('show');
+
+            const tempId = 'temp-' + Date.now() + Math.random();
+            pendingOutgoingMessages.push({
+                tempId,
+                receiverEmail: targetEmail,
+                type: 'text',
+                text
+            });
+            forceRenderCurrentFeed(true);
 
             try {
                 const res = await fetch('/api/messages', {
@@ -1636,24 +2219,28 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         sender: currentUser.email,
-                        receiver: activeFriend.email,
+                        receiver: targetEmail,
                         message: text
                     })
                 });
                 const data = await res.json();
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
                 if (data.success) {
                     await fetchMessages(true);
                     loadConversations();
+                } else {
+                    forceRenderCurrentFeed(false);
                 }
             } catch (err) {
-                console.error('Send error:', err);
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                forceRenderCurrentFeed(false);
             }
         }
 
         // =========================================================================
-        // MULTI-FILE MEDIA STAGING QUEUE (Send Immediately OR Click "Edit")
+        // MULTI-FILE MEDIA STAGING QUEUE (Click "Send" -> Upload to R2 -> Deliver)
         // =========================================================================
-        let stagedMediaItems = []; // [{ id, fileOrBlob, name, previewUrl, isImage }]
+        let stagedMediaItems = [];
         let editingStagedIndex = -1;
 
         function sendMediaMessage(fileInput) {
@@ -1689,20 +2276,15 @@
             }
 
             tray.classList.add('active');
-            sendBtn.innerText = stagedMediaItems.length > 1
-                ? `Send (${stagedMediaItems.length}) ➤`
-                : 'Send ➤';
+            sendBtn.innerText = stagedMediaItems.length > 1 ? `Send (${stagedMediaItems.length}) ➤` : 'Send ➤';
 
             scrollEl.innerHTML = stagedMediaItems.map((item, idx) => `
-                <div class="staging-thumb-card">
+                <div class="cf-stage-card">
+                    ${item.isImage ? `<img src="${item.previewUrl}">` : `<video src="${item.previewUrl}" muted playsinline></video>`}
+                    <button type="button" class="cf-stage-del" onclick="removeStagedMedia(${idx})" title="លុប">×</button>
                     ${item.isImage
-                        ? `<img src="${item.previewUrl}">`
-                        : `<video src="${item.previewUrl}" muted playsinline></video>`
-                    }
-                    <button type="button" class="staging-remove-btn" onclick="removeStagedMedia(${idx})" title="លុប">×</button>
-                    ${item.isImage
-                        ? `<button type="button" class="staging-edit-badge" onclick="editStagedPhoto(${idx})">✏️ Edit</button>`
-                        : `<span style="position:absolute; bottom:4px; left:4px; background:rgba(0,0,0,0.7); color:#fff; font-size:10px; padding:2px 6px; border-radius:6px;">🎬 Video</span>`
+                        ? `<button type="button" class="cf-stage-edit" onclick="editStagedPhoto(${idx})">✏️ Edit</button>`
+                        : `<span style="position:absolute; bottom:4px; left:4px; background:rgba(15,23,42,0.75); color:#fff; font-size:10px; padding:2px 6px; border-radius:6px;">🎬 Video</span>`
                     }
                 </div>
             `).join('');
@@ -1729,45 +2311,69 @@
 
         async function sendAllStagedMedia() {
             if (stagedMediaItems.length === 0 || !activeFriend) return;
-            const sendBtn = document.getElementById('sendStagedMediaBtn');
-            sendBtn.disabled = true;
-            sendBtn.innerText = 'កំពុងផ្ញើ...';
-
+            const targetEmail = activeFriend.email;
             const itemsToSend = [...stagedMediaItems];
-            clearStagedMedia();
 
-            try {
-                for (let i = 0; i < itemsToSend.length; i++) {
-                    const it = itemsToSend[i];
-                    await uploadAndSendChatFile(it.fileOrBlob, it.name);
-                }
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.innerText = 'Send ➤';
-            }
-        }
+            // Hide staging tray & show "Sending..." bubble in chat stream immediately!
+            stagedMediaItems = [];
+            renderStagedMediaTray();
 
-        async function uploadAndSendChatFile(fileOrBlob, fileName) {
-            if (!activeFriend) return;
-            const formData = new FormData();
-            formData.append('sender', currentUser.email);
-            formData.append('receiver', activeFriend.email);
-            formData.append('mediaFile', fileOrBlob, fileName);
-
-            try {
-                const res = await fetch('/api/messages', {
-                    method: 'POST',
-                    body: formData
+            for (let i = 0; i < itemsToSend.length; i++) {
+                const it = itemsToSend[i];
+                const tempId = 'temp-media-' + Date.now() + '-' + i;
+                pendingOutgoingMessages.push({
+                    tempId,
+                    receiverEmail: targetEmail,
+                    type: it.isImage ? 'image' : 'video',
+                    previewUrl: it.previewUrl,
+                    progress: 5
                 });
-                const data = await res.json();
-                if (data.success) {
-                    await fetchMessages(true);
-                    loadConversations();
-                } else {
-                    alert(data.error || 'Failed to send media.');
+                forceRenderCurrentFeed(true);
+
+                try {
+                    let blobToUpload = it.fileOrBlob;
+                    if (it.isImage) {
+                        blobToUpload = await compressChatImage(blobToUpload);
+                    }
+
+                    // 1. Upload completely to Cloudflare R2 FIRST (shows "Sending... %")
+                    const r2Url = await uploadChatMediaToR2(blobToUpload, it.name, (pct) => {
+                        const pItem = pendingOutgoingMessages.find(p => p.tempId === tempId);
+                        if (pItem) {
+                            pItem.progress = pct;
+                            forceRenderCurrentFeed(false);
+                        }
+                    });
+
+                    // 2. Only AFTER R2 has the complete video/photo, save message so recipient receives a ready-to-play file!
+                    const res = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender: currentUser.email,
+                            receiver: targetEmail,
+                            message: it.isImage ? '[Photo]' : '[Video]',
+                            media_url: r2Url,
+                            message_type: it.isImage ? 'image' : 'video'
+                        })
+                    });
+                    const data = await res.json();
+                    pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                    if (it.previewUrl) URL.revokeObjectURL(it.previewUrl);
+
+                    if (data.success) {
+                        await fetchMessages(true);
+                        loadConversations();
+                    } else {
+                        forceRenderCurrentFeed(false);
+                        alert(data.error || 'Failed to deliver media.');
+                    }
+                } catch (err) {
+                    pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                    if (it.previewUrl) URL.revokeObjectURL(it.previewUrl);
+                    forceRenderCurrentFeed(false);
+                    alert('ការផ្ញើបរាជ័យ៖ ' + err.message);
                 }
-            } catch (err) {
-                console.error('Media upload error:', err);
             }
         }
 
@@ -1775,18 +2381,17 @@
         // INTERACTIVE PHOTO EDITOR (CROP + FREEHAND PEN + DRAGGABLE TEXT)
         // =========================================================================
         let editorBaseImg = null;
-        let editorHistoryStack = []; // snapshots of base image (after crops)
-        let editorStrokes = [];      // [{ color, size, points: [{x, y}] }]
-        let editorTexts = [];        // [{ text, color, x, y, fontSize }]
-        let editorMode = 'crop';     // 'crop' | 'pen' | 'text'
+        let editorHistoryStack = [];
+        let editorStrokes = [];
+        let editorTexts = [];
+        let editorMode = 'crop';
         let editorColor = '#ff3b30';
         let editorBrushSize = 5;
 
         let cropBox = { x: 0, y: 0, w: 0, h: 0 };
-        let activeDragHandle = null; // 'move' | 'nw' | 'ne' | 'sw' | 'se'
+        let activeDragHandle = null;
         let dragStartPt = { x: 0, y: 0 };
         let dragStartCrop = null;
-
         let isDrawingStroke = false;
         let currentStroke = null;
         let draggingTextIdx = -1;
@@ -1846,24 +2451,24 @@
             if (mode === 'crop') {
                 hint.innerText = 'អូសជ្រុងប្រអប់ដើម្បីកាត់រូបភាព រួចចុច "✓ អនុវត្តការកាត់"';
                 sub.innerHTML = `
-                    <button type="button" onclick="setCropAspect('free')" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">សេរី (Free)</button>
-                    <button type="button" onclick="setCropAspect('1:1')" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">1:1 ការ៉េ</button>
-                    <button type="button" onclick="setCropAspect('4:5')" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">4:5 បញ្ឈរ</button>
-                    <button type="button" onclick="applyCropSelection()" style="background:#34c759; color:#fff; border:none; padding:6px 14px; border-radius:14px; font-size:12.5px; font-weight:700; cursor:pointer;">✓ អនុវត្តការកាត់ (Apply Crop)</button>
+                    <button type="button" onclick="setCropAspect('free')" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">សេរី (Free)</button>
+                    <button type="button" onclick="setCropAspect('1:1')" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">1:1 ការ៉េ</button>
+                    <button type="button" onclick="setCropAspect('4:5')" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">4:5 បញ្ឈរ</button>
+                    <button type="button" onclick="applyCropSelection()" style="background:#10b981; color:#fff; border:none; padding:6px 14px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer;">✓ អនុវត្តការកាត់</button>
                 `;
             } else if (mode === 'pen') {
                 hint.innerText = 'ប្រើម្រាមដៃគូរលើរូបភាពដោយសេរី';
                 const swatches = colors.map(c => `<span class="color-swatch ${editorColor === c ? 'selected' : ''}" style="background:${c};" onclick="selectEditorColor('${c}')"></span>`).join('');
                 sub.innerHTML = `
                     ${swatches}
-                    <button type="button" onclick="editorBrushSize = editorBrushSize === 5 ? 11 : 5; this.innerText = editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ';" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">${editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ'}</button>
+                    <button type="button" onclick="editorBrushSize = editorBrushSize === 5 ? 11 : 5; this.innerText = editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ';" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">${editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ'}</button>
                 `;
             } else if (mode === 'text') {
                 hint.innerText = 'ចុច "+ បន្ថែមអក្សរ" រួចអូសផ្លាស់ប្តូរទីតាំងអក្សរលើរូបភាព';
                 const swatches = colors.map(c => `<span class="color-swatch ${editorColor === c ? 'selected' : ''}" style="background:${c};" onclick="selectEditorColor('${c}')"></span>`).join('');
                 sub.innerHTML = `
                     ${swatches}
-                    <button type="button" onclick="promptAddEditorText()" style="background:#1877f2; color:#fff; border:none; padding:6px 14px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមអក្សរ (Add Text)</button>
+                    <button type="button" onclick="promptAddEditorText()" style="background:#4f46e5; color:#fff; border:none; padding:6px 14px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមអក្សរ</button>
                 `;
             }
             renderEditorCanvas();
@@ -1871,42 +2476,22 @@
 
         function selectEditorColor(c) {
             editorColor = c;
-            if (editorTexts.length > 0 && editorMode === 'text') {
-                editorTexts[editorTexts.length - 1].color = c;
-            }
+            if (editorTexts.length > 0 && editorMode === 'text') editorTexts[editorTexts.length - 1].color = c;
             setEditorMode(editorMode);
         }
 
         function setCropAspect(ratioType) {
             const canvas = document.getElementById('photoEditorCanvas');
             if (ratioType === 'free') {
-                cropBox = {
-                    x: Math.round(canvas.width * 0.08),
-                    y: Math.round(canvas.height * 0.08),
-                    w: Math.round(canvas.width * 0.84),
-                    h: Math.round(canvas.height * 0.84)
-                };
+                cropBox = { x: Math.round(canvas.width * 0.08), y: Math.round(canvas.height * 0.08), w: Math.round(canvas.width * 0.84), h: Math.round(canvas.height * 0.84) };
             } else if (ratioType === '1:1') {
                 const side = Math.round(Math.min(canvas.width, canvas.height) * 0.8);
-                cropBox = {
-                    x: Math.round((canvas.width - side) / 2),
-                    y: Math.round((canvas.height - side) / 2),
-                    w: side,
-                    h: side
-                };
+                cropBox = { x: Math.round((canvas.width - side) / 2), y: Math.round((canvas.height - side) / 2), w: side, h: side };
             } else if (ratioType === '4:5') {
                 let h = Math.round(canvas.height * 0.85);
                 let w = Math.round(h * 0.8);
-                if (w > canvas.width * 0.9) {
-                    w = Math.round(canvas.width * 0.9);
-                    h = Math.round(w * 1.25);
-                }
-                cropBox = {
-                    x: Math.round((canvas.width - w) / 2),
-                    y: Math.round((canvas.height - h) / 2),
-                    w,
-                    h
-                };
+                if (w > canvas.width * 0.9) { w = Math.round(canvas.width * 0.9); h = Math.round(w * 1.25); }
+                cropBox = { x: Math.round((canvas.width - w) / 2), y: Math.round((canvas.height - h) / 2), w, h };
             }
             renderEditorCanvas();
         }
@@ -1914,29 +2499,14 @@
         function applyCropSelection() {
             const canvas = document.getElementById('photoEditorCanvas');
             if (!editorBaseImg || cropBox.w < 20 || cropBox.h < 20) return;
-
-            // Render clean image + existing drawings/texts without crop overlay first
             renderEditorCanvas(true);
-
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = cropBox.w;
             tempCanvas.height = cropBox.h;
-            const tCtx = tempCanvas.getContext('2d');
-            tCtx.drawImage(canvas, cropBox.x, cropBox.y, cropBox.w, cropBox.h, 0, 0, cropBox.w, cropBox.h);
-
-            editorHistoryStack.push({
-                img: editorBaseImg,
-                strokes: JSON.parse(JSON.stringify(editorStrokes)),
-                texts: JSON.parse(JSON.stringify(editorTexts))
-            });
-
+            tempCanvas.getContext('2d').drawImage(canvas, cropBox.x, cropBox.y, cropBox.w, cropBox.h, 0, 0, cropBox.w, cropBox.h);
+            editorHistoryStack.push({ img: editorBaseImg, strokes: JSON.parse(JSON.stringify(editorStrokes)), texts: JSON.parse(JSON.stringify(editorTexts)) });
             const croppedImg = new Image();
-            croppedImg.onload = () => {
-                editorBaseImg = croppedImg;
-                editorStrokes = [];
-                editorTexts = [];
-                initCanvasWithImage(croppedImg);
-            };
+            croppedImg.onload = () => { editorBaseImg = croppedImg; editorStrokes = []; editorTexts = []; initCanvasWithImage(croppedImg); };
             croppedImg.src = tempCanvas.toDataURL('image/png');
         }
 
@@ -1944,38 +2514,18 @@
             const txt = prompt('សរសេរអក្សរដែលចង់ដាក់លើរូបភាព៖');
             if (!txt || !txt.trim()) return;
             const canvas = document.getElementById('photoEditorCanvas');
-            editorTexts.push({
-                text: txt.trim(),
-                color: editorColor,
-                x: Math.round(canvas.width / 2),
-                y: Math.round(canvas.height / 2),
-                fontSize: Math.max(22, Math.round(canvas.width * 0.065))
-            });
+            editorTexts.push({ text: txt.trim(), color: editorColor, x: Math.round(canvas.width / 2), y: Math.round(canvas.height / 2), fontSize: Math.max(22, Math.round(canvas.width * 0.065)) });
             renderEditorCanvas();
         }
 
         function undoEditorAction() {
-            if (editorMode === 'pen' && editorStrokes.length > 0) {
-                editorStrokes.pop();
-                renderEditorCanvas();
-                return;
-            }
-            if (editorMode === 'text' && editorTexts.length > 0) {
-                editorTexts.pop();
-                renderEditorCanvas();
-                return;
-            }
-            if (editorStrokes.length > 0) {
-                editorStrokes.pop();
-                renderEditorCanvas();
-            } else if (editorTexts.length > 0) {
-                editorTexts.pop();
-                renderEditorCanvas();
-            } else if (editorHistoryStack.length > 0) {
+            if (editorMode === 'pen' && editorStrokes.length > 0) { editorStrokes.pop(); renderEditorCanvas(); return; }
+            if (editorMode === 'text' && editorTexts.length > 0) { editorTexts.pop(); renderEditorCanvas(); return; }
+            if (editorStrokes.length > 0) { editorStrokes.pop(); renderEditorCanvas(); }
+            else if (editorTexts.length > 0) { editorTexts.pop(); renderEditorCanvas(); }
+            else if (editorHistoryStack.length > 0) {
                 const prev = editorHistoryStack.pop();
-                editorBaseImg = prev.img;
-                editorStrokes = prev.strokes;
-                editorTexts = prev.texts;
+                editorBaseImg = prev.img; editorStrokes = prev.strokes; editorTexts = prev.texts;
                 initCanvasWithImage(editorBaseImg);
             }
         }
@@ -1985,11 +2535,8 @@
             if (!canvas || !editorBaseImg) return;
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 1. Base Image
             ctx.drawImage(editorBaseImg, 0, 0, canvas.width, canvas.height);
 
-            // 2. Pen Strokes
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             editorStrokes.forEach(st => {
@@ -1998,13 +2545,10 @@
                 ctx.lineWidth = st.size;
                 ctx.beginPath();
                 ctx.moveTo(st.points[0].x, st.points[0].y);
-                for (let i = 1; i < st.points.length; i++) {
-                    ctx.lineTo(st.points[i].x, st.points[i].y);
-                }
+                for (let i = 1; i < st.points.length; i++) ctx.lineTo(st.points[i].x, st.points[i].y);
                 ctx.stroke();
             });
 
-            // 3. Draggable Text Overlays
             editorTexts.forEach(item => {
                 ctx.font = `bold ${item.fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
                 ctx.textAlign = 'center';
@@ -2016,28 +2560,18 @@
                 ctx.fillText(item.text, item.x, item.y);
             });
 
-            // 4. Crop Overlay Frame (hidden during final export)
             if (!exportClean && editorMode === 'crop') {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
                 ctx.fillRect(0, 0, canvas.width, cropBox.y);
                 ctx.fillRect(0, cropBox.y + cropBox.h, canvas.width, canvas.height - (cropBox.y + cropBox.h));
                 ctx.fillRect(0, cropBox.y, cropBox.x, cropBox.h);
                 ctx.fillRect(cropBox.x + cropBox.w, cropBox.y, canvas.width - (cropBox.x + cropBox.w), cropBox.h);
-
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(cropBox.x, cropBox.y, cropBox.w, cropBox.h);
-
-                // Corner Handles
                 const hs = 14;
-                ctx.fillStyle = '#1877f2';
-                const corners = [
-                    [cropBox.x, cropBox.y],
-                    [cropBox.x + cropBox.w, cropBox.y],
-                    [cropBox.x, cropBox.y + cropBox.h],
-                    [cropBox.x + cropBox.w, cropBox.y + cropBox.h]
-                ];
-                corners.forEach(([cx, cy]) => {
+                ctx.fillStyle = '#4f46e5';
+                [[cropBox.x, cropBox.y], [cropBox.x + cropBox.w, cropBox.y], [cropBox.x, cropBox.y + cropBox.h], [cropBox.x + cropBox.w, cropBox.y + cropBox.h]].forEach(([cx, cy]) => {
                     ctx.fillRect(cx - hs / 2, cy - hs / 2, hs, hs);
                     ctx.strokeRect(cx - hs / 2, cy - hs / 2, hs, hs);
                 });
@@ -2047,33 +2581,23 @@
         function getCanvasCoords(e) {
             const canvas = document.getElementById('photoEditorCanvas');
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / (rect.width || 1);
-            const scaleY = canvas.height / (rect.height || 1);
-            return {
-                x: (e.clientX - rect.left) * scaleX,
-                y: (e.clientY - rect.top) * scaleY
-            };
+            return { x: (e.clientX - rect.left) * (canvas.width / (rect.width || 1)), y: (e.clientY - rect.top) * (canvas.height / (rect.height || 1)) };
         }
 
         (function initCanvasPointerHandlers() {
             const canvas = document.getElementById('photoEditorCanvas');
             if (!canvas) return;
-
             canvas.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 const pt = getCanvasCoords(e);
-
                 if (editorMode === 'crop') {
                     const hitR = 26;
                     if (Math.hypot(pt.x - cropBox.x, pt.y - cropBox.y) <= hitR) activeDragHandle = 'nw';
                     else if (Math.hypot(pt.x - (cropBox.x + cropBox.w), pt.y - cropBox.y) <= hitR) activeDragHandle = 'ne';
                     else if (Math.hypot(pt.x - cropBox.x, pt.y - (cropBox.y + cropBox.h)) <= hitR) activeDragHandle = 'sw';
                     else if (Math.hypot(pt.x - (cropBox.x + cropBox.w), pt.y - (cropBox.y + cropBox.h)) <= hitR) activeDragHandle = 'se';
-                    else if (pt.x >= cropBox.x && pt.x <= cropBox.x + cropBox.w && pt.y >= cropBox.y && pt.y <= cropBox.y + cropBox.h) {
-                        activeDragHandle = 'move';
-                    }
-                    dragStartPt = pt;
-                    dragStartCrop = { ...cropBox };
+                    else if (pt.x >= cropBox.x && pt.x <= cropBox.x + cropBox.w && pt.y >= cropBox.y && pt.y <= cropBox.y + cropBox.h) activeDragHandle = 'move';
+                    dragStartPt = pt; dragStartCrop = { ...cropBox };
                 } else if (editorMode === 'pen') {
                     isDrawingStroke = true;
                     currentStroke = { color: editorColor, size: editorBrushSize, points: [pt] };
@@ -2083,11 +2607,7 @@
                     draggingTextIdx = -1;
                     for (let i = editorTexts.length - 1; i >= 0; i--) {
                         const t = editorTexts[i];
-                        if (Math.abs(pt.x - t.x) <= 110 && Math.abs(pt.y - t.y) <= 36) {
-                            draggingTextIdx = i;
-                            dragStartPt = pt;
-                            break;
-                        }
+                        if (Math.abs(pt.x - t.x) <= 110 && Math.abs(pt.y - t.y) <= 36) { draggingTextIdx = i; dragStartPt = pt; break; }
                     }
                 }
             });
@@ -2096,12 +2616,8 @@
                 if (!activeDragHandle && !isDrawingStroke && draggingTextIdx === -1) return;
                 e.preventDefault();
                 const pt = getCanvasCoords(e);
-
                 if (editorMode === 'crop' && activeDragHandle && dragStartCrop) {
-                    const dx = pt.x - dragStartPt.x;
-                    const dy = pt.y - dragStartPt.y;
-                    const minSize = 40;
-
+                    const dx = pt.x - dragStartPt.x, dy = pt.y - dragStartPt.y, minSize = 40;
                     if (activeDragHandle === 'move') {
                         cropBox.x = Math.max(0, Math.min(canvas.width - cropBox.w, dragStartCrop.x + dx));
                         cropBox.y = Math.max(0, Math.min(canvas.height - cropBox.h, dragStartCrop.y + dy));
@@ -2111,39 +2627,28 @@
                     } else if (activeDragHandle === 'nw') {
                         const newX = Math.max(0, Math.min(dragStartCrop.x + dragStartCrop.w - minSize, dragStartCrop.x + dx));
                         const newY = Math.max(0, Math.min(dragStartCrop.y + dragStartCrop.h - minSize, dragStartCrop.y + dy));
-                        cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX;
-                        cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY;
-                        cropBox.x = newX;
-                        cropBox.y = newY;
+                        cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX; cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY;
+                        cropBox.x = newX; cropBox.y = newY;
                     } else if (activeDragHandle === 'ne') {
                         const newY = Math.max(0, Math.min(dragStartCrop.y + dragStartCrop.h - minSize, dragStartCrop.y + dy));
                         cropBox.w = Math.max(minSize, Math.min(canvas.width - dragStartCrop.x, dragStartCrop.w + dx));
-                        cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY;
-                        cropBox.y = newY;
+                        cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY; cropBox.y = newY;
                     } else if (activeDragHandle === 'sw') {
                         const newX = Math.max(0, Math.min(dragStartCrop.x + dragStartCrop.w - minSize, dragStartCrop.x + dx));
                         cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX;
-                        cropBox.h = Math.max(minSize, Math.min(canvas.height - dragStartCrop.y, dragStartCrop.h + dy));
-                        cropBox.x = newX;
+                        cropBox.h = Math.max(minSize, Math.min(canvas.height - dragStartCrop.y, dragStartCrop.h + dy)); cropBox.x = newX;
                     }
                     renderEditorCanvas();
                 } else if (editorMode === 'pen' && isDrawingStroke && currentStroke) {
-                    currentStroke.points.push(pt);
-                    renderEditorCanvas();
+                    currentStroke.points.push(pt); renderEditorCanvas();
                 } else if (editorMode === 'text' && draggingTextIdx >= 0) {
                     editorTexts[draggingTextIdx].x += (pt.x - dragStartPt.x);
                     editorTexts[draggingTextIdx].y += (pt.y - dragStartPt.y);
-                    dragStartPt = pt;
-                    renderEditorCanvas();
+                    dragStartPt = pt; renderEditorCanvas();
                 }
             });
 
-            const endPointer = () => {
-                activeDragHandle = null;
-                isDrawingStroke = false;
-                currentStroke = null;
-                draggingTextIdx = -1;
-            };
+            const endPointer = () => { activeDragHandle = null; isDrawingStroke = false; currentStroke = null; draggingTextIdx = -1; };
             canvas.addEventListener('pointerup', endPointer);
             canvas.addEventListener('pointercancel', endPointer);
         })();
@@ -2152,35 +2657,28 @@
             const canvas = document.getElementById('photoEditorCanvas');
             const doneBtn = document.getElementById('sendEditedPhotoBtn');
             if (!canvas || !editorBaseImg) return;
-
             doneBtn.disabled = true;
             renderEditorCanvas(true);
-
             canvas.toBlob((blob) => {
                 try {
                     if (blob && editingStagedIndex >= 0 && stagedMediaItems[editingStagedIndex]) {
                         const oldItem = stagedMediaItems[editingStagedIndex];
                         if (oldItem.previewUrl) URL.revokeObjectURL(oldItem.previewUrl);
-                        const newUrl = URL.createObjectURL(blob);
-                        stagedMediaItems[editingStagedIndex] = {
-                            ...oldItem,
-                            fileOrBlob: blob,
-                            name: `edited-${Date.now()}.jpg`,
-                            previewUrl: newUrl
-                        };
+                        stagedMediaItems[editingStagedIndex] = { ...oldItem, fileOrBlob: blob, name: `edited-${Date.now()}.jpg`, previewUrl: URL.createObjectURL(blob) };
                         renderStagedMediaTray();
                     }
                     editingStagedIndex = -1;
                     closePhotoEditor();
-                } finally {
-                    doneBtn.disabled = false;
-                }
+                } finally { doneBtn.disabled = false; }
             }, 'image/jpeg', 0.92);
         }
 
-        // Forward Message Modal
+        // =========================================================================
+        // FORWARD MESSAGE MODAL
+        // =========================================================================
         let forwardPayload = null;
         function openForwardModal(msgId, encText, encMedia, msgType) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
             forwardPayload = {
                 message: decodeURIComponent(encText || ''),
                 media_url: decodeURIComponent(encMedia || ''),
@@ -2188,12 +2686,12 @@
             };
             const listEl = document.getElementById('forwardContactsList');
             listEl.innerHTML = allConversations.map(c => `
-                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #f0f2f5;">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${c.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                        <img src="${c.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:12px; object-fit:cover;">
                         <div class="notranslate" translate="no" style="font-weight:700; font-size:14px;">${c.first_name || ''} ${c.last_name || ''}</div>
                     </div>
-                    <button type="button" onclick="confirmForwardTo('${c.email}', this)" style="background:#1877f2; color:#fff; border:none; border-radius:16px; padding:6px 14px; font-size:12.5px; font-weight:700; cursor:pointer;">ផ្ញើ</button>
+                    <button type="button" onclick="confirmForwardTo('${c.email}', this)" class="cf-send-pill-btn" style="height:32px; padding:0 14px; font-size:12.5px;">Send</button>
                 </div>
             `).join('');
             document.getElementById('forwardModal').style.display = 'flex';
@@ -2207,18 +2705,21 @@
         async function confirmForwardTo(targetEmail, btnEl) {
             if (!forwardPayload) return;
             btnEl.disabled = true;
-            btnEl.innerText = '✓ បានផ្ញើ';
-            btnEl.style.background = '#e4e6eb';
-            btnEl.style.color = '#050505';
+            btnEl.innerText = 'Sending...';
 
             try {
                 if (forwardPayload.media_url) {
-                    const blob = await fetch(forwardPayload.media_url).then(r => r.blob());
-                    const fd = new FormData();
-                    fd.append('sender', currentUser.email);
-                    fd.append('receiver', targetEmail);
-                    fd.append('mediaFile', blob, forwardPayload.message_type === 'audio' ? 'forwarded-voice.webm' : 'forwarded-media');
-                    await fetch('/api/messages', { method: 'POST', body: fd });
+                    await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender: currentUser.email,
+                            receiver: targetEmail,
+                            message: forwardPayload.message || '[Forwarded Media]',
+                            media_url: forwardPayload.media_url,
+                            message_type: forwardPayload.message_type
+                        })
+                    });
                 } else {
                     await fetch('/api/messages', {
                         method: 'POST',
@@ -2230,7 +2731,13 @@
                         })
                     });
                 }
-            } catch (e) {}
+                btnEl.innerText = '✓ Sent';
+                btnEl.style.background = '#e2e8f0';
+                btnEl.style.color = '#0f172a';
+            } catch (e) {
+                btnEl.disabled = false;
+                btnEl.innerText = 'Send';
+            }
         }
     </script>
 </body>

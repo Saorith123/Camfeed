@@ -47,7 +47,7 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS shared_post_id INTEGER DEFAULT NULL
     `);
 
-    // 2. Users columns for Per-Field Privacy, Admin Roles & Ban Status
+    // 2. Users columns for Per-Field Privacy, Admin Roles, Ban Status & Real-Time Online Presence
     await client.query(`
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS relationship_status VARCHAR(150) DEFAULT '',
@@ -58,7 +58,8 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS gender_privacy VARCHAR(20) DEFAULT 'public',
       ADD COLUMN IF NOT EXISTS work_privacy VARCHAR(20) DEFAULT 'public',
       ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'user',
-      ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE
+      ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS last_active TIMESTAMP DEFAULT NULL
     `);
 
     if (SUPER_ADMIN_EMAILS.length > 0) {
@@ -1137,7 +1138,7 @@ app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic,
+      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active,
       (
         SELECT m.message FROM messages m 
         WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
@@ -1159,7 +1160,7 @@ app.get('/api/chat-conversations', async (req, res) => {
       
       UNION
       
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic,
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active,
       'Start a conversation' as last_message,
       NOW() - INTERVAL '1 year' as last_time
       FROM users u
@@ -1189,7 +1190,7 @@ app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
     const query = `
-      SELECT email, first_name, last_name, profile_pic 
+      SELECT email, first_name, last_name, profile_pic, last_active 
       FROM users 
       WHERE email != $1 
         AND COALESCE(is_banned, FALSE) = FALSE
@@ -1253,15 +1254,42 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// Send Chat Message (Blocks sending if either user blocked the other)
+// Real-Time Online / Offline Presence Endpoints
+app.post('/api/presence/ping', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.json({ success: false });
+  try {
+    await pool.query('UPDATE users SET last_active = NOW() WHERE email = $1', [email]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/presence/offline', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.json({ success: false });
+  try {
+    await pool.query("UPDATE users SET last_active = NOW() - INTERVAL '10 minutes' WHERE email = $1", [email]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Send Chat Message (Supports Cloudflare R2 Direct URLs + Legacy Multipart Fallback, Blocks if Blocked)
 app.post('/api/messages', (req, res, next) => {
-  cloudinaryUpload.single('mediaFile')(req, res, (err) => {
-    if (err) {
-      console.error("Cloudinary upload error:", err);
-      return res.status(500).json({ success: false, error: err.message });
-    }
-    next();
-  });
+  const ct = req.headers['content-type'] || '';
+  if (ct.includes('multipart/form-data')) {
+    return cloudinaryUpload.single('mediaFile')(req, res, (err) => {
+      if (err) {
+        console.error("Media upload error:", err);
+        return res.status(500).json({ success: false, error: err.message });
+      }
+      next();
+    });
+  }
+  next();
 }, async (req, res) => {
   try {
     const sender = req.body.sender;
@@ -1278,9 +1306,13 @@ app.post('/api/messages', (req, res, next) => {
     if (blockCheck.rows.length > 0) {
       return res.status(403).json({ success: false, error: 'Cannot send messages to this user (Blocked).' });
     }
-    
+
+    // Update sender's online heartbeat automatically
+    await pool.query('UPDATE users SET last_active = NOW() WHERE email = $1', [sender]).catch(() => {});
+
     let defaultMsg = '';
-    let messageType = 'text';
+    let messageType = req.body.message_type || 'text';
+    let mediaUrl = req.body.media_url || null;
 
     if (req.file) {
       const mimetype = req.file.mimetype || '';
@@ -1294,10 +1326,14 @@ app.post('/api/messages', (req, res, next) => {
         messageType = 'audio';
         defaultMsg = '[Voice Message]';
       }
+      mediaUrl = req.file.path;
+    } else if (mediaUrl) {
+      if (messageType === 'video') defaultMsg = '[Video]';
+      else if (messageType === 'image') defaultMsg = '[Photo]';
+      else if (messageType === 'audio') defaultMsg = '[Voice Message]';
     }
 
     const message = req.body.message || defaultMsg;
-    const mediaUrl = req.file ? req.file.path : null;
 
     const query = `
       INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read) 
@@ -1308,6 +1344,56 @@ app.post('/api/messages', (req, res, next) => {
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
     console.error("Error saving message in DB:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Edit Sent Chat Message
+app.put('/api/messages/:id', async (req, res) => {
+  const { id } = req.params;
+  const { sender, message, media_url } = req.body || {};
+  try {
+    if (!sender) return res.status(400).json({ success: false, error: 'Missing sender' });
+    let result;
+    if (media_url === null) {
+      // Tombstone update fallback
+      result = await pool.query(
+        'UPDATE messages SET message = $1, media_url = NULL WHERE id = $2 AND sender_email = $3 RETURNING *',
+        [message || '__CAMFEED_MSG_DELETED__', id, sender]
+      );
+    } else {
+      result = await pool.query(
+        'UPDATE messages SET message = $1 WHERE id = $2 AND sender_email = $3 RETURNING *',
+        [message, id, sender]
+      );
+    }
+    if (result.rows.length > 0) {
+      res.json({ success: true, message: result.rows[0] });
+    } else {
+      res.status(403).json({ success: false, error: 'Unauthorized or message not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete Sent Chat Message / Photo / Video / Voice (Leaves permanent deleted trace)
+app.delete('/api/messages/:id', async (req, res) => {
+  const { id } = req.params;
+  const { sender, tombstone } = req.body || {};
+  try {
+    if (!sender) return res.status(400).json({ success: false, error: 'Missing sender' });
+    const marker = tombstone || '__CAMFEED_MSG_DELETED__';
+    const result = await pool.query(
+      "UPDATE messages SET message = $1, media_url = NULL, message_type = 'deleted' WHERE id = $2 AND sender_email = $3 RETURNING *",
+      [marker, id, sender]
+    );
+    if (result.rows.length > 0) {
+      res.json({ success: true, message: result.rows[0] });
+    } else {
+      res.status(403).json({ success: false, error: 'Unauthorized or message not found' });
+    }
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
