@@ -31,8 +31,9 @@
         }
         .logo-nav:hover { transform: scale(1.03); }
         
-        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 210px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
-        .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 225px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; border-bottom: 1px solid #f0f2f5; }
+        .dropdown-item:last-child { border-bottom: none; }
         .dropdown-item:hover { background: #f2f2f2; }
 
         /* Notification Dropdown */
@@ -325,6 +326,10 @@
                 <div class="dropdown-menu" id="menuDropdown">
                     <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
                     <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'">🛡️ Admin Reports</div>
+                    <!-- Language Switcher placed at the very bottom inside ☰ menu -->
+                    <div class="dropdown-item" onclick="toggleLanguageFromMenu(event)" style="border-top: 1px solid #e4e6eb; background: #f8f9fa;">
+                        🌐 <span id="menuLangText">ភាសា / Language: ខ្មែរ</span>
+                    </div>
                     <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
                 </div>
             </div>
@@ -368,7 +373,7 @@
         </div>
     </div>
 
-    <!-- Unified Create Post Modal -->
+    <!-- Unified Create Post Modal (Smart Compression enabled by default in background, checkbox removed) -->
     <div id="createPostModal" class="modal-overlay" onclick="closeCreatePostModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -393,13 +398,6 @@
                 <textarea id="postContent" rows="3" placeholder="What's on your mind?" style="border: none; background: #f0f2f5; border-radius: 14px; padding: 12px 14px; resize: none; margin: 4px 0 0 0; outline: none; font-size: 15px;"></textarea>
                 
                 <div id="multiPreviewGrid" class="multi-preview-grid hidden"></div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: #65676b; background: #f8f9fa; padding: 8px 12px; border-radius: 8px; border: 1px solid #e4e6eb;">
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
-                        <input type="checkbox" id="smartCompressToggle" checked style="width: auto; margin: 0;">
-                        <span id="compressOptionLabel">✨ Smart 720p HD Video Optimization (Clear & Fast)</span>
-                    </label>
-                </div>
 
                 <div id="uploadProgressContainer">
                     <div class="progress-bar-bg">
@@ -432,7 +430,7 @@
         </div>
     </div>
 
-    <!-- Modal for Sharers List (See who shared this post/video) -->
+    <!-- Modal for Sharers List -->
     <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -488,7 +486,7 @@
                 <span style="cursor: pointer; font-size: 20px;" onclick="closeReportModal()">×</span>
             </div>
             <div class="modal-body">
-                <p style="font-size: 13px; color: #65676b; margin: 0;">សូមជ្រើសរើសមូលហេតុដែលការបង្ហោះ ឬវីដេអូនេះរំលោភបំពានគោលការណ៍៖</p>
+                <p style="font-size: 13px; color: #65676b; margin: 0;">សូមជ្រើសរើសមូលហេតុដែលការបង្ហោះ ឬវីដេអូនេះរំលោភបំពានគោលการណ៍៖</p>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Violence or Harmful Content (អំពើហិង្សា)')">⚠️ អំពើហិង្សា ឬគ្រោះថ្នាក់ធ្ងន់ធ្ងរ</button>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
@@ -541,7 +539,6 @@
                 privacyLabel: "Privacy:",
                 optPublic: "🌐 Public",
                 optPrivate: "🔒 Private (Only me)",
-                compressOptionLabel: "✨ Smart 720p HD Video Optimization (Clear & Fast)",
                 photoVideoLabel: "Photo / Video (Multiple)",
                 postBtn: "Post",
                 reactionsModalTitle: "People who reacted",
@@ -560,7 +557,8 @@
                 shareSocialTitle: "Share to Social Media",
                 shareSocialSub: "Telegram, Facebook, Messenger & more",
                 copyLinkLabel: "Copy Link",
-                copyLinkSub: "Copy URL to paste on other websites"
+                copyLinkSub: "Copy URL to paste on other websites",
+                langToggleText: "ភាសា / Language: English"
             },
             km: {
                 searchPlaceholder: "ស្វែងរក...",
@@ -571,7 +569,6 @@
                 privacyLabel: "ភាពឯកជន:",
                 optPublic: "🌐 ជាសាធារណៈ",
                 optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
-                compressOptionLabel: "✨ បង្ហាប់វីដេអូកម្រិតច្បាស់ 720p HD (ច្បាស់ល្អ & ទំហំតូច)",
                 photoVideoLabel: "រូបថត / វីដេអូ (ច្រើនឯកសារ)",
                 postBtn: "បង្ហោះ",
                 reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
@@ -590,7 +587,8 @@
                 shareSocialTitle: "ចែករំលែកទៅកាន់បណ្ដាញសង្គមផ្សេងៗ",
                 shareSocialSub: "Telegram, Facebook, Messenger និងកម្មវិធីផ្សេងទៀត",
                 copyLinkLabel: "ចម្លងតំណភ្ជាប់ (Copy Link)",
-                copyLinkSub: "ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ"
+                copyLinkSub: "ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ",
+                langToggleText: "ភាសា / Language: ខ្មែរ"
             }
         };
 
@@ -607,7 +605,6 @@
             document.getElementById('lblPrivacy').innerText = t.privacyLabel;
             document.getElementById('optPublic').innerText = t.optPublic;
             document.getElementById('optPrivate').innerText = t.optPrivate;
-            document.getElementById('compressOptionLabel').innerText = t.compressOptionLabel;
             document.getElementById('photoVideoLabel').innerText = t.photoVideoLabel;
             document.getElementById('postSubmitBtn').innerText = t.postBtn;
             document.getElementById('modalReactorTitle').innerText = t.reactionsModalTitle;
@@ -620,6 +617,18 @@
             document.getElementById('shareSocialSub').innerText = t.shareSocialSub;
             document.getElementById('copyLinkLabel').innerText = t.copyLinkLabel;
             document.getElementById('copyLinkSub').innerText = t.copyLinkSub;
+            const langTextEl = document.getElementById('menuLangText');
+            if (langTextEl) langTextEl.innerText = t.langToggleText;
+        }
+
+        function toggleLanguageFromMenu(event) {
+            event.stopPropagation();
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const newLang = currentLang === 'en' ? 'km' : 'en';
+            localStorage.setItem('camfeed_lang', newLang);
+            applyLanguage();
+            document.getElementById('menuDropdown').style.display = 'none';
+            loadPosts();
         }
 
         if (!currentUser) {
@@ -631,7 +640,6 @@
             }
             document.getElementById('modalAuthorName').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
             
-            // Show Admin menu item only for Super Admin or Team Admins
             const adminEmails = ['rossaorith@gmail.com', 'saorithkh2018@gmail.com'];
             if (currentUser.role === 'super_admin' || currentUser.role === 'admin' || adminEmails.includes((currentUser.email || '').toLowerCase())) {
                 const adminMenuEl = document.getElementById('menuAdminText');
@@ -750,10 +758,7 @@
             if (files.length === 0) return;
 
             files.forEach(file => {
-                if (file.size > 250 * 1024 * 1024) {
-                    alert(`File "${file.name}" exceeds 250MB limit.`);
-                    return;
-                }
+                // Removed 250MB limit check so large video files are accepted and compressed automatically
                 selectedMediaFiles.push(file);
             });
             event.target.value = '';
@@ -975,7 +980,6 @@
         async function createPost() {
             const content = document.getElementById('postContent').value;
             const privacy = document.getElementById('postPrivacy').value;
-            const shouldCompress = document.getElementById('smartCompressToggle').checked;
             const msg = document.getElementById('postMsg');
             const submitBtn = document.getElementById('postSubmitBtn');
             const progressContainer = document.getElementById('uploadProgressContainer');
@@ -1004,7 +1008,8 @@
                     for (let i = 0; i < selectedMediaFiles.length; i++) {
                         let fileToUpload = selectedMediaFiles[i];
 
-                        if (fileToUpload.type.startsWith('video') && shouldCompress) {
+                        // Always perform automatic video optimization in background
+                        if (fileToUpload.type.startsWith('video')) {
                             progressText.innerText = `Optimizing 720p HD video (${i + 1}/${selectedMediaFiles.length})... 0%`;
                             fileToUpload = await optimizeVideoTo720pHD(fileToUpload, (ratio) => {
                                 const cPercent = Math.round(ratio * 100);
@@ -1139,8 +1144,20 @@
             return `<img src="${mediaUrl}" class="post-media" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
         }
 
+        function isPostVideoType(post) {
+            if (post.media_type === 'video') return true;
+            if (post.media_url && post.media_url.includes('"type":"video"')) return true;
+            if (post.media_type === 'carousel' || (post.media_url && post.media_url.trim().startsWith('['))) {
+                try {
+                    const items = JSON.parse(post.media_url);
+                    if (items.some(it => it.type === 'video')) return true;
+                } catch (e) {}
+            }
+            if (post.shared_post_id && (post.orig_media_type === 'video' || (post.orig_media_url && post.orig_media_url.includes('"type":"video"')))) return true;
+            return false;
+        }
+
         function renderPostMediaHtml(post, dateStr) {
-            // Render Facebook-Style Embedded Shared Profile Card
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
                     const sp = JSON.parse(post.media_url);
@@ -1159,7 +1176,6 @@
                 } catch (e) {}
             }
 
-            // Render Facebook-Style Embedded Shared Post Card
             if (post.shared_post_id || post.media_type === 'shared') {
                 if (!post.orig_id) {
                     return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
@@ -1264,6 +1280,7 @@
                 const count = parseInt(post.likes_count) || 0;
                 const viewsCount = parseInt(post.views_count) || 0;
                 const sharesCount = parseInt(post.shares_count) || 0;
+                const isVideo = isPostVideoType(post);
                 const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
                 postReactionsState[post.id] = {
                     count: count,
@@ -1309,7 +1326,7 @@
                             ${buildReactionSummaryHtml(post.id)}
                         </div>
                         <div class="right-stats-group">
-                            <span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>
+                            ${isVideo ? `<span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>` : ''}
                             <span class="stat-link" style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${formatCompactNumber(post.comments_count)} ${currentLang === 'km' ? 'មតិ' : 'Comments'}</span>
                             <span class="stat-link" style="cursor: pointer;" onclick="openSharersList(${post.id})" id="shareCount-${post.id}">${formatCompactNumber(sharesCount)} ${currentLang === 'km' ? 'ចែករំលែក' : 'Shares'}</span>
                         </div>
@@ -1443,32 +1460,54 @@
             }
         }
 
-        // Track Views automatically when user scrolls and views a post/video
+        // Track Views automatically with 3-second threshold requirement for video posts
+        const activeViewTimers = new Map();
+
         function initPostViewsObserver() {
             const postCards = document.querySelectorAll('.post-item');
             const viewObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
+                    const postId = entry.target.getAttribute('data-post-id');
+                    if (!postId) return;
+
                     if (entry.isIntersecting) {
-                        const postId = entry.target.getAttribute('data-post-id');
-                        if (postId && !trackedViewsInSession.has(postId)) {
-                            trackedViewsInSession.add(postId);
-                            fetch(`/api/posts/${postId}/view`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email: currentUser.email })
-                            })
-                            .then(r => r.json())
-                            .then(data => {
-                                if (data.success && data.views_count !== undefined) {
-                                    const viewEl = document.getElementById(`viewCount-${postId}`);
-                                    if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
-                                }
-                            })
-                            .catch(() => {});
+                        // Check if this post contains a video
+                        const postCard = entry.target;
+                        const hasVideo = postCard.querySelector('video') !== null;
+                        if (!hasVideo) return; // Images and text do not get views
+
+                        if (!trackedViewsInSession.has(postId) && !activeViewTimers.has(postId)) {
+                            // Require at least 3 seconds of continuous visibility before counting a view
+                            const timer = setTimeout(() => {
+                                trackedViewsInSession.add(postId);
+                                activeViewTimers.delete(postId);
+
+                                fetch(`/api/posts/${postId}/view`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ email: currentUser.email })
+                                })
+                                .then(r => r.json())
+                                .then(data => {
+                                    if (data.success && data.views_count !== undefined) {
+                                        const viewEl = document.getElementById(`viewCount-${postId}`);
+                                        if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
+                                    }
+                                })
+                                .catch(() => {});
+                            }, 3000); // 3 seconds threshold
+
+                            activeViewTimers.set(postId, timer);
+                        }
+                    } else {
+                        // If user scrolls away before 3 seconds, cancel the view timer
+                        if (activeViewTimers.has(postId)) {
+                            clearTimeout(activeViewTimers.get(postId));
+                            activeViewTimers.delete(postId);
                         }
                     }
                 });
-            }, { threshold: 0.55 });
+            }, { threshold: 0.65 });
 
             postCards.forEach(card => viewObserver.observe(card));
         }

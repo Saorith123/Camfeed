@@ -28,11 +28,11 @@
         .profile-container { max-width: 900px; margin: 0 auto 40px; }
 
         .profile-header-card { background: #fff; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: visible; margin-bottom: 16px; position: relative; }
-        .cover-wrapper { position: relative; width: 100%; height: 270px; background: linear-gradient(135deg, #1877f2, #42b72a); overflow: hidden; }
+        .cover-wrapper { position: relative; width: 100%; height: 260px; background: linear-gradient(135deg, #1877f2, #42b72a); overflow: hidden; }
         .cover-img { width: 100%; height: 100%; object-fit: cover; }
         .edit-cover-btn { position: absolute; bottom: 14px; right: 14px; background: rgba(255,255,255,0.92); border: none; padding: 7px 13px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
 
-        .profile-info-section { padding: 0 20px 18px; position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+        .profile-info-section { padding: 0 20px 16px; position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
         .avatar-and-name { display: flex; align-items: flex-end; gap: 16px; margin-top: -55px; z-index: 2; }
         .avatar-wrapper { position: relative; width: 132px; height: 132px; border-radius: 50%; border: 4px solid #fff; background: #e4e6eb; box-shadow: 0 2px 8px rgba(0,0,0,0.15); flex-shrink: 0; }
         .profile-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
@@ -53,7 +53,7 @@
         .btn-secondary:hover { background: #d8dadf; }
         .btn-friend { background: #e7f3ff; color: #1877f2; }
 
-        /* Compact 3-Dot Profile Menu (Share Profile, Report, Block) */
+        /* Compact 3-Dot Profile Menu */
         .profile-dots-btn {
             width: 34px;
             height: 34px;
@@ -101,56 +101,75 @@
         .profile-menu-title { font-weight: 700; font-size: 14px; color: #050505; }
         .profile-menu-sub { font-size: 11.5px; color: #65676b; margin-top: 2px; }
 
-        /* Personal Details Card (Matches Facebook Style with Per-Field Privacy) */
-        .personal-details-card {
-            background: #fff;
-            border-radius: 10px;
-            padding: 16px 18px;
-            margin: 0 12px 16px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        /* Personal Details Section (Placed ABOVE the Post Tabs in a Clean 2-Column Grid) */
+        .personal-details-section {
+            padding: 14px 20px 16px;
+            border-top: 1px solid #f0f2f5;
+            background: #fafbfc;
         }
         .personal-details-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .personal-details-title {
-            font-size: 18px;
+            font-size: 15.5px;
             font-weight: 700;
             color: #050505;
         }
-        .detail-row {
+        .details-two-col-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 14px;
+        }
+        @media (max-width: 540px) {
+            .details-two-col-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .detail-cell {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 8px 0;
-            font-size: 14.5px;
+            background: #fff;
+            border: 1px solid #e4e6eb;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 13.5px;
             color: #050505;
-            gap: 10px;
+            gap: 8px;
+            min-width: 0;
         }
-        .detail-row-left {
+        .detail-cell-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            min-width: 0;
+            flex: 1;
         }
         .detail-icon {
-            font-size: 19px;
-            width: 24px;
-            text-align: center;
-            color: #65676b;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .detail-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 500;
         }
         .privacy-pill {
-            font-size: 11px;
+            font-size: 10.5px;
             background: #f0f2f5;
             color: #65676b;
-            padding: 2px 8px;
+            padding: 2px 7px;
             border-radius: 10px;
             font-weight: 600;
             white-space: nowrap;
+            flex-shrink: 0;
         }
 
-        .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 16px; gap: 4px; overflow-x: auto; }
+        .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 16px; gap: 4px; overflow-x: auto; background: #fff; }
         .tab-btn { padding: 13px 14px; background: none; border: none; font-size: 14.5px; font-weight: 600; color: #65676b; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
         .tab-btn.active { color: #1877f2; border-bottom-color: #1877f2; }
 
@@ -166,7 +185,7 @@
         .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
         .post-media { width: 100%; max-height: 500px; object-fit: contain; background: #000; border-radius: 8px; margin-bottom: 10px; display: block; }
 
-        /* Facebook-Style Embedded Shared Post / Shared Profile Card */
+        /* Embedded Shared Post / Profile Card */
         .embedded-shared-card {
             border: 1px solid #dddfe2;
             border-radius: 10px;
@@ -313,6 +332,15 @@
                 <div class="action-buttons" id="profileActions"></div>
             </div>
 
+            <!-- Personal Details Section (Positioned ABOVE the Posts Tabs in 2-Column Layout) -->
+            <div class="personal-details-section" id="personalDetailsCard" style="display:none;">
+                <div class="personal-details-header">
+                    <div class="personal-details-title">Personal details</div>
+                    <button id="editDetailsBtn" class="btn-action btn-secondary" style="display:none; padding:5px 11px; font-size:12px;" onclick="openEditDetailsModal()">✏️ Edit Details & Privacy</button>
+                </div>
+                <div class="details-two-col-grid" id="personalDetailsList"></div>
+            </div>
+
             <div class="profile-tabs">
                 <button class="tab-btn active" id="tab-posts" onclick="switchProfileTab('posts')">Posts</button>
                 <button class="tab-btn" id="tab-videos" onclick="switchProfileTab('videos')">Videos</button>
@@ -320,15 +348,6 @@
                 <button class="tab-btn" id="tab-followers" onclick="switchProfileTab('followers')">Followers</button>
                 <button class="tab-btn" id="tab-following" onclick="switchProfileTab('following')">Following</button>
             </div>
-        </div>
-
-        <!-- Personal Details Section (With Per-Field Public / Only Me Privacy) -->
-        <div class="personal-details-card" id="personalDetailsCard" style="display:none;">
-            <div class="personal-details-header">
-                <div class="personal-details-title">Personal details</div>
-                <button id="editDetailsBtn" class="btn-action btn-secondary" style="display:none; padding:6px 12px; font-size:12.5px;" onclick="openEditDetailsModal()">✏️ Edit Details & Privacy</button>
-            </div>
-            <div id="personalDetailsList"></div>
         </div>
 
         <div class="content-area" id="profileContent">
@@ -363,7 +382,7 @@
                             <option value="private">🔒 Only me</option>
                         </select>
                     </div>
-                    <input type="text" id="input-birthdate" placeholder="e.g. January 7 or 07-01-1995">
+                    <input type="text" id="input-birthdate" placeholder="e.g. July 16, 2000">
                 </div>
 
                 <div class="edit-field-group">
@@ -545,6 +564,7 @@
         let selectedReportReasonText = '';
         let pressTimer = null;
         let isLongPressTriggered = false;
+        const trackedProfileViews = new Set();
 
         const postReactionsState = {};
 
@@ -571,6 +591,16 @@
             return n.toString();
         }
 
+        function formatCleanBirthdate(rawDate) {
+            if (!rawDate) return '';
+            const str = String(rawDate).trim();
+            if (str.includes('T') && !isNaN(Date.parse(str))) {
+                const d = new Date(str);
+                return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            }
+            return str;
+        }
+
         async function loadProfileData() {
             try {
                 const res = await fetch(`/api/user-profile?email=${encodeURIComponent(profileEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
@@ -590,7 +620,6 @@
                 document.getElementById('profileStats').innerText = `${user.followers_count || 0} Followers · ${user.following_count || 0} Following`;
                 document.getElementById('profileBio').innerText = currentProfileBio;
 
-                // Show "Friends" badge when mutual follow exists
                 document.getElementById('friendBadge').style.display = user.is_friend ? 'inline-flex' : 'none';
 
                 if (user.profile_pic) {
@@ -648,7 +677,6 @@
                     };
                     actionContainer.appendChild(messageBtn);
 
-                    // Compact 3-Dot Menu (Share Profile, Report, Block)
                     const menuWrapper = document.createElement('div');
                     menuWrapper.style.position = 'relative';
                     menuWrapper.innerHTML = `
@@ -694,7 +722,7 @@
 
             const items = [
                 { icon: '📍', label: user.location, privacy: user.location_privacy || 'public' },
-                { icon: '🎂', label: user.birthdate, privacy: user.birthdate_privacy || 'public' },
+                { icon: '🎂', label: formatCleanBirthdate(user.birthdate), privacy: user.birthdate_privacy || 'public' },
                 { icon: '💕', label: user.relationship_status, privacy: user.relationship_privacy || 'public' },
                 { icon: '⚧️', label: user.gender, privacy: user.gender_privacy || 'public' },
                 { icon: '💼', label: user.work, privacy: user.work_privacy || 'public' },
@@ -711,15 +739,15 @@
 
             card.style.display = 'block';
             if (visibleItems.length === 0 && isSelf) {
-                list.innerHTML = `<div style="font-size:13.5px; color:#65676b;">No personal details added yet. Click "Edit Details & Privacy" to add your info.</div>`;
+                list.innerHTML = `<div style="font-size:13.5px; color:#65676b; grid-column: 1 / -1;">No personal details added yet. Click "Edit Details & Privacy" to add your info.</div>`;
                 return;
             }
 
             list.innerHTML = visibleItems.map(it => `
-                <div class="detail-row">
-                    <div class="detail-row-left">
+                <div class="detail-cell">
+                    <div class="detail-cell-left">
                         <span class="detail-icon">${it.icon}</span>
-                        <span>${it.label}</span>
+                        <span class="detail-text" title="${it.label}">${it.label}</span>
                     </div>
                     ${isSelf ? `<span class="privacy-pill">${it.privacy === 'public' ? '🌐 Public' : '🔒 Only me'}</span>` : ''}
                 </div>
@@ -732,7 +760,7 @@
             document.getElementById('input-location').value = u.location || '';
             document.getElementById('priv-location').value = u.location_privacy || 'public';
 
-            document.getElementById('input-birthdate').value = u.birthdate || '';
+            document.getElementById('input-birthdate').value = formatCleanBirthdate(u.birthdate) || '';
             document.getElementById('priv-birthdate').value = u.birthdate_privacy || 'public';
 
             document.getElementById('input-relationship').value = u.relationship_status || '';
@@ -879,7 +907,6 @@
         }
 
         function renderPostMediaHtml(post) {
-            // Embedded Shared Profile Card
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
                     const sp = JSON.parse(post.media_url);
@@ -898,7 +925,6 @@
                 } catch (e) {}
             }
 
-            // Embedded Shared Post Card
             if (post.shared_post_id || post.media_type === 'shared') {
                 if (!post.orig_id) {
                     return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
@@ -966,6 +992,7 @@
 
                             const div = document.createElement('div');
                             div.className = 'post-card';
+                            div.setAttribute('data-post-id', post.id);
                             const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString() : '';
                             const isOwner = currentUser.email === post.user_email;
 
@@ -999,7 +1026,7 @@
                                         ${buildReactionSummaryHtml(post.id)}
                                     </div>
                                     <div class="right-stats-group">
-                                        <span>👁️ ${formatCompactNumber(viewsCount)}</span>
+                                        <span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>
                                         <span class="stat-link" id="commentCount-${post.id}" style="cursor:pointer;" onclick="openCommentsModal(${post.id})">${formatCompactNumber(post.comments_count)} Comments</span>
                                         <span class="stat-link" style="cursor:pointer;" onclick="openSharersList(${post.id})">${formatCompactNumber(sharesCount)} Shares</span>
                                     </div>
@@ -1030,6 +1057,7 @@
                             `;
                             content.appendChild(div);
                         });
+                        initProfileViewsObserver();
                     }
                 } else if (tab === 'friends' || tab === 'followers' || tab === 'following') {
                     const res = await fetch(`/api/follow-list?email=${encodeURIComponent(profileEmail)}&type=${tab}`);
@@ -1054,7 +1082,35 @@
             }
         }
 
-        // Hold 1 second on thumb button to open persistent reaction bar
+        function initProfileViewsObserver() {
+            const cards = document.querySelectorAll('.post-card');
+            const viewObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const postId = entry.target.getAttribute('data-post-id');
+                        if (postId && !trackedProfileViews.has(postId)) {
+                            trackedProfileViews.add(postId);
+                            fetch(`/api/posts/${postId}/view`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: currentUser.email })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success && data.views_count !== undefined) {
+                                    const viewEl = document.getElementById(`viewCount-${postId}`);
+                                    if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
+                                }
+                            })
+                            .catch(() => {});
+                        }
+                    }
+                });
+            }, { threshold: 0.55 });
+
+            cards.forEach(card => viewObserver.observe(card));
+        }
+
         function startHoldReaction(event, postId) {
             if (event.button && event.button !== 0) return;
             isLongPressTriggered = false;
@@ -1142,7 +1198,6 @@
             if (summary) summary.innerHTML = buildReactionSummaryHtml(postId);
         }
 
-        // Reactors & Sharers Lists Modals
         async function openReactionsList(postId) {
             const modal = document.getElementById('reactionsModal');
             const listContainer = document.getElementById('reactionsModalList');
@@ -1221,7 +1276,6 @@
             else openSharersList(postId);
         }
 
-        // Share Post or Share Profile Modal
         function openSharePostModal(postId) {
             shareContext = { mode: 'post', postId };
             document.getElementById('shareModalTitle').innerText = 'Share Post';
@@ -1311,7 +1365,6 @@
             setTimeout(() => closeShareModal(), 900);
         }
 
-        // Report Post or Report Profile Modal
         function openReportPostModal(postId) {
             document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
             reportContext = { mode: 'post', postId };
@@ -1389,7 +1442,6 @@
             } catch (err) { console.error(err); }
         }
 
-        // Upload Profile / Cover picture directly to Cloudflare R2 via server proxy
         async function uploadProfileImage(fieldName, input) {
             const file = input.files[0];
             if (!file) return;
