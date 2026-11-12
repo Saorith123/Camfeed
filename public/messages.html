@@ -565,6 +565,81 @@
         }
         .recording-banner.active { display: flex; }
 
+        /* Multi-Media Preview Tray (Choose Multiple Photos/Videos -> Edit or Send Immediately) */
+        .media-staging-tray {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            background: #f8f9fa;
+            border-top: 1px solid #e4e6eb;
+            padding: 10px 12px;
+        }
+        .media-staging-tray.active {
+            display: flex;
+        }
+        .staging-items-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+        }
+        .staging-items-scroll::-webkit-scrollbar { display: none; }
+        .staging-thumb-card {
+            position: relative;
+            width: 86px;
+            height: 86px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+            border: 1.5px solid #dddfe2;
+            flex-shrink: 0;
+        }
+        .staging-thumb-card img, .staging-thumb-card video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .staging-remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.72);
+            color: #fff;
+            border: none;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .staging-edit-badge {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            right: 4px;
+            background: rgba(24, 119, 242, 0.92);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 3px 0;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+        }
+        .staging-actions-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
         /* Full-Screen Photo Editor Modal (Crop, Draw Pen, Add Text) */
         .photo-editor-overlay {
             display: none;
@@ -798,10 +873,22 @@
                 <button class="emoji-item-btn" onclick="insertEmoji('🎉')">🎉</button>
             </div>
 
+            <!-- Multi-Media Preview Tray (Send Immediately or Click Edit to Crop/Draw/Text) -->
+            <div class="media-staging-tray" id="mediaStagingTray">
+                <div class="staging-items-scroll" id="stagingItemsScroll"></div>
+                <div class="staging-actions-row">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button type="button" onclick="document.getElementById('chatMediaInput').click()" style="background:#e4e6eb; color:#050505; border:none; padding:6px 12px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមទៀត</button>
+                        <button type="button" onclick="clearStagedMedia()" style="background:none; border:none; color:#65676b; font-size:12.5px; font-weight:700; cursor:pointer;">លុបទាំងអស់</button>
+                    </div>
+                    <button type="button" id="sendStagedMediaBtn" onclick="sendAllStagedMedia()" style="background:#1877f2; color:#fff; border:none; padding:7px 18px; border-radius:18px; font-size:13.5px; font-weight:700; cursor:pointer;">Send ➤</button>
+                </div>
+            </div>
+
             <!-- Messenger Bottom Bar: [+] [Camera] [Gallery] [Mic] [Message input + 😊] [👍 / Send] -->
             <div class="chat-input-bar" id="chatInputBar" style="display: none;">
                 <input type="file" id="chatCameraInput" accept="image/*,video/*" capture="environment" style="display: none;" onchange="sendMediaMessage(this)">
-                <input type="file" id="chatMediaInput" accept="image/*,video/*" style="display: none;" onchange="sendMediaMessage(this)">
+                <input type="file" id="chatMediaInput" accept="image/*,video/*" multiple style="display: none;" onchange="sendMediaMessage(this)">
 
                 <button class="bar-icon-btn" onclick="document.getElementById('chatMediaInput').click()" title="More">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
@@ -849,7 +936,7 @@
 
         <div class="editor-bottom-bar">
             <span style="font-size:12.5px; color:#b0b3b8;" id="editorHintText">អូសកែងប្រអប់ដើម្បីកាត់រូបភាព (Crop)</span>
-            <button type="button" id="sendEditedPhotoBtn" onclick="sendEditedPhoto()" style="background:#1877f2; color:#fff; border:none; padding:10px 22px; border-radius:22px; font-size:14.5px; font-weight:700; cursor:pointer;">ផ្ញើរូបភាព ➤</button>
+            <button type="button" id="sendEditedPhotoBtn" onclick="applyEditedPhotoToStage()" style="background:#1877f2; color:#fff; border:none; padding:10px 22px; border-radius:22px; font-size:14.5px; font-weight:700; cursor:pointer;">✓ រួចរាល់ (Done)</button>
         </div>
     </div>
 
@@ -1563,18 +1650,101 @@
             }
         }
 
-        async function sendMediaMessage(fileInput) {
-            const file = fileInput.files[0];
-            if (!file || !activeFriend) return;
+        // =========================================================================
+        // MULTI-FILE MEDIA STAGING QUEUE (Send Immediately OR Click "Edit")
+        // =========================================================================
+        let stagedMediaItems = []; // [{ id, fileOrBlob, name, previewUrl, isImage }]
+        let editingStagedIndex = -1;
+
+        function sendMediaMessage(fileInput) {
+            const files = Array.from(fileInput.files || []);
+            if (files.length === 0 || !activeFriend) return;
             fileInput.value = '';
 
-            // If it's an image, open the interactive Crop / Pen Draw / Add Text Editor before sending
-            if (file.type && file.type.startsWith('image/')) {
-                openPhotoEditor(file);
+            files.forEach(file => {
+                const isImage = !!(file.type && file.type.startsWith('image/'));
+                const previewUrl = URL.createObjectURL(file);
+                stagedMediaItems.push({
+                    id: Date.now() + Math.random(),
+                    fileOrBlob: file,
+                    name: file.name || (isImage ? 'photo.jpg' : 'video.mp4'),
+                    previewUrl,
+                    isImage
+                });
+            });
+
+            renderStagedMediaTray();
+        }
+
+        function renderStagedMediaTray() {
+            const tray = document.getElementById('mediaStagingTray');
+            const scrollEl = document.getElementById('stagingItemsScroll');
+            const sendBtn = document.getElementById('sendStagedMediaBtn');
+            if (!tray || !scrollEl) return;
+
+            if (stagedMediaItems.length === 0) {
+                tray.classList.remove('active');
+                scrollEl.innerHTML = '';
                 return;
             }
 
-            await uploadAndSendChatFile(file, file.name || 'video.mp4');
+            tray.classList.add('active');
+            sendBtn.innerText = stagedMediaItems.length > 1
+                ? `Send (${stagedMediaItems.length}) ➤`
+                : 'Send ➤';
+
+            scrollEl.innerHTML = stagedMediaItems.map((item, idx) => `
+                <div class="staging-thumb-card">
+                    ${item.isImage
+                        ? `<img src="${item.previewUrl}">`
+                        : `<video src="${item.previewUrl}" muted playsinline></video>`
+                    }
+                    <button type="button" class="staging-remove-btn" onclick="removeStagedMedia(${idx})" title="លុប">×</button>
+                    ${item.isImage
+                        ? `<button type="button" class="staging-edit-badge" onclick="editStagedPhoto(${idx})">✏️ Edit</button>`
+                        : `<span style="position:absolute; bottom:4px; left:4px; background:rgba(0,0,0,0.7); color:#fff; font-size:10px; padding:2px 6px; border-radius:6px;">🎬 Video</span>`
+                    }
+                </div>
+            `).join('');
+        }
+
+        function removeStagedMedia(idx) {
+            const removed = stagedMediaItems.splice(idx, 1)[0];
+            if (removed && removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+            renderStagedMediaTray();
+        }
+
+        function clearStagedMedia() {
+            stagedMediaItems.forEach(it => { if (it.previewUrl) URL.revokeObjectURL(it.previewUrl); });
+            stagedMediaItems = [];
+            renderStagedMediaTray();
+        }
+
+        function editStagedPhoto(idx) {
+            const item = stagedMediaItems[idx];
+            if (!item || !item.isImage) return;
+            editingStagedIndex = idx;
+            openPhotoEditor(item.fileOrBlob);
+        }
+
+        async function sendAllStagedMedia() {
+            if (stagedMediaItems.length === 0 || !activeFriend) return;
+            const sendBtn = document.getElementById('sendStagedMediaBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerText = 'កំពុងផ្ញើ...';
+
+            const itemsToSend = [...stagedMediaItems];
+            clearStagedMedia();
+
+            try {
+                for (let i = 0; i < itemsToSend.length; i++) {
+                    const it = itemsToSend[i];
+                    await uploadAndSendChatFile(it.fileOrBlob, it.name);
+                }
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'Send ➤';
+            }
         }
 
         async function uploadAndSendChatFile(fileOrBlob, fileName) {
@@ -1978,26 +2148,32 @@
             canvas.addEventListener('pointercancel', endPointer);
         })();
 
-        async function sendEditedPhoto() {
+        function applyEditedPhotoToStage() {
             const canvas = document.getElementById('photoEditorCanvas');
-            const sendBtn = document.getElementById('sendEditedPhotoBtn');
+            const doneBtn = document.getElementById('sendEditedPhotoBtn');
             if (!canvas || !editorBaseImg) return;
 
-            sendBtn.disabled = true;
-            sendBtn.innerText = 'កំពុងផ្ញើ...';
-
-            // Render final clean image without crop frame overlay
+            doneBtn.disabled = true;
             renderEditorCanvas(true);
 
-            canvas.toBlob(async (blob) => {
+            canvas.toBlob((blob) => {
                 try {
-                    if (blob) {
-                        await uploadAndSendChatFile(blob, `edited-photo-${Date.now()}.jpg`);
+                    if (blob && editingStagedIndex >= 0 && stagedMediaItems[editingStagedIndex]) {
+                        const oldItem = stagedMediaItems[editingStagedIndex];
+                        if (oldItem.previewUrl) URL.revokeObjectURL(oldItem.previewUrl);
+                        const newUrl = URL.createObjectURL(blob);
+                        stagedMediaItems[editingStagedIndex] = {
+                            ...oldItem,
+                            fileOrBlob: blob,
+                            name: `edited-${Date.now()}.jpg`,
+                            previewUrl: newUrl
+                        };
+                        renderStagedMediaTray();
                     }
+                    editingStagedIndex = -1;
                     closePhotoEditor();
                 } finally {
-                    sendBtn.disabled = false;
-                    sendBtn.innerText = 'ផ្ញើរូបភាព ➤';
+                    doneBtn.disabled = false;
                 }
             }, 'image/jpeg', 0.92);
         }
