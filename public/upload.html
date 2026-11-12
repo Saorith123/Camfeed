@@ -374,13 +374,27 @@
             position: fixed;
             bottom: calc(16px + env(safe-area-inset-bottom, 0px));
             right: 14px;
-            width: 295px;
-            max-width: calc(100vw - 28px);
+            width: 305px;
+            max-width: calc(100vw - 24px);
             z-index: 3000;
             background: rgba(15, 23, 42, 0.95);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.16);
+            border: 1px solid rgba(255,255,255,0.18);
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: grab;
+        }
+        .dp-warning-note {
+            font-size: 11px;
+            line-height: 1.35;
+            color: #fde68a;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.32);
+            padding: 5px 8px;
+            border-radius: 8px;
+            font-weight: 600;
         }
         .dp-top-row {
             display: flex;
@@ -583,6 +597,7 @@
                         <div class="dp-fill-upload" id="dpUploadFill"></div>
                     </div>
                 </div>
+                <div class="dp-warning-note">⚠️ វីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។</div>
             </div>
 
             <button type="button" id="bottomPostBtn" class="bottom-submit-btn" onclick="submitNewPost()">បង្ហោះឥឡូវនេះ (Post)</button>
@@ -722,7 +737,7 @@
         initTextBackgroundPickers();
 
         function goBackToFeed() {
-            if (isUploading && !confirm('កំពុងបង្ហោះឯកសារ តើអ្នកពិតជាចង់ចាកចេញមែនទេ?')) {
+            if (isUploading && !confirm('កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ?\nវីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។')) {
                 return;
             }
             window.location.href = 'feed.html';
@@ -1358,6 +1373,42 @@
             window.addEventListener('beforeunload', signalOfflineNow);
             window.addEventListener('pagehide', signalOfflineNow);
         })();
+
+    
+        // Draggable Floating Progress Card + BeforeUnload Warning
+        (function initDraggableDpCard() {
+            const card = document.getElementById('dualProgressCard');
+            if (!card) return;
+            let dragging = false, sx = 0, sy = 0, ol = 0, ot = 0;
+            card.addEventListener('pointerdown', (e) => {
+                if (!card.classList.contains('floating-corner') || e.target.closest('button')) return;
+                dragging = true;
+                const r = card.getBoundingClientRect();
+                ol = r.left; ot = r.top; sx = e.clientX; sy = e.clientY;
+                card.style.left = ol + 'px'; card.style.top = ot + 'px';
+                card.style.right = 'auto'; card.style.bottom = 'auto';
+                try { card.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+            card.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                const maxL = Math.max(6, window.innerWidth - card.offsetWidth - 6);
+                const maxT = Math.max(6, window.innerHeight - card.offsetHeight - 6);
+                card.style.left = Math.min(maxL, Math.max(6, ol + (e.clientX - sx))) + 'px';
+                card.style.top = Math.min(maxT, Math.max(6, ot + (e.clientY - sy))) + 'px';
+            });
+            const stopD = (e) => { if (dragging) { dragging = false; try { card.releasePointerCapture(e.pointerId); } catch (err) {} } };
+            card.addEventListener('pointerup', stopD);
+            card.addEventListener('pointercancel', stopD);
+        })();
+
+        window.addEventListener('beforeunload', (e) => {
+            if (isUploading) {
+                const msg = 'កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ? វីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។';
+                e.preventDefault();
+                e.returnValue = msg;
+                return msg;
+            }
+        });
 
     </script>
 </body>
