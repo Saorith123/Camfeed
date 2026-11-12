@@ -474,6 +474,27 @@
         </div>
     </div>
 
+    <!-- Edit Own Post Content & Privacy Modal -->
+    <div id="editPostModal" class="modal-overlay" onclick="closeEditPostModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>✏️ កែប្រែការបង្ហោះ (Edit Post)</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeEditPostModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-size:13px; font-weight:700; color:#050505;">ភាពឯកជន (Privacy):</label>
+                    <select id="editPostPrivacySelect" style="width:auto; padding:6px 12px; font-size:13px; border:1px solid #dddfe2; border-radius:8px; font-weight:600; outline:none;">
+                        <option value="public">🌐 ជាសាធារណៈ (Public)</option>
+                        <option value="private">🔒 ឯកជន (Private - ឃើញតែខ្ញុំម្នាក់ឯង)</option>
+                    </select>
+                </div>
+                <textarea id="editPostContentTextarea" rows="4" placeholder="កែប្រែអត្ថបទរបស់អ្នក..." style="width:100%; padding:12px; border:1px solid #dddfe2; background:#f0f2f5; border-radius:10px; font-size:14.5px; outline:none; resize:vertical;"></textarea>
+                <button type="button" id="saveEditPostBtn" onclick="submitEditPost()" style="background:#1877f2; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:700; font-size:15px; cursor:pointer;">រក្សាទុកការកែប្រែ (Save)</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Comments Modal -->
     <div id="commentsModal" class="modal-overlay" onclick="closeCommentsModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
@@ -1024,8 +1045,14 @@
                             const optionsHtml = `
                                 <div style="position:relative;">
                                     <button class="options-btn" onclick="togglePostMenu(event, ${post.id})">⋮</button>
-                                    <div class="dropdown-menu" id="post-menu-${post.id}" onclick="event.stopPropagation()">
-                                        ${isOwner ? `<button onclick="deletePost(${post.id})" style="color:red;">🗑️ Delete Post</button>` : ''}
+                                    <div class="dropdown-menu" id="post-menu-${post.id}" onclick="event.stopPropagation()" style="min-width:215px;">
+                                        ${isOwner ? `
+                                            <button onclick="openEditPostModal(${post.id}, '${encodeURIComponent(post.content || '')}', '${post.privacy || 'public'}')">✏️ កែប្រែខ្លឹមសារ (Edit Post)</button>
+                                            <button onclick="quickTogglePostPrivacy(${post.id}, '${post.privacy || 'public'}')">
+                                                ${(post.privacy === 'private') ? '🌐 ប្តូរទៅជាសាធារណៈ (Public)' : '🔒 ប្តូរទៅជាឯកជន (Private)'}
+                                            </button>
+                                            <button onclick="deletePost(${post.id})" style="color:red;">🗑️ លុបការបង្ហោះ (Delete)</button>
+                                        ` : ''}
                                         <button onclick="openReportPostModal(${post.id})" style="color:#d93025;">🚩 Report Post</button>
                                     </div>
                                 </div>
@@ -1589,6 +1616,72 @@
                 document.querySelectorAll('.reaction-picker').forEach(el => el.classList.remove('show'));
             }
         });
+
+        let activePostIdForEdit = null;
+
+        function openEditPostModal(postId, encodedContent, currentPrivacy) {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            activePostIdForEdit = postId;
+            document.getElementById('editPostContentTextarea').value = decodeURIComponent(encodedContent || '');
+            document.getElementById('editPostPrivacySelect').value = currentPrivacy === 'private' ? 'private' : 'public';
+            document.getElementById('editPostModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('editPostContentTextarea').focus(), 80);
+        }
+
+        function closeEditPostModal() {
+            document.getElementById('editPostModal').style.display = 'none';
+            activePostIdForEdit = null;
+        }
+
+        async function submitEditPost() {
+            if (!activePostIdForEdit) return;
+            const content = document.getElementById('editPostContentTextarea').value;
+            const privacy = document.getElementById('editPostPrivacySelect').value;
+            const btn = document.getElementById('saveEditPostBtn');
+            btn.disabled = true;
+            btn.innerText = 'កំពុងរក្សាទុក...';
+
+            try {
+                const res = await fetch(`/api/posts/${activePostIdForEdit}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, content, privacy })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeEditPostModal();
+                    loadTabContent(currentTab);
+                } else {
+                    alert(data.error || 'មិនអាចកែប្រែការបង្ហោះបានទេ');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'រក្សាទុកការកែប្រែ (Save)';
+            }
+        }
+
+        async function quickTogglePostPrivacy(postId, currentPrivacy) {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            const newPrivacy = currentPrivacy === 'private' ? 'public' : 'private';
+            try {
+                const res = await fetch(`/api/posts/${postId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, privacy: newPrivacy })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadTabContent(currentTab);
+                } else {
+                    alert(data.error || 'មិនអាចផ្លាស់ប្តូរភាពឯកជនបានទេ');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
 
         async function deletePost(postId) {
             if (!confirm('តើអ្នកពិតជាចង់លុប Post នេះមែនទេ?')) return;

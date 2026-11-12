@@ -401,6 +401,7 @@
                 }
 
                 container.innerHTML = videoItems.map(video => {
+                    videoAuthorMap[video.id] = video.user_email;
                     videoReactionState[video.id] = {
                         count: video.likes_count,
                         userReaction: video.user_reaction
@@ -436,10 +437,11 @@
                                     </div>
                                     <button class="action-icon-btn ${video.user_reaction ? 'reacted' : ''}"
                                             id="likeBtn-${video.id}"
+                                            style="touch-action: manipulation;"
                                             onpointerdown="startHoldReaction(event, ${video.id})"
                                             onpointerup="endHoldReaction(event, ${video.id})"
-                                            onpointerleave="cancelHoldTimer()"
-                                            oncontextmenu="event.preventDefault()">
+                                            onpointercancel="cancelHoldTimer()"
+                                            oncontextmenu="event.preventDefault(); return false;">
                                         ${video.user_reaction || '👍'}
                                     </button>
                                     <div class="action-count" id="likeCount-${video.id}" onclick="openReactionsList(${video.id})">${formatCompactNumber(video.likes_count)}</div>
@@ -529,7 +531,7 @@
             reelItems.forEach(item => observer.observe(item));
         }
 
-        // Reactions (Tap = Like, Hold 1s = 7 Emojis: 👍 ❤️ 🥰 😆 😮 😢 😡)
+        // Reactions (Tap = Like, Hold ~0.7s = 7 Emojis: 👍 ❤️ 🥰 😆 😮 😢 😡)
         function startHoldReaction(event, postId) {
             if (event.button && event.button !== 0) return;
             event.stopPropagation();
@@ -537,11 +539,12 @@
             cancelHoldTimer();
             pressTimer = setTimeout(() => {
                 isLongPressTriggered = true;
-                if (navigator.vibrate) navigator.vibrate(25);
+                if (navigator.vibrate) navigator.vibrate(30);
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                document.querySelectorAll('.v-comment-emoji-bar').forEach(b => b.style.display = 'none');
                 const picker = document.getElementById(`picker-${postId}`);
                 if (picker) picker.classList.add('show');
-            }, 900);
+            }, 650);
         }
 
         function endHoldReaction(event, postId) {
@@ -828,33 +831,128 @@
             }
         }
 
-        // Comments Modal
+        // Comments Modal with Reactions (👍 ❤️ 😆 😮 😢 😡), Edit Comment & Post-Owner Delete
+        const videoAuthorMap = {};
+        let activeReplyToCommentId = null;
+
+        function setVideoReplyTarget(commentId, authorName) {
+            activeReplyToCommentId = commentId;
+            const inp = document.getElementById('modalCommentInput');
+            if (inp) {
+                inp.placeholder = `ឆ្លើយតបទៅកាន់ ${authorName}...`;
+                inp.focus();
+            }
+        }
+
+        function toggleVideoCommentEmojiBar(commentId, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.v-comment-emoji-bar').forEach(el => {
+                if (el.id !== `v-c-picker-${commentId}`) el.style.display = 'none';
+            });
+            const bar = document.getElementById(`v-c-picker-${commentId}`);
+            if (bar) bar.style.display = bar.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        async function reactToVideoComment(commentId, postId, emoji) {
+            const bar = document.getElementById(`v-c-picker-${commentId}`);
+            if (bar) bar.style.display = 'none';
+            try {
+                const res = await fetch(`/api/comments/${commentId}/reaction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    openCommentsModal(postId);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function enableEditVideoComment(commentId, postId, encodedContent) {
+            const rawText = decodeURIComponent(encodedContent || '');
+            const textEl = document.getElementById(`v-comment-text-${commentId}`);
+            if (!textEl) return;
+            textEl.innerHTML = `
+                <div style="display:flex; gap:6px; margin-top:4px;">
+                    <input type="text" id="v-edit-c-inp-${commentId}" value="${rawText.replace(/"/g, '&quot;')}" style="padding:5px 10px; font-size:13px; border-radius:12px; border:1px solid #ccc;">
+                    <button type="button" onclick="saveEditVideoComment(${commentId}, ${postId})" style="background:#1877f2; color:#fff; border:none; border-radius:12px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;">Save</button>
+                </div>
+            `;
+            setTimeout(() => document.getElementById(`v-edit-c-inp-${commentId}`)?.focus(), 50);
+        }
+
+        async function saveEditVideoComment(commentId, postId) {
+            const inp = document.getElementById(`v-edit-c-inp-${commentId}`);
+            if (!inp || !inp.value.trim()) return;
+            try {
+                const res = await fetch(`/api/comments/${commentId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, content: inp.value.trim() })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    openCommentsModal(postId);
+                } else {
+                    alert(data.error || 'មិនអាចកែប្រែ Comment បានទេ');
+                }
+            } catch (err) { console.error(err); }
+        }
+
         async function openCommentsModal(postId) {
             activePostIdForComment = postId;
+            activeReplyToCommentId = null;
+            const inp = document.getElementById('modalCommentInput');
+            if (inp) inp.placeholder = 'សរសេរមតិយោបល់ (Write a comment)...';
             const modal = document.getElementById('commentsModal');
             const list = document.getElementById('modalCommentList');
             list.innerHTML = '<p style="text-align:center; color:#65676b;">Loading comments...</p>';
             modal.style.display = 'flex';
 
             try {
-                const res = await fetch(`/api/comments/${postId}`);
+                const res = await fetch(`/api/comments/${postId}?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 if (data.success) {
                     if (data.comments.length === 0) {
-                        list.innerHTML = '<p style="text-align:center; color:#65676b; padding:20px;">No comments yet. Be the first to comment!</p>';
+                        list.innerHTML = '<p style="text-align:center; color:#65676b; padding:20px;">មិនទាន់មានមតិយោបល់នៅឡើយទេ។</p>';
                         return;
                     }
+                    const isVideoOwner = videoAuthorMap[postId] === currentUser.email;
                     list.innerHTML = data.comments.map(c => {
-                        const isOwner = currentUser.email === c.user_email;
+                        const isCommentOwner = currentUser.email === c.user_email;
+                        const canDelete = isCommentOwner || isVideoOwner;
+                        const likesCount = parseInt(c.likes_count) || 0;
+                        const userReact = c.user_reaction || '';
+                        const types = Array.isArray(c.reaction_types) ? c.reaction_types.filter(Boolean) : [];
+                        const iconsStr = types.length > 0 ? types.join('') : (userReact || '');
+                        const replyBadge = c.reply_to_id ? `<span style="font-size:11px; color:#1877f2; font-weight:600;">↳ បានឆ្លើយតប</span> ` : '';
+
                         return `
-                            <div class="comment-container" id="comment-${c.id}">
-                                <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
-                                <div class="comment-content-wrapper">
-                                    <div class="comment-bubble">
-                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name} ${c.last_name}</span>
-                                        <div>${c.content}</div>
+                            <div class="comment-container" id="comment-${c.id}" style="flex-direction:column; gap:2px;">
+                                <div style="display:flex; gap:10px; width:100%; align-items:flex-start;">
+                                    <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
+                                    <div class="comment-content-wrapper">
+                                        <div class="comment-bubble">
+                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name} ${c.last_name} ${replyBadge}</span>
+                                            <div id="v-comment-text-${c.id}" class="notranslate" translate="no">${c.content}</div>
+                                        </div>
+                                        <div style="display:flex; gap:4px; align-items:center;">
+                                            ${isCommentOwner ? `<button class="comment-options-btn" onclick="enableEditVideoComment(${c.id}, ${postId}, '${encodeURIComponent(c.content)}')" title="កែប្រែ">✏️</button>` : ''}
+                                            ${canDelete ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})" title="លុប">🗑️</button>` : ''}
+                                        </div>
                                     </div>
-                                    ${isOwner ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})">🗑️</button>` : ''}
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; padding-left:44px; font-size:11.5px; color:#65676b; font-weight:700; position:relative;">
+                                    <span style="cursor:pointer; color:${userReact ? '#1877f2' : '#65676b'};" onclick="toggleVideoCommentEmojiBar(${c.id}, event)">
+                                        ${userReact ? `${userReact} Reacted` : '👍 React'}
+                                    </span>
+                                    <span style="cursor:pointer;" onclick="setVideoReplyTarget(${c.id}, '${(c.first_name || '').replace(/'/g, '')}')">💬 Reply</span>
+                                    ${likesCount > 0 ? `<span style="margin-left:auto; background:#f0f2f5; padding:1px 7px; border-radius:10px; font-size:11px;">${iconsStr} ${likesCount}</span>` : ''}
+
+                                    <div id="v-c-picker-${c.id}" class="v-comment-emoji-bar" style="display:none; position:absolute; bottom:22px; left:40px; background:#fff; padding:5px 10px; border-radius:24px; box-shadow:0 4px 14px rgba(0,0,0,0.25); border:1px solid #e4e6eb; gap:8px; z-index:3000;" onclick="event.stopPropagation()">
+                                        ${['👍','❤️','😆','😮','😢','😡'].map(em => `<span style="font-size:20px; cursor:pointer;" onclick="reactToVideoComment(${c.id}, ${postId}, '${em}')">${em}</span>`).join('')}
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -881,6 +979,8 @@
                         let currentCount = parseInt(countElem.innerText) || 1;
                         countElem.innerText = Math.max(0, currentCount - 1);
                     }
+                } else {
+                    alert(data.error || 'មិនអាចលុប Comment នេះបានទេ');
                 }
             } catch (err) { console.error(err); }
         }
@@ -888,6 +988,7 @@
         function closeCommentsModal() {
             document.getElementById('commentsModal').style.display = 'none';
             activePostIdForComment = null;
+            activeReplyToCommentId = null;
         }
 
         async function addModalComment() {
@@ -899,11 +1000,18 @@
                 const res = await fetch('/api/comments', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ postId: activePostIdForComment, email: currentUser.email, content })
+                    body: JSON.stringify({
+                        postId: activePostIdForComment,
+                        email: currentUser.email,
+                        content,
+                        replyToCommentId: activeReplyToCommentId
+                    })
                 });
                 const data = await res.json();
                 if (data.success) {
                     input.value = '';
+                    activeReplyToCommentId = null;
+                    input.placeholder = 'សរសេរមតិយោបល់ (Write a comment)...';
                     openCommentsModal(activePostIdForComment);
                     const countElem = document.getElementById(`commentCount-${activePostIdForComment}`);
                     if (countElem) {
@@ -918,6 +1026,7 @@
             document.querySelectorAll('.video-options-dropdown').forEach(m => m.style.display = 'none');
             if (!e.target.closest('.action-slot')) {
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                document.querySelectorAll('.v-comment-emoji-bar').forEach(b => b.style.display = 'none');
             }
         });
     </script>

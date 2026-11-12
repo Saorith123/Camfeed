@@ -160,6 +160,7 @@
             background: #e4e6eb;
         }
         .online-green-dot {
+            display: none;
             position: absolute;
             bottom: 0;
             right: 0;
@@ -168,6 +169,53 @@
             border-radius: 50%;
             background: #31a24c;
             border: 2px solid #fff;
+        }
+        .online-green-dot.is-online {
+            display: block;
+        }
+        .contact-avatar-wrap {
+            position: relative;
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+        }
+        .contact-online-dot {
+            display: none;
+            position: absolute;
+            bottom: 1px;
+            right: 1px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #31a24c;
+            border: 2px solid #fff;
+        }
+        .contact-online-dot.is-online {
+            display: block;
+        }
+        /* Voice Review & Preview Bar Before Sending */
+        .voice-review-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: #eef5ff;
+            border-top: 1px solid #cce0ff;
+            padding: 8px 12px;
+        }
+        .voice-review-banner.active {
+            display: flex;
+        }
+        .review-audio-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #0038b8;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            flex: 1;
+            min-width: 0;
         }
         .header-user-meta {
             min-width: 0;
@@ -517,6 +565,98 @@
         }
         .recording-banner.active { display: flex; }
 
+        /* Full-Screen Photo Editor Modal (Crop, Draw Pen, Add Text) */
+        .photo-editor-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            height: 100dvh;
+            background: #000;
+            z-index: 3000;
+            flex-direction: column;
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .photo-editor-overlay.active { display: flex; }
+        .editor-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 14px calc(10px + env(safe-area-inset-top, 0px));
+            background: rgba(0, 0, 0, 0.85);
+            border-bottom: 1px solid rgba(255,255,255,0.12);
+            z-index: 10;
+        }
+        .editor-tool-tabs {
+            display: flex;
+            gap: 8px;
+        }
+        .editor-tool-btn {
+            background: rgba(255,255,255,0.14);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 7px 12px;
+            border-radius: 18px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .editor-tool-btn.active {
+            background: #1877f2;
+            border-color: #1877f2;
+        }
+        .editor-canvas-stage {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 12px;
+            touch-action: none;
+        }
+        #photoEditorCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+            touch-action: none;
+        }
+        .editor-sub-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px;
+            background: rgba(18, 18, 18, 0.95);
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .color-swatch {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            cursor: pointer;
+            transition: transform 0.12s;
+        }
+        .color-swatch.selected {
+            transform: scale(1.22);
+            box-shadow: 0 0 0 2px #1877f2;
+        }
+        .editor-bottom-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+            background: #0a0a0a;
+            border-top: 1px solid rgba(255,255,255,0.12);
+        }
+
         /* Forward Modal */
         .modal-overlay {
             display: none;
@@ -594,11 +734,11 @@
                     <button class="header-back-arrow" onclick="showContactsMobile()" title="Back">←</button>
                     <div class="header-avatar-wrap" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
                         <img src="https://via.placeholder.com/38" id="activeChatAvatar">
-                        <span class="online-green-dot"></span>
+                        <span class="online-green-dot" id="activeChatOnlineDot"></span>
                     </div>
                     <div class="header-user-meta" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
                         <div class="header-user-name notranslate" translate="no" id="activeChatName">Select a conversation</div>
-                        <div class="header-user-status" id="activeChatStatus">Active now</div>
+                        <div class="header-user-status" id="activeChatStatus"></div>
                     </div>
                 </div>
 
@@ -628,9 +768,20 @@
             <div class="recording-banner" id="recordingBanner">
                 <span>🔴 កំពុងថតសំឡេង... <span id="recordingTimerText">0:00</span></span>
                 <div style="display:flex; gap:8px;">
-                    <button type="button" onclick="cancelVoiceRecording()" style="background:#fff; border:1px solid #d93025; color:#d93025; padding:4px 10px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">បោះបង់</button>
-                    <button type="button" onclick="finishAndSendVoiceRecording()" style="background:#1877f2; border:none; color:#fff; padding:4px 12px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">ផ្ញើសំឡេង ➤</button>
+                    <button type="button" onclick="cancelVoiceRecording()" style="background:#fff; border:1px solid #d93025; color:#d93025; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">🗑️ បោះបង់</button>
+                    <button type="button" onclick="stopRecordingForReview()" style="background:#050505; border:none; color:#fff; padding:5px 12px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">⏹️ បញ្ឈប់ & ស្តាប់</button>
                 </div>
+            </div>
+
+            <!-- Voice Review Before Sending Bar -->
+            <div class="voice-review-banner" id="voiceReviewBanner">
+                <button type="button" onclick="discardReviewedVoice()" style="background:#fff; border:1px solid #d93025; color:#d93025; width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0;" title="លុបចោល">🗑️</button>
+                <div class="review-audio-pill">
+                    <button type="button" id="reviewPlayBtn" onclick="toggleReviewAudioPlay()" style="background:rgba(0,0,0,0.35); border:none; color:#fff; width:30px; height:30px; border-radius:50%; font-size:13px; cursor:pointer; flex-shrink:0;">▶</button>
+                    <span style="font-size:12.5px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ស្តាប់សំឡេងមុនផ្ញើ</span>
+                    <span id="reviewDurationText" style="font-size:12px; font-weight:700;">0:00</span>
+                </div>
+                <button type="button" id="sendReviewedVoiceBtn" onclick="sendReviewedVoice()" style="background:#1877f2; border:none; color:#fff; padding:8px 14px; border-radius:18px; font-size:13px; font-weight:700; cursor:pointer; flex-shrink:0;">ផ្ញើ ➤</button>
             </div>
 
             <!-- Emoji Picker Bar -->
@@ -674,6 +825,31 @@
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Interactive Photo Editor Modal (Crop, Draw Pen, Add Text) -->
+    <div id="photoEditorModal" class="photo-editor-overlay">
+        <div class="editor-top-bar">
+            <button type="button" onclick="closePhotoEditor()" style="background:none; border:none; color:#fff; font-size:22px; font-weight:700; cursor:pointer; padding:4px 8px;">✕</button>
+            <div class="editor-tool-tabs">
+                <button type="button" class="editor-tool-btn active" id="toolBtn-crop" onclick="setEditorMode('crop')">✂️ Crop</button>
+                <button type="button" class="editor-tool-btn" id="toolBtn-pen" onclick="setEditorMode('pen')">✏️ គូរ (Pen)</button>
+                <button type="button" class="editor-tool-btn" id="toolBtn-text" onclick="setEditorMode('text')">🔤 អក្សរ (Text)</button>
+            </div>
+            <button type="button" onclick="undoEditorAction()" style="background:rgba(255,255,255,0.16); border:none; color:#fff; padding:6px 12px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer;">↩️ ត្រឡប់</button>
+        </div>
+
+        <div class="editor-canvas-stage" id="editorCanvasStage">
+            <canvas id="photoEditorCanvas"></canvas>
+        </div>
+
+        <!-- Dynamic Sub-Toolbar per Tool -->
+        <div class="editor-sub-toolbar" id="editorSubToolbar"></div>
+
+        <div class="editor-bottom-bar">
+            <span style="font-size:12.5px; color:#b0b3b8;" id="editorHintText">អូសកែងប្រអប់ដើម្បីកាត់រូបភាព (Crop)</span>
+            <button type="button" id="sendEditedPhotoBtn" onclick="sendEditedPhoto()" style="background:#1877f2; color:#fff; border:none; padding:10px 22px; border-radius:22px; font-size:14.5px; font-weight:700; cursor:pointer;">ផ្ញើរូបភាព ➤</button>
         </div>
     </div>
 
@@ -870,17 +1046,23 @@
         }
 
         // =========================================================================
-        // VOICE RECORDING WITH LIVE TIMER & CANCEL/SEND CONTROLS
+        // VOICE RECORDING -> LISTEN & REVIEW -> SEND OR DISCARD
         // =========================================================================
         let mediaRecorder = null;
         let audioChunks = [];
         let isRecording = false;
-        let shouldSendRecording = true;
+        let keepRecordingForReview = true;
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
+        let pendingVoiceBlob = null;
+        let pendingVoiceExt = 'webm';
+        let pendingVoiceUrl = null;
+        let reviewAudioObj = null;
+
         async function toggleVoiceRecord() {
             if (!isRecording) {
+                discardReviewedVoice();
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -888,42 +1070,28 @@
                         : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
                     mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
                     audioChunks = [];
-                    shouldSendRecording = true;
+                    keepRecordingForReview = true;
 
                     mediaRecorder.ondataavailable = event => {
                         if (event.data && event.data.size > 0) audioChunks.push(event.data);
                     };
 
-                    mediaRecorder.onstop = async () => {
+                    mediaRecorder.onstop = () => {
                         stream.getTracks().forEach(track => track.stop());
                         clearInterval(recordTimerInterval);
                         document.getElementById('recordingBanner').classList.remove('active');
                         document.getElementById('voiceRecordBtn').classList.remove('recording');
 
-                        if (!shouldSendRecording || !activeFriend || audioChunks.length === 0) return;
+                        if (!keepRecordingForReview || audioChunks.length === 0) return;
 
                         const blobType = mediaRecorder.mimeType || 'audio/webm';
-                        const ext = blobType.includes('mp4') ? 'm4a' : 'webm';
-                        const audioBlob = new Blob(audioChunks, { type: blobType });
+                        pendingVoiceExt = blobType.includes('mp4') ? 'm4a' : 'webm';
+                        pendingVoiceBlob = new Blob(audioChunks, { type: blobType });
+                        pendingVoiceUrl = URL.createObjectURL(pendingVoiceBlob);
 
-                        const formData = new FormData();
-                        formData.append('sender', currentUser.email);
-                        formData.append('receiver', activeFriend.email);
-                        formData.append('mediaFile', audioBlob, `voice-${Date.now()}.${ext}`);
-
-                        try {
-                            const res = await fetch('/api/messages', {
-                                method: 'POST',
-                                body: formData
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                                await fetchMessages(true);
-                                loadConversations();
-                            }
-                        } catch (err) {
-                            console.error('Voice upload error:', err);
-                        }
+                        document.getElementById('reviewDurationText').innerText = formatSeconds(recordSeconds);
+                        document.getElementById('reviewPlayBtn').innerText = '▶';
+                        document.getElementById('voiceReviewBanner').classList.add('active');
                     };
 
                     mediaRecorder.start(200);
@@ -941,13 +1109,13 @@
                     alert('សូមអនុញ្ញាតឱ្យប្រើ Microphone ដើម្បីថតសំឡេង!');
                 }
             } else {
-                finishAndSendVoiceRecording();
+                stopRecordingForReview();
             }
         }
 
-        function finishAndSendVoiceRecording() {
+        function stopRecordingForReview() {
             if (mediaRecorder && isRecording) {
-                shouldSendRecording = true;
+                keepRecordingForReview = true;
                 mediaRecorder.stop();
                 isRecording = false;
             }
@@ -955,19 +1123,141 @@
 
         function cancelVoiceRecording() {
             if (mediaRecorder && isRecording) {
-                shouldSendRecording = false;
+                keepRecordingForReview = false;
                 mediaRecorder.stop();
                 isRecording = false;
+            }
+        }
+
+        function toggleReviewAudioPlay() {
+            if (!pendingVoiceUrl) return;
+            const btn = document.getElementById('reviewPlayBtn');
+            if (reviewAudioObj && !reviewAudioObj.paused) {
+                reviewAudioObj.pause();
+                btn.innerText = '▶';
+                return;
+            }
+            if (!reviewAudioObj) {
+                reviewAudioObj = new Audio(pendingVoiceUrl);
+                reviewAudioObj.onended = () => { btn.innerText = '▶'; };
+            }
+            reviewAudioObj.play().then(() => {
+                btn.innerText = '⏸';
+            }).catch(() => {});
+        }
+
+        function discardReviewedVoice() {
+            if (reviewAudioObj) {
+                reviewAudioObj.pause();
+                reviewAudioObj = null;
+            }
+            if (pendingVoiceUrl) {
+                URL.revokeObjectURL(pendingVoiceUrl);
+                pendingVoiceUrl = null;
+            }
+            pendingVoiceBlob = null;
+            const banner = document.getElementById('voiceReviewBanner');
+            if (banner) banner.classList.remove('active');
+        }
+
+        async function sendReviewedVoice() {
+            if (!pendingVoiceBlob || !activeFriend) return;
+            const sendBtn = document.getElementById('sendReviewedVoiceBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerText = 'កំពុងផ្ញើ...';
+
+            const formData = new FormData();
+            formData.append('sender', currentUser.email);
+            formData.append('receiver', activeFriend.email);
+            formData.append('mediaFile', pendingVoiceBlob, `voice-${Date.now()}.${pendingVoiceExt}`);
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    discardReviewedVoice();
+                    await fetchMessages(true);
+                    loadConversations();
+                }
+            } catch (err) {
+                console.error('Voice upload error:', err);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'ផ្ញើ ➤';
             }
         }
 
         // =========================================================================
         // CONVERSATIONS & MESSAGING LOGIC
         // =========================================================================
+        function isUserActivelyOnline(lastActiveRaw) {
+            if (!lastActiveRaw) return false;
+            const ts = Date.parse(lastActiveRaw);
+            if (isNaN(ts)) return false;
+            // Considered actively online ONLY if heartbeat was within the last 35 seconds
+            return (Date.now() - ts) <= 35000;
+        }
+
+        function formatLastSeenStatus(lastActiveRaw) {
+            if (!lastActiveRaw) return 'Offline';
+            const ts = Date.parse(lastActiveRaw);
+            if (isNaN(ts)) return 'Offline';
+            const diffSec = Math.floor((Date.now() - ts) / 1000);
+            if (diffSec <= 35) return 'Active now';
+            const diffMin = Math.floor(diffSec / 60);
+            if (diffMin < 60) return `Active ${diffMin}m ago`;
+            const diffHr = Math.floor(diffMin / 60);
+            if (diffHr < 24) return `Active ${diffHr}h ago`;
+            return 'Offline';
+        }
+
+        async function sendOnlineHeartbeat() {
+            if (!currentUser || document.visibilityState === 'hidden') return;
+            try {
+                await fetch('/api/presence/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+            } catch (e) {}
+        }
+
+        async function refreshActiveFriendStatus() {
+            if (!activeFriend) return;
+            try {
+                const res = await fetch(`/api/user-profile?email=${encodeURIComponent(activeFriend.email)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.user) {
+                    const online = isUserActivelyOnline(data.user.last_active);
+                    const dotEl = document.getElementById('activeChatOnlineDot');
+                    const statusEl = document.getElementById('activeChatStatus');
+                    if (dotEl) dotEl.classList.toggle('is-online', online);
+                    if (statusEl) statusEl.innerText = formatLastSeenStatus(data.user.last_active);
+                }
+            } catch (e) {}
+        }
+
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
             document.getElementById('userBadge').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
+            sendOnlineHeartbeat();
+            setInterval(sendOnlineHeartbeat, 15000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    sendOnlineHeartbeat();
+                    if (activeFriend) {
+                        fetch('/api/mark-read', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userEmail: currentUser.email, senderEmail: activeFriend.email })
+                        }).catch(() => {});
+                    }
+                }
+            });
             loadConversations();
         }
 
@@ -1034,9 +1324,13 @@
                     profile_pic: person.profile_pic
                 }).replace(/'/g, "&#39;");
 
+                const onlineClass = isUserActivelyOnline(person.last_active) ? 'is-online' : '';
                 return `
                     <div class="contact-item ${isActive}" onclick='openChat(${safeData})'>
-                        <img src="${avatar}" class="contact-avatar">
+                        <div class="contact-avatar-wrap">
+                            <img src="${avatar}" class="contact-avatar">
+                            <span class="contact-online-dot ${onlineClass}"></span>
+                        </div>
                         <div class="contact-info">
                             <div class="contact-name notranslate" translate="no">${person.first_name || ''} ${person.last_name || ''}</div>
                             <div class="contact-sub notranslate" translate="no">${escapeHtml(subtitle)}</div>
@@ -1050,9 +1344,12 @@
             activeFriend = friend;
             lastMessagesSignature = '';
             document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
-            document.getElementById('activeChatStatus').innerText = 'Active now';
+            const onlineNow = isUserActivelyOnline(friend.last_active);
+            document.getElementById('activeChatOnlineDot').classList.toggle('is-online', onlineNow);
+            document.getElementById('activeChatStatus').innerText = formatLastSeenStatus(friend.last_active);
             document.getElementById('activeChatAvatar').src = friend.profile_pic || 'https://via.placeholder.com/38';
             document.getElementById('chatInputBar').style.display = 'flex';
+            refreshActiveFriendStatus();
 
             if (window.innerWidth <= 768) {
                 document.getElementById('mainTopNav').classList.add('chat-open-hide');
@@ -1072,7 +1369,7 @@
             }).catch(() => {});
 
             if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(() => fetchMessages(false), 3000);
+            pollInterval = setInterval(() => { fetchMessages(false); refreshActiveFriendStatus(); }, 3000);
         }
 
         function showContactsMobile() {
@@ -1115,8 +1412,12 @@
             const wasAtBottom = forceScroll || (box.scrollHeight - box.scrollTop <= box.clientHeight + 90);
             const friendAvatar = (activeFriend && activeFriend.profile_pic) ? activeFriend.profile_pic : 'https://via.placeholder.com/28';
             let lastTimeGroup = '';
-            let lastSentMsgId = null;
-            messages.forEach(m => { if (m.sender_email === currentUser.email) lastSentMsgId = m.id; });
+            let lastSeenSentMsgId = null;
+            messages.forEach(m => {
+                if (m.sender_email === currentUser.email && (m.is_read === true || m.is_read === 1 || m.is_read === 't')) {
+                    lastSeenSentMsgId = m.id;
+                }
+            });
 
             const audioUrlsToPreload = [];
 
@@ -1168,7 +1469,7 @@
                 }
 
                 const leftAvatarHtml = !isSent ? `<img src="${friendAvatar}" class="msg-sender-avatar">` : '';
-                const seenHtml = (isSent && m.id === lastSentMsgId) ? `<img src="${friendAvatar}" class="msg-seen-avatar" title="Seen">` : '';
+                const seenHtml = (isSent && m.id === lastSeenSentMsgId) ? `<img src="${friendAvatar}" class="msg-seen-avatar" title="Seen">` : '';
 
                 return `
                     ${timeDividerHtml}
@@ -1265,11 +1566,23 @@
         async function sendMediaMessage(fileInput) {
             const file = fileInput.files[0];
             if (!file || !activeFriend) return;
+            fileInput.value = '';
 
+            // If it's an image, open the interactive Crop / Pen Draw / Add Text Editor before sending
+            if (file.type && file.type.startsWith('image/')) {
+                openPhotoEditor(file);
+                return;
+            }
+
+            await uploadAndSendChatFile(file, file.name || 'video.mp4');
+        }
+
+        async function uploadAndSendChatFile(fileOrBlob, fileName) {
+            if (!activeFriend) return;
             const formData = new FormData();
             formData.append('sender', currentUser.email);
             formData.append('receiver', activeFriend.email);
-            formData.append('mediaFile', file);
+            formData.append('mediaFile', fileOrBlob, fileName);
 
             try {
                 const res = await fetch('/api/messages', {
@@ -1285,9 +1598,408 @@
                 }
             } catch (err) {
                 console.error('Media upload error:', err);
-            } finally {
-                fileInput.value = '';
             }
+        }
+
+        // =========================================================================
+        // INTERACTIVE PHOTO EDITOR (CROP + FREEHAND PEN + DRAGGABLE TEXT)
+        // =========================================================================
+        let editorBaseImg = null;
+        let editorHistoryStack = []; // snapshots of base image (after crops)
+        let editorStrokes = [];      // [{ color, size, points: [{x, y}] }]
+        let editorTexts = [];        // [{ text, color, x, y, fontSize }]
+        let editorMode = 'crop';     // 'crop' | 'pen' | 'text'
+        let editorColor = '#ff3b30';
+        let editorBrushSize = 5;
+
+        let cropBox = { x: 0, y: 0, w: 0, h: 0 };
+        let activeDragHandle = null; // 'move' | 'nw' | 'ne' | 'sw' | 'se'
+        let dragStartPt = { x: 0, y: 0 };
+        let dragStartCrop = null;
+
+        let isDrawingStroke = false;
+        let currentStroke = null;
+        let draggingTextIdx = -1;
+
+        function openPhotoEditor(file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    editorBaseImg = img;
+                    editorHistoryStack = [];
+                    editorStrokes = [];
+                    editorTexts = [];
+                    initCanvasWithImage(img);
+                    document.getElementById('photoEditorModal').classList.add('active');
+                    setEditorMode('crop');
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function closePhotoEditor() {
+            document.getElementById('photoEditorModal').classList.remove('active');
+            editorBaseImg = null;
+        }
+
+        function initCanvasWithImage(img) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            const maxW = Math.min(window.innerWidth - 24, 900);
+            const maxH = Math.min(window.innerHeight - 190, 900);
+            const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+
+            cropBox = {
+                x: Math.round(canvas.width * 0.08),
+                y: Math.round(canvas.height * 0.08),
+                w: Math.round(canvas.width * 0.84),
+                h: Math.round(canvas.height * 0.84)
+            };
+            renderEditorCanvas();
+        }
+
+        function setEditorMode(mode) {
+            editorMode = mode;
+            ['crop', 'pen', 'text'].forEach(m => {
+                const b = document.getElementById(`toolBtn-${m}`);
+                if (b) b.classList.toggle('active', m === mode);
+            });
+
+            const sub = document.getElementById('editorSubToolbar');
+            const hint = document.getElementById('editorHintText');
+            const colors = ['#ff3b30', '#ffcc00', '#34c759', '#007aff', '#ffffff', '#000000'];
+
+            if (mode === 'crop') {
+                hint.innerText = 'អូសជ្រុងប្រអប់ដើម្បីកាត់រូបភាព រួចចុច "✓ អនុវត្តការកាត់"';
+                sub.innerHTML = `
+                    <button type="button" onclick="setCropAspect('free')" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">សេរី (Free)</button>
+                    <button type="button" onclick="setCropAspect('1:1')" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">1:1 ការ៉េ</button>
+                    <button type="button" onclick="setCropAspect('4:5')" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">4:5 បញ្ឈរ</button>
+                    <button type="button" onclick="applyCropSelection()" style="background:#34c759; color:#fff; border:none; padding:6px 14px; border-radius:14px; font-size:12.5px; font-weight:700; cursor:pointer;">✓ អនុវត្តការកាត់ (Apply Crop)</button>
+                `;
+            } else if (mode === 'pen') {
+                hint.innerText = 'ប្រើម្រាមដៃគូរលើរូបភាពដោយសេរី';
+                const swatches = colors.map(c => `<span class="color-swatch ${editorColor === c ? 'selected' : ''}" style="background:${c};" onclick="selectEditorColor('${c}')"></span>`).join('');
+                sub.innerHTML = `
+                    ${swatches}
+                    <button type="button" onclick="editorBrushSize = editorBrushSize === 5 ? 11 : 5; this.innerText = editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ';" style="background:#2c2c2e; color:#fff; border:1px solid #555; padding:5px 11px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer;">${editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ'}</button>
+                `;
+            } else if (mode === 'text') {
+                hint.innerText = 'ចុច "+ បន្ថែមអក្សរ" រួចអូសផ្លាស់ប្តូរទីតាំងអក្សរលើរូបភាព';
+                const swatches = colors.map(c => `<span class="color-swatch ${editorColor === c ? 'selected' : ''}" style="background:${c};" onclick="selectEditorColor('${c}')"></span>`).join('');
+                sub.innerHTML = `
+                    ${swatches}
+                    <button type="button" onclick="promptAddEditorText()" style="background:#1877f2; color:#fff; border:none; padding:6px 14px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមអក្សរ (Add Text)</button>
+                `;
+            }
+            renderEditorCanvas();
+        }
+
+        function selectEditorColor(c) {
+            editorColor = c;
+            if (editorTexts.length > 0 && editorMode === 'text') {
+                editorTexts[editorTexts.length - 1].color = c;
+            }
+            setEditorMode(editorMode);
+        }
+
+        function setCropAspect(ratioType) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (ratioType === 'free') {
+                cropBox = {
+                    x: Math.round(canvas.width * 0.08),
+                    y: Math.round(canvas.height * 0.08),
+                    w: Math.round(canvas.width * 0.84),
+                    h: Math.round(canvas.height * 0.84)
+                };
+            } else if (ratioType === '1:1') {
+                const side = Math.round(Math.min(canvas.width, canvas.height) * 0.8);
+                cropBox = {
+                    x: Math.round((canvas.width - side) / 2),
+                    y: Math.round((canvas.height - side) / 2),
+                    w: side,
+                    h: side
+                };
+            } else if (ratioType === '4:5') {
+                let h = Math.round(canvas.height * 0.85);
+                let w = Math.round(h * 0.8);
+                if (w > canvas.width * 0.9) {
+                    w = Math.round(canvas.width * 0.9);
+                    h = Math.round(w * 1.25);
+                }
+                cropBox = {
+                    x: Math.round((canvas.width - w) / 2),
+                    y: Math.round((canvas.height - h) / 2),
+                    w,
+                    h
+                };
+            }
+            renderEditorCanvas();
+        }
+
+        function applyCropSelection() {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (!editorBaseImg || cropBox.w < 20 || cropBox.h < 20) return;
+
+            // Render clean image + existing drawings/texts without crop overlay first
+            renderEditorCanvas(true);
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = cropBox.w;
+            tempCanvas.height = cropBox.h;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.drawImage(canvas, cropBox.x, cropBox.y, cropBox.w, cropBox.h, 0, 0, cropBox.w, cropBox.h);
+
+            editorHistoryStack.push({
+                img: editorBaseImg,
+                strokes: JSON.parse(JSON.stringify(editorStrokes)),
+                texts: JSON.parse(JSON.stringify(editorTexts))
+            });
+
+            const croppedImg = new Image();
+            croppedImg.onload = () => {
+                editorBaseImg = croppedImg;
+                editorStrokes = [];
+                editorTexts = [];
+                initCanvasWithImage(croppedImg);
+            };
+            croppedImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        function promptAddEditorText() {
+            const txt = prompt('សរសេរអក្សរដែលចង់ដាក់លើរូបភាព៖');
+            if (!txt || !txt.trim()) return;
+            const canvas = document.getElementById('photoEditorCanvas');
+            editorTexts.push({
+                text: txt.trim(),
+                color: editorColor,
+                x: Math.round(canvas.width / 2),
+                y: Math.round(canvas.height / 2),
+                fontSize: Math.max(22, Math.round(canvas.width * 0.065))
+            });
+            renderEditorCanvas();
+        }
+
+        function undoEditorAction() {
+            if (editorMode === 'pen' && editorStrokes.length > 0) {
+                editorStrokes.pop();
+                renderEditorCanvas();
+                return;
+            }
+            if (editorMode === 'text' && editorTexts.length > 0) {
+                editorTexts.pop();
+                renderEditorCanvas();
+                return;
+            }
+            if (editorStrokes.length > 0) {
+                editorStrokes.pop();
+                renderEditorCanvas();
+            } else if (editorTexts.length > 0) {
+                editorTexts.pop();
+                renderEditorCanvas();
+            } else if (editorHistoryStack.length > 0) {
+                const prev = editorHistoryStack.pop();
+                editorBaseImg = prev.img;
+                editorStrokes = prev.strokes;
+                editorTexts = prev.texts;
+                initCanvasWithImage(editorBaseImg);
+            }
+        }
+
+        function renderEditorCanvas(exportClean = false) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (!canvas || !editorBaseImg) return;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Base Image
+            ctx.drawImage(editorBaseImg, 0, 0, canvas.width, canvas.height);
+
+            // 2. Pen Strokes
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            editorStrokes.forEach(st => {
+                if (!st.points || st.points.length === 0) return;
+                ctx.strokeStyle = st.color;
+                ctx.lineWidth = st.size;
+                ctx.beginPath();
+                ctx.moveTo(st.points[0].x, st.points[0].y);
+                for (let i = 1; i < st.points.length; i++) {
+                    ctx.lineTo(st.points[i].x, st.points[i].y);
+                }
+                ctx.stroke();
+            });
+
+            // 3. Draggable Text Overlays
+            editorTexts.forEach(item => {
+                ctx.font = `bold ${item.fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = Math.max(3, Math.round(item.fontSize * 0.12));
+                ctx.strokeStyle = item.color === '#000000' ? '#ffffff' : '#000000';
+                ctx.strokeText(item.text, item.x, item.y);
+                ctx.fillStyle = item.color;
+                ctx.fillText(item.text, item.x, item.y);
+            });
+
+            // 4. Crop Overlay Frame (hidden during final export)
+            if (!exportClean && editorMode === 'crop') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
+                ctx.fillRect(0, 0, canvas.width, cropBox.y);
+                ctx.fillRect(0, cropBox.y + cropBox.h, canvas.width, canvas.height - (cropBox.y + cropBox.h));
+                ctx.fillRect(0, cropBox.y, cropBox.x, cropBox.h);
+                ctx.fillRect(cropBox.x + cropBox.w, cropBox.y, canvas.width - (cropBox.x + cropBox.w), cropBox.h);
+
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cropBox.x, cropBox.y, cropBox.w, cropBox.h);
+
+                // Corner Handles
+                const hs = 14;
+                ctx.fillStyle = '#1877f2';
+                const corners = [
+                    [cropBox.x, cropBox.y],
+                    [cropBox.x + cropBox.w, cropBox.y],
+                    [cropBox.x, cropBox.y + cropBox.h],
+                    [cropBox.x + cropBox.w, cropBox.y + cropBox.h]
+                ];
+                corners.forEach(([cx, cy]) => {
+                    ctx.fillRect(cx - hs / 2, cy - hs / 2, hs, hs);
+                    ctx.strokeRect(cx - hs / 2, cy - hs / 2, hs, hs);
+                });
+            }
+        }
+
+        function getCanvasCoords(e) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / (rect.width || 1);
+            const scaleY = canvas.height / (rect.height || 1);
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        (function initCanvasPointerHandlers() {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (!canvas) return;
+
+            canvas.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                const pt = getCanvasCoords(e);
+
+                if (editorMode === 'crop') {
+                    const hitR = 26;
+                    if (Math.hypot(pt.x - cropBox.x, pt.y - cropBox.y) <= hitR) activeDragHandle = 'nw';
+                    else if (Math.hypot(pt.x - (cropBox.x + cropBox.w), pt.y - cropBox.y) <= hitR) activeDragHandle = 'ne';
+                    else if (Math.hypot(pt.x - cropBox.x, pt.y - (cropBox.y + cropBox.h)) <= hitR) activeDragHandle = 'sw';
+                    else if (Math.hypot(pt.x - (cropBox.x + cropBox.w), pt.y - (cropBox.y + cropBox.h)) <= hitR) activeDragHandle = 'se';
+                    else if (pt.x >= cropBox.x && pt.x <= cropBox.x + cropBox.w && pt.y >= cropBox.y && pt.y <= cropBox.y + cropBox.h) {
+                        activeDragHandle = 'move';
+                    }
+                    dragStartPt = pt;
+                    dragStartCrop = { ...cropBox };
+                } else if (editorMode === 'pen') {
+                    isDrawingStroke = true;
+                    currentStroke = { color: editorColor, size: editorBrushSize, points: [pt] };
+                    editorStrokes.push(currentStroke);
+                    renderEditorCanvas();
+                } else if (editorMode === 'text') {
+                    draggingTextIdx = -1;
+                    for (let i = editorTexts.length - 1; i >= 0; i--) {
+                        const t = editorTexts[i];
+                        if (Math.abs(pt.x - t.x) <= 110 && Math.abs(pt.y - t.y) <= 36) {
+                            draggingTextIdx = i;
+                            dragStartPt = pt;
+                            break;
+                        }
+                    }
+                }
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if (!activeDragHandle && !isDrawingStroke && draggingTextIdx === -1) return;
+                e.preventDefault();
+                const pt = getCanvasCoords(e);
+
+                if (editorMode === 'crop' && activeDragHandle && dragStartCrop) {
+                    const dx = pt.x - dragStartPt.x;
+                    const dy = pt.y - dragStartPt.y;
+                    const minSize = 40;
+
+                    if (activeDragHandle === 'move') {
+                        cropBox.x = Math.max(0, Math.min(canvas.width - cropBox.w, dragStartCrop.x + dx));
+                        cropBox.y = Math.max(0, Math.min(canvas.height - cropBox.h, dragStartCrop.y + dy));
+                    } else if (activeDragHandle === 'se') {
+                        cropBox.w = Math.max(minSize, Math.min(canvas.width - dragStartCrop.x, dragStartCrop.w + dx));
+                        cropBox.h = Math.max(minSize, Math.min(canvas.height - dragStartCrop.y, dragStartCrop.h + dy));
+                    } else if (activeDragHandle === 'nw') {
+                        const newX = Math.max(0, Math.min(dragStartCrop.x + dragStartCrop.w - minSize, dragStartCrop.x + dx));
+                        const newY = Math.max(0, Math.min(dragStartCrop.y + dragStartCrop.h - minSize, dragStartCrop.y + dy));
+                        cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX;
+                        cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY;
+                        cropBox.x = newX;
+                        cropBox.y = newY;
+                    } else if (activeDragHandle === 'ne') {
+                        const newY = Math.max(0, Math.min(dragStartCrop.y + dragStartCrop.h - minSize, dragStartCrop.y + dy));
+                        cropBox.w = Math.max(minSize, Math.min(canvas.width - dragStartCrop.x, dragStartCrop.w + dx));
+                        cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY;
+                        cropBox.y = newY;
+                    } else if (activeDragHandle === 'sw') {
+                        const newX = Math.max(0, Math.min(dragStartCrop.x + dragStartCrop.w - minSize, dragStartCrop.x + dx));
+                        cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX;
+                        cropBox.h = Math.max(minSize, Math.min(canvas.height - dragStartCrop.y, dragStartCrop.h + dy));
+                        cropBox.x = newX;
+                    }
+                    renderEditorCanvas();
+                } else if (editorMode === 'pen' && isDrawingStroke && currentStroke) {
+                    currentStroke.points.push(pt);
+                    renderEditorCanvas();
+                } else if (editorMode === 'text' && draggingTextIdx >= 0) {
+                    editorTexts[draggingTextIdx].x += (pt.x - dragStartPt.x);
+                    editorTexts[draggingTextIdx].y += (pt.y - dragStartPt.y);
+                    dragStartPt = pt;
+                    renderEditorCanvas();
+                }
+            });
+
+            const endPointer = () => {
+                activeDragHandle = null;
+                isDrawingStroke = false;
+                currentStroke = null;
+                draggingTextIdx = -1;
+            };
+            canvas.addEventListener('pointerup', endPointer);
+            canvas.addEventListener('pointercancel', endPointer);
+        })();
+
+        async function sendEditedPhoto() {
+            const canvas = document.getElementById('photoEditorCanvas');
+            const sendBtn = document.getElementById('sendEditedPhotoBtn');
+            if (!canvas || !editorBaseImg) return;
+
+            sendBtn.disabled = true;
+            sendBtn.innerText = 'កំពុងផ្ញើ...';
+
+            // Render final clean image without crop frame overlay
+            renderEditorCanvas(true);
+
+            canvas.toBlob(async (blob) => {
+                try {
+                    if (blob) {
+                        await uploadAndSendChatFile(blob, `edited-photo-${Date.now()}.jpg`);
+                    }
+                    closePhotoEditor();
+                } finally {
+                    sendBtn.disabled = false;
+                    sendBtn.innerText = 'ផ្ញើរូបភាព ➤';
+                }
+            }, 'image/jpeg', 0.92);
         }
 
         // Forward Message Modal
