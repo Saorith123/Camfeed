@@ -930,6 +930,10 @@
     <script src="notification.js"></script>
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let feedOffset = 0;
+        let feedHasMore = true;
+        let isLoadingMorePosts = false;
+        const FEED_PAGE_SIZE = 12;
         let globalVideoUnmuted = sessionStorage.getItem('camfeed_unmuted') === 'true';
         let activePostIdForShare = null;
         let activePostTextForShare = '';
@@ -1178,7 +1182,7 @@
                 return `
                     <div class="saved-acc-row ${isCurrent ? 'is-current' : ''}" onclick="switchToSavedAccount('${safeEmail}')">
                         <div class="saved-acc-left">
-                            <img src="${pic}" class="saved-acc-avatar">
+                            <img src="${pic}" onerror="this.onerror=null;this.src='https://via.placeholder.com/32';" class="saved-acc-avatar">
                             <div class="saved-acc-info">
                                 <div class="saved-acc-name notranslate" translate="no">${fullName}</div>
                                 <div class="saved-acc-sub notranslate" translate="no">${acc.email}</div>
@@ -1637,7 +1641,7 @@
 
                 body.innerHTML = `
                     <div style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #f0f2f5;">
-                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
+                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                         <div>
                             <div style="font-weight:700; font-size:14.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${post.first_name} ${post.last_name}</div>
                             <div style="font-size:11px; color:#65676b;">${dateStr} · 🌐</div>
@@ -2035,11 +2039,6 @@
             }
         }
 
-        let feedOffset = 0;
-        let feedHasMore = true;
-        let isLoadingMorePosts = false;
-        const FEED_PAGE_SIZE = 12;
-
         async function loadPosts(append = false) {
             const cacheKey = `camfeed_feed_cache_${currentUser.email}`;
             if (!append) {
@@ -2150,7 +2149,7 @@
                 div.innerHTML = `
                     <div class="post-header" style="padding: 0 14px;">
                         <div class="post-header-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
-                            <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
+                            <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" class="avatar">
                             <div>
                                 <div class="post-author notranslate" translate="no">${post.first_name} ${post.last_name}</div>
                                 <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
