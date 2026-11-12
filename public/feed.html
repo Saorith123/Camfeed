@@ -46,10 +46,33 @@
         .search-input:focus { width: 175px; background: white; border-color: #1877f2; }
         .search-icon-abs { position: absolute; left: 8px; font-size: 13px; color: #65676b; cursor: pointer; }
 
-        .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 48px; width: 100%; border-top: 1px solid #f0f2f5; position: relative; }
+        /* Navigation Menus with Single Center '+' Button */
+        .nav-menus { display: flex; justify-content: space-around; align-items: center; height: 50px; width: 100%; border-top: 1px solid #f0f2f5; position: relative; }
         .menu-btn { background: none; border: none; font-size: 22px; color: #65676b; cursor: pointer; flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; border-radius: 0; }
         .menu-btn:hover { background: #f2f2f2; }
         .menu-btn.active { color: #1877f2; border-bottom: 3px solid #1877f2; }
+
+        /* Unified Center '+' Post Button */
+        .center-plus-slot { flex: 1; display: flex; align-items: center; justify-content: center; height: 100%; }
+        .unified-plus-btn {
+            width: 44px;
+            height: 34px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            color: #fff;
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(24, 119, 242, 0.35);
+            transition: transform 0.15s ease;
+        }
+        .unified-plus-btn:hover { transform: scale(1.06); }
+        .unified-plus-btn:active { transform: scale(0.93); }
 
         .top-right-icons { display: flex; align-items: center; gap: 6px; }
         .icon-circle-btn { width: 38px; height: 38px; border-radius: 50%; background: #e4e6eb; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; position: relative; }
@@ -60,7 +83,6 @@
         .user-profile-link:hover { background: #f2f2f2; }
 
         .main-container { max-width: 680px; margin: 15px auto; padding: 0 10px; box-sizing: border-box; }
-        .card { background: white; padding: 12px 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; }
         
         input, textarea, select { width: 100%; padding: 10px 14px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; font-family: inherit; background: #fff; }
         textarea:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
@@ -68,6 +90,13 @@
         .btn-primary { width: 100%; padding: 10px; background: #1877f2; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 5px; }
         .btn-primary:hover { background: #166fe5; }
         .btn-primary:disabled { background: #b0d3f8; cursor: not-allowed; }
+
+        /* Multi-Media Preview Grid in Create Modal */
+        .multi-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; margin-top: 10px; }
+        .preview-tile { position: relative; aspect-ratio: 1 / 1; border-radius: 8px; overflow: hidden; background: #000; border: 1px solid #e4e6eb; }
+        .preview-tile img, .preview-tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .preview-tile-badge { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 4px; }
+        .preview-tile-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.75); color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: center; }
 
         #uploadProgressContainer { margin-top: 10px; display: none; }
         .progress-bar-bg { width: 100%; background-color: #e4e6eb; border-radius: 10px; overflow: hidden; height: 12px; }
@@ -83,15 +112,26 @@
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
         .post-media { width: 100%; max-height: 450px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
 
+        /* Carousel for Multiple Photos/Videos in One Post */
+        .carousel-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 10px; }
+        .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .carousel-track::-webkit-scrollbar { display: none; }
+        .carousel-slide { flex: 0 0 100%; width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; background: #000; }
+        .carousel-slide img, .carousel-slide video { width: 100%; max-height: 460px; object-fit: contain; display: block; }
+        .carousel-counter { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 14px; pointer-events: none; }
+        .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -4px; margin-bottom: 8px; }
+        .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; transition: background 0.2s, transform 0.2s; }
+        .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
+
         /* Reaction Summary Bar (Shows only actual reactions, no auto-3) */
         .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #65676b; margin-bottom: 6px; padding: 0 4px; min-height: 24px; }
         .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
 
-        /* Action Buttons & Cute Reaction Bar */
+        /* Action Buttons & Persistent Long-Press Reaction Bar */
         .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 0; margin-top: 6px; justify-content: space-around; position: relative; }
         .reaction-wrapper { flex: 1; position: relative; display: flex; }
-        .action-btn { flex: 1; background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 7px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; transition: transform 0.1s ease, background 0.15s; user-select: none; }
+        .action-btn { flex: 1; background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 7px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; transition: transform 0.1s ease, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
         .action-btn:hover { background: #f2f2f2; }
         .action-btn:active { transform: scale(0.94); }
 
@@ -104,22 +144,21 @@
         .action-btn.reacted-sad { color: #f7b125; font-weight: 700; }
         .action-btn.reacted-angry { color: #e9710f; font-weight: 700; }
 
-        /* Floating Cute Reaction Bar */
+        /* Floating Cute Reaction Bar (Stays open until user clicks an emoji or clicks outside) */
         .reaction-picker {
             display: none;
             position: absolute;
-            bottom: 44px;
+            bottom: 46px;
             left: 0;
             background: #fff;
-            padding: 6px 10px;
+            padding: 7px 12px;
             border-radius: 30px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
             border: 1px solid #e4e6eb;
-            gap: 8px;
-            z-index: 200;
+            gap: 10px;
+            z-index: 300;
             animation: popUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .reaction-wrapper:hover .reaction-picker,
         .reaction-picker.show { display: flex; }
 
         @keyframes popUp {
@@ -128,7 +167,7 @@
         }
 
         .emoji-option {
-            font-size: 26px;
+            font-size: 27px;
             cursor: pointer;
             transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             user-select: none;
@@ -155,8 +194,8 @@
         .comment-menu-dropdown button:hover { background: #f2f2f2; }
 
         /* Modals */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
-        .modal-card { background: white; width: 100%; max-width: 430px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
+        .modal-card { background: white; width: 100%; max-width: 450px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden; max-height: 85vh; display: flex; flex-direction: column; }
         .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
         .reactor-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -210,15 +249,65 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
+        <!-- Navigation Tabs with Single Center '+' Post Button -->
         <div class="nav-menus">
             <button class="menu-btn active" id="menuFeed" onclick="switchTab('feed')" title="Home">🏠</button>
             <button class="menu-btn" id="menuVideos" onclick="switchTab('videos')" title="Videos">🎬</button>
+            <div class="center-plus-slot">
+                <button class="unified-plus-btn" onclick="openCreatePostModal()" title="Create Post (Text, Photos & Videos)">+</button>
+            </div>
             <button class="menu-btn" id="menuFriends" onclick="switchTab('friends')" title="Friends">👥</button>
             <button class="menu-btn" id="menuChat" onclick="switchTab('chat')" title="Chat" style="position: relative;">
                 💬
-                <span id="feedUnreadBadge" class="notif-badge hidden" style="top: 8px; right: 18px;">0</span>
+                <span id="feedUnreadBadge" class="notif-badge hidden" style="top: 8px; right: 14px;">0</span>
             </button>
+        </div>
+    </div>
+
+    <!-- Unified Create Post Modal (Text + Multiple Photos & Videos in One Post) -->
+    <div id="createPostModal" class="modal-overlay" onclick="closeCreatePostModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="createModalTitle">Create Post</span>
+                <span style="cursor: pointer; font-size: 22px;" onclick="closeCreatePostModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <img src="https://via.placeholder.com/40" id="feedUserAvatar" class="avatar">
+                    <div style="flex: 1;">
+                        <div id="modalAuthorName" style="font-weight: bold; font-size: 14px; color: #050505;">User</div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                            <label id="lblPrivacy" style="font-size: 12px; font-weight: bold; color: #65676b;">Privacy:</label>
+                            <select id="postPrivacy" style="width: auto; padding: 3px 8px; font-size: 12px; margin: 0;">
+                                <option value="public" id="optPublic">🌐 Public</option>
+                                <option value="private" id="optPrivate">🔒 Private (Only me)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <textarea id="postContent" rows="3" placeholder="What's on your mind?" style="border: none; background: #f0f2f5; border-radius: 14px; padding: 12px 14px; resize: none; margin: 4px 0 0 0; outline: none; font-size: 15px;"></textarea>
+                
+                <!-- Multi-Photo / Video Preview Grid -->
+                <div id="multiPreviewGrid" class="multi-preview-grid hidden"></div>
+
+                <div id="uploadProgressContainer">
+                    <div class="progress-bar-bg">
+                        <div id="progressBarFill" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="progressText" class="progress-text">Uploading... 0%</div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 6px; border-top: 1px solid #e4e6eb;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: 600; color: #1877f2; padding: 8px 12px; border-radius: 8px; background: #e7f3ff; flex: 1; justify-content: center;">
+                        <span style="font-size: 18px;">🖼️🎬</span> <span id="photoVideoLabel">Photo / Video (Multiple)</span>
+                        <input type="file" id="mediaFile" accept="image/*,video/*" multiple class="hidden" onchange="previewMedia(event)">
+                    </label>
+                </div>
+
+                <button id="postSubmitBtn" onclick="createPost()" class="btn-primary" style="margin-top: 4px;">Post</button>
+                <div class="msg" id="postMsg" style="color: red; font-size: 13px; text-align: center;"></div>
+            </div>
         </div>
     </div>
 
@@ -271,44 +360,7 @@
     </div>
 
     <div class="main-container">
-        <!-- 1. NEWS FEED TAB -->
         <div id="tabContentFeed">
-            <div class="card">
-                <div style="display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #e4e6eb; padding-bottom: 10px;">
-                    <img src="https://via.placeholder.com/40" id="feedUserAvatar" class="avatar">
-                    <textarea id="postContent" rows="2" placeholder="What's on your mind?" style="border: none; background: #f0f2f5; border-radius: 20px; padding: 10px 15px; resize: none; margin: 0; outline: none;"></textarea>
-                </div>
-                
-                <div id="mediaPreviewContainer" class="hidden" style="margin-top: 10px; position: relative; text-align: center;">
-                    <img id="imagePreview" class="hidden" style="max-width: 100%; max-height: 250px; border-radius: 6px; object-fit: cover;">
-                    <video id="videoPreview" class="hidden" style="max-width: 100%; max-height: 250px; border-radius: 6px; background: black;" controls></video>
-                    <button onclick="removeMedia()" style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; font-weight: bold;">×</button>
-                </div>
-
-                <div id="uploadProgressContainer">
-                    <div class="progress-bar-bg">
-                        <div id="progressBarFill" class="progress-bar-fill"></div>
-                    </div>
-                    <div id="progressText" class="progress-text">Uploading... 0%</div>
-                </div>
-
-                <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                    <label id="lblPrivacy" style="font-size: 13px; font-weight: bold; color: #65676b;">Privacy:</label>
-                    <select id="postPrivacy" style="width: 140px; padding: 6px; font-size: 13px; margin: 0;">
-                        <option value="public" id="optPublic">🌐 Public</option>
-                        <option value="private" id="optPrivate">🔒 Private (Only me)</option>
-                    </select>
-                </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 10px;">
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: 600; color: #65676b; padding: 8px; border-radius: 6px; flex: 1; justify-content: center;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='transparent'">
-                        <span style="font-size: 18px;">📷</span> <span id="photoVideoLabel">Photo / Video</span>
-                        <input type="file" id="mediaFile" accept="image/*,video/*" class="hidden" onchange="previewMedia(event)">
-                    </label>
-                    <button id="postSubmitBtn" onclick="createPost()" class="btn-primary" style="width: 100px; padding: 8px; margin: 0; border-radius: 6px;">Post</button>
-                </div>
-                <div class="msg" id="postMsg" style="color: red; font-size: 13px; text-align: center; margin-top: 5px;"></div>
-            </div>
             <div id="postsContainer"></div>
         </div>
     </div>
@@ -321,8 +373,9 @@
         let activePostIdForShare = null;
         let activePostTextForShare = '';
         let pressTimer = null;
+        let isLongPressTriggered = false;
+        let selectedMediaFiles = [];
 
-        // Track reaction state locally for 0ms instant UI updates
         const postReactionsState = {};
 
         const REACTION_META = {
@@ -340,11 +393,12 @@
                 searchPlaceholder: "Search...",
                 notifHeader: "Notifications",
                 notifEmpty: "No notifications yet",
+                createModalTitle: "Create Post",
                 postPlaceholder: "What's on your mind?",
                 privacyLabel: "Privacy:",
                 optPublic: "🌐 Public",
                 optPrivate: "🔒 Private (Only me)",
-                photoVideoLabel: "Photo / Video",
+                photoVideoLabel: "Photo / Video (Multiple)",
                 postBtn: "Post",
                 reactionsModalTitle: "People who reacted",
                 commentsTitle: "Comments",
@@ -367,11 +421,12 @@
                 searchPlaceholder: "ស្វែងរក...",
                 notifHeader: "ការជូនដំណឹង",
                 notifEmpty: "មិនទាន់មានការជូនដំណឹងនៅឡើយទេ",
+                createModalTitle: "បង្កើតការបង្ហោះថ្មី",
                 postPlaceholder: "តើអ្នកកំពុងគិតអ្វីខ្លះ?",
                 privacyLabel: "ភាពឯកជន:",
                 optPublic: "🌐 ជាសាធារណៈ",
                 optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
-                photoVideoLabel: "រូបថត / វីដេអូ",
+                photoVideoLabel: "រូបថត / វីដេអូ (ច្រើនឯកសារ)",
                 postBtn: "បង្ហោះ",
                 reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
                 commentsTitle: "មតិយោបល់",
@@ -400,6 +455,7 @@
             document.getElementById('searchInput').placeholder = t.searchPlaceholder;
             document.getElementById('notifHeaderTitle').innerText = t.notifHeader;
             document.getElementById('notifEmptyText').innerText = t.notifEmpty;
+            document.getElementById('createModalTitle').innerText = t.createModalTitle;
             document.getElementById('postContent').placeholder = t.postPlaceholder;
             document.getElementById('lblPrivacy').innerText = t.privacyLabel;
             document.getElementById('optPublic').innerText = t.optPublic;
@@ -424,6 +480,7 @@
                 document.getElementById('navUserAvatar').src = currentUser.profile_pic;
                 document.getElementById('feedUserAvatar').src = currentUser.profile_pic;
             }
+            document.getElementById('modalAuthorName').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
             
             applyLanguage();
             loadPosts();
@@ -432,9 +489,7 @@
             setInterval(loadFeedMessengerBadge, 3000);
         }
 
-        function focusSearchInput() {
-            document.getElementById('searchInput').focus();
-        }
+        function focusSearchInput() { document.getElementById('searchInput').focus(); }
 
         function toggleMenuDropdown(event) {
             event.stopPropagation();
@@ -468,43 +523,37 @@
             } catch (err) { console.error(err); }
         }
 
-        window.onclick = function() {
+        // Close reaction pickers and dropdowns ONLY when clicking elsewhere on the page
+        document.addEventListener('click', function(e) {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
-            document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
-        };
+
+            if (!e.target.closest('.reaction-wrapper')) {
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+            }
+        });
 
         let lastHomeClickTime = 0;
 
         function switchTab(tab) {
             if (tab === 'videos') { 
-                if (window.location.pathname.includes('videos.html')) {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else {
-                    window.location.href = 'videos.html'; 
-                }
+                if (window.location.pathname.includes('videos.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
+                else window.location.href = 'videos.html'; 
                 return; 
             }
             if (tab === 'friends') { 
-                if (window.location.pathname.includes('friends.html')) {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else {
-                    window.location.href = 'friends.html'; 
-                }
+                if (window.location.pathname.includes('friends.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
+                else window.location.href = 'friends.html'; 
                 return; 
             }
             if (tab === 'chat') { 
-                if (window.location.pathname.includes('messages.html')) {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else {
-                    window.location.href = 'messages.html'; 
-                }
+                if (window.location.pathname.includes('messages.html')) window.scrollTo({ top: 0, behavior: 'smooth' });
+                else window.location.href = 'messages.html'; 
                 return; 
             }
             
             const isAlreadyOnFeed = window.location.pathname.includes('feed.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/');
-            
             if (isAlreadyOnFeed) {
                 const currentTime = new Date().getTime();
                 if (currentTime - lastHomeClickTime < 500) {
@@ -530,183 +579,193 @@
             } catch(err) { console.error(err); }
         }
 
+        // Unified '+' Create Post Modal Controls
+        function openCreatePostModal() {
+            document.getElementById('postMsg').innerText = '';
+            document.getElementById('createPostModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('postContent').focus(), 100);
+        }
+
+        function closeCreatePostModal() {
+            document.getElementById('createPostModal').style.display = 'none';
+        }
+
         function previewMedia(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const container = document.getElementById('mediaPreviewContainer');
-            const img = document.getElementById('imagePreview');
-            const vid = document.getElementById('videoPreview');
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
 
-            container.classList.remove('hidden');
-            const url = URL.createObjectURL(file);
-
-            if (file.type.startsWith('video')) {
-                vid.src = url;
-                vid.classList.remove('hidden');
-                img.classList.add('hidden');
-            } else {
-                img.src = url;
-                img.classList.remove('hidden');
-                vid.classList.add('hidden');
-            }
+            files.forEach(file => {
+                if (file.size > 150 * 1024 * 1024) {
+                    alert(`File "${file.name}" exceeds 150MB limit.`);
+                    return;
+                }
+                selectedMediaFiles.push(file);
+            });
+            event.target.value = '';
+            renderMediaPreviews();
         }
 
-        function removeMedia() {
-            document.getElementById('mediaFile').value = '';
-            document.getElementById('mediaPreviewContainer').classList.add('hidden');
-            document.getElementById('imagePreview').src = '';
-            document.getElementById('videoPreview').src = '';
+        function removeMediaItem(index) {
+            selectedMediaFiles.splice(index, 1);
+            renderMediaPreviews();
         }
 
-        async function createPost() {
-            const content = document.getElementById('postContent').value;
-            const privacy = document.getElementById('postPrivacy').value;
-            const fileInput = document.getElementById('mediaFile').files[0];
-            const msg = document.getElementById('postMsg');
-            const submitBtn = document.getElementById('postSubmitBtn');
-            const progressContainer = document.getElementById('uploadProgressContainer');
-            const progressBarFill = document.getElementById('progressBarFill');
-            const progressText = document.getElementById('progressText');
-
-            if (!content.trim() && !fileInput) {
-                msg.innerText = 'Please write something or select a file!';
+        function renderMediaPreviews() {
+            const grid = document.getElementById('multiPreviewGrid');
+            grid.innerHTML = '';
+            if (selectedMediaFiles.length === 0) {
+                grid.classList.add('hidden');
                 return;
             }
-            msg.innerText = '';
+            grid.classList.remove('hidden');
 
-            submitBtn.disabled = true;
-            submitBtn.innerText = 'Posting...';
-            progressContainer.style.display = 'block';
-            progressBarFill.style.width = '0%';
-            progressText.innerText = 'Uploading... 0%';
+            selectedMediaFiles.forEach((file, idx) => {
+                const url = URL.createObjectURL(file);
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                const isVideo = file.type.startsWith('video');
+                const tile = document.createElement('div');
+                tile.className = 'preview-tile';
+                tile.innerHTML = `
+                    ${isVideo ? `<video src="${url}" muted playsinline></video>` : `<img src="${url}">`}
+                    <span class="preview-tile-badge">${isVideo ? '🎬 ' : '🖼️ '}${sizeMB}</span>
+                    <button type="button" class="preview-tile-remove" onclick="removeMediaItem(${idx})">×</button>
+                `;
+                grid.appendChild(tile);
+            });
+        }
 
-            if (fileInput && fileInput.type.startsWith('video')) {
+        function uploadFileToR2(file, onProgress) {
+            return new Promise(async (resolve, reject) => {
                 try {
                     const urlRes = await fetch('/api/videos/upload-url', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             user_email: currentUser.email,
-                            file_name: fileInput.name,
-                            content_type: fileInput.type || 'video/mp4'
+                            file_name: file.name,
+                            content_type: file.type || 'application/octet-stream'
                         })
                     });
                     const urlData = await urlRes.json();
                     if (!urlRes.ok || !urlData.uploadUrl) {
-                        throw new Error(urlData.error || 'Failed to get R2 upload URL');
+                        return reject(new Error(urlData.error || 'Failed to get R2 upload URL'));
                     }
 
-                    await new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        xhr.open('PUT', urlData.uploadUrl, true);
-                        xhr.setRequestHeader('Content-Type', fileInput.type || 'video/mp4');
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', urlData.uploadUrl, true);
+                    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
-                        xhr.upload.onprogress = function(e) {
-                            if (e.lengthComputable) {
-                                const percent = Math.round((e.loaded / e.total) * 100);
-                                progressBarFill.style.width = percent + '%';
-                                progressText.innerText = `Uploading to R2... ${percent}%`;
-                            }
-                        };
-                        xhr.onload = function() {
-                            if (xhr.status >= 200 && xhr.status < 300) resolve();
-                            else reject(new Error('R2 upload failed with status ' + xhr.status));
-                        };
-                        xhr.onerror = () => reject(new Error('Network error during R2 upload'));
-                        xhr.send(fileInput);
-                    });
-
-                    await fetch('/api/videos/complete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_email: currentUser.email,
-                            title: content.trim() ? content.trim().slice(0, 120) : fileInput.name,
-                            description: content.trim(),
-                            r2_key: urlData.r2Key,
-                            video_url: urlData.publicUrl
-                        })
-                    });
-
-                    const postRes = await fetch('/api/posts', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            email: currentUser.email,
-                            content: content,
-                            privacy: privacy,
-                            mediaUrl: urlData.publicUrl,
-                            mediaType: 'video'
-                        })
-                    });
-                    const postData = await postRes.json();
-
-                    submitBtn.disabled = false;
-                    submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
-                    progressContainer.style.display = 'none';
-
-                    if (postData.success) {
-                        document.getElementById('postContent').value = '';
-                        removeMedia();
-                        loadPosts();
-                    } else {
-                        msg.innerText = 'Error: ' + (postData.error || 'Failed to save post.');
-                    }
+                    xhr.upload.onprogress = function(e) {
+                        if (e.lengthComputable && onProgress) {
+                            onProgress(e.loaded / e.total);
+                        }
+                    };
+                    xhr.onload = function() {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve({
+                                url: urlData.publicUrl,
+                                r2Key: urlData.r2Key,
+                                type: file.type.startsWith('video') ? 'video' : 'image'
+                            });
+                        } else {
+                            reject(new Error('R2 upload failed (' + xhr.status + ')'));
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error('Network error during R2 upload'));
+                    xhr.send(file);
                 } catch (err) {
-                    console.error(err);
-                    submitBtn.disabled = false;
-                    submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
-                    progressContainer.style.display = 'none';
-                    msg.innerText = 'Video upload failed: ' + err.message;
+                    reject(err);
                 }
+            });
+        }
+
+        async function createPost() {
+            const content = document.getElementById('postContent').value;
+            const privacy = document.getElementById('postPrivacy').value;
+            const msg = document.getElementById('postMsg');
+            const submitBtn = document.getElementById('postSubmitBtn');
+            const progressContainer = document.getElementById('uploadProgressContainer');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressText = document.getElementById('progressText');
+
+            if (!content.trim() && selectedMediaFiles.length === 0) {
+                msg.innerText = 'Please write something or select at least one photo/video!';
                 return;
             }
+            msg.innerText = '';
 
-            const formData = new FormData();
-            formData.append('email', currentUser.email);
-            formData.append('content', content);
-            formData.append('privacy', privacy);
-            if (fileInput) formData.append('mediaFile', fileInput);
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'Posting...';
 
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/posts', true);
+            try {
+                const uploadedItems = [];
 
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    const percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progressBarFill.style.width = percentComplete + '%';
-                    progressText.innerText = `Uploading... ${percentComplete}%`;
+                if (selectedMediaFiles.length > 0) {
+                    progressContainer.style.display = 'block';
+                    progressBarFill.style.width = '0%';
+
+                    for (let i = 0; i < selectedMediaFiles.length; i++) {
+                        const file = selectedMediaFiles[i];
+                        const uploaded = await uploadFileToR2(file, (ratio) => {
+                            const percent = Math.round(((i + ratio) / selectedMediaFiles.length) * 100);
+                            progressBarFill.style.width = percent + '%';
+                            progressText.innerText = `Uploading to R2 (${i + 1}/${selectedMediaFiles.length})... ${percent}%`;
+                        });
+                        uploadedItems.push({ url: uploaded.url, type: uploaded.type });
+
+                        if (uploaded.type === 'video') {
+                            fetch('/api/videos/complete', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    user_email: currentUser.email,
+                                    title: content.trim() ? content.trim().slice(0, 120) : file.name,
+                                    description: content.trim(),
+                                    r2_key: uploaded.r2Key,
+                                    video_url: uploaded.url
+                                })
+                            }).catch(() => {});
+                        }
+                    }
                 }
-            };
 
-            xhr.onload = function() {
+                const postRes = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: currentUser.email,
+                        content: content,
+                        privacy: privacy,
+                        mediaItems: uploadedItems
+                    })
+                });
+                const postData = await postRes.json();
+
                 submitBtn.disabled = false;
                 submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
                 progressContainer.style.display = 'none';
 
-                if (xhr.status === 201 || xhr.status === 200) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data.success) {
-                            document.getElementById('postContent').value = '';
-                            removeMedia();
-                            loadPosts();
-                        } else {
-                            msg.innerText = 'Error: ' + (data.error || 'Failed to upload.');
-                        }
-                    } catch (e) { msg.innerText = 'Invalid server response.'; }
+                if (postData.success) {
+                    document.getElementById('postContent').value = '';
+                    selectedMediaFiles = [];
+                    renderMediaPreviews();
+                    closeCreatePostModal();
+                    loadPosts();
                 } else {
-                    msg.innerText = 'Failed to upload post.';
+                    msg.innerText = 'Error: ' + (postData.error || 'Failed to save post.');
                 }
-            };
-
-            xhr.send(formData);
+            } catch (err) {
+                console.error(err);
+                submitBtn.disabled = false;
+                submitBtn.innerText = uiTexts[localStorage.getItem('camfeed_lang') || 'en'].postBtn;
+                progressContainer.style.display = 'none';
+                msg.innerText = 'Upload failed: ' + err.message;
+            }
         }
 
         function buildReactionSummaryHtml(postId) {
             const state = postReactionsState[postId];
             if (!state || state.count <= 0) return '';
-            // Show ONLY actual reaction icons present on the post (no auto-3)
             const uniqueIcons = (state.types && state.types.length > 0)
                 ? state.types.join('')
                 : (state.userReaction || '👍');
@@ -725,6 +784,52 @@
                 return `action-btn ${REACTION_META[userReaction].cls}`;
             }
             return `action-btn`;
+        }
+
+        function renderPostMediaHtml(post, dateStr) {
+            if (!post.media_url) return '';
+
+            if (post.media_type === 'carousel' || post.media_url.trim().startsWith('[')) {
+                try {
+                    const items = JSON.parse(post.media_url);
+                    if (Array.isArray(items) && items.length > 0) {
+                        const slidesHtml = items.map(item => {
+                            if (item.type === 'video') {
+                                return `<div class="carousel-slide"><video src="${item.url}" class="autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline onvolumechange="handleVideoVolumeChange(this)"></video></div>`;
+                            }
+                            return `<div class="carousel-slide"><img src="${item.url}" onclick="openImageModal(${post.id}, '${item.url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})"></div>`;
+                        }).join('');
+
+                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${post.id}-${idx}"></span>`).join('');
+
+                        return `
+                            <div class="carousel-wrapper">
+                                <div class="carousel-counter" id="counter-${post.id}">1 / ${items.length}</div>
+                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${post.id}, ${items.length})">
+                                    ${slidesHtml}
+                                </div>
+                            </div>
+                            <div class="carousel-dots">${dotsHtml}</div>
+                        `;
+                    }
+                } catch (e) {}
+            }
+
+            if (post.media_type === 'video') {
+                return `<video src="${post.media_url}" class="post-media autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
+            }
+            return `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
+        }
+
+        function updateCarouselIndicator(track, postId, total) {
+            const slideWidth = track.clientWidth || 1;
+            const currentIndex = Math.round(track.scrollLeft / slideWidth);
+            const counter = document.getElementById(`counter-${postId}`);
+            if (counter) counter.innerText = `${currentIndex + 1} / ${total}`;
+            for (let i = 0; i < total; i++) {
+                const dot = document.getElementById(`dot-${postId}-${i}`);
+                if (dot) dot.classList.toggle('active', i === currentIndex);
+            }
         }
 
         async function loadPosts() {
@@ -763,14 +868,7 @@
                 div.className = 'post-item';
                 div.id = `post-${post.id}`;
 
-                let mediaHtml = '';
-                if (post.media_url) {
-                    if (post.media_type === 'video') {
-                        mediaHtml = `<video src="${post.media_url}" class="post-media autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
-                    } else {
-                        mediaHtml = `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
-                    }
-                }
+                const mediaHtml = renderPostMediaHtml(post, dateStr);
 
                 div.innerHTML = `
                     <div class="post-header" onclick="window.location.href='profile.html?email=${post.user_email}'">
@@ -780,7 +878,7 @@
                             <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
                         </div>
                     </div>
-                    <div class="post-content">${post.content}</div>
+                    <div class="post-content">${post.content || ''}</div>
                     ${mediaHtml}
                     <div class="post-stats-row">
                         <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
@@ -789,9 +887,7 @@
                         <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} ${currentLang === 'km' ? 'មតិយោបល់' : 'Comments'}</span>
                     </div>
                     <div class="post-actions">
-                        <div class="reaction-wrapper"
-                             ontouchstart="startLongPress(${post.id})"
-                             ontouchend="cancelLongPress()">
+                        <div class="reaction-wrapper">
                             <div id="picker-${post.id}" class="reaction-picker" onclick="event.stopPropagation()">
                                 <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '👍')">👍</span>
                                 <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '❤️')">❤️</span>
@@ -803,7 +899,10 @@
                             </div>
                             <button id="likeBtn-${post.id}"
                                     class="${buildActionBtnClass(post.user_reaction)}"
-                                    onclick="quickToggleLike(${post.id})">
+                                    onpointerdown="startHoldReaction(event, ${post.id})"
+                                    onpointerup="endHoldReaction(event, ${post.id})"
+                                    onpointerleave="cancelHoldTimer()"
+                                    oncontextmenu="event.preventDefault()">
                                 ${buildActionBtnContent(post.user_reaction, currentLang)}
                             </button>
                         </div>
@@ -835,17 +934,37 @@
             initAutoPlayVideos();
         }
 
-        // Long press support on mobile to open cute reaction bar
-        function startLongPress(postId) {
+        // Hold 1 second (1000ms) on thumb button to open persistent reaction bar
+        function startHoldReaction(event, postId) {
+            if (event.button && event.button !== 0) return;
+            isLongPressTriggered = false;
+            cancelHoldTimer();
             pressTimer = setTimeout(() => {
+                isLongPressTriggered = true;
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
                 const picker = document.getElementById(`picker-${postId}`);
                 if (picker) picker.classList.add('show');
-            }, 350);
+            }, 1000);
         }
 
-        function cancelLongPress() {
-            if (pressTimer) clearTimeout(pressTimer);
+        function endHoldReaction(event, postId) {
+            cancelHoldTimer();
+            // If held < 1 second, treat as a quick tap to toggle Like/Unlike immediately
+            if (!isLongPressTriggered) {
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker && picker.classList.contains('show')) {
+                    picker.classList.remove('show');
+                    return;
+                }
+                quickToggleLike(postId);
+            }
+        }
+
+        function cancelHoldTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
         }
 
         // Instant click toggle (0ms lag)
@@ -865,7 +984,6 @@
         async function applyReactionOptimistically(postId, emoji) {
             const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
 
-            // Immediate UI update before network request completes
             if (state.userReaction === emoji) {
                 state.userReaction = null;
                 state.count = Math.max(0, state.count - 1);
@@ -882,7 +1000,6 @@
             postReactionsState[postId] = state;
             updatePostReactionUI(postId);
 
-            // Sync with server in background
             try {
                 const res = await fetch('/api/reaction', {
                     method: 'POST',
@@ -1094,7 +1211,7 @@
             event.stopPropagation();
             const menu = document.getElementById(`comment-menu-${commentId}`);
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => {
-                if (m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
+                if(m.id !== `comment-menu-${commentId}`) m.style.display = 'none';
             });
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }

@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Profile</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
+    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin>
+    <link href="[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap)" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #050505; }
@@ -64,6 +64,17 @@
         .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
         .post-media { width: 100%; max-height: 500px; object-fit: contain; background: #000; border-radius: 8px; margin-bottom: 10px; display: block; }
 
+        /* Multi-Media Carousel */
+        .carousel-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 10px; }
+        .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .carousel-track::-webkit-scrollbar { display: none; }
+        .carousel-slide { flex: 0 0 100%; width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; background: #000; }
+        .carousel-slide img, .carousel-slide video { width: 100%; max-height: 480px; object-fit: contain; display: block; }
+        .carousel-counter { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 14px; pointer-events: none; }
+        .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -4px; margin-bottom: 8px; }
+        .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; }
+        .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
+
         .post-stats { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #65676b; padding-bottom: 8px; border-bottom: 1px solid #e4e6eb; min-height: 28px; }
         .reaction-summary { display: flex; align-items: center; gap: 5px; }
         .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
@@ -104,13 +115,7 @@
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        .emoji-option {
-            font-size: 26px;
-            cursor: pointer;
-            transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            user-select: none;
-            line-height: 1;
-        }
+        .emoji-option { font-size: 26px; cursor: pointer; transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; line-height: 1; }
         .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
 
         .options-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 50%; color: #65676b; }
@@ -124,7 +129,7 @@
         .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
 
-        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14.5px; font-weight: 600; color: #050505; transition: background 0.15s; }
+        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14.5px; font-weight: 600; color: #050505; }
         .share-option-btn:hover { background: #e4e6eb; }
         .share-icon { font-size: 22px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
@@ -153,7 +158,7 @@
             <div class="profile-info-section">
                 <div class="avatar-and-name">
                     <div class="avatar-wrapper">
-                        <img id="profileAvatar" src="https://via.placeholder.com/140" class="profile-avatar">
+                        <img id="profileAvatar" src="[https://via.placeholder.com/140](https://via.placeholder.com/140)" class="profile-avatar">
                         <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('profilePic', this)">
                         <button id="editAvatarBtn" class="edit-avatar-btn" style="display:none;" onclick="document.getElementById('avatarInput').click()" title="Change Profile Picture">📷</button>
                     </div>
@@ -361,6 +366,48 @@
             return `post-action-btn`;
         }
 
+        function renderPostMediaHtml(post) {
+            if (!post.media_url) return '';
+            if (post.media_type === 'carousel' || post.media_url.trim().startsWith('[')) {
+                try {
+                    const items = JSON.parse(post.media_url);
+                    if (Array.isArray(items) && items.length > 0) {
+                        const slidesHtml = items.map(item => {
+                            if (item.type === 'video') {
+                                return `<div class="carousel-slide"><video src="${item.url}" controls playsinline></video></div>`;
+                            }
+                            return `<div class="carousel-slide"><img src="${item.url}"></div>`;
+                        }).join('');
+                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${post.id}-${idx}"></span>`).join('');
+                        return `
+                            <div class="carousel-wrapper">
+                                <div class="carousel-counter" id="counter-${post.id}">1 / ${items.length}</div>
+                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${post.id}, ${items.length})">
+                                    ${slidesHtml}
+                                </div>
+                            </div>
+                            <div class="carousel-dots">${dotsHtml}</div>
+                        `;
+                    }
+                } catch (e) {}
+            }
+            if (post.media_type === 'video') {
+                return `<video src="${post.media_url}" class="post-media" controls playsinline></video>`;
+            }
+            return `<img src="${post.media_url}" class="post-media">`;
+        }
+
+        function updateCarouselIndicator(track, postId, total) {
+            const slideWidth = track.clientWidth || 1;
+            const currentIndex = Math.round(track.scrollLeft / slideWidth);
+            const counter = document.getElementById(`counter-${postId}`);
+            if (counter) counter.innerText = `${currentIndex + 1} / ${total}`;
+            for (let i = 0; i < total; i++) {
+                const dot = document.getElementById(`dot-${postId}-${i}`);
+                if (dot) dot.classList.toggle('active', i === currentIndex);
+            }
+        }
+
         async function loadTabContent(tab) {
             const content = document.getElementById('profileContent');
             content.innerHTML = '<div style="text-align:center; padding:30px; color:#65676b;">Loading...</div>';
@@ -400,19 +447,12 @@
                                 </div>
                             ` : '';
 
-                            let mediaHtml = '';
-                            if (post.media_url) {
-                                if (post.media_type === 'video') {
-                                    mediaHtml = `<video src="${post.media_url}" class="post-media" controls playsinline></video>`;
-                                } else {
-                                    mediaHtml = `<img src="${post.media_url}" class="post-media">`;
-                                }
-                            }
+                            const mediaHtml = renderPostMediaHtml(post);
 
                             div.innerHTML = `
                                 <div class="post-header">
                                     <div class="post-author-info" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
-                                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
+                                        <img src="${post.profile_pic || '[https://via.placeholder.com/40](https://via.placeholder.com/40)'}" class="avatar">
                                         <div>
                                             <div class="post-author">${post.first_name || ''} ${post.last_name || ''}</div>
                                             <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
@@ -461,7 +501,7 @@
                         content.innerHTML = data.users.map(u => `
                             <div class="user-row">
                                 <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
-                                    <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                    <img src="${u.profile_pic || '[https://via.placeholder.com/40](https://via.placeholder.com/40)'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                     <div style="font-weight:bold; font-size:14px; color:#050505;">${u.first_name || ''} ${u.last_name || ''}</div>
                                 </div>
                                 <button class="btn-action btn-secondary" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">View</button>
@@ -510,13 +550,9 @@
                 state.count = Math.max(0, state.count - 1);
                 if (state.count === 0) state.types = [];
             } else {
-                if (!state.userReaction) {
-                    state.count += 1;
-                }
+                if (!state.userReaction) state.count += 1;
                 state.userReaction = emoji;
-                if (!state.types.includes(emoji)) {
-                    state.types.push(emoji);
-                }
+                if (!state.types.includes(emoji)) state.types.push(emoji);
             }
             postReactionsState[postId] = state;
             updatePostReactionUI(postId);
@@ -531,9 +567,7 @@
                 if (data.success) {
                     state.count = parseInt(data.likes_count) || 0;
                     state.userReaction = data.reacted ? emoji : null;
-                    if (Array.isArray(data.reaction_types)) {
-                        state.types = data.reaction_types;
-                    }
+                    if (Array.isArray(data.reaction_types)) state.types = data.reaction_types;
                     postReactionsState[postId] = state;
                     updatePostReactionUI(postId);
                 }
@@ -548,9 +582,7 @@
                 btn.className = buildActionBtnClass(state.userReaction);
                 btn.innerHTML = buildActionBtnContent(state.userReaction);
             }
-            if (summary) {
-                summary.innerHTML = buildReactionSummaryHtml(postId);
-            }
+            if (summary) summary.innerHTML = buildReactionSummaryHtml(postId);
         }
 
         function openShareModal(postId) {
@@ -572,19 +604,13 @@
                 const res = await fetch('/api/posts/share', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        postId: activePostIdForShare,
-                        email: currentUser.email,
-                        caption: caption
-                    })
+                    body: JSON.stringify({ postId: activePostIdForShare, email: currentUser.email, caption })
                 });
                 const data = await res.json();
                 if (data.success) {
                     closeShareModal();
                     alert('បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
-                    if (profileEmail === currentUser.email) {
-                        loadTabContent('posts');
-                    }
+                    if (profileEmail === currentUser.email) loadTabContent('posts');
                 }
             } catch (err) { console.error(err); }
         }
@@ -594,11 +620,7 @@
             const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
             if (navigator.share) {
                 try {
-                    await navigator.share({
-                        title: 'CamFeed Post',
-                        text: 'Check out this post on CamFeed!',
-                        url: shareUrl
-                    });
+                    await navigator.share({ title: 'CamFeed Post', text: 'Check out this post on CamFeed!', url: shareUrl });
                     closeShareModal();
                 } catch (err) {}
             } else {
@@ -627,7 +649,6 @@
             } catch (err) { console.error(err); }
         }
 
-        // Upload Profile / Cover picture directly to Cloudflare R2 (New Storage)
         async function uploadProfileImage(fieldName, input) {
             const file = input.files[0];
             if (!file) return;
@@ -643,9 +664,7 @@
                     })
                 });
                 const urlData = await urlRes.json();
-                if (!urlRes.ok || !urlData.uploadUrl) {
-                    throw new Error(urlData.error || 'Failed to get R2 upload URL');
-                }
+                if (!urlRes.ok || !urlData.uploadUrl) throw new Error(urlData.error || 'Failed to get R2 upload URL');
 
                 const uploadRes = await fetch(urlData.uploadUrl, {
                     method: 'PUT',
@@ -654,10 +673,7 @@
                 });
                 if (!uploadRes.ok) throw new Error('R2 upload failed');
 
-                const payload = {
-                    email: currentUser.email,
-                    bio: currentProfileBio
-                };
+                const payload = { email: currentUser.email, bio: currentProfileBio };
                 if (fieldName === 'profilePic') payload.profilePicUrl = urlData.publicUrl;
                 if (fieldName === 'coverPic') payload.coverPicUrl = urlData.publicUrl;
 
@@ -746,7 +762,7 @@
                         const isOwner = currentUser.email === c.user_email;
                         return `
                             <div class="comment-container" id="comment-${c.id}">
-                                <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
+                                <img src="${c.profile_pic || '[https://via.placeholder.com/30](https://via.placeholder.com/30)'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                                 <div class="comment-content-wrapper">
                                     <div style="flex: 1;">
                                         <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name || ''} ${c.last_name || ''}</span>

@@ -64,7 +64,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Create Post
+// Create Post (Supports single or multiple images/videos combined in one post via Cloudflare R2)
 app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -73,9 +73,22 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   const email = req.body.email;
   const content = req.body.content || '';
   const privacy = req.body.privacy || 'public';
-  
-  const mediaUrl = req.file ? req.file.path : (req.body.mediaUrl || null);
-  const mediaType = req.file ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image') : (req.body.mediaType || 'text');
+
+  let mediaUrl = req.file ? req.file.path : (req.body.mediaUrl || null);
+  let mediaType = req.file
+    ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image')
+    : (req.body.mediaType || 'text');
+
+  // Handle multiple media items array sent as JSON
+  if (Array.isArray(req.body.mediaItems) && req.body.mediaItems.length > 0) {
+    if (req.body.mediaItems.length === 1) {
+      mediaUrl = req.body.mediaItems[0].url;
+      mediaType = req.body.mediaItems[0].type || 'image';
+    } else {
+      mediaUrl = JSON.stringify(req.body.mediaItems);
+      mediaType = 'carousel';
+    }
+  }
 
   try {
     const query = 'INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, $3, $4, $5) RETURNING *';
