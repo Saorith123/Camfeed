@@ -1173,7 +1173,7 @@
                 const isCurrent = (acc.email || '').trim().toLowerCase() === activeEmail;
                 const fullName = `${acc.first_name || ''} ${acc.last_name || ''}`.trim() || acc.email;
                 const pic = acc.profile_pic || 'https://via.placeholder.com/32';
-                const safeEmail = (acc.email || '').replace(/'/g, "\'");
+                const safeEmail = (acc.email || '').replace(/'/g, "\\'");
 
                 return `
                     <div class="saved-acc-row ${isCurrent ? 'is-current' : ''}" onclick="switchToSavedAccount('${safeEmail}')">
@@ -1628,7 +1628,7 @@
 
                 const post = postData.post;
                 const dateStr = new Date(post.created_at).toLocaleString();
-                const mediaHtml = renderPostMediaHtml(post, dateStr, !append && idx < 2);
+                const mediaHtml = renderPostMediaHtml(post, dateStr, true);
                 const comments = commentsData.success ? (commentsData.comments || []) : [];
 
                 const commentsHtml = comments.length === 0
@@ -2072,15 +2072,28 @@
                     const batch = data.posts || [];
                     feedHasMore = data.hasMore !== undefined ? data.hasMore : (batch.length === FEED_PAGE_SIZE);
                     if (!append) {
-                        try { localStorage.setItem(cacheKey, JSON.stringify(batch)); } catch (e) {}
+                        if (batch.length > 0) {
+                            try { localStorage.setItem(cacheKey, JSON.stringify(batch)); } catch (e) {}
+                        }
                         renderPosts(batch, 'postsContainer', false);
                     } else {
                         renderPosts(batch, 'postsContainer', true);
                     }
                     feedOffset += batch.length;
+                } else if (!append) {
+                    const cEl = document.getElementById('postsContainer');
+                    if (cEl && !cEl.querySelector('.post-item')) {
+                        cEl.innerHTML = `<div style="text-align:center; padding:30px; color:#65676b;">⚠️ មិនអាចទាញទិន្នន័យបានទេ (${data.error || 'Error'})<br><button onclick="loadPosts(false)" style="margin-top:10px; background:#1877f2; color:#fff; border:none; padding:8px 18px; border-radius:20px; font-weight:700; cursor:pointer;">ព្យាយាមម្តងទៀត</button></div>`;
+                    }
                 }
             } catch (err) {
                 console.error(err);
+                if (!append) {
+                    const cEl = document.getElementById('postsContainer');
+                    if (cEl && !cEl.querySelector('.post-item')) {
+                        cEl.innerHTML = `<div style="text-align:center; padding:30px; color:#65676b;">⚠️ ការតភ្ជាប់មានបញ្ហា សូមចុចព្យាយាមម្តងទៀត<br><button onclick="loadPosts(false)" style="margin-top:10px; background:#1877f2; color:#fff; border:none; padding:8px 18px; border-radius:20px; font-weight:700; cursor:pointer;">ផ្ទុកឡើងវិញ (Reload)</button></div>`;
+                    }
+                }
             } finally {
                 isLoadingMorePosts = false;
             }
@@ -2886,7 +2899,7 @@
                         const userReact = c.user_reaction || '';
                         const isReply = !!c.reply_to_id;
                         const replyBadge = isReply ? `<span style="font-size:11px; color:#1877f2; font-weight:600;">↳ បានឆ្លើយតប</span> ` : '';
-                        const safeFirstName = (c.first_name || '').replace(/'/g, "\'");
+                        const safeFirstName = (c.first_name || '').replace(/'/g, "\\'");
 
                         return `
                             <div class="comment-container ${isReply ? 'is-reply' : ''}" id="comment-${c.id}" style="flex-direction:column; gap:2px; margin-bottom:4px;">

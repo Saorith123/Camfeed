@@ -237,6 +237,84 @@
             margin-top: 3px;
         }
 
+        /* Unread Conversation Highlight in Sidebar (Bold Black Name + Larger Bold Preview until opened) */
+        .cf-contact-card.is-unread {
+            background: #f0f4ff;
+            border-color: #dbeafe;
+        }
+        .cf-contact-card.is-unread .cf-contact-name {
+            font-weight: 900;
+            color: #000000;
+            font-size: 15.5px;
+        }
+        .cf-contact-card.is-unread .cf-contact-preview {
+            font-weight: 800;
+            color: #050505;
+            font-size: 14px;
+        }
+        .cf-unread-pill {
+            background: #4f46e5;
+            color: #fff;
+            font-size: 10.5px;
+            font-weight: 800;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Media Download Button Overlay on Photos & Videos */
+        .cf-media-dl-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 12;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            background: rgba(15, 23, 42, 0.72);
+            color: #ffffff;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            text-decoration: none;
+            transition: transform 0.12s, background 0.15s;
+        }
+        .cf-media-dl-btn:hover {
+            background: #4f46e5;
+            transform: scale(1.06);
+        }
+
+        /* Unplayed Received Voice Message Distinct Highlight (Turns normal once clicked/listened) */
+        .cf-voice-pill.is-unplayed {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+            border: 1.5px solid #f59e0b !important;
+            box-shadow: 0 3px 12px rgba(245, 158, 11, 0.22);
+        }
+        .cf-voice-pill.is-unplayed .cf-voice-play {
+            background: #f59e0b !important;
+            color: #ffffff !important;
+        }
+        .cf-voice-pill.is-unplayed .wave-bar {
+            background-color: #fbbf24 !important;
+        }
+        .cf-voice-unplayed-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+            flex-shrink: 0;
+        }
+
         /* Right Conversation Card */
         .cf-chat-card {
             flex: 1;
@@ -1296,7 +1374,23 @@
             if (durEl && durEl.dataset.totalDur) durEl.innerText = durEl.dataset.totalDur;
         }
 
+        function getPlayedVoicesSet() {
+            try {
+                return new Set(JSON.parse(localStorage.getItem('camfeed_played_voices') || '[]').map(String));
+            } catch (e) { return new Set(); }
+        }
+        function markVoiceAsPlayed(msgId) {
+            const s = getPlayedVoicesSet();
+            s.add(String(msgId));
+            try { localStorage.setItem('camfeed_played_voices', JSON.stringify(Array.from(s).slice(-500))); } catch (e) {}
+            const pill = document.getElementById(`voice-pill-${msgId}`);
+            const dot = document.getElementById(`voice-unplayed-dot-${msgId}`);
+            if (pill) pill.classList.remove('is-unplayed');
+            if (dot) dot.remove();
+        }
+
         async function togglePlayVoiceMessage(msgId, remoteUrl) {
+            markVoiceAsPlayed(msgId);
             const btn = document.getElementById(`voice-btn-${msgId}`);
             const durEl = document.getElementById(`voice-dur-${msgId}`);
 
@@ -1729,12 +1823,39 @@
             setInterval(loadConversations, 12000);
         }
 
+        let unreadSenderMap = {}; // { [senderEmail]: count }
+
         async function loadConversations() {
             try {
-                const res = await fetch(`/api/chat-conversations?email=${encodeURIComponent(currentUser.email)}`);
+                const [res, notifRes] = await Promise.all([
+                    fetch(`/api/chat-conversations?email=${encodeURIComponent(currentUser.email)}`),
+                    fetch(`/api/chat-notifications?email=${encodeURIComponent(currentUser.email)}`).catch(() => null)
+                ]);
                 const data = await res.json();
+                if (notifRes) {
+                    try {
+                        const nData = await notifRes.json();
+                        if (nData.success && Array.isArray(nData.unreadMessages)) {
+                            const map = {};
+                            nData.unreadMessages.forEach(m => {
+                                const se = (m.sender_email || '').toLowerCase();
+                                if (!activeFriend || activeFriend.email.toLowerCase() !== se) {
+                                    map[se] = (map[se] || 0) + 1;
+                                }
+                            });
+                            unreadSenderMap = map;
+                        }
+                    } catch (e) {}
+                }
+
                 if (data.success && Array.isArray(data.conversations)) {
-                    allConversations = data.conversations;
+                    allConversations = data.conversations.map(c => {
+                        const se = (c.email || '').toLowerCase();
+                        const isCurrentlyOpen = activeFriend && activeFriend.email.toLowerCase() === se;
+                        const dbUnread = parseInt(c.unread_count) || 0;
+                        const liveUnread = isCurrentlyOpen ? 0 : Math.max(dbUnread, unreadSenderMap[se] || 0);
+                        return { ...c, unread_count: liveUnread };
+                    });
                     const searchVal = (document.getElementById('searchContactInput')?.value || '').trim();
                     if (!searchVal) renderContacts(allConversations);
 
@@ -1766,6 +1887,26 @@
             } catch (err) {}
         }
 
+        async function downloadChatMediaFile(url, isVideo, event) {
+            if (event) event.stopPropagation();
+            const ext = isVideo ? 'mp4' : 'jpg';
+            const fileName = `CamFeed-${Date.now()}.${ext}`;
+            try {
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+            } catch (err) {
+                window.open(url, '_blank');
+            }
+        }
+
         function formatSidebarPreview(rawMsg) {
             if (!rawMsg) return 'ចុចដើម្បីជជែក';
             if (rawMsg === DELETED_MARKER) return '🚫 សារត្រូវបានលុប';
@@ -1781,6 +1922,8 @@
             }
             container.innerHTML = list.map(person => {
                 const isActive = activeFriend && activeFriend.email === person.email ? 'active' : '';
+                const unreadNum = isActive ? 0 : (parseInt(person.unread_count) || 0);
+                const unreadClass = unreadNum > 0 ? 'is-unread' : '';
                 const avatar = person.profile_pic || 'https://via.placeholder.com/48';
                 const subtitle = formatSidebarPreview(person.last_message || person.email);
                 const online = isUserActivelyOnline(person.last_active);
@@ -1793,7 +1936,7 @@
                 }).replace(/'/g, "&#39;");
 
                 return `
-                    <div class="cf-contact-card ${isActive}" onclick='openChat(${safeData})'>
+                    <div class="cf-contact-card ${isActive} ${unreadClass}" onclick='openChat(${safeData})'>
                         <div class="cf-avatar-box">
                             <img src="${avatar}">
                             <span class="cf-status-ring ${online ? 'online' : ''}"></span>
@@ -1801,7 +1944,10 @@
                         <div class="cf-contact-meta">
                             <div class="cf-contact-top">
                                 <div class="cf-contact-name notranslate" translate="no">${person.first_name || ''} ${person.last_name || ''}</div>
-                                <span class="cf-contact-state-tag ${online ? 'online' : 'offline'}">${online ? 'Online' : 'Offline'}</span>
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    ${unreadNum > 0 ? `<span class="cf-unread-pill">${unreadNum}</span>` : ''}
+                                    <span class="cf-contact-state-tag ${online ? 'online' : 'offline'}">${online ? 'Online' : 'Offline'}</span>
+                                </div>
                             </div>
                             <div class="cf-contact-preview notranslate" translate="no">${escapeHtml(subtitle)}</div>
                         </div>
@@ -1813,6 +1959,11 @@
         async function openChat(friend) {
             activeFriend = friend;
             lastMessagesSignature = '';
+            const se = (friend.email || '').toLowerCase();
+            delete unreadSenderMap[se];
+            allConversations = allConversations.map(c =>
+                (c.email || '').toLowerCase() === se ? { ...c, unread_count: 0 } : c
+            );
             cancelEditMessage();
             document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
             document.getElementById('activeChatAvatar').src = friend.profile_pic || 'https://via.placeholder.com/42';
@@ -1983,17 +2134,21 @@
                     const cached = audioBlobCache.get(m.media_url);
                     const initialDur = (cached && cached.durationSec > 0) ? formatSeconds(cached.durationSec) : '0:00';
                     const barsHtml = WAVEFORM_BARS.map(h => `<span class="wave-bar" style="height:${Math.round(h * 0.22)}px;"></span>`).join('');
+                    const playedSet = getPlayedVoicesSet();
+                    const isUnplayedReceived = !isSent && !playedSet.has(String(m.id));
                     bodyHtml = `
-                        <div class="cf-voice-pill">
+                        <div class="cf-voice-pill ${isUnplayedReceived ? 'is-unplayed' : ''}" id="voice-pill-${m.id}">
                             <button type="button" class="cf-voice-play" id="voice-btn-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">▶</button>
                             <div class="cf-waveform" id="voice-wave-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">${barsHtml}</div>
                             <span class="cf-voice-dur" id="voice-dur-${m.id}" data-total-dur="${initialDur}">${initialDur}</span>
+                            ${isUnplayedReceived ? `<span class="cf-voice-unplayed-dot" id="voice-unplayed-dot-${m.id}" title="សារសំឡេងថ្មីមិនទាន់ស្តាប់"></span>` : ''}
                         </div>
                     `;
                 } else if (m.media_url) {
+                    const dlBtnHtml = `<button type="button" class="cf-media-dl-btn" onclick="downloadChatMediaFile('${m.media_url}', ${isVideo ? 'true' : 'false'}, event)" title="ទាញយក (Download)">⬇️</button>`;
                     bodyHtml = isVideo
-                        ? `<div class="cf-media-card"><video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
-                        : `<div class="cf-media-card"><img src="${m.media_url}" onclick="window.open('${m.media_url}', '_blank')"></div>`;
+                        ? `<div class="cf-media-card">${dlBtnHtml}<video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
+                        : `<div class="cf-media-card">${dlBtnHtml}<img src="${m.media_url}" onclick="window.open('${m.media_url}', '_blank')"></div>`;
                 } else if (displayText === '👍') {
                     bodyHtml = `<div class="big-thumb-sticker">👍</div>`;
                 } else if (displayText) {

@@ -1174,6 +1174,15 @@ app.get('/api/chat-conversations', async (req, res) => {
         ORDER BY m.created_at DESC LIMIT 1
       ) as last_message,
       (
+        SELECT m.sender_email FROM messages m 
+        WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
+        ORDER BY m.created_at DESC LIMIT 1
+      ) as last_sender_email,
+      (
+        SELECT COUNT(*)::int FROM messages m
+        WHERE m.sender_email = u.email AND m.receiver_email = $1 AND COALESCE(m.is_read, FALSE) = FALSE
+      ) as unread_count,
+      (
         SELECT m.created_at FROM messages m 
         WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
         ORDER BY m.created_at DESC LIMIT 1
@@ -1191,6 +1200,8 @@ app.get('/api/chat-conversations', async (req, res) => {
       
       SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active,
       'Start a conversation' as last_message,
+      NULL as last_sender_email,
+      0 as unread_count,
       NOW() - INTERVAL '1 year' as last_time
       FROM users u
       JOIN follows f ON (f.following_email = u.email AND f.follower_email = $1) OR (f.follower_email = u.email AND f.following_email = $1)
