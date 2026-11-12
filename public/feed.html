@@ -59,6 +59,89 @@
         .dropdown-item:last-child { border-bottom: none; }
         .dropdown-item:hover { background: #f2f2f2; }
 
+        /* Multi-Account Switcher (Up to 5 Saved Accounts) inside ☰ Menu */
+        .dropdown-menu { width: 265px; }
+        .account-submenu {
+            display: none;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e4e6eb;
+            max-height: 270px;
+            overflow-y: auto;
+        }
+        .account-submenu.open { display: block; }
+        .saved-acc-row {
+            padding: 9px 14px 9px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eef0f3;
+            transition: background 0.15s;
+        }
+        .saved-acc-row:hover { background: #e7f3ff; }
+        .saved-acc-row.is-current { background: #eef5ff; }
+        .saved-acc-left {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-width: 0;
+            flex: 1;
+        }
+        .saved-acc-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 1.5px solid #dddfe2;
+        }
+        .saved-acc-info { min-width: 0; flex: 1; }
+        .saved-acc-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #050505;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .saved-acc-sub {
+            font-size: 11px;
+            color: #65676b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .saved-acc-active-dot {
+            color: #1877f2;
+            font-weight: 800;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .saved-acc-remove {
+            background: none;
+            border: none;
+            color: #90949c;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .saved-acc-remove:hover { background: #ffebe9; color: #fa383e; }
+        .add-account-row {
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1877f2;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f0f7ff;
+        }
+        .add-account-row:hover { background: #e1effe; }
+
         /* Language Sub-selector inside ☰ Menu */
         .lang-submenu { display: none; background: #f8f9fa; border-bottom: 1px solid #e4e6eb; }
         .lang-submenu.open { display: block; }
@@ -600,6 +683,23 @@
                 <div class="dropdown-menu" id="menuDropdown" onclick="event.stopPropagation()">
                     <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'"><span>⚙️ Settings & Privacy</span></div>
                     <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'"><span>🛡️ Admin Reports</span></div>
+
+                    <!-- Switch Account (Up to 5 Accounts without Logging Out) -->
+                    <div class="dropdown-item" onclick="toggleAccountSubmenu(event)" style="background: #f8f9fa;">
+                        <span>🔄 <span id="menuSwitchAccText">ប្តូរគណនី (Accounts)</span></span>
+                        <span style="display:flex; align-items:center; gap:5px;">
+                            <span id="savedAccCountBadge" style="background:#1877f2; color:#fff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px;">1/5</span>
+                            <span id="accArrowIcon" style="font-size: 11px; color: #65676b;">▼</span>
+                        </span>
+                    </div>
+                    <div class="account-submenu" id="accountSubmenu">
+                        <div id="savedAccountsListContainer"></div>
+                        <div class="add-account-row" id="addAnotherAccountBtn" onclick="openAddAccountModal()">
+                            <span style="font-size:16px; font-weight:800;">＋</span>
+                            <span id="addAccBtnLabel">បន្ថែមគណនីផ្សេងទៀត (Add Account)</span>
+                        </div>
+                    </div>
+
                     <!-- Language Selector with Khmer / English Dropdown inside ☰ Menu -->
                     <div class="dropdown-item" onclick="toggleLanguageSubmenu(event)" style="background: #f8f9fa;">
                         <span>🌐 <span id="menuLangText">ភាសា / Language</span></span>
@@ -801,6 +901,23 @@
         </div>
     </div>
 
+    <!-- Quick Add Account Modal (Saves up to 5 Accounts for Instant 1-Tap Switching) -->
+    <div id="addAccountModal" class="modal-overlay" onclick="closeAddAccountModal()">
+        <div class="modal-card" style="max-width: 400px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>🔄 បន្ថែមគណនីថ្មី (Add Account)</span>
+                <span style="cursor: pointer; font-size: 22px;" onclick="closeAddAccountModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #65676b; margin: 0;">ចូលគណនីមួយទៀតដើម្បីរក្សាទុក (អាចរក្សាទុកបានរហូតដល់ 5 គណនី និងប្តូរទៅវិញទៅមកភ្លាមៗដោយមិនបាច់ Log Out)៖</p>
+                <input type="text" id="quickAddEmailInput" placeholder="អ៊ីមែល ឬលេខទូរសព្ទ (Email / Phone)">
+                <input type="password" id="quickAddPassInput" placeholder="ពាក្យសម្ងាត់ (Password)" onkeypress="if(event.key==='Enter') submitQuickAddAccount()">
+                <div id="quickAddErrorMsg" style="color: #fa383e; font-size: 12.5px; font-weight: 600; text-align: center;"></div>
+                <button type="button" id="quickAddSubmitBtn" class="btn-primary" onclick="submitQuickAddAccount()">ចូល និងរក្សាទុកគណនី</button>
+            </div>
+        </div>
+    </div>
+
     <div class="main-container">
 
         <div id="tabContentFeed">
@@ -996,9 +1113,181 @@
             setTimeout(() => { toast.style.display = 'none'; }, 1100);
         }
 
+        // =========================================================================
+        // MULTI-ACCOUNT SWITCHER (Up to 5 Accounts - Instant Switch Without Logout)
+        // =========================================================================
+        const SAVED_ACCOUNTS_KEY = 'camfeed_saved_accounts_v1';
+        const MAX_SAVED_ACCOUNTS = 5;
+
+        function getSavedAccounts() {
+            try {
+                const list = JSON.parse(localStorage.getItem(SAVED_ACCOUNTS_KEY) || '[]');
+                return Array.isArray(list) ? list : [];
+            } catch (e) { return []; }
+        }
+
+        function persistSavedAccounts(list) {
+            try {
+                localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(list.slice(0, MAX_SAVED_ACCOUNTS)));
+            } catch (e) {}
+        }
+
+        function syncCurrentUserIntoSavedAccounts(userObj) {
+            if (!userObj || !userObj.email) return;
+            let list = getSavedAccounts();
+            const normEmail = userObj.email.trim().toLowerCase();
+            const existingIdx = list.findIndex(a => (a.email || '').trim().toLowerCase() === normEmail);
+            if (existingIdx !== -1) {
+                list[existingIdx] = { ...list[existingIdx], ...userObj };
+            } else {
+                if (list.length >= MAX_SAVED_ACCOUNTS) {
+                    list.pop();
+                }
+                list.unshift(userObj);
+            }
+            persistSavedAccounts(list);
+            renderSavedAccountsMenu();
+        }
+
+        function renderSavedAccountsMenu() {
+            const list = getSavedAccounts();
+            const container = document.getElementById('savedAccountsListContainer');
+            const badge = document.getElementById('savedAccCountBadge');
+            const addBtn = document.getElementById('addAnotherAccountBtn');
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
+
+            if (badge) badge.innerText = `${list.length}/${MAX_SAVED_ACCOUNTS}`;
+            if (addBtn) {
+                addBtn.style.display = list.length >= MAX_SAVED_ACCOUNTS ? 'none' : 'flex';
+                const lbl = document.getElementById('addAccBtnLabel');
+                if (lbl) {
+                    lbl.innerText = currentLang === 'km'
+                        ? `បន្ថែមគណនី (${list.length}/${MAX_SAVED_ACCOUNTS})`
+                        : `Add Account (${list.length}/${MAX_SAVED_ACCOUNTS})`;
+                }
+            }
+            if (!container) return;
+
+            const activeEmail = (currentUser?.email || '').trim().toLowerCase();
+            container.innerHTML = list.map(acc => {
+                const isCurrent = (acc.email || '').trim().toLowerCase() === activeEmail;
+                const fullName = `${acc.first_name || ''} ${acc.last_name || ''}`.trim() || acc.email;
+                const pic = acc.profile_pic || 'https://via.placeholder.com/32';
+                const safeEmail = (acc.email || '').replace(/'/g, "\'");
+
+                return `
+                    <div class="saved-acc-row ${isCurrent ? 'is-current' : ''}" onclick="switchToSavedAccount('${safeEmail}')">
+                        <div class="saved-acc-left">
+                            <img src="${pic}" class="saved-acc-avatar">
+                            <div class="saved-acc-info">
+                                <div class="saved-acc-name notranslate" translate="no">${fullName}</div>
+                                <div class="saved-acc-sub notranslate" translate="no">${acc.email}</div>
+                            </div>
+                        </div>
+                        ${isCurrent
+                            ? `<span class="saved-acc-active-dot" title="កំពុងប្រើប្រាស់">✓</span>`
+                            : `<button type="button" class="saved-acc-remove" onclick="removeSavedAccount(event, '${safeEmail}')" title="ដកចេញពីបញ្ជី">✕</button>`
+                        }
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleAccountSubmenu(event) {
+            if (event) event.stopPropagation();
+            renderSavedAccountsMenu();
+            const sub = document.getElementById('accountSubmenu');
+            const arrow = document.getElementById('accArrowIcon');
+            if (sub) sub.classList.toggle('open');
+            if (arrow && sub) arrow.innerText = sub.classList.contains('open') ? '▲' : '▼';
+        }
+
+        function switchToSavedAccount(targetEmail) {
+            const list = getSavedAccounts();
+            const found = list.find(a => (a.email || '').trim().toLowerCase() === targetEmail.trim().toLowerCase());
+            if (!found) return;
+
+            if ((currentUser?.email || '').trim().toLowerCase() === targetEmail.trim().toLowerCase()) {
+                document.getElementById('menuDropdown').style.display = 'none';
+                return;
+            }
+
+            // Switch active account immediately without logging out of saved accounts!
+            localStorage.setItem('camfeed_user', JSON.stringify(found));
+            const toast = showLanguageToast(`🔄 កំពុងប្តូរទៅគណនី ${found.first_name || found.email}...`);
+            setTimeout(() => {
+                window.location.reload();
+            }, 350);
+        }
+
+        function removeSavedAccount(event, targetEmail) {
+            if (event) event.stopPropagation();
+            if (!confirm('ដកគណនីនេះចេញពីបញ្ជីប្តូររហ័សមែនទេ?')) return;
+            const list = getSavedAccounts().filter(a => (a.email || '').trim().toLowerCase() !== targetEmail.trim().toLowerCase());
+            persistSavedAccounts(list);
+            renderSavedAccountsMenu();
+        }
+
+        function openAddAccountModal() {
+            const list = getSavedAccounts();
+            if (list.length >= MAX_SAVED_ACCOUNTS) {
+                alert(`អ្នកអាចរក្សាទុកបានច្រើនបំផុតត្រឹម ${MAX_SAVED_ACCOUNTS} គណនីប៉ុណ្ណោះ!`);
+                return;
+            }
+            document.getElementById('menuDropdown').style.display = 'none';
+            document.getElementById('quickAddEmailInput').value = '';
+            document.getElementById('quickAddPassInput').value = '';
+            document.getElementById('quickAddErrorMsg').innerText = '';
+            document.getElementById('addAccountModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('quickAddEmailInput').focus(), 100);
+        }
+
+        function closeAddAccountModal() {
+            document.getElementById('addAccountModal').style.display = 'none';
+        }
+
+        async function submitQuickAddAccount() {
+            const emailVal = document.getElementById('quickAddEmailInput').value.trim();
+            const passVal = document.getElementById('quickAddPassInput').value;
+            const errEl = document.getElementById('quickAddErrorMsg');
+            const btn = document.getElementById('quickAddSubmitBtn');
+
+            if (!emailVal || !passVal) {
+                errEl.innerText = 'សូមបញ្ចូលអ៊ីមែល/លេខទូរសព្ទ និងពាក្យសម្ងាត់!';
+                return;
+            }
+            errEl.innerText = '';
+            btn.disabled = true;
+            btn.innerText = 'កំពុងផ្ទៀងផ្ទាត់...';
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: emailVal, password: passVal })
+                });
+                const data = await res.json();
+                if (data.success && data.user) {
+                    syncCurrentUserIntoSavedAccounts(data.user);
+                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                    closeAddAccountModal();
+                    showLanguageToast(`✓ បានបន្ថែម និងប្តូរទៅគណនី ${data.user.first_name || data.user.email}`);
+                    setTimeout(() => window.location.reload(), 450);
+                } else {
+                    errEl.innerText = data.message || 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ!';
+                }
+            } catch (err) {
+                errEl.innerText = 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server';
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'ចូល និងរក្សាទុកគណនី';
+            }
+        }
+
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
+            syncCurrentUserIntoSavedAccounts(currentUser);
             if (currentUser.profile_pic) {
                 const navAv = document.getElementById('navUserAvatar');
                 if (navAv) navAv.src = currentUser.profile_pic;
@@ -2749,8 +3038,17 @@
         }
 
         function logout() {
-            localStorage.removeItem('camfeed_user');
-            window.location.href = 'index.html';
+            const currentEmail = (currentUser?.email || '').trim().toLowerCase();
+            const remaining = getSavedAccounts().filter(a => (a.email || '').trim().toLowerCase() !== currentEmail);
+            persistSavedAccounts(remaining);
+
+            if (remaining.length > 0) {
+                localStorage.setItem('camfeed_user', JSON.stringify(remaining[0]));
+                window.location.reload();
+            } else {
+                localStorage.removeItem('camfeed_user');
+                window.location.href = 'index.html';
+            }
         }
     </script>
 </body>

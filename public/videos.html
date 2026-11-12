@@ -65,22 +65,139 @@
             z-index: 2;
             cursor: pointer;
         }
-        /* Landscape video automatically centers cleanly without excessive crop */
+        /* Landscape video preserves original horizontal proportions without cropping */
         .reel-video.landscape-video {
-            object-fit: contain;
+            object-fit: contain !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: 100% !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+        }
+
+        /* Center Play Indicator when Paused */
+        .reel-center-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 12;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 26px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+        }
+        .reel-item.is-paused .reel-center-play {
+            display: flex;
         }
 
         /* Bottom Gradient for Readability */
-        .reel-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 44%; background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.38) 60%, transparent 100%); z-index: 5; pointer-events: none; }
+        .reel-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 48%; background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.45) 60%, transparent 100%); z-index: 5; pointer-events: none; }
 
         .reel-overlay {
             position: absolute;
-            bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px));
             left: 15px;
             right: 82px;
             z-index: 10;
             color: #fff;
             text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+        }
+
+        /* Bottom Interactive Video Control Bar (Play/Pause, Time, Seek Bar, Speed, Mute/Unmute) */
+        .reel-controls-bar {
+            position: absolute;
+            bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+            left: 12px;
+            right: 12px;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 6px 10px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .rc-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            padding: 0;
+        }
+        .rc-btn:active { transform: scale(0.9); }
+        .rc-speed-btn {
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 7px;
+            border-radius: 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+            min-width: 38px;
+            text-align: center;
+        }
+        .rc-speed-btn:active { transform: scale(0.92); }
+        .rc-time {
+            font-size: 11.5px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .rc-seek {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 4px;
+            outline: none;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+        }
+        .rc-seek::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .rc-seek::-moz-range-thumb {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #fff;
+            cursor: pointer;
         }
         .reel-author-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
         .reel-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; background: #333; }
@@ -91,7 +208,7 @@
         /* Right Side Action Buttons (Safe above mobile bottom navigation bar) */
         .reel-actions {
             position: absolute;
-            bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
             right: 12px;
             z-index: 15;
             display: flex;
@@ -311,6 +428,85 @@
             loadVideosFeed();
         }
 
+        const REEL_SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+
+        function formatReelClock(sec) {
+            if (!sec || !isFinite(sec) || sec < 0) return '0:00';
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function handleReelMetadata(postId) {
+            const vid = document.getElementById(`rvid-${postId}`);
+            if (!vid) return;
+            if (vid.videoWidth > 0 && vid.videoHeight > 0 && vid.videoWidth > vid.videoHeight) {
+                vid.classList.add('landscape-video');
+            }
+            updateReelProgress(postId);
+        }
+
+        function updateReelProgress(postId) {
+            const vid = document.getElementById(`rvid-${postId}`);
+            const timeEl = document.getElementById(`rtime-${postId}`);
+            const seekEl = document.getElementById(`rseek-${postId}`);
+            if (!vid) return;
+            const cur = vid.currentTime || 0;
+            const dur = isFinite(vid.duration) ? vid.duration : 0;
+            if (timeEl) {
+                timeEl.innerText = `${formatReelClock(cur)} / ${formatReelClock(dur)}`;
+            }
+            if (seekEl && dur > 0) {
+                seekEl.value = ((cur / dur) * 100).toFixed(1);
+            }
+        }
+
+        function seekReelVideo(postId, pct) {
+            const vid = document.getElementById(`rvid-${postId}`);
+            if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
+            vid.currentTime = (parseFloat(pct) / 100) * vid.duration;
+            updateReelProgress(postId);
+        }
+
+        function toggleReelPlayPause(postId, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`rvid-${postId}`);
+            if (!vid) return;
+            if (vid.paused) {
+                vid.play().catch(() => {});
+            } else {
+                vid.pause();
+            }
+        }
+
+        function cycleReelSpeed(postId, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`rvid-${postId}`);
+            const btn = document.getElementById(`rspeed-${postId}`);
+            if (!vid) return;
+            const curRate = vid.playbackRate || 1;
+            const idx = REEL_SPEEDS.indexOf(curRate);
+            const nextRate = REEL_SPEEDS[(idx + 1) % REEL_SPEEDS.length];
+            vid.playbackRate = nextRate;
+            if (btn) btn.innerText = `${nextRate}x`;
+        }
+
+        function toggleGlobalReelMute(event) {
+            if (event) event.stopPropagation();
+            audioUnlocked = true;
+            globalMuted = !globalMuted;
+            document.querySelectorAll('.reel-video').forEach(v => {
+                v.muted = globalMuted;
+                if (!globalMuted) {
+                    v.removeAttribute('muted');
+                    if (v.volume === 0) v.volume = 1.0;
+                }
+            });
+            document.querySelectorAll('.reel-mute-btn').forEach(b => {
+                b.innerText = globalMuted ? '🔇' : '🔊';
+            });
+        }
+
         function formatCompactNumber(num) {
             const n = parseInt(num) || 0;
             if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
@@ -325,6 +521,7 @@
             audioUnlocked = true;
             globalMuted = false;
             const visibleVideo = Array.from(document.querySelectorAll('.reel-video')).find(v => !v.paused) || document.querySelector('.reel-video');
+            document.querySelectorAll('.reel-mute-btn').forEach(b => { b.innerText = '🔊'; });
             if (visibleVideo) {
                 visibleVideo.muted = false;
                 visibleVideo.removeAttribute('muted');
@@ -358,20 +555,35 @@
                 const data = await res.json();
 
                 let videoItems = [];
+                const seenOriginalIds = new Set();
                 if (data.success && Array.isArray(data.posts)) {
                     videoItems = data.posts
                         .map(p => {
                             const vidUrl = extractVideoUrlFromPost(p);
                             if (!vidUrl) return null;
-                            const targetId = p.shared_post_id && p.orig_id ? p.orig_id : p.id;
+
+                            const isSharedWrapper = !!(p.shared_post_id && p.orig_id);
+                            const targetId = isSharedWrapper ? p.orig_id : p.id;
+
+                            // Deduplicate so shared copies don't duplicate the original video
+                            if (seenOriginalIds.has(String(targetId))) return null;
+                            seenOriginalIds.add(String(targetId));
+
+                            // Always credit the ORIGINAL uploader of the video, NEVER the person who shared it!
+                            const creatorEmail = isSharedWrapper ? (p.orig_author_email || p.user_email) : p.user_email;
+                            const creatorFirst = isSharedWrapper ? (p.orig_first_name || '') : (p.first_name || '');
+                            const creatorLast = isSharedWrapper ? (p.orig_last_name || '') : (p.last_name || '');
+                            const creatorPic = isSharedWrapper ? (p.orig_profile_pic || 'https://via.placeholder.com/42') : (p.profile_pic || 'https://via.placeholder.com/42');
+                            const originalCaption = isSharedWrapper ? (p.orig_content || '') : (p.content || '');
+
                             return {
                                 id: targetId,
-                                renderKey: p.id,
-                                user_email: p.user_email,
-                                author_name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-                                profile_pic: p.profile_pic || 'https://via.placeholder.com/42',
+                                renderKey: targetId,
+                                user_email: creatorEmail,
+                                author_name: `${creatorFirst} ${creatorLast}`.trim() || 'User',
+                                profile_pic: creatorPic,
                                 media_url: vidUrl,
-                                caption: p.content || p.orig_content || '',
+                                caption: originalCaption,
                                 category: (p.ai_category && p.ai_category !== 'General') ? p.ai_category : '',
                                 likes_count: parseInt(p.likes_count) || 0,
                                 comments_count: parseInt(p.comments_count) || 0,
@@ -408,10 +620,26 @@
                     };
                     const isOwn = currentUser.email === video.user_email;
 
+                    const videoSrcWithFrame = video.media_url.includes('#') ? video.media_url : `${video.media_url}#t=0.001`;
                     return `
-                        <div class="reel-item" id="reel-${video.id}" data-post-id="${video.id}">
-                            <video src="${video.media_url}" class="reel-video" autoplay muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto" onloadedmetadata="if(this.videoWidth > this.videoHeight) this.classList.add('landscape-video')"></video>
+                        <div class="reel-item" id="reel-${video.id}" data-post-id="${video.id}" onclick="toggleReelPlayPause(${video.id}, event)">
+                            <video id="rvid-${video.id}" src="${videoSrcWithFrame}" class="reel-video" autoplay ${globalMuted ? 'muted' : ''} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
+                                onloadedmetadata="handleReelMetadata(${video.id})"
+                                ontimeupdate="updateReelProgress(${video.id})"
+                                onplay="document.getElementById('reel-${video.id}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${video.id}'); if(b) b.innerText='⏸';"
+                                onpause="document.getElementById('reel-${video.id}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${video.id}'); if(b) b.innerText='▶';"></video>
+
+                            <button type="button" class="reel-center-play" onclick="toggleReelPlayPause(${video.id}, event)">▶</button>
                             <div class="reel-gradient"></div>
+
+                            <!-- Bottom Interactive Video Controls (Play/Pause, Time, Seek Bar, Speed, Mute/Unmute) -->
+                            <div class="reel-controls-bar" onclick="event.stopPropagation()">
+                                <button type="button" class="rc-btn" id="rplay-${video.id}" onclick="toggleReelPlayPause(${video.id}, event)" title="Play / Pause">⏸</button>
+                                <span class="rc-time" id="rtime-${video.id}">0:00 / 0:00</span>
+                                <input type="range" class="rc-seek" id="rseek-${video.id}" min="0" max="100" value="0" step="0.1" oninput="seekReelVideo(${video.id}, this.value)">
+                                <button type="button" class="rc-speed-btn" id="rspeed-${video.id}" onclick="cycleReelSpeed(${video.id}, event)" title="Playback Speed">1x</button>
+                                <button type="button" class="rc-btn reel-mute-btn" onclick="toggleGlobalReelMute(event)" title="Mute / Unmute">${globalMuted ? '🔇' : '🔊'}</button>
+                            </div>
 
                             <div class="reel-overlay">
                                 ${video.category ? `<div class="reel-category-badge">#${video.category}</div>` : ''}
