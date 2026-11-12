@@ -31,14 +31,15 @@
         }
         .logo-nav:hover { transform: scale(1.03); }
         
-        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 200px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 210px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .dropdown-item:hover { background: #f2f2f2; }
 
         /* Notification Dropdown */
-        .notification-dropdown { position: absolute; right: 10px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 300px; max-height: 400px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
-        .notification-item { padding: 10px 15px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: center; cursor: pointer; }
-        .notification-item:hover { background: #f2f2f2; }
+        .notification-dropdown { position: absolute; right: 10px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 315px; max-height: 420px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
+        .notification-item { padding: 10px 14px; border-bottom: 1px solid #f0f2f5; font-size: 13px; color: #050505; display: flex; gap: 10px; align-items: flex-start; cursor: pointer; transition: background 0.15s; }
+        .notification-item:hover { background: #f0f7ff; }
+        .notif-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid #e4e6eb; }
 
         /* Mobile friendly search box */
         .search-box-wrapper { position: relative; display: flex; align-items: center; }
@@ -103,16 +104,111 @@
         .progress-bar-fill { width: 0%; height: 100%; background-color: #1877f2; transition: width 0.2s; }
         .progress-text { font-size: 12px; font-weight: bold; color: #65676b; text-align: right; margin-top: 4px; }
 
-        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; transition: all 0.3s; }
-        .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .post-header-left { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
+        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; transition: box-shadow 0.4s, background-color 0.4s; position: relative; }
+        .post-item.highlight-target { box-shadow: 0 0 0 3px #1877f2, 0 6px 20px rgba(24,119,242,0.25); background-color: #f7fbff; }
+        .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+        .post-header-left { display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; min-width: 0; }
+        .post-header-right { display: flex; align-items: center; gap: 4px; position: relative; flex-shrink: 0; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; flex-shrink: 0; }
         .post-author { font-weight: bold; color: #050505; }
         .post-author:hover { text-decoration: underline; }
         .post-time { font-size: 11px; color: #90949c; }
-        .ai-topic-pill { font-size: 10.5px; background: #f0f2f5; color: #65676b; padding: 3px 8px; border-radius: 12px; font-weight: 600; }
+        .ai-topic-pill { font-size: 10px; background: #f0f2f5; color: #65676b; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+
+        /* Compact 3-Dot Menu Button at Top-Right of Post */
+        .post-dots-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: #65676b;
+            font-size: 17px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        .post-dots-btn:hover { background: #f0f2f5; color: #050505; }
+        .post-options-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 30px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+            border: 1px solid #e4e6eb;
+            min-width: 155px;
+            z-index: 400;
+            overflow: hidden;
+        }
+        .post-options-dropdown button {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 10px 13px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #050505;
+        }
+        .post-options-dropdown button:hover { background: #f2f3f5; }
+
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
-        .post-media { width: 100%; max-height: 450px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; }
+        .post-media { width: 100%; max-height: 450px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; display: block; }
+
+        /* Facebook-Style Embedded Shared Post Card */
+        .embedded-shared-card {
+            border: 1px solid #dddfe2;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        .embedded-shared-media .post-media,
+        .embedded-shared-media .carousel-wrapper {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .embedded-shared-info {
+            padding: 10px 12px;
+        }
+        .embedded-shared-author-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            margin-bottom: 6px;
+        }
+        .embedded-shared-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #e4e6eb;
+        }
+        .embedded-shared-author {
+            font-weight: 700;
+            font-size: 13.5px;
+            color: #050505;
+        }
+        .embedded-shared-author:hover { text-decoration: underline; }
+        .embedded-shared-time {
+            font-size: 11px;
+            color: #65676b;
+        }
+        .embedded-shared-text {
+            font-size: 14px;
+            color: #1c1e21;
+            white-space: pre-wrap;
+        }
 
         /* Carousel for Multiple Photos/Videos in One Post */
         .carousel-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 10px; }
@@ -125,10 +221,12 @@
         .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; transition: background 0.2s, transform 0.2s; }
         .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
 
-        /* Reaction Summary Bar */
-        .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #65676b; margin-bottom: 6px; padding: 0 4px; min-height: 24px; }
+        /* Reaction, Views, Comments & Shares Summary Bar */
+        .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #65676b; margin-bottom: 6px; padding: 0 4px; min-height: 24px; flex-wrap: wrap; gap: 6px; }
         .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
+        .right-stats-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+        .stat-link:hover { text-decoration: underline; }
 
         /* Action Buttons & Persistent Long-Press Reaction Bar */
         .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 0; margin-top: 6px; justify-content: space-around; position: relative; }
@@ -206,6 +304,9 @@
         .share-option-btn:hover { background: #e4e6eb; }
         .share-icon { font-size: 20px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
 
+        .report-reason-btn { width: 100%; text-align: left; padding: 11px 14px; border: 1px solid #e4e6eb; border-radius: 8px; background: #f8f9fa; font-size: 14px; font-weight: 600; cursor: pointer; color: #050505; }
+        .report-reason-btn:hover, .report-reason-btn.selected { background: #ffebe9; border-color: #fa383e; color: #d93025; }
+
         .btn-follow { padding: 6px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
         .btn-follow:hover { background: #166fe5; }
         .btn-unfollow { background: #e4e6eb; color: #050505; }
@@ -223,6 +324,7 @@
                 <div class="logo-nav" onclick="switchTab('feed')">CamFeed</div>
                 <div class="dropdown-menu" id="menuDropdown">
                     <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
+                    <div class="dropdown-item" id="menuAdminText" onclick="window.location.href='admin.html'">🛡️ Admin Reports</div>
                     <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
                 </div>
             </div>
@@ -266,7 +368,7 @@
         </div>
     </div>
 
-    <!-- Unified Create Post Modal (Text + Multiple Photos & Videos with Smart 720p HD Compression + AI Tagging) -->
+    <!-- Unified Create Post Modal -->
     <div id="createPostModal" class="modal-overlay" onclick="closeCreatePostModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -290,10 +392,8 @@
 
                 <textarea id="postContent" rows="3" placeholder="What's on your mind?" style="border: none; background: #f0f2f5; border-radius: 14px; padding: 12px 14px; resize: none; margin: 4px 0 0 0; outline: none; font-size: 15px;"></textarea>
                 
-                <!-- Multi-Photo / Video Preview Grid -->
                 <div id="multiPreviewGrid" class="multi-preview-grid hidden"></div>
 
-                <!-- Smart HD Video Compression Option -->
                 <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: #65676b; background: #f8f9fa; padding: 8px 12px; border-radius: 8px; border: 1px solid #e4e6eb;">
                     <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0;">
                         <input type="checkbox" id="smartCompressToggle" checked style="width: auto; margin: 0;">
@@ -329,6 +429,17 @@
                 <span style="cursor: pointer; font-size: 20px;" onclick="closeReactionsModal()">×</span>
             </div>
             <div class="modal-body" id="reactionsModalList"></div>
+        </div>
+    </div>
+
+    <!-- Modal for Sharers List (See who shared this post/video) -->
+    <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="modalSharerTitle">People who shared</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeSharersModal()">×</span>
+            </div>
+            <div class="modal-body" id="sharersModalList"></div>
         </div>
     </div>
 
@@ -369,6 +480,25 @@
         </div>
     </div>
 
+    <!-- Modal for Reporting a Post/Video to Admin -->
+    <div id="reportPostModal" class="modal-overlay" onclick="closeReportModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>🚩 រាយការណ៍ការបង្ហោះ (Report Post)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeReportModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #65676b; margin: 0;">សូមជ្រើសរើសមូលហេតុដែលការបង្ហោះ ឬវីដេអូនេះរំលោភបំពានគោលការណ៍៖</p>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Violence or Harmful Content (អំពើហិង្សា)')">⚠️ អំពើហិង្សា ឬគ្រោះថ្នាក់ធ្ងន់ធ្ងរ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Harassment or Hate Speech (រំលោភបំពាន)')">💢 ការជេរប្រមាថ ឬរំលោភបំពាន</button>
+                <textarea id="reportCustomDetails" rows="2" placeholder="បញ្ជាក់ព័ត៌មានបន្ថែម (ស្រេចចិត្ត)..." style="margin: 2px 0 0 0; font-size: 13px;"></textarea>
+                <button type="button" class="btn-primary" style="background: #fa383e; margin-top: 4px;" onclick="submitPostReport()">បញ្ជូនរបាយការណ៍ទៅ Admin</button>
+            </div>
+        </div>
+    </div>
+
     <div class="main-container">
         <div id="tabContentFeed">
             <div id="postsContainer"></div>
@@ -382,9 +512,12 @@
         let globalVideoUnmuted = false;
         let activePostIdForShare = null;
         let activePostTextForShare = '';
+        let activePostIdForReport = null;
+        let selectedReportReasonText = '';
         let pressTimer = null;
         let isLongPressTriggered = false;
         let selectedMediaFiles = [];
+        const trackedViewsInSession = new Set();
 
         const postReactionsState = {};
 
@@ -412,6 +545,7 @@
                 photoVideoLabel: "Photo / Video (Multiple)",
                 postBtn: "Post",
                 reactionsModalTitle: "People who reacted",
+                sharersModalTitle: "People who shared",
                 commentsTitle: "Comments",
                 sortRelevant: "More relevant",
                 sortNewest: "Newest",
@@ -441,6 +575,7 @@
                 photoVideoLabel: "រូបថត / វីដេអូ (ច្រើនឯកសារ)",
                 postBtn: "បង្ហោះ",
                 reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
+                sharersModalTitle: "អ្នកដែលបានចែករំលែក",
                 commentsTitle: "មតិយោបល់",
                 sortRelevant: "ពាក់ព័ន្ធបំផុត",
                 sortNewest: "ថ្មីបំផុត",
@@ -476,6 +611,7 @@
             document.getElementById('photoVideoLabel').innerText = t.photoVideoLabel;
             document.getElementById('postSubmitBtn').innerText = t.postBtn;
             document.getElementById('modalReactorTitle').innerText = t.reactionsModalTitle;
+            document.getElementById('modalSharerTitle').innerText = t.sharersModalTitle;
             document.getElementById('shareModalTitle').innerText = t.shareModalTitle;
             document.getElementById('shareCaptionInput').placeholder = t.shareCaptionPlaceholder;
             document.getElementById('shareProfileTitle').innerText = t.shareProfileTitle;
@@ -536,11 +672,11 @@
             } catch (err) { console.error(err); }
         }
 
-        // Close reaction pickers and dropdowns ONLY when clicking elsewhere on the page
         document.addEventListener('click', function(e) {
             document.getElementById('menuDropdown').style.display = 'none';
             document.getElementById('notifDropdown').style.display = 'none';
             document.querySelectorAll('.comment-menu-dropdown').forEach(m => m.style.display = 'none');
+            document.querySelectorAll('.post-options-dropdown').forEach(m => m.style.display = 'none');
 
             if (!e.target.closest('.reaction-wrapper')) {
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
@@ -592,7 +728,6 @@
             } catch(err) { console.error(err); }
         }
 
-        // Unified '+' Create Post Modal Controls
         function openCreatePostModal() {
             document.getElementById('postMsg').innerText = '';
             document.getElementById('createPostModal').style.display = 'flex';
@@ -647,7 +782,6 @@
             });
         }
 
-        // Extract a sharp frame from video/image for Gemini AI visual category analysis
         function extractThumbnailBase64(file) {
             return new Promise((resolve) => {
                 if (file.type.startsWith('image')) {
@@ -686,7 +820,6 @@
             });
         }
 
-        // Smart 720p HD Video Compression (2.5 Mbps crisp clarity, preserves aspect ratio, keeps file lightweight)
         function optimizeVideoTo720pHD(file, onCompressProgress) {
             return new Promise((resolve) => {
                 const video = document.createElement('video');
@@ -701,14 +834,12 @@
                     const origH = video.videoHeight;
                     const duration = video.duration || 1;
 
-                    // Skip re-encoding if already <= 720p and under 14MB (keeps 100% original crisp quality)
                     const maxDim = Math.max(origW, origH);
                     if (maxDim <= 1280 && file.size <= 14 * 1024 * 1024) {
                         URL.revokeObjectURL(objectUrl);
                         return resolve(file);
                     }
 
-                    // Calculate crisp 720p HD dimensions maintaining exact aspect ratio
                     let targetW = origW;
                     let targetH = origH;
                     if (maxDim > 1280) {
@@ -724,7 +855,6 @@
 
                     try {
                         const canvasStream = canvas.captureStream(30);
-                        // Capture audio track if supported
                         if (video.captureStream) {
                             const vidStream = video.captureStream();
                             vidStream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
@@ -739,7 +869,7 @@
 
                         const recorder = new MediaRecorder(canvasStream, {
                             mimeType,
-                            videoBitsPerSecond: 2500000, // 2.5 Mbps for sharp, high-detail 720p HD clarity
+                            videoBitsPerSecond: 2500000,
                             audioBitsPerSecond: 128000
                         });
 
@@ -749,7 +879,6 @@
                         recorder.onstop = () => {
                             URL.revokeObjectURL(objectUrl);
                             const compressedBlob = new Blob(chunks, { type: mimeType });
-                            // Use compressed version only if it actually reduced size
                             if (compressedBlob.size > 0 && compressedBlob.size < file.size) {
                                 const newName = file.name.replace(/\.[^/.]+$/, '') + '.webm';
                                 resolve(new File([compressedBlob], newName, { type: mimeType }));
@@ -779,7 +908,6 @@
                             if (recorder.state !== 'inactive') recorder.stop();
                         };
                     } catch (e) {
-                        console.warn('Fallback to original video:', e);
                         URL.revokeObjectURL(objectUrl);
                         resolve(file);
                     }
@@ -864,13 +992,11 @@
                     progressContainer.style.display = 'block';
                     progressBarFill.style.width = '0%';
 
-                    // Extract thumbnail from the first media file for Gemini AI visual classification
                     thumbnailBase64 = await extractThumbnailBase64(selectedMediaFiles[0]);
 
                     for (let i = 0; i < selectedMediaFiles.length; i++) {
                         let fileToUpload = selectedMediaFiles[i];
 
-                        // Optimize video to crisp 720p HD before uploading to Cloudflare R2
                         if (fileToUpload.type.startsWith('video') && shouldCompress) {
                             progressText.innerText = `Optimizing 720p HD video (${i + 1}/${selectedMediaFiles.length})... 0%`;
                             fileToUpload = await optimizeVideoTo720pHD(fileToUpload, (ratio) => {
@@ -896,7 +1022,8 @@
                                     title: content.trim() ? content.trim().slice(0, 120) : fileToUpload.name,
                                     description: content.trim(),
                                     r2_key: uploaded.r2Key,
-                                    video_url: uploaded.url
+                                    video_url: uploaded.url,
+                                    thumbnailBase64: thumbnailBase64
                                 })
                             }).catch(() => {});
                         }
@@ -940,13 +1067,20 @@
             }
         }
 
+        function formatCompactNumber(num) {
+            const n = parseInt(num) || 0;
+            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return n.toString();
+        }
+
         function buildReactionSummaryHtml(postId) {
             const state = postReactionsState[postId];
             if (!state || state.count <= 0) return '';
             const uniqueIcons = (state.types && state.types.length > 0)
                 ? state.types.join('')
                 : (state.userReaction || '👍');
-            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${state.count}</span>`;
+            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${formatCompactNumber(state.count)}</span>`;
         }
 
         function buildActionBtnContent(userReaction, lang) {
@@ -963,26 +1097,26 @@
             return `action-btn`;
         }
 
-        function renderPostMediaHtml(post, dateStr) {
-            if (!post.media_url) return '';
+        function renderRawMediaBlock(postId, mediaType, mediaUrl, authorName, authorPic, contentStr, dateStr, likesCount, commentsCount) {
+            if (!mediaUrl) return '';
 
-            if (post.media_type === 'carousel' || post.media_url.trim().startsWith('[')) {
+            if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
                 try {
-                    const items = JSON.parse(post.media_url);
+                    const items = JSON.parse(mediaUrl);
                     if (Array.isArray(items) && items.length > 0) {
                         const slidesHtml = items.map(item => {
                             if (item.type === 'video') {
-                                return `<div class="carousel-slide"><video src="${item.url}" class="autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline onvolumechange="handleVideoVolumeChange(this)"></video></div>`;
+                                return `<div class="carousel-slide"><video src="${item.url}" class="autoplay-video" data-post-id="${postId}" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline onvolumechange="handleVideoVolumeChange(this)"></video></div>`;
                             }
-                            return `<div class="carousel-slide"><img src="${item.url}" onclick="openImageModal(${post.id}, '${item.url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})"></div>`;
+                            return `<div class="carousel-slide"><img src="${item.url}" onclick="openImageModal(${postId}, '${item.url}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
                         }).join('');
 
-                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${post.id}-${idx}"></span>`).join('');
+                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${postId}-${idx}"></span>`).join('');
 
                         return `
                             <div class="carousel-wrapper">
-                                <div class="carousel-counter" id="counter-${post.id}">1 / ${items.length}</div>
-                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${post.id}, ${items.length})">
+                                <div class="carousel-counter" id="counter-${postId}">1 / ${items.length}</div>
+                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${postId}, ${items.length})">
                                     ${slidesHtml}
                                 </div>
                             </div>
@@ -992,10 +1126,59 @@
                 } catch (e) {}
             }
 
-            if (post.media_type === 'video') {
-                return `<video src="${post.media_url}" class="post-media autoplay-video" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
+            if (mediaType === 'video') {
+                return `<video src="${mediaUrl}" class="post-media autoplay-video" data-post-id="${postId}" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
             }
-            return `<img src="${post.media_url}" class="post-media" onclick="openImageModal(${post.id}, '${post.media_url}', '${post.first_name} ${post.last_name}', '${post.profile_pic || ''}', '${encodeURIComponent(post.content || '')}', '${dateStr}', ${post.likes_count || 0}, ${post.comments_count || 0})">`;
+            return `<img src="${mediaUrl}" class="post-media" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
+        }
+
+        function renderPostMediaHtml(post, dateStr) {
+            // Render Facebook-Style Embedded Shared Post Card
+            if (post.shared_post_id || post.media_type === 'shared') {
+                if (!post.orig_id) {
+                    return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
+                }
+                const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
+                const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
+                const origMedia = renderRawMediaBlock(
+                    post.orig_id,
+                    post.orig_media_type,
+                    post.orig_media_url,
+                    origAuthor,
+                    post.orig_profile_pic || '',
+                    post.orig_content || '',
+                    origDate,
+                    post.likes_count || 0,
+                    post.comments_count || 0
+                );
+                return `
+                    <div class="embedded-shared-card">
+                        <div class="embedded-shared-media">${origMedia}</div>
+                        <div class="embedded-shared-info">
+                            <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
+                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/32'}" class="embedded-shared-avatar">
+                                <div>
+                                    <div class="embedded-shared-author">${origAuthor}</div>
+                                    <div class="embedded-shared-time">${origDate} · 🌐</div>
+                                </div>
+                            </div>
+                            ${post.orig_content ? `<div class="embedded-shared-text">${post.orig_content}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return renderRawMediaBlock(
+                post.id,
+                post.media_type,
+                post.media_url,
+                `${post.first_name} ${post.last_name}`,
+                post.profile_pic || '',
+                post.content || '',
+                dateStr,
+                post.likes_count || 0,
+                post.comments_count || 0
+            );
         }
 
         function updateCarouselIndicator(track, postId, total) {
@@ -1011,15 +1194,36 @@
 
         async function loadPosts() {
             try {
-                const res = await fetch(`/api/posts?email=${currentUser.email}`);
+                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 if (data.success) {
-                    renderPosts(data.posts, 'postsContainer');
+                    let postsList = data.posts || [];
+
+                    // If opened from a Notification (?post=ID), fetch & place that post at the very top and highlight it
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const targetPostId = urlParams.get('post');
+                    if (targetPostId) {
+                        const existingIdx = postsList.findIndex(p => String(p.id) === String(targetPostId));
+                        if (existingIdx > -1) {
+                            const [targetPost] = postsList.splice(existingIdx, 1);
+                            postsList.unshift(targetPost);
+                        } else {
+                            try {
+                                const singleRes = await fetch(`/api/posts/${targetPostId}?email=${encodeURIComponent(currentUser.email)}`);
+                                const singleData = await singleRes.json();
+                                if (singleData.success && singleData.post) {
+                                    postsList.unshift(singleData.post);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+
+                    renderPosts(postsList, 'postsContainer', targetPostId);
                 }
             } catch (err) { console.error(err); }
         }
 
-        function renderPosts(posts, containerId) {
+        function renderPosts(posts, containerId, highlightPostId = null) {
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
@@ -1033,6 +1237,8 @@
 
             posts.forEach(post => {
                 const count = parseInt(post.likes_count) || 0;
+                const viewsCount = parseInt(post.views_count) || 0;
+                const sharesCount = parseInt(post.shares_count) || 0;
                 const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
                 postReactionsState[post.id] = {
                     count: count,
@@ -1042,32 +1248,46 @@
 
                 const dateStr = new Date(post.created_at).toLocaleString();
                 const div = document.createElement('div');
-                div.className = 'post-item';
+                div.className = 'post-item' + (highlightPostId && String(post.id) === String(highlightPostId) ? ' highlight-target' : '');
                 div.id = `post-${post.id}`;
+                div.setAttribute('data-post-id', post.id);
 
                 const mediaHtml = renderPostMediaHtml(post, dateStr);
                 const categoryBadge = (post.ai_category && post.ai_category !== 'General')
                     ? `<span class="ai-topic-pill">#${post.ai_category}</span>`
                     : '';
 
+                const isOwnPost = currentUser.email === post.user_email;
+
                 div.innerHTML = `
                     <div class="post-header">
-                        <div class="post-header-left" onclick="window.location.href='profile.html?email=${post.user_email}'">
+                        <div class="post-header-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                             <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
                             <div>
                                 <div class="post-author">${post.first_name} ${post.last_name}</div>
                                 <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
                             </div>
                         </div>
-                        ${categoryBadge}
+                        <div class="post-header-right">
+                            ${categoryBadge}
+                            <button class="post-dots-btn" onclick="togglePostOptionsMenu(event, ${post.id})" title="Options">⋮</button>
+                            <div class="post-options-dropdown" id="postOptionsMenu-${post.id}" onclick="event.stopPropagation()">
+                                ${isOwnPost ? `<button onclick="deleteOwnPost(${post.id})" style="color:#fa383e;">🗑️ លុបការបង្ហោះ</button>` : ''}
+                                <button onclick="openReportModal(${post.id})" style="color:#d93025;">🚩 រាយការណ៍ (Report)</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="post-content">${post.content || ''}</div>
+                    ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
                     ${mediaHtml}
                     <div class="post-stats-row">
                         <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
                             ${buildReactionSummaryHtml(post.id)}
                         </div>
-                        <span style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${post.comments_count} ${currentLang === 'km' ? 'មតិយោបល់' : 'Comments'}</span>
+                        <div class="right-stats-group">
+                            <span id="viewCount-${post.id}">👁️ ${formatCompactNumber(viewsCount)}</span>
+                            <span class="stat-link" style="cursor: pointer;" onclick="toggleCommentBox(${post.id})" id="commentCount-${post.id}">${formatCompactNumber(post.comments_count)} ${currentLang === 'km' ? 'មតិ' : 'Comments'}</span>
+                            <span class="stat-link" style="cursor: pointer;" onclick="openSharersList(${post.id})" id="shareCount-${post.id}">${formatCompactNumber(sharesCount)} ${currentLang === 'km' ? 'ចែករំលែក' : 'Shares'}</span>
+                        </div>
                     </div>
                     <div class="post-actions">
                         <div class="reaction-wrapper">
@@ -1090,7 +1310,7 @@
                             </button>
                         </div>
                         <button class="action-btn" onclick="toggleCommentBox(${post.id})">${t.commentAction}</button>
-                        <button class="action-btn" onclick="openShareModal(${post.id}, '${encodeURIComponent(post.content || 'Check out this post on CamFeed!')}')" title="Share">${t.shareAction}</button>
+                        <button class="action-btn" onclick="openShareModal(${post.id}, '${encodeURIComponent(post.content || post.orig_content || 'Check out this post on CamFeed!')}')" title="Share">${t.shareAction}</button>
                     </div>
 
                     <!-- Comments Section -->
@@ -1114,7 +1334,119 @@
                 `;
                 container.appendChild(div);
             });
+
             initAutoPlayVideos();
+            initPostViewsObserver();
+
+            if (highlightPostId) {
+                const targetEl = document.getElementById(`post-${highlightPostId}`);
+                if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        // Compact 3-dot Post Menu & Report Modal Logic
+        function togglePostOptionsMenu(event, postId) {
+            event.stopPropagation();
+            document.querySelectorAll('.post-options-dropdown').forEach(m => {
+                if (m.id !== `postOptionsMenu-${postId}`) m.style.display = 'none';
+            });
+            const menu = document.getElementById(`postOptionsMenu-${postId}`);
+            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function deleteOwnPost(postId) {
+            if (!confirm('តើអ្នកពិតជាចង់លុបការបង្ហោះនេះមែនទេ?')) return;
+            try {
+                const res = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const card = document.getElementById(`post-${postId}`);
+                    if (card) card.remove();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function openReportModal(postId) {
+            document.querySelectorAll('.post-options-dropdown').forEach(m => m.style.display = 'none');
+            activePostIdForReport = postId;
+            selectedReportReasonText = '';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportPostModal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportPostModal').style.display = 'none';
+            activePostIdForReport = null;
+        }
+
+        function selectReportReason(btn, reason) {
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedReportReasonText = reason;
+        }
+
+        async function submitPostReport() {
+            if (!activePostIdForReport) return;
+            const customNote = document.getElementById('reportCustomDetails').value.trim();
+            const fullReason = selectedReportReasonText
+                ? (customNote ? `${selectedReportReasonText} - ${customNote}` : selectedReportReasonText)
+                : customNote;
+
+            if (!fullReason) {
+                alert('សូមជ្រើសរើសមូលហេតុ ឬសរសេរបញ្ជាក់មុននឹងបញ្ជូន!');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/posts/${activePostIdForReport}/report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, reason: fullReason })
+                });
+                const data = await res.json();
+                closeReportModal();
+                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
+            } catch (err) {
+                console.error(err);
+                closeReportModal();
+            }
+        }
+
+        // Track Views automatically when user scrolls and views a post/video
+        function initPostViewsObserver() {
+            const postCards = document.querySelectorAll('.post-item');
+            const viewObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const postId = entry.target.getAttribute('data-post-id');
+                        if (postId && !trackedViewsInSession.has(postId)) {
+                            trackedViewsInSession.add(postId);
+                            fetch(`/api/posts/${postId}/view`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: currentUser.email })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success && data.views_count !== undefined) {
+                                    const viewEl = document.getElementById(`viewCount-${postId}`);
+                                    if (viewEl) viewEl.innerText = `👁️ ${formatCompactNumber(data.views_count)}`;
+                                }
+                            })
+                            .catch(() => {});
+                        }
+                    }
+                });
+            }, { threshold: 0.55 });
+
+            postCards.forEach(card => viewObserver.observe(card));
         }
 
         // Hold 1 second (1000ms) on thumb button to open persistent reaction bar
@@ -1285,6 +1617,7 @@
             }
         }
 
+        // Open List of People Who Reacted
         async function openReactionsList(postId) {
             const modal = document.getElementById('reactionsModal');
             const listContainer = document.getElementById('reactionsModalList');
@@ -1293,12 +1626,12 @@
             modal.style.display = 'flex';
 
             try {
-                const res = await fetch(`/api/reactions/${postId}?email=${currentUser.email}`);
+                const res = await fetch(`/api/reactions/${postId}?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 if (data.success && data.reactors.length > 0) {
                     listContainer.innerHTML = data.reactors.map(r => `
                         <div class="reactor-row">
-                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${r.email}'">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
                                 <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px; color:#050505;">${r.first_name} ${r.last_name}</div>
@@ -1327,6 +1660,51 @@
                 body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
             });
             openReactionsList(postId);
+        }
+
+        // Open List of People Who Shared (Matches Reactors Modal)
+        async function openSharersList(postId) {
+            const modal = document.getElementById('sharersModal');
+            const listContainer = document.getElementById('sharersModalList');
+            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            listContainer.innerHTML = `<p style="text-align:center; color:#65676b;">${currentLang === 'km' ? 'កំពុងផ្ទុក...' : 'Loading...'}</p>`;
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/shares/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.sharers.length > 0) {
+                    listContainer.innerHTML = data.sharers.map(s => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
+                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            ${s.email !== currentUser.email ? `
+                                <button class="btn-follow ${s.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowSharer('${s.email}', ${s.is_following}, ${postId})">
+                                    ${s.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = `<p style="text-align:center; color:#65676b; padding:15px;">${currentLang === 'km' ? 'មិនទាន់មានការចែករំលែកនៅឡើយទេ។' : 'No shares yet.'}</p>`;
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load sharers.</p>'; }
+        }
+
+        function closeSharersModal() { document.getElementById('sharersModal').style.display = 'none'; }
+
+        async function toggleFollowSharer(targetEmail, isFollowing, postId) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            openSharersList(postId);
         }
 
         function initAutoPlayVideos() {
@@ -1489,9 +1867,10 @@
             loadComments(postId);
         }
 
+        // Load Notifications: Clicking Avatar opens Sender Profile; Clicking Message opens the exact Video/Post
         async function loadNotifications() {
             try {
-                const res = await fetch(`/api/notifications?email=${currentUser.email}`);
+                const res = await fetch(`/api/notifications?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 if (data.success) {
                     const badge = document.getElementById('notifBadge');
@@ -1500,18 +1879,39 @@
                     if (notifs.length > 0) {
                         badge.innerText = notifs.length;
                         badge.classList.remove('hidden');
-                        list.innerHTML = notifs.map(n => `
-                            <div class="notification-item" onclick="window.location.href='profile.html?email=${n.sender_email}'">
-                                <img src="${n.profile_pic || 'https://via.placeholder.com/35'}" style="width:35px; height:35px; border-radius:50%;">
-                                <div>
-                                    <div>${n.message}</div>
-                                    <div style="font-size: 10px; color: #90949c; margin-top: 2px;">${new Date(n.created_at).toLocaleString()}</div>
+                        list.innerHTML = notifs.map(n => {
+                            const clickTargetAction = n.post_id
+                                ? `openNotificationTargetPost(${n.post_id}, '${n.post_media_type || ''}')`
+                                : `window.location.href='profile.html?email=${encodeURIComponent(n.sender_email)}'`;
+
+                            return `
+                                <div class="notification-item" onclick="${clickTargetAction}">
+                                    <img src="${n.profile_pic || 'https://via.placeholder.com/38'}"
+                                         class="notif-avatar"
+                                         title="មើល Profile របស់ ${n.first_name || ''}"
+                                         onclick="event.stopPropagation(); window.location.href='profile.html?email=${encodeURIComponent(n.sender_email)}'">
+                                    <div style="flex: 1;">
+                                        <div style="line-height: 1.35;">${n.message}</div>
+                                        <div style="font-size: 10.5px; color: #90949c; margin-top: 3px;">${new Date(n.created_at).toLocaleString()}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        `).join('');
+                            `;
+                        }).join('');
                     }
                 }
             } catch (err) { console.error(err); }
+        }
+
+        function openNotificationTargetPost(postId, mediaType) {
+            document.getElementById('notifDropdown').style.display = 'none';
+            const existingPostCard = document.getElementById(`post-${postId}`);
+            if (existingPostCard) {
+                document.querySelectorAll('.post-item').forEach(p => p.classList.remove('highlight-target'));
+                existingPostCard.classList.add('highlight-target');
+                existingPostCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            window.location.href = `feed.html?post=${postId}`;
         }
 
         function logout() {

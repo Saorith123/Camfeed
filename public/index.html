@@ -25,8 +25,26 @@
         }
         .logo-tagline { font-size: 18px; color: #606770; line-height: 1.2; text-align: center; }
         
-        .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1); width: 100%; box-sizing: border-box; }
+        .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1); width: 100%; box-sizing: border-box; position: relative; }
         
+        /* Top Back Button inside Wizard Card (Essential for iPhone & In-App Browsers) */
+        .wizard-top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .wizard-back-btn {
+            background: #f0f2f5;
+            border: none;
+            color: #050505;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 7px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s;
+        }
+        .wizard-back-btn:hover { background: #e4e6eb; }
+
         input, select { width: 100%; padding: 12px 16px; margin: 6px 0; border: 1px solid #ccd0d5; border-radius: 8px; box-sizing: border-box; font-size: 15px; outline: none; font-family: inherit; background: #fff; }
         input:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
         
@@ -78,7 +96,7 @@
     </script>
 
     <div class="container">
-        <div class="logo-container">
+        <div class="logo-container" id="mainLogoHeader">
             <div class="logo">CamFeed</div>
             <div class="logo-tagline" id="logoTagline">Connect with friends and the world around you on CamFeed.</div>
         </div>
@@ -103,6 +121,13 @@
 
         <!-- REGISTER STEP 1: BASIC INFO -->
         <div class="card hidden" id="registerCard">
+            <div class="wizard-top-bar">
+                <button type="button" class="wizard-back-btn" onclick="showLoginForm()">
+                    <span>←</span> <span id="btnBackToLogin">Back</span>
+                </button>
+                <span style="font-size: 12px; color: #65676b; font-weight: 600;">Step 1 / 2</span>
+            </div>
+
             <h3 id="regTitle" style="margin-top: 0; color: #1c1e21; text-align: center; margin-bottom: 4px;">Sign Up</h3>
             <p id="regSubtitle" style="font-size: 14px; color: #606770; text-align: center; margin-bottom: 15px;">It's quick and easy.</p>
             
@@ -169,7 +194,15 @@
 
         <!-- REGISTER STEP 2: WELCOME & PROFILE WIZARD -->
         <div class="card hidden" id="welcomeWizardCard">
-            <h3 id="welcomeTitle" style="margin-top: 0; color: #1877f2; text-align: center;">សូមស្វាគមន៍មកកាន់ CamFeed!</h3>
+            <!-- Back button for iPhone & Mobile users (Preserves all Step 1 form inputs) -->
+            <div class="wizard-top-bar">
+                <button type="button" class="wizard-back-btn" onclick="backToStep1()">
+                    <span>←</span> <span id="btnBackToStep1">ត្រឡប់ក្រោយ (Back)</span>
+                </button>
+                <span style="font-size: 12px; color: #65676b; font-weight: 600;">Step 2 / 2</span>
+            </div>
+
+            <h3 id="welcomeTitle" style="margin-top: 4px; color: #1877f2; text-align: center;">សូមស្វាគមន៍មកកាន់ CamFeed!</h3>
             <p id="welcomeDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;">
                 CamFeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។
             </p>
@@ -243,6 +276,21 @@
             }
         });
 
+        // Support Android Hardware/Gesture Back Button to return from Step 2 -> Step 1 -> Login without losing inputs
+        window.addEventListener('popstate', (event) => {
+            const step = event.state && event.state.step ? event.state.step : 'login';
+            if (step === 'register1') {
+                document.getElementById('welcomeWizardCard').classList.add('hidden');
+                document.getElementById('loginCard').classList.add('hidden');
+                document.getElementById('registerCard').classList.remove('hidden');
+                document.getElementById('wizardMsg').innerText = '';
+            } else {
+                document.getElementById('registerCard').classList.add('hidden');
+                document.getElementById('welcomeWizardCard').classList.add('hidden');
+                document.getElementById('loginCard').classList.remove('hidden');
+            }
+        });
+
         const texts = {
             en: {
                 logoTagline: "Connect with friends and the world around you on CamFeed.",
@@ -255,7 +303,8 @@
                 welcomeTitle: "Welcome to CamFeed!",
                 welcomeDesc: "CamFeed is an amazing community platform designed to help you connect with friends, family, and share your daily life stories with the world.",
                 lblProfilePic: "Profile Picture", lblCoverPic: "Cover Photo", btnFinishReg: "Get Started & Finish",
-                chooseProfile: "📁 Choose Profile Photo", chooseCover: "🖼️ Choose Cover Photo", noCover: "No cover photo chosen"
+                chooseProfile: "📁 Choose Profile Photo", chooseCover: "🖼️ Choose Cover Photo", noCover: "No cover photo chosen",
+                backBtn: "Back"
             },
             km: {
                 logoTagline: "ជួបជុំជាមួយមិត្តភក្តិ និងពិភពលោកជុំវិញខ្លួនអ្នកនៅលើ CamFeed។",
@@ -268,7 +317,8 @@
                 welcomeTitle: "សូមស្វាគមន៍មកកាន់ CamFeed!",
                 welcomeDesc: "CamFeed គឺជាកន្លែងជួបជុំសហគមន៍ដ៏អស្ចារ្យ ដែលជួយឱ្យអ្នកភ្ជាប់ទំនាក់ទំនងជាមួយមិត្តភក្តិ គ្រួសារ និងចែករំលែករឿងរ៉ាវជីវិតប្រចាំថ្ងៃរបស់អ្នកជាមួយពិភពលោក។",
                 lblProfilePic: "រូបភាពប្រវត្តិរូប (Profile Picture)", lblCoverPic: "រូបភាពគម្រប (Cover Photo)", btnFinishReg: "ចាប់ផ្តើមប្រើប្រាស់",
-                chooseProfile: "📁 ជ្រើសរើសរូបប្រវត្តិរូប", chooseCover: "🖼️ ជ្រើសរើសរូបគម្រប", noCover: "មិនទាន់បានជ្រើសរើសរូបគម្របទេ"
+                chooseProfile: "📁 ជ្រើសរើសរូបប្រវត្តិរូប", chooseCover: "🖼️ ជ្រើសរើសរូបគម្រប", noCover: "មិនទាន់បានជ្រើសរើសរូបគម្របទេ",
+                backBtn: "ត្រឡប់ក្រោយ"
             }
         };
 
@@ -298,6 +348,8 @@
             document.getElementById('lblCountry').innerText = t.lblCountry;
             document.getElementById('btnNextStep').innerText = t.btnNextStep;
             document.getElementById('haveAccText').innerText = t.haveAccText;
+            document.getElementById('btnBackToLogin').innerText = t.backBtn;
+            document.getElementById('btnBackToStep1').innerText = t.backBtn;
 
             document.getElementById('welcomeTitle').innerText = t.welcomeTitle;
             document.getElementById('welcomeDesc').innerText = t.welcomeDesc;
@@ -327,7 +379,9 @@
 
         function showRegisterForm() {
             document.getElementById('loginCard').classList.add('hidden');
+            document.getElementById('welcomeWizardCard').classList.add('hidden');
             document.getElementById('registerCard').classList.remove('hidden');
+            history.pushState({ step: 'register1' }, '');
         }
 
         function showLoginForm() {
@@ -336,12 +390,23 @@
             document.getElementById('loginCard').classList.remove('hidden');
         }
 
+        function backToStep1() {
+            // Keeps all typed fields (firstName, lastName, regEmail, regPassword, dob, gender, country) intact
+            document.getElementById('welcomeWizardCard').classList.add('hidden');
+            document.getElementById('registerCard').classList.remove('hidden');
+            document.getElementById('wizardMsg').innerText = '';
+            const finishBtn = document.getElementById('btnFinishReg');
+            finishBtn.disabled = false;
+            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            finishBtn.innerText = texts[lang].btnFinishReg;
+        }
+
         let tempUserData = null;
 
         function proceedToStep2() {
-            const firstName = document.getElementById('firstName').value;
-            const lastName = document.getElementById('lastName').value;
-            const email = document.getElementById('regEmail').value;
+            const firstName = document.getElementById('firstName').value.trim();
+            const lastName = document.getElementById('lastName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
             const password = document.getElementById('regPassword').value;
             
             const day = document.getElementById('dobDay').value;
@@ -356,6 +421,7 @@
 
             document.getElementById('registerCard').classList.add('hidden');
             document.getElementById('welcomeWizardCard').classList.remove('hidden');
+            history.pushState({ step: 'register2' }, '');
         }
 
         function previewAvatar(event) {
@@ -395,31 +461,41 @@
             document.getElementById('coverUploadLabel').childNodes[0].nodeValue = texts[lang].chooseCover + " ";
         }
 
-        // Upload image directly to Cloudflare R2 (New Storage)
-        async function uploadImageToR2(file, userEmail) {
-            const urlRes = await fetch('/api/videos/upload-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_email: userEmail,
-                    file_name: file.name,
-                    content_type: file.type || 'image/jpeg'
-                })
+        // Compress image slightly in browser so upload is instant & never hits payload limits
+        function compressImageFile(file, maxDim = 1280) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.round(img.width * scale);
+                    canvas.height = Math.round(img.height * scale);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        resolve(blob ? new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' }) : file);
+                    }, 'image/jpeg', 0.85);
+                };
+                img.onerror = () => resolve(file);
+                img.src = URL.createObjectURL(file);
             });
-            const urlData = await urlRes.json();
-            if (!urlRes.ok || !urlData.uploadUrl) {
-                throw new Error(urlData.error || 'Failed to get R2 upload URL');
-            }
+        }
 
-            const uploadRes = await fetch(urlData.uploadUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': file.type || 'image/jpeg' },
-                body: file
+        // Upload image via backend R2 proxy endpoint (avoids browser CORS 'Failed to fetch' issues on mobile)
+        async function uploadImageToR2ViaServer(file, userEmail) {
+            const optimizedFile = await compressImageFile(file, 1280);
+            const formData = new FormData();
+            formData.append('user_email', userEmail);
+            formData.append('file', optimizedFile);
+
+            const res = await fetch('/api/videos/upload-image', {
+                method: 'POST',
+                body: formData
             });
-            if (!uploadRes.ok) {
-                throw new Error('Failed to upload image to Cloudflare R2');
+            const data = await res.json();
+            if (!res.ok || !data.publicUrl) {
+                throw new Error(data.error || 'Failed to upload image to R2');
             }
-            return urlData.publicUrl;
+            return data.publicUrl;
         }
 
         async function finalizeRegistration() {
@@ -427,15 +503,28 @@
             const coverFile = document.getElementById('regCoverFile').files[0];
             const msg = document.getElementById('wizardMsg');
             const finishBtn = document.getElementById('btnFinishReg');
+            const lang = localStorage.getItem('camfeed_lang') || 'en';
 
+            msg.innerText = '';
             finishBtn.disabled = true;
-            finishBtn.innerText = "Creating account...";
+            finishBtn.innerText = lang === 'km' ? "កំពុងបង្កើតគណនី..." : "Creating account...";
 
             try {
+                // Re-read latest values from Step 1 inputs in case user went back and edited them
+                const latestUserData = {
+                    firstName: document.getElementById('firstName').value.trim(),
+                    lastName: document.getElementById('lastName').value.trim(),
+                    email: document.getElementById('regEmail').value.trim(),
+                    password: document.getElementById('regPassword').value,
+                    birthdate: `${document.getElementById('dobDay').value}-${document.getElementById('dobMonth').value}-${document.getElementById('dobYear').value}`,
+                    gender: document.getElementById('gender').value,
+                    country: document.getElementById('country').value
+                };
+
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(tempUserData)
+                    body: JSON.stringify(latestUserData)
                 });
                 const data = await res.json();
 
@@ -443,15 +532,15 @@
                     let user = data.user;
 
                     if (profileFile || coverFile) {
-                        finishBtn.innerText = "Uploading photos to R2...";
+                        finishBtn.innerText = lang === 'km' ? "កំពុងបង្ហោះរូបភាព..." : "Uploading photos...";
                         let profilePicUrl = null;
                         let coverPicUrl = null;
 
                         if (profileFile) {
-                            profilePicUrl = await uploadImageToR2(profileFile, user.email);
+                            profilePicUrl = await uploadImageToR2ViaServer(profileFile, user.email);
                         }
                         if (coverFile) {
-                            coverPicUrl = await uploadImageToR2(coverFile, user.email);
+                            coverPicUrl = await uploadImageToR2ViaServer(coverFile, user.email);
                         }
 
                         const picRes = await fetch('/api/update-profile-pics', {
@@ -465,7 +554,7 @@
                             })
                         });
                         const picData = await picRes.json();
-                        if (picData.success) {
+                        if (picData.success && picData.user) {
                             user = picData.user;
                         }
                     }
@@ -475,13 +564,13 @@
                     window.location.href = 'feed.html';
                 } else {
                     finishBtn.disabled = false;
-                    finishBtn.innerText = "Get Started & Finish";
+                    finishBtn.innerText = texts[lang].btnFinishReg;
                     msg.style.color = 'red';
-                    msg.innerText = data.error || 'Registration failed';
+                    msg.innerText = data.error || 'Registration failed (Email may already exist)';
                 }
             } catch (err) {
                 finishBtn.disabled = false;
-                finishBtn.innerText = "Get Started & Finish";
+                finishBtn.innerText = texts[lang].btnFinishReg;
                 msg.style.color = 'red';
                 msg.innerText = err.message || 'Server connection error';
             }

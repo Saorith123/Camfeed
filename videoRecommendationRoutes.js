@@ -4,8 +4,14 @@
  */
 
 const express = require('express');
+const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+
+const memUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
 
 module.exports = function createVideoRouter(pool) {
   const router = express.Router();
@@ -49,6 +55,36 @@ module.exports = function createVideoRouter(pool) {
     } catch (err) {
       console.error('Presigned URL error:', err);
       res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 1B. Direct Server-to-R2 Image Upload (Bypasses Mobile Browser CORS Issues)
+  // POST /api/videos/upload-image
+  // ---------------------------------------------------------------------------
+  router.post('/upload-image', memUpload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+      }
+
+      const safeName = (req.file.originalname || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const r2Key = `images/${Date.now()}-${safeName}`;
+
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage',
+          Key: r2Key,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype || 'image/jpeg',
+        })
+      );
+
+      const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com'}/${r2Key}`;
+      res.json({ success: true, publicUrl, r2Key });
+    } catch (err) {
+      console.error('Direct R2 image upload error:', err);
+      res.status(500).json({ error: 'Failed to upload image to R2: ' + err.message });
     }
   });
 

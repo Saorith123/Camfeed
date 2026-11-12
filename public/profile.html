@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Profile</title>
-    <link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)">
-    <link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin>
-    <link href="[https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap](https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap)" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #050505; }
 
-        .top-bar { background: #fff; height: 56px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        .top-bar { background: #fff; height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
         .logo-nav {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 25px;
@@ -27,29 +27,131 @@
 
         .profile-container { max-width: 900px; margin: 0 auto 40px; }
 
-        .profile-header-card { background: #fff; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: hidden; margin-bottom: 16px; }
-        .cover-wrapper { position: relative; width: 100%; height: 280px; background: linear-gradient(135deg, #1877f2, #42b72a); overflow: hidden; }
+        .profile-header-card { background: #fff; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: visible; margin-bottom: 16px; position: relative; }
+        .cover-wrapper { position: relative; width: 100%; height: 270px; background: linear-gradient(135deg, #1877f2, #42b72a); overflow: hidden; }
         .cover-img { width: 100%; height: 100%; object-fit: cover; }
-        .edit-cover-btn { position: absolute; bottom: 15px; right: 15px; background: rgba(255,255,255,0.9); border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+        .edit-cover-btn { position: absolute; bottom: 14px; right: 14px; background: rgba(255,255,255,0.92); border: none; padding: 7px 13px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
 
-        .profile-info-section { padding: 0 24px 20px; position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-        .avatar-and-name { display: flex; align-items: flex-end; gap: 18px; margin-top: -55px; z-index: 2; }
-        .avatar-wrapper { position: relative; width: 140px; height: 140px; border-radius: 50%; border: 4px solid #fff; background: #e4e6eb; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .profile-info-section { padding: 0 20px 18px; position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+        .avatar-and-name { display: flex; align-items: flex-end; gap: 16px; margin-top: -55px; z-index: 2; }
+        .avatar-wrapper { position: relative; width: 132px; height: 132px; border-radius: 50%; border: 4px solid #fff; background: #e4e6eb; box-shadow: 0 2px 8px rgba(0,0,0,0.15); flex-shrink: 0; }
         .profile-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-        .edit-avatar-btn { position: absolute; bottom: 5px; right: 5px; background: #e4e6eb; border: 2px solid #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+        .edit-avatar-btn { position: absolute; bottom: 4px; right: 4px; background: #e4e6eb; border: 2px solid #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; }
 
-        .user-details { padding-bottom: 8px; }
-        .user-fullname { font-size: 26px; font-weight: bold; color: #050505; }
-        .user-stats { font-size: 14px; color: #65676b; margin-top: 4px; font-weight: 500; }
+        .user-details { padding-bottom: 6px; }
+        .name-and-badge { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .user-fullname { font-size: 24px; font-weight: bold; color: #050505; }
+        .friend-badge { background: #e7f3ff; color: #1877f2; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 14px; display: inline-flex; align-items: center; gap: 4px; }
+        .user-stats { font-size: 13.5px; color: #65676b; margin-top: 4px; font-weight: 500; }
         .user-bio { font-size: 14px; color: #050505; margin-top: 6px; }
 
-        .action-buttons { display: flex; gap: 10px; padding-bottom: 8px; }
-        .btn-action { padding: 9px 18px; border-radius: 6px; font-weight: 600; font-size: 14px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .action-buttons { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; position: relative; flex-wrap: wrap; }
+        .btn-action { padding: 8px 15px; border-radius: 7px; font-weight: 600; font-size: 13.5px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
         .btn-primary { background: #1877f2; color: #fff; }
+        .btn-primary:hover { background: #166fe5; }
         .btn-secondary { background: #e4e6eb; color: #050505; }
+        .btn-secondary:hover { background: #d8dadf; }
+        .btn-friend { background: #e7f3ff; color: #1877f2; }
 
-        .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 24px; gap: 8px; }
-        .tab-btn { padding: 14px 16px; background: none; border: none; font-size: 15px; font-weight: 600; color: #65676b; cursor: pointer; border-bottom: 3px solid transparent; }
+        /* Compact 3-Dot Profile Menu (Share Profile, Report, Block) */
+        .profile-dots-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            border: none;
+            background: #e4e6eb;
+            color: #050505;
+            font-size: 18px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .profile-dots-btn:hover { background: #d8dadf; }
+
+        .profile-menu-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 42px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            border: 1px solid #e4e6eb;
+            width: 245px;
+            z-index: 500;
+            overflow: hidden;
+        }
+        .profile-menu-item {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 12px 14px;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            border-bottom: 1px solid #f0f2f5;
+        }
+        .profile-menu-item:last-child { border-bottom: none; }
+        .profile-menu-item:hover { background: #f2f3f5; }
+        .profile-menu-ico { font-size: 18px; line-height: 1.2; margin-top: 2px; }
+        .profile-menu-title { font-weight: 700; font-size: 14px; color: #050505; }
+        .profile-menu-sub { font-size: 11.5px; color: #65676b; margin-top: 2px; }
+
+        /* Personal Details Card (Matches Facebook Style with Per-Field Privacy) */
+        .personal-details-card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin: 0 12px 16px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .personal-details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .personal-details-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #050505;
+        }
+        .detail-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14.5px;
+            color: #050505;
+            gap: 10px;
+        }
+        .detail-row-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .detail-icon {
+            font-size: 19px;
+            width: 24px;
+            text-align: center;
+            color: #65676b;
+        }
+        .privacy-pill {
+            font-size: 11px;
+            background: #f0f2f5;
+            color: #65676b;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 16px; gap: 4px; overflow-x: auto; }
+        .tab-btn { padding: 13px 14px; background: none; border: none; font-size: 14.5px; font-weight: 600; color: #65676b; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
         .tab-btn.active { color: #1877f2; border-bottom-color: #1877f2; }
 
         .content-area { max-width: 680px; margin: 0 auto; padding: 0 12px; }
@@ -64,6 +166,26 @@
         .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
         .post-media { width: 100%; max-height: 500px; object-fit: contain; background: #000; border-radius: 8px; margin-bottom: 10px; display: block; }
 
+        /* Facebook-Style Embedded Shared Post / Shared Profile Card */
+        .embedded-shared-card {
+            border: 1px solid #dddfe2;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        .embedded-shared-media .post-media,
+        .embedded-shared-media .carousel-wrapper {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .embedded-shared-info { padding: 10px 12px; }
+        .embedded-shared-author-row { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px; }
+        .embedded-shared-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #e4e6eb; }
+        .embedded-shared-author { font-weight: 700; font-size: 13.5px; color: #050505; }
+        .embedded-shared-time { font-size: 11px; color: #65676b; }
+        .embedded-shared-text { font-size: 14px; color: #1c1e21; white-space: pre-wrap; }
+
         /* Multi-Media Carousel */
         .carousel-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 10px; }
         .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
@@ -75,13 +197,15 @@
         .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; }
         .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
 
-        .post-stats { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: #65676b; padding-bottom: 8px; border-bottom: 1px solid #e4e6eb; min-height: 28px; }
-        .reaction-summary { display: flex; align-items: center; gap: 5px; }
+        .post-stats { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #65676b; padding-bottom: 8px; border-bottom: 1px solid #e4e6eb; min-height: 28px; flex-wrap: wrap; gap: 6px; }
+        .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
+        .right-stats-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+        .stat-link:hover { text-decoration: underline; }
 
         .post-actions { display: flex; justify-content: space-around; padding-top: 6px; position: relative; }
         .reaction-wrapper { flex: 1; position: relative; display: flex; }
-        .post-action-btn { flex: 1; background: none; border: none; padding: 8px 4px; font-size: 14px; font-weight: 600; color: #65676b; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: transform 0.1s ease, background 0.15s; user-select: none; }
+        .post-action-btn { flex: 1; background: none; border: none; padding: 8px 4px; font-size: 14px; font-weight: 600; color: #65676b; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: transform 0.1s ease, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
         .post-action-btn:hover { background: #f0f2f5; }
         .post-action-btn:active { transform: scale(0.95); }
 
@@ -96,18 +220,17 @@
         .reaction-picker {
             display: none;
             position: absolute;
-            bottom: 44px;
+            bottom: 46px;
             left: 0;
             background: #fff;
-            padding: 6px 10px;
+            padding: 7px 12px;
             border-radius: 30px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
             border: 1px solid #e4e6eb;
-            gap: 8px;
-            z-index: 200;
+            gap: 10px;
+            z-index: 300;
             animation: popUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .reaction-wrapper:hover .reaction-picker,
         .reaction-picker.show { display: flex; }
 
         @keyframes popUp {
@@ -115,23 +238,37 @@
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        .emoji-option { font-size: 26px; cursor: pointer; transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; line-height: 1; }
+        .emoji-option { font-size: 27px; cursor: pointer; transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; line-height: 1; }
         .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
 
-        .options-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 50%; color: #65676b; }
-        .dropdown-menu { display: none; position: absolute; right: 16px; top: 48px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 50; overflow: hidden; border: 1px solid #e4e6eb; min-width: 130px; }
-        .dropdown-menu button { width: 100%; text-align: left; background: none; border: none; padding: 10px 14px; font-size: 14px; cursor: pointer; display: block; }
+        .options-btn { width: 28px; height: 28px; border-radius: 50%; background: none; border: none; font-size: 17px; cursor: pointer; color: #65676b; display: flex; align-items: center; justify-content: center; }
+        .options-btn:hover { background: #f0f2f5; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 30px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 50; overflow: hidden; border: 1px solid #e4e6eb; min-width: 145px; }
+        .dropdown-menu button { width: 100%; text-align: left; background: none; border: none; padding: 10px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; display: block; }
+        .dropdown-menu button:hover { background: #f2f2f2; }
 
         .user-row { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
-        .modal-card { background: #fff; width: 100%; max-width: 440px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+        .modal-card { background: #fff; width: 100%; max-width: 450px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-height: 85vh; display: flex; flex-direction: column; }
         .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .modal-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
 
         .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14.5px; font-weight: 600; color: #050505; }
         .share-option-btn:hover { background: #e4e6eb; }
         .share-icon { font-size: 22px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        .edit-field-group { background: #f8f9fa; padding: 10px 12px; border-radius: 10px; border: 1px solid #e4e6eb; }
+        .edit-field-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: #050505; }
+        .edit-field-group input, .edit-field-group select { width: 100%; padding: 8px 10px; border: 1px solid #dddfe2; border-radius: 7px; font-size: 13.5px; background: #fff; outline: none; }
+        .privacy-select-mini { width: auto !important; padding: 3px 8px !important; font-size: 11.5px !important; border-radius: 6px !important; font-weight: 600; color: #1877f2; }
+
+        .report-reason-btn { width: 100%; text-align: left; padding: 11px 14px; border: 1px solid #e4e6eb; border-radius: 8px; background: #f8f9fa; font-size: 14px; font-weight: 600; cursor: pointer; color: #050505; }
+        .report-reason-btn:hover, .report-reason-btn.selected { background: #ffebe9; border-color: #fa383e; color: #d93025; }
+
+        .reactor-row { display: flex; justify-content: space-between; align-items: center; }
+        .btn-follow-mini { padding: 6px 14px; background: #1877f2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12.5px; }
+        .btn-unfollow-mini { background: #e4e6eb; color: #050505; }
 
         .comment-container { display: flex; gap: 10px; align-items: flex-start; }
         .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; }
@@ -158,30 +295,138 @@
             <div class="profile-info-section">
                 <div class="avatar-and-name">
                     <div class="avatar-wrapper">
-                        <img id="profileAvatar" src="[https://via.placeholder.com/140](https://via.placeholder.com/140)" class="profile-avatar">
+                        <img id="profileAvatar" src="https://via.placeholder.com/140" class="profile-avatar">
                         <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('profilePic', this)">
                         <button id="editAvatarBtn" class="edit-avatar-btn" style="display:none;" onclick="document.getElementById('avatarInput').click()" title="Change Profile Picture">📷</button>
                     </div>
                     <div class="user-details">
-                        <div class="user-fullname" id="profileName">Loading...</div>
+                        <div class="name-and-badge">
+                            <div class="user-fullname" id="profileName">Loading...</div>
+                            <span id="friendBadge" class="friend-badge" style="display:none;">🤝 Friends</span>
+                        </div>
                         <div class="user-stats" id="profileStats">0 Followers · 0 Following</div>
                         <div class="user-bio" id="profileBio"></div>
                     </div>
                 </div>
 
+                <!-- Action Buttons + Compact 3-Dot Menu -->
                 <div class="action-buttons" id="profileActions"></div>
             </div>
 
             <div class="profile-tabs">
                 <button class="tab-btn active" id="tab-posts" onclick="switchProfileTab('posts')">Posts</button>
                 <button class="tab-btn" id="tab-videos" onclick="switchProfileTab('videos')">Videos</button>
+                <button class="tab-btn" id="tab-friends" onclick="switchProfileTab('friends')">Friends</button>
                 <button class="tab-btn" id="tab-followers" onclick="switchProfileTab('followers')">Followers</button>
                 <button class="tab-btn" id="tab-following" onclick="switchProfileTab('following')">Following</button>
             </div>
         </div>
 
+        <!-- Personal Details Section (With Per-Field Public / Only Me Privacy) -->
+        <div class="personal-details-card" id="personalDetailsCard" style="display:none;">
+            <div class="personal-details-header">
+                <div class="personal-details-title">Personal details</div>
+                <button id="editDetailsBtn" class="btn-action btn-secondary" style="display:none; padding:6px 12px; font-size:12.5px;" onclick="openEditDetailsModal()">✏️ Edit Details & Privacy</button>
+            </div>
+            <div id="personalDetailsList"></div>
+        </div>
+
         <div class="content-area" id="profileContent">
             <div style="text-align:center; padding:30px; color:#65676b;">Loading profile...</div>
+        </div>
+    </div>
+
+    <!-- Edit Personal Details & Privacy Modal -->
+    <div id="editDetailsModal" class="modal-overlay" onclick="closeEditDetailsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>✏️ Personal details & Privacy</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeEditDetailsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>📍 Current City / Location</span>
+                        <select id="priv-location" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-location" placeholder="e.g. Phnom Penh">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>🎂 Birthday</span>
+                        <select id="priv-birthdate" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-birthdate" placeholder="e.g. January 7 or 07-01-1995">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>💕 Relationship Status</span>
+                        <select id="priv-relationship" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-relationship" placeholder="e.g. Married to Oun Heang / Single">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>⚧️ Gender</span>
+                        <select id="priv-gender" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <select id="input-gender">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Custom">Custom</option>
+                    </select>
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>💼 Work / Occupation</span>
+                        <select id="priv-work" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-work" placeholder="e.g. Business Owner at RS Shop">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>📞 Phone Number</span>
+                        <select id="priv-phone" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-phone" placeholder="e.g. 096 282 8738">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>✉️ Email Address</span>
+                        <select id="priv-email" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-email-display" disabled style="background:#e4e6eb; color:#65676b;">
+                </div>
+
+                <button onclick="savePersonalDetails()" style="background:#1877f2; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:700; font-size:15px; cursor:pointer;">Save Changes</button>
+            </div>
         </div>
     </div>
 
@@ -200,15 +445,37 @@
         </div>
     </div>
 
-    <!-- Share Modal -->
+    <!-- Reactors List Modal -->
+    <div id="reactionsModal" class="modal-overlay" onclick="closeReactionsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>People who reacted</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeReactionsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="reactionsModalList"></div>
+        </div>
+    </div>
+
+    <!-- Sharers List Modal -->
+    <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>People who shared</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeSharersModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="sharersModalList"></div>
+        </div>
+    </div>
+
+    <!-- Share Post / Profile Modal -->
     <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <span>Share Post</span>
+                <span id="shareModalTitle">Share Post</span>
                 <span style="cursor:pointer; font-size:20px;" onclick="closeShareModal()">&times;</span>
             </div>
             <div class="modal-body">
-                <input type="text" id="shareCaptionInput" placeholder="Say something about this post (optional)..." style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid #dddfe2; outline:none; font-size:14px;">
+                <input type="text" id="shareCaptionInput" placeholder="Say something about this (optional)..." style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid #dddfe2; outline:none; font-size:14px;">
                 
                 <button class="share-option-btn" onclick="shareToMyProfile()">
                     <span class="share-icon">👤</span>
@@ -226,13 +493,32 @@
                     </div>
                 </button>
 
-                <button class="share-option-btn" onclick="copyPostLink()">
+                <button class="share-option-btn" onclick="copyShareLink()">
                     <span class="share-icon">🔗</span>
                     <div>
                         <div id="copyLinkLabel">Copy Link</div>
-                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Copy URL to paste on other websites</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Copy URL to paste anywhere</div>
                     </div>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Post / Profile Modal -->
+    <div id="reportModal" class="modal-overlay" onclick="closeReportModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="reportModalTitle">🚩 រាយការណ៍ (Report)</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeReportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px; color:#65676b;">សូមជ្រើសរើសមូលហេតុដើម្បីបញ្ជូនទៅកាន់ Admin ត្រួតពិនិត្យ៖</p>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Fake Account or Impersonation (គណនីក្លែងក្លាយ)')">🎭 គណនីក្លែងក្លាយ ឬបន្លំឈ្មោះ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Harassment or Hate Speech (រំលោភបំពាន)')">💢 ការជេរប្រមាថ ឬរំលោភបំពាន</button>
+                <textarea id="reportCustomDetails" rows="2" placeholder="បញ្ជាក់ព័ត៌មានបន្ថែម (ស្រេចចិត្ត)..." style="width:100%; padding:8px 12px; border:1px solid #dddfe2; border-radius:8px; font-size:13px;"></textarea>
+                <button type="button" onclick="submitReport()" style="background:#fa383e; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:700; cursor:pointer;">បញ្ជូនរបាយការណ៍ទៅ Admin</button>
             </div>
         </div>
     </div>
@@ -250,11 +536,15 @@
         }
 
         let currentTab = 'posts';
+        let loadedProfileUser = null;
         let targetUserIsFollowing = false;
         let currentProfileBio = '';
         let activePostIdForComment = null;
-        let activePostIdForShare = null;
+        let shareContext = { mode: 'post', postId: null };
+        let reportContext = { mode: 'post', postId: null };
+        let selectedReportReasonText = '';
         let pressTimer = null;
+        let isLongPressTriggered = false;
 
         const postReactionsState = {};
 
@@ -274,21 +564,34 @@
             loadProfileData();
         }
 
+        function formatCompactNumber(num) {
+            const n = parseInt(num) || 0;
+            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return n.toString();
+        }
+
         async function loadProfileData() {
             try {
                 const res = await fetch(`/api/user-profile?email=${encodeURIComponent(profileEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
 
                 if (!data.success || !data.user) {
-                    document.getElementById('profileName').innerText = 'User not found';
+                    document.getElementById('profileName').innerText = data.blocked ? 'User unavailable' : 'User not found';
+                    document.getElementById('profileContent').innerHTML = `<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">${data.blocked ? 'This profile is unavailable.' : 'Profile not found.'}</div>`;
                     return;
                 }
 
                 const user = data.user;
+                loadedProfileUser = user;
                 currentProfileBio = user.bio || '';
+
                 document.getElementById('profileName').innerText = `${user.first_name || ''} ${user.last_name || ''}`;
                 document.getElementById('profileStats').innerText = `${user.followers_count || 0} Followers · ${user.following_count || 0} Following`;
                 document.getElementById('profileBio').innerText = currentProfileBio;
+
+                // Show "Friends" badge when mutual follow exists
+                document.getElementById('friendBadge').style.display = user.is_friend ? 'inline-flex' : 'none';
 
                 if (user.profile_pic) {
                     document.getElementById('profileAvatar').src = user.profile_pic;
@@ -299,24 +602,41 @@
                     coverEl.style.display = 'block';
                 }
 
+                const isSelf = currentUser.email === user.email;
                 const actionContainer = document.getElementById('profileActions');
                 actionContainer.innerHTML = '';
 
-                if (currentUser.email === user.email) {
+                if (isSelf) {
                     document.getElementById('editCoverBtn').style.display = 'block';
                     document.getElementById('editAvatarBtn').style.display = 'flex';
+                    document.getElementById('editDetailsBtn').style.display = 'inline-flex';
 
                     const editBioBtn = document.createElement('button');
                     editBioBtn.className = 'btn-action btn-secondary';
                     editBioBtn.innerText = '✏️ Edit Bio';
                     editBioBtn.onclick = () => editBio(currentProfileBio);
                     actionContainer.appendChild(editBioBtn);
+
+                    const shareOwnBtn = document.createElement('button');
+                    shareOwnBtn.className = 'btn-action btn-secondary';
+                    shareOwnBtn.innerText = '↗️ Share Profile';
+                    shareOwnBtn.onclick = () => openShareProfileModal();
+                    actionContainer.appendChild(shareOwnBtn);
                 } else {
                     targetUserIsFollowing = !!user.is_following;
                     const followBtn = document.createElement('button');
                     followBtn.id = 'followToggleBtn';
-                    followBtn.className = `btn-action ${targetUserIsFollowing ? 'btn-secondary' : 'btn-primary'}`;
-                    followBtn.innerText = targetUserIsFollowing ? '✓ Following' : '+ Follow';
+
+                    if (user.is_friend) {
+                        followBtn.className = 'btn-action btn-friend';
+                        followBtn.innerText = '🤝 Friends';
+                    } else if (targetUserIsFollowing) {
+                        followBtn.className = 'btn-action btn-secondary';
+                        followBtn.innerText = '✓ Following';
+                    } else {
+                        followBtn.className = 'btn-action btn-primary';
+                        followBtn.innerText = '+ Follow';
+                    }
                     followBtn.onclick = () => toggleFollow(user.email);
                     actionContainer.appendChild(followBtn);
 
@@ -327,13 +647,174 @@
                         window.location.href = `messages.html?chat=${encodeURIComponent(user.email)}`;
                     };
                     actionContainer.appendChild(messageBtn);
+
+                    // Compact 3-Dot Menu (Share Profile, Report, Block)
+                    const menuWrapper = document.createElement('div');
+                    menuWrapper.style.position = 'relative';
+                    menuWrapper.innerHTML = `
+                        <button class="profile-dots-btn" onclick="toggleProfileDotsMenu(event)" title="More options">⋮</button>
+                        <div class="profile-menu-dropdown" id="profileDotsMenu" onclick="event.stopPropagation()">
+                            <button class="profile-menu-item" onclick="openShareProfileModal()">
+                                <span class="profile-menu-ico">🔗</span>
+                                <div>
+                                    <div class="profile-menu-title">Share</div>
+                                    <div class="profile-menu-sub">Share this profile to your feed</div>
+                                </div>
+                            </button>
+                            <button class="profile-menu-item" onclick="openReportProfileModal()">
+                                <span class="profile-menu-ico">🚩</span>
+                                <div>
+                                    <div class="profile-menu-title">Report</div>
+                                    <div class="profile-menu-sub">Report this profile to admins</div>
+                                </div>
+                            </button>
+                            <button class="profile-menu-item" onclick="blockTargetUser('${user.email}')">
+                                <span class="profile-menu-ico">🚫</span>
+                                <div>
+                                    <div class="profile-menu-title" style="color:#d93025;">Block</div>
+                                    <div class="profile-menu-sub">This user won't be able to reach you</div>
+                                </div>
+                            </button>
+                        </div>
+                    `;
+                    actionContainer.appendChild(menuWrapper);
                 }
 
+                renderPersonalDetails(user, isSelf);
                 loadTabContent(currentTab);
             } catch (err) {
                 console.error('Error loading profile:', err);
                 document.getElementById('profileContent').innerHTML = '<div style="text-align:center; padding:30px; color:red;">Failed to load profile data.</div>';
             }
+        }
+
+        function renderPersonalDetails(user, isSelf) {
+            const card = document.getElementById('personalDetailsCard');
+            const list = document.getElementById('personalDetailsList');
+
+            const items = [
+                { icon: '📍', label: user.location, privacy: user.location_privacy || 'public' },
+                { icon: '🎂', label: user.birthdate, privacy: user.birthdate_privacy || 'public' },
+                { icon: '💕', label: user.relationship_status, privacy: user.relationship_privacy || 'public' },
+                { icon: '⚧️', label: user.gender, privacy: user.gender_privacy || 'public' },
+                { icon: '💼', label: user.work, privacy: user.work_privacy || 'public' },
+                { icon: '📞', label: user.phone, privacy: user.phone_privacy || 'public' },
+                { icon: '✉️', label: user.email, privacy: user.email_privacy || 'public' }
+            ];
+
+            const visibleItems = items.filter(it => it.label && (isSelf || it.privacy === 'public'));
+
+            if (visibleItems.length === 0 && !isSelf) {
+                card.style.display = 'none';
+                return;
+            }
+
+            card.style.display = 'block';
+            if (visibleItems.length === 0 && isSelf) {
+                list.innerHTML = `<div style="font-size:13.5px; color:#65676b;">No personal details added yet. Click "Edit Details & Privacy" to add your info.</div>`;
+                return;
+            }
+
+            list.innerHTML = visibleItems.map(it => `
+                <div class="detail-row">
+                    <div class="detail-row-left">
+                        <span class="detail-icon">${it.icon}</span>
+                        <span>${it.label}</span>
+                    </div>
+                    ${isSelf ? `<span class="privacy-pill">${it.privacy === 'public' ? '🌐 Public' : '🔒 Only me'}</span>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function openEditDetailsModal() {
+            if (!loadedProfileUser) return;
+            const u = loadedProfileUser;
+            document.getElementById('input-location').value = u.location || '';
+            document.getElementById('priv-location').value = u.location_privacy || 'public';
+
+            document.getElementById('input-birthdate').value = u.birthdate || '';
+            document.getElementById('priv-birthdate').value = u.birthdate_privacy || 'public';
+
+            document.getElementById('input-relationship').value = u.relationship_status || '';
+            document.getElementById('priv-relationship').value = u.relationship_privacy || 'public';
+
+            document.getElementById('input-gender').value = u.gender || 'Male';
+            document.getElementById('priv-gender').value = u.gender_privacy || 'public';
+
+            document.getElementById('input-work').value = u.work || '';
+            document.getElementById('priv-work').value = u.work_privacy || 'public';
+
+            document.getElementById('input-phone').value = u.phone || '';
+            document.getElementById('priv-phone').value = u.phone_privacy || 'public';
+
+            document.getElementById('input-email-display').value = u.email || '';
+            document.getElementById('priv-email').value = u.email_privacy || 'public';
+
+            document.getElementById('editDetailsModal').style.display = 'flex';
+        }
+
+        function closeEditDetailsModal() {
+            document.getElementById('editDetailsModal').style.display = 'none';
+        }
+
+        async function savePersonalDetails() {
+            const payload = {
+                email: currentUser.email,
+                location: document.getElementById('input-location').value.trim(),
+                location_privacy: document.getElementById('priv-location').value,
+                birthdate: document.getElementById('input-birthdate').value.trim(),
+                birthdate_privacy: document.getElementById('priv-birthdate').value,
+                relationship_status: document.getElementById('input-relationship').value.trim(),
+                relationship_privacy: document.getElementById('priv-relationship').value,
+                gender: document.getElementById('input-gender').value,
+                gender_privacy: document.getElementById('priv-gender').value,
+                work: document.getElementById('input-work').value.trim(),
+                work_privacy: document.getElementById('priv-work').value,
+                phone: document.getElementById('input-phone').value.trim(),
+                phone_privacy: document.getElementById('priv-phone').value,
+                email_privacy: document.getElementById('priv-email').value
+            };
+
+            try {
+                const res = await fetch('/api/update-profile-details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeEditDetailsModal();
+                    loadProfileData();
+                } else {
+                    alert(data.error || 'Failed to save details');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function toggleProfileDotsMenu(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function blockTargetUser(targetEmail) {
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = 'none';
+
+            if (!confirm('តើអ្នកពិតជាចង់ Block បុគ្គលនេះមែនទេ? អ្នកទាំងពីរនឹងមិនអាចមើលឃើញគ្នា ឬផ្ញើសារមកកាន់គ្នាទៀតឡើយ។')) return;
+
+            try {
+                const res = await fetch('/api/block', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ blockerEmail: currentUser.email, blockedEmail: targetEmail })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('បាន Block បុគ្គលនេះរួចរាល់!');
+                    window.location.href = 'feed.html';
+                }
+            } catch (err) { console.error(err); }
         }
 
         function switchProfileTab(tab) {
@@ -349,7 +830,7 @@
             const uniqueIcons = (state.types && state.types.length > 0)
                 ? state.types.join('')
                 : (state.userReaction || '👍');
-            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${state.count}</span>`;
+            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${formatCompactNumber(state.count)}</span>`;
         }
 
         function buildActionBtnContent(userReaction) {
@@ -366,11 +847,11 @@
             return `post-action-btn`;
         }
 
-        function renderPostMediaHtml(post) {
-            if (!post.media_url) return '';
-            if (post.media_type === 'carousel' || post.media_url.trim().startsWith('[')) {
+        function renderRawMediaBlock(postId, mediaType, mediaUrl) {
+            if (!mediaUrl) return '';
+            if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
                 try {
-                    const items = JSON.parse(post.media_url);
+                    const items = JSON.parse(mediaUrl);
                     if (Array.isArray(items) && items.length > 0) {
                         const slidesHtml = items.map(item => {
                             if (item.type === 'video') {
@@ -378,11 +859,11 @@
                             }
                             return `<div class="carousel-slide"><img src="${item.url}"></div>`;
                         }).join('');
-                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${post.id}-${idx}"></span>`).join('');
+                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${postId}-${idx}"></span>`).join('');
                         return `
                             <div class="carousel-wrapper">
-                                <div class="carousel-counter" id="counter-${post.id}">1 / ${items.length}</div>
-                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${post.id}, ${items.length})">
+                                <div class="carousel-counter" id="counter-${postId}">1 / ${items.length}</div>
+                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${postId}, ${items.length})">
                                     ${slidesHtml}
                                 </div>
                             </div>
@@ -391,10 +872,58 @@
                     }
                 } catch (e) {}
             }
-            if (post.media_type === 'video') {
-                return `<video src="${post.media_url}" class="post-media" controls playsinline></video>`;
+            if (mediaType === 'video') {
+                return `<video src="${mediaUrl}" class="post-media" controls playsinline></video>`;
             }
-            return `<img src="${post.media_url}" class="post-media">`;
+            return `<img src="${mediaUrl}" class="post-media">`;
+        }
+
+        function renderPostMediaHtml(post) {
+            // Embedded Shared Profile Card
+            if (post.media_type === 'shared_profile' && post.media_url) {
+                try {
+                    const sp = JSON.parse(post.media_url);
+                    return `
+                        <div class="embedded-shared-card" style="cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(sp.email)}'">
+                            ${sp.cover_pic ? `<img src="${sp.cover_pic}" style="width:100%; height:130px; object-fit:cover; display:block;">` : ''}
+                            <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
+                                <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
+                                <div>
+                                    <div style="font-weight:700; font-size:15px; color:#050505;">${sp.name}</div>
+                                    <div style="font-size:12.5px; color:#65676b;">${sp.bio || 'View Profile on CamFeed'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } catch (e) {}
+            }
+
+            // Embedded Shared Post Card
+            if (post.shared_post_id || post.media_type === 'shared') {
+                if (!post.orig_id) {
+                    return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
+                }
+                const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
+                const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
+                const origMedia = renderRawMediaBlock(post.orig_id, post.orig_media_type, post.orig_media_url);
+                return `
+                    <div class="embedded-shared-card">
+                        <div class="embedded-shared-media">${origMedia}</div>
+                        <div class="embedded-shared-info">
+                            <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
+                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/32'}" class="embedded-shared-avatar">
+                                <div>
+                                    <div class="embedded-shared-author">${origAuthor}</div>
+                                    <div class="embedded-shared-time">${origDate} · 🌐</div>
+                                </div>
+                            </div>
+                            ${post.orig_content ? `<div class="embedded-shared-text">${post.orig_content}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return renderRawMediaBlock(post.id, post.media_type, post.media_url);
         }
 
         function updateCarouselIndicator(track, postId, total) {
@@ -426,6 +955,8 @@
                         content.innerHTML = '';
                         userPosts.forEach(post => {
                             const count = parseInt(post.likes_count) || 0;
+                            const viewsCount = parseInt(post.views_count) || 0;
+                            const sharesCount = parseInt(post.shares_count) || 0;
                             const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
                             postReactionsState[post.id] = {
                                 count: count,
@@ -438,21 +969,22 @@
                             const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString() : '';
                             const isOwner = currentUser.email === post.user_email;
 
-                            const optionsHtml = isOwner ? `
+                            const optionsHtml = `
                                 <div style="position:relative;">
                                     <button class="options-btn" onclick="togglePostMenu(event, ${post.id})">⋮</button>
-                                    <div class="dropdown-menu" id="post-menu-${post.id}">
-                                        <button onclick="deletePost(${post.id})" style="color:red;">Delete Post</button>
+                                    <div class="dropdown-menu" id="post-menu-${post.id}" onclick="event.stopPropagation()">
+                                        ${isOwner ? `<button onclick="deletePost(${post.id})" style="color:red;">🗑️ Delete Post</button>` : ''}
+                                        <button onclick="openReportPostModal(${post.id})" style="color:#d93025;">🚩 Report Post</button>
                                     </div>
                                 </div>
-                            ` : '';
+                            `;
 
                             const mediaHtml = renderPostMediaHtml(post);
 
                             div.innerHTML = `
                                 <div class="post-header">
                                     <div class="post-author-info" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
-                                        <img src="${post.profile_pic || '[https://via.placeholder.com/40](https://via.placeholder.com/40)'}" class="avatar">
+                                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
                                         <div>
                                             <div class="post-author">${post.first_name || ''} ${post.last_name || ''}</div>
                                             <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
@@ -460,19 +992,21 @@
                                     </div>
                                     ${optionsHtml}
                                 </div>
-                                <div class="post-content">${post.content || ''}</div>
+                                ${post.content ? `<div class="post-content">${post.content}</div>` : ''}
                                 ${mediaHtml}
                                 <div class="post-stats">
-                                    <div class="reaction-summary" id="reactionSummary-${post.id}">
+                                    <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
                                         ${buildReactionSummaryHtml(post.id)}
                                     </div>
-                                    <span id="commentCount-${post.id}" style="cursor:pointer;" onclick="openCommentsModal(${post.id})">${post.comments_count || 0} Comments</span>
+                                    <div class="right-stats-group">
+                                        <span>👁️ ${formatCompactNumber(viewsCount)}</span>
+                                        <span class="stat-link" id="commentCount-${post.id}" style="cursor:pointer;" onclick="openCommentsModal(${post.id})">${formatCompactNumber(post.comments_count)} Comments</span>
+                                        <span class="stat-link" style="cursor:pointer;" onclick="openSharersList(${post.id})">${formatCompactNumber(sharesCount)} Shares</span>
+                                    </div>
                                 </div>
                                 <div class="post-actions">
-                                    <div class="reaction-wrapper"
-                                         ontouchstart="startLongPress(${post.id})"
-                                         ontouchend="cancelLongPress()">
-                                        <div class="reaction-picker" id="picker-${post.id}">
+                                    <div class="reaction-wrapper">
+                                        <div class="reaction-picker" id="picker-${post.id}" onclick="event.stopPropagation()">
                                             <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '👍')">👍</span>
                                             <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '❤️')">❤️</span>
                                             <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '🥰')">🥰</span>
@@ -483,25 +1017,28 @@
                                         </div>
                                         <button id="reactBtn-${post.id}"
                                                 class="${buildActionBtnClass(post.user_reaction)}"
-                                                onclick="quickToggleLike(${post.id})">
+                                                onpointerdown="startHoldReaction(event, ${post.id})"
+                                                onpointerup="endHoldReaction(event, ${post.id})"
+                                                onpointerleave="cancelHoldTimer()"
+                                                oncontextmenu="event.preventDefault()">
                                             ${buildActionBtnContent(post.user_reaction)}
                                         </button>
                                     </div>
                                     <button class="post-action-btn" onclick="openCommentsModal(${post.id})">💬 Comment</button>
-                                    <button class="post-action-btn" onclick="openShareModal(${post.id})">↗️ Share</button>
+                                    <button class="post-action-btn" onclick="openSharePostModal(${post.id})">↗️ Share</button>
                                 </div>
                             `;
                             content.appendChild(div);
                         });
                     }
-                } else if (tab === 'followers' || tab === 'following') {
+                } else if (tab === 'friends' || tab === 'followers' || tab === 'following') {
                     const res = await fetch(`/api/follow-list?email=${encodeURIComponent(profileEmail)}&type=${tab}`);
                     const data = await res.json();
                     if (data.success && data.users && data.users.length > 0) {
                         content.innerHTML = data.users.map(u => `
                             <div class="user-row">
                                 <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
-                                    <img src="${u.profile_pic || '[https://via.placeholder.com/40](https://via.placeholder.com/40)'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                    <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                     <div style="font-weight:bold; font-size:14px; color:#050505;">${u.first_name || ''} ${u.last_name || ''}</div>
                                 </div>
                                 <button class="btn-action btn-secondary" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">View</button>
@@ -517,16 +1054,36 @@
             }
         }
 
-        function startLongPress(postId) {
+        // Hold 1 second on thumb button to open persistent reaction bar
+        function startHoldReaction(event, postId) {
+            if (event.button && event.button !== 0) return;
+            isLongPressTriggered = false;
+            cancelHoldTimer();
             pressTimer = setTimeout(() => {
+                isLongPressTriggered = true;
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
                 const picker = document.getElementById(`picker-${postId}`);
                 if (picker) picker.classList.add('show');
-            }, 350);
+            }, 1000);
         }
 
-        function cancelLongPress() {
-            if (pressTimer) clearTimeout(pressTimer);
+        function endHoldReaction(event, postId) {
+            cancelHoldTimer();
+            if (!isLongPressTriggered) {
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker && picker.classList.contains('show')) {
+                    picker.classList.remove('show');
+                    return;
+                }
+                quickToggleLike(postId);
+            }
+        }
+
+        function cancelHoldTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
         }
 
         function quickToggleLike(postId) {
@@ -585,55 +1142,238 @@
             if (summary) summary.innerHTML = buildReactionSummaryHtml(postId);
         }
 
-        function openShareModal(postId) {
-            activePostIdForShare = postId;
+        // Reactors & Sharers Lists Modals
+        async function openReactionsList(postId) {
+            const modal = document.getElementById('reactionsModal');
+            const listContainer = document.getElementById('reactionsModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">Loading...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/reactions/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.reactors.length > 0) {
+                    listContainer.innerHTML = data.reactors.map(r => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
+                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
+                                </div>
+                            </div>
+                            ${r.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal('${r.email}', ${r.is_following}, 'react', ${postId})">
+                                    ${r.is_following ? 'Following' : 'Follow'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">No reactions yet.</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeReactionsModal() { document.getElementById('reactionsModal').style.display = 'none'; }
+
+        async function openSharersList(postId) {
+            const modal = document.getElementById('sharersModal');
+            const listContainer = document.getElementById('sharersModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">Loading...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/shares/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.sharers.length > 0) {
+                    listContainer.innerHTML = data.sharers.map(s => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
+                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            ${s.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal('${s.email}', ${s.is_following}, 'share', ${postId})">
+                                    ${s.is_following ? 'Following' : 'Follow'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">No shares yet.</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeSharersModal() { document.getElementById('sharersModal').style.display = 'none'; }
+
+        async function toggleFollowFromModal(targetEmail, isFollowing, type, postId) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            if (type === 'react') openReactionsList(postId);
+            else openSharersList(postId);
+        }
+
+        // Share Post or Share Profile Modal
+        function openSharePostModal(postId) {
+            shareContext = { mode: 'post', postId };
+            document.getElementById('shareModalTitle').innerText = 'Share Post';
             document.getElementById('shareCaptionInput').value = '';
             document.getElementById('copyLinkLabel').innerText = 'Copy Link';
             document.getElementById('shareModal').style.display = 'flex';
         }
 
+        function openShareProfileModal() {
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = 'none';
+            shareContext = { mode: 'profile', postId: null };
+            document.getElementById('shareModalTitle').innerText = 'Share Profile';
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = 'Copy Profile Link';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
         function closeShareModal() {
             document.getElementById('shareModal').style.display = 'none';
-            activePostIdForShare = null;
         }
 
         async function shareToMyProfile() {
-            if (!activePostIdForShare) return;
             const caption = document.getElementById('shareCaptionInput').value.trim();
             try {
-                const res = await fetch('/api/posts/share', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ postId: activePostIdForShare, email: currentUser.email, caption })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    closeShareModal();
-                    alert('បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
-                    if (profileEmail === currentUser.email) loadTabContent('posts');
+                if (shareContext.mode === 'profile' && loadedProfileUser) {
+                    const profileCardPayload = JSON.stringify({
+                        email: loadedProfileUser.email,
+                        name: `${loadedProfileUser.first_name || ''} ${loadedProfileUser.last_name || ''}`.trim(),
+                        profile_pic: loadedProfileUser.profile_pic || '',
+                        cover_pic: loadedProfileUser.cover_pic || '',
+                        bio: loadedProfileUser.bio || ''
+                    });
+                    const res = await fetch('/api/posts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: currentUser.email,
+                            content: caption,
+                            privacy: 'public',
+                            mediaType: 'shared_profile',
+                            mediaUrl: profileCardPayload
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        closeShareModal();
+                        alert('បានស៊ែរ Profile នេះចូលទៅក្នុង Timeline របស់អ្នកជោគជ័យ!');
+                        if (profileEmail === currentUser.email) loadTabContent('posts');
+                    }
+                } else if (shareContext.postId) {
+                    const res = await fetch('/api/posts/share', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ postId: shareContext.postId, email: currentUser.email, caption })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        closeShareModal();
+                        alert('បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
+                        if (profileEmail === currentUser.email) loadTabContent('posts');
+                    }
                 }
             } catch (err) { console.error(err); }
         }
 
         async function shareToSocialMedia() {
-            if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            const shareUrl = shareContext.mode === 'profile'
+                ? `${window.location.origin}/profile.html?email=${encodeURIComponent(profileEmail)}`
+                : `${window.location.origin}/feed.html?post=${shareContext.postId}`;
             if (navigator.share) {
                 try {
-                    await navigator.share({ title: 'CamFeed Post', text: 'Check out this post on CamFeed!', url: shareUrl });
+                    await navigator.share({ title: 'CamFeed', url: shareUrl });
                     closeShareModal();
                 } catch (err) {}
             } else {
-                copyPostLink();
+                copyShareLink();
             }
         }
 
-        function copyPostLink() {
-            if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+        function copyShareLink() {
+            const shareUrl = shareContext.mode === 'profile'
+                ? `${window.location.origin}/profile.html?email=${encodeURIComponent(profileEmail)}`
+                : `${window.location.origin}/feed.html?post=${shareContext.postId}`;
             navigator.clipboard.writeText(shareUrl);
             document.getElementById('copyLinkLabel').innerText = '✓ Link Copied!';
             setTimeout(() => closeShareModal(), 900);
+        }
+
+        // Report Post or Report Profile Modal
+        function openReportPostModal(postId) {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            reportContext = { mode: 'post', postId };
+            selectedReportReasonText = '';
+            document.getElementById('reportModalTitle').innerText = '🚩 រាយការណ៍ការបង្ហោះ (Report Post)';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function openReportProfileModal() {
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = 'none';
+            reportContext = { mode: 'profile', postId: null };
+            selectedReportReasonText = '';
+            document.getElementById('reportModalTitle').innerText = '🚩 រាយការណ៍គណនី (Report Profile)';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+        }
+
+        function selectReportReason(btn, reason) {
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedReportReasonText = reason;
+        }
+
+        async function submitReport() {
+            const customNote = document.getElementById('reportCustomDetails').value.trim();
+            const fullReason = selectedReportReasonText
+                ? (customNote ? `${selectedReportReasonText} - ${customNote}` : selectedReportReasonText)
+                : customNote;
+
+            if (!fullReason) {
+                alert('សូមជ្រើសរើសមូលហេតុ ឬសរសេរបញ្ជាក់មុននឹងបញ្ជូន!');
+                return;
+            }
+
+            try {
+                const endpoint = reportContext.mode === 'profile'
+                    ? '/api/users/report'
+                    : `/api/posts/${reportContext.postId}/report`;
+                const bodyPayload = reportContext.mode === 'profile'
+                    ? { reporterEmail: currentUser.email, targetEmail: profileEmail, reason: fullReason }
+                    : { email: currentUser.email, reason: fullReason };
+
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyPayload)
+                });
+                const data = await res.json();
+                closeReportModal();
+                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
+            } catch (err) {
+                console.error(err);
+                closeReportModal();
+            }
         }
 
         async function toggleFollow(targetEmail) {
@@ -649,33 +1389,26 @@
             } catch (err) { console.error(err); }
         }
 
+        // Upload Profile / Cover picture directly to Cloudflare R2 via server proxy
         async function uploadProfileImage(fieldName, input) {
             const file = input.files[0];
             if (!file) return;
 
             try {
-                const urlRes = await fetch('/api/videos/upload-url', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_email: currentUser.email,
-                        file_name: file.name,
-                        content_type: file.type || 'image/jpeg'
-                    })
-                });
-                const urlData = await urlRes.json();
-                if (!urlRes.ok || !urlData.uploadUrl) throw new Error(urlData.error || 'Failed to get R2 upload URL');
+                const formData = new FormData();
+                formData.append('user_email', currentUser.email);
+                formData.append('file', file);
 
-                const uploadRes = await fetch(urlData.uploadUrl, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': file.type || 'image/jpeg' },
-                    body: file
+                const upRes = await fetch('/api/videos/upload-image', {
+                    method: 'POST',
+                    body: formData
                 });
-                if (!uploadRes.ok) throw new Error('R2 upload failed');
+                const upData = await upRes.json();
+                if (!upRes.ok || !upData.publicUrl) throw new Error(upData.error || 'Upload to R2 failed');
 
                 const payload = { email: currentUser.email, bio: currentProfileBio };
-                if (fieldName === 'profilePic') payload.profilePicUrl = urlData.publicUrl;
-                if (fieldName === 'coverPic') payload.coverPicUrl = urlData.publicUrl;
+                if (fieldName === 'profilePic') payload.profilePicUrl = upData.publicUrl;
+                if (fieldName === 'coverPic') payload.coverPicUrl = upData.publicUrl;
 
                 const res = await fetch('/api/update-profile-pics', {
                     method: 'POST',
@@ -692,7 +1425,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                alert('Error uploading image to R2: ' + err.message);
+                alert('Error uploading image: ' + err.message);
             }
         }
 
@@ -723,12 +1456,14 @@
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
-        window.onclick = function() {
-            document.querySelectorAll('.dropdown-menu, .reaction-picker').forEach(el => {
-                el.style.display = 'none';
-                el.classList.remove('show');
-            });
-        };
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('.dropdown-menu').forEach(el => el.style.display = 'none');
+            const pMenu = document.getElementById('profileDotsMenu');
+            if (pMenu) pMenu.style.display = 'none';
+            if (!e.target.closest('.reaction-wrapper')) {
+                document.querySelectorAll('.reaction-picker').forEach(el => el.classList.remove('show'));
+            }
+        });
 
         async function deletePost(postId) {
             if (!confirm('តើអ្នកពិតជាចង់លុប Post នេះមែនទេ?')) return;
@@ -762,7 +1497,7 @@
                         const isOwner = currentUser.email === c.user_email;
                         return `
                             <div class="comment-container" id="comment-${c.id}">
-                                <img src="${c.profile_pic || '[https://via.placeholder.com/30](https://via.placeholder.com/30)'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
+                                <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                                 <div class="comment-content-wrapper">
                                     <div style="flex: 1;">
                                         <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name || ''} ${c.last_name || ''}</span>
