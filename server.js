@@ -5,6 +5,7 @@ const path = require('path');
 require('dotenv').config();
 
 const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
+const createVideoRouter = require('./videoRecommendationRoutes');
 
 const app = express();
 app.use(express.json());
@@ -26,6 +27,9 @@ pool.connect((err, client, release) => {
   console.log('Database connected successfully to Supabase for Camfeed!');
   release();
 });
+
+// Mount Cloudflare R2 Video Upload, AI Classification & Recommendation Routes
+app.use('/api/videos', createVideoRouter(pool));
 
 // Register
 app.post('/api/register', async (req, res) => {
@@ -425,7 +429,7 @@ app.get('/api/user-profile', async (req, res) => {
   }
 });
 
-// 🎯 API សម្រាប់ទាញយក User ទាំងអស់ (កែសម្រួលថ្មីឱ្យទន់ភ្លន់ និងទាញយកបានគ្រប់ User ទាំងអស់ដោយសុវត្ថិភាព)
+// API សម្រាប់ទាញយក User ទាំងអស់
 app.get('/api/users', async (req, res) => {
   const { email } = req.query;
   try {
@@ -453,7 +457,7 @@ app.get('/api/users', async (req, res) => {
         );
         is_followed_by = followedByCheck.rows.length > 0;
       } catch (e) {
-        // Fallback ករណីตาราง follows មានបញ្ហា
+        // Fallback ករណីតារាង follows មានបញ្ហា
       }
 
       return {
