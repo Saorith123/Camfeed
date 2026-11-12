@@ -732,6 +732,36 @@
                 msgEl.innerText = 'បរាជ័យ៖ ' + err.message;
             }
         }
+    
+        // Site-Wide Real-Time Online / Offline Presence Broadcast (Active on all CamFeed pages)
+        (function initSiteWidePresence() {
+            function pingOnlineNow() {
+                const u = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+                if (!u || !u.email || document.visibilityState === 'hidden') return;
+                fetch('/api/presence/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: u.email, online: true })
+                }).catch(() => {});
+            }
+            function signalOfflineNow() {
+                const u = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+                if (!u || !u.email) return;
+                try {
+                    const blob = new Blob([JSON.stringify({ email: u.email, online: false })], { type: 'application/json' });
+                    if (navigator.sendBeacon) navigator.sendBeacon('/api/presence/offline', blob);
+                } catch (e) {}
+            }
+            pingOnlineNow();
+            setInterval(pingOnlineNow, 12000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') pingOnlineNow();
+                else signalOfflineNow();
+            });
+            window.addEventListener('beforeunload', signalOfflineNow);
+            window.addEventListener('pagehide', signalOfflineNow);
+        })();
+
     </script>
 </body>
 </html>

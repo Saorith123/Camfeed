@@ -147,6 +147,27 @@ pool.connect(async (err, client, release) => {
   release();
 });
 
+// Global Real-Time Presence Tracker: Any active user browsing ANY page on CamFeed (Feed, Videos, Profile, Upload, Chat) is marked Online immediately!
+const lastGlobalPingMap = new Map();
+app.use((req, res, next) => {
+  if (req.path === '/api/presence/offline') return next();
+  const viewerEmail = (
+    (req.query && (req.query.email || req.query.viewerEmail || req.query.user1)) ||
+    (req.body && (req.body.email || req.body.sender || req.body.userEmail || req.body.followerEmail)) ||
+    ''
+  ).toString().trim();
+
+  if (viewerEmail && viewerEmail.includes('@') || viewerEmail.length >= 6) {
+    const key = viewerEmail.toLowerCase();
+    const now = Date.now();
+    if (!lastGlobalPingMap.has(key) || (now - lastGlobalPingMap.get(key)) > 8000) {
+      lastGlobalPingMap.set(key, now);
+      pool.query('UPDATE users SET last_active = NOW() WHERE LOWER(email) = $1', [key]).catch(() => {});
+    }
+  }
+  next();
+});
+
 // Mount Cloudflare R2 Video/Media Upload, AI Classification & Recommendation Routes
 app.use('/api/videos', createVideoRouter(pool));
 
@@ -465,6 +486,7 @@ app.post('/api/unblock', async (req, res) => {
 });
 
 // Get Feed, Profile & Video Posts (Optimized with Pre-Aggregated CTEs & Fast Pagination)
+let postsSchemaReady = false;
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type, limit, offset } = req.query;
   const safeViewer = email || '';
@@ -472,6 +494,10 @@ app.get('/api/posts', async (req, res) => {
   const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
 
   try {
+    if (!postsSchemaReady) {
+      await pool.query("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) DEFAULT ''").catch(() => {});
+      postsSchemaReady = true;
+    }
     const cteAndJoins = `
       WITH blocked AS (
         SELECT blocked_email AS u_email FROM blocked_users WHERE blocker_email = $1
@@ -1309,7 +1335,8 @@ app.post('/api/presence/ping', async (req, res) => {
 app.post('/api/presence/offline', async (req, res) => {
   const { email } = req.body || {};
   if (!email) return res.json({ success: false });
-  try {
+  lastGlobalPingMap.delete(email.toString().trim().toLowerCase());
+  try;
     await pool.query("UPDATE users SET last_active = NOW() - INTERVAL '10 minutes' WHERE email = $1", [email]);
     res.json({ success: true });
   } catch (err) {
