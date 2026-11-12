@@ -276,6 +276,57 @@
             transition: width 0.2s ease;
         }
 
+        /* Facebook-Style Skeleton Shimmer Loader Card */
+        @keyframes fbShimmerWave {
+            0% { background-position: -450px 0; }
+            100% { background-position: 450px 0; }
+        }
+        .fb-skeleton-card {
+            background: #ffffff;
+            padding: 14px 16px 18px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        @media (min-width: 681px) {
+            .fb-skeleton-card { border-radius: 10px; margin-bottom: 15px; }
+        }
+        .fb-skel-bone {
+            background: #e4e6eb;
+            background-image: linear-gradient(90deg, #e4e6eb 0px, #f2f3f5 80px, #e4e6eb 160px);
+            background-size: 450px 100%;
+            animation: fbShimmerWave 1.25s infinite linear;
+        }
+        .fb-skel-header {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            margin-bottom: 16px;
+        }
+        .fb-skel-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .fb-skel-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            flex: 1;
+        }
+        .fb-skel-line {
+            height: 11px;
+            border-radius: 6px;
+        }
+        .fb-skel-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-top: 2px;
+        }
+
         /* Language Switching Loading Toast */
         .lang-loading-toast {
             position: fixed;
@@ -1292,6 +1343,23 @@
 
         <div id="tabContentFeed">
             <div id="postsContainer"></div>
+            <div id="feedBottomSkeleton" class="hidden">
+                <div class="fb-skeleton-card">
+                    <div class="fb-skel-header">
+                        <div class="fb-skel-bone fb-skel-avatar"></div>
+                        <div class="fb-skel-meta">
+                            <div class="fb-skel-bone fb-skel-line" style="width: 34%;"></div>
+                            <div class="fb-skel-bone fb-skel-line" style="width: 24%; height: 9px;"></div>
+                        </div>
+                    </div>
+                    <div class="fb-skel-body">
+                        <div class="fb-skel-bone fb-skel-line" style="width: 92%;"></div>
+                        <div class="fb-skel-bone fb-skel-line" style="width: 78%;"></div>
+                        <div class="fb-skel-bone fb-skel-line" style="width: 56%;"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="feedBottomSentinel" style="height: 4px; width: 100%;"></div>
         </div>
     </div>
 
@@ -1304,6 +1372,7 @@
         let feedHasMore = true;
         let isLoadingMorePosts = false;
         const FEED_PAGE_SIZE = 12;
+        const loadedFeedPostIds = new Set();
         let globalVideoUnmuted = sessionStorage.getItem('camfeed_unmuted') === 'true';
         let activePostIdForShare = null;
         let activePostTextForShare = '';
@@ -2491,11 +2560,37 @@
             }
         }
 
+        function getFacebookSkeletonHtml(count = 1) {
+            const single = `
+                <div class="fb-skeleton-card">
+                    <div class="fb-skel-header">
+                        <div class="fb-skel-bone fb-skel-avatar"></div>
+                        <div class="fb-skel-meta">
+                            <div class="fb-skel-bone fb-skel-line" style="width: 34%;"></div>
+                            <div class="fb-skel-bone fb-skel-line" style="width: 24%; height: 9px;"></div>
+                        </div>
+                    </div>
+                    <div class="fb-skel-body">
+                        <div class="fb-skel-bone fb-skel-line" style="width: 92%;"></div>
+                        <div class="fb-skel-bone fb-skel-line" style="width: 78%;"></div>
+                        <div class="fb-skel-bone fb-skel-line" style="width: 56%;"></div>
+                    </div>
+                </div>
+            `;
+            return Array.from({ length: count }, () => single).join('');
+        }
+
+        function setBottomSkeletonVisible(visible) {
+            const el = document.getElementById('feedBottomSkeleton');
+            if (el) el.classList.toggle('hidden', !visible);
+        }
+
         async function loadPosts(append = false) {
             const cacheKey = `camfeed_feed_cache_${currentUser.email}`;
             if (!append) {
                 feedOffset = 0;
                 feedHasMore = true;
+                loadedFeedPostIds.clear();
                 // 0ms Instant Render from local cache while fresh data loads in background!
                 try {
                     const cachedRaw = localStorage.getItem(cacheKey);
@@ -2507,7 +2602,7 @@
                     } else {
                         const cEl = document.getElementById('postsContainer');
                         if (cEl && !cEl.innerHTML.trim()) {
-                            cEl.innerHTML = '<div style="text-align:center; padding:32px; color:#65676b; font-weight:700;">⏳ កំពុងផ្ទុកព័ត៌មាន...</div>';
+                            cEl.innerHTML = getFacebookSkeletonHtml(2);
                         }
                     }
                 } catch (e) {}
@@ -2515,21 +2610,41 @@
 
             if (isLoadingMorePosts) return;
             isLoadingMorePosts = true;
+            if (append) {
+                setBottomSkeletonVisible(true);
+            }
 
             try {
-                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&limit=${FEED_PAGE_SIZE}&offset=${feedOffset}`);
+                const excludeParam = (append && loadedFeedPostIds.size > 0)
+                    ? `&excludeIds=${Array.from(loadedFeedPostIds).join(',')}`
+                    : '';
+                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&limit=${FEED_PAGE_SIZE}&offset=${feedOffset}${excludeParam}`);
                 const data = await res.json();
                 if (data.success) {
-                    const batch = data.posts || [];
-                    feedHasMore = data.hasMore !== undefined ? data.hasMore : (batch.length === FEED_PAGE_SIZE);
+                    let batch = data.posts || [];
                     if (!append) {
+                        loadedFeedPostIds.clear();
                         if (batch.length > 0) {
                             try { localStorage.setItem(cacheKey, JSON.stringify(batch)); } catch (e) {}
                         }
+                        batch.forEach(p => loadedFeedPostIds.add(Number(p.id)));
                         renderPosts(batch, 'postsContainer', false);
                     } else {
-                        renderPosts(batch, 'postsContainer', true);
+                        // Filter out any already-visible post IDs so DOM never has duplicate cards
+                        let unseenBatch = batch.filter(p => !loadedFeedPostIds.has(Number(p.id)));
+                        if (unseenBatch.length === 0 && loadedFeedPostIds.size > 0) {
+                            // All database posts have been shown once — reset seen set to seamlessly loop fresh recommendations!
+                            loadedFeedPostIds.clear();
+                            const loopRes = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&limit=${FEED_PAGE_SIZE}&offset=0`);
+                            const loopData = await loopRes.json();
+                            if (loopData.success && Array.isArray(loopData.posts)) {
+                                unseenBatch = loopData.posts;
+                            }
+                        }
+                        unseenBatch.forEach(p => loadedFeedPostIds.add(Number(p.id)));
+                        renderPosts(unseenBatch, 'postsContainer', true);
                     }
+                    feedHasMore = true;
                     feedOffset += batch.length;
                 } else if (!append) {
                     const cEl = document.getElementById('postsContainer');
@@ -2547,21 +2662,37 @@
                 }
             } finally {
                 isLoadingMorePosts = false;
+                setBottomSkeletonVisible(false);
             }
         }
 
-        window.addEventListener('scroll', () => {
+        function triggerInfiniteFeedLoad() {
             if (isLoadingMorePosts) return;
             const feedTab = document.getElementById('tabContentFeed');
             if (feedTab && feedTab.style.display === 'none') return;
-            if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 1400)) {
-                if (!feedHasMore) {
-                    feedOffset = 0;
-                    feedHasMore = true;
-                }
-                loadPosts(true);
+            if (!feedHasMore) {
+                feedOffset = 0;
+                feedHasMore = true;
+            }
+            loadPosts(true);
+        }
+
+        window.addEventListener('scroll', () => {
+            if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 1200)) {
+                triggerInfiniteFeedLoad();
             }
         }, { passive: true });
+
+        (function initFeedBottomObserver() {
+            const sentinel = document.getElementById('feedBottomSentinel');
+            if (!sentinel || typeof IntersectionObserver === 'undefined') return;
+            const obs = new IntersectionObserver((entries) => {
+                if (entries.some(e => e.isIntersecting)) {
+                    triggerInfiniteFeedLoad();
+                }
+            }, { rootMargin: '900px 0px' });
+            obs.observe(sentinel);
+        })();
 
         function renderPosts(posts, containerId, append = false) {
             const container = document.getElementById(containerId);
