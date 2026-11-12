@@ -8,15 +8,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; top: 0 !important; }
         
+        /* Hide Google Translate Top Bar & Tooltips for Clean Mobile App UI */
+        .goog-te-banner-frame.skiptranslate,
+        .goog-te-gadget-icon,
+        #goog-gt-tt,
+        .goog-te-balloon-frame,
+        iframe.goog-te-banner-frame {
+            display: none !important;
+        }
+        .skiptranslate {
+            display: none !important;
+        }
+
         .top-bar { display: flex; flex-direction: column; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 1000; padding: 0 10px; }
         .top-bar-row1 { display: flex; justify-content: space-between; align-items: center; height: 52px; border-bottom: 1px solid #f0f2f5; width: 100%; }
         .top-left { display: flex; align-items: center; gap: 10px; position: relative; }
         .menu-icon-btn { font-size: 18px; background: #e4e6eb; border: none; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #050505; }
         .menu-icon-btn:hover { background: #d8dadf; }
 
-        /* Attractive Brand Logo: CamFeed */
+        /* Attractive Brand Logo: CamFeed (Protected from Google Translate) */
         .logo-nav {
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 25px;
@@ -31,10 +43,17 @@
         }
         .logo-nav:hover { transform: scale(1.03); }
         
-        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 225px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
-        .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; gap: 10px; text-decoration: none; border-bottom: 1px solid #f0f2f5; }
+        .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); width: 235px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
+        .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; border-bottom: 1px solid #f0f2f5; }
         .dropdown-item:last-child { border-bottom: none; }
         .dropdown-item:hover { background: #f2f2f2; }
+
+        /* Language Sub-selector inside ☰ Menu */
+        .lang-submenu { display: none; background: #f8f9fa; border-bottom: 1px solid #e4e6eb; }
+        .lang-submenu.open { display: block; }
+        .lang-option-row { padding: 10px 18px 10px 32px; font-size: 13.5px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+        .lang-option-row:hover { background: #e7f3ff; color: #1877f2; }
+        .lang-option-row.active-lang { color: #1877f2; font-weight: 700; }
 
         /* Notification Dropdown */
         .notification-dropdown { position: absolute; right: 10px; top: 48px; background: white; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); width: 315px; max-height: 420px; overflow-y: auto; display: none; z-index: 1100; border: 1px solid #e4e6eb; }
@@ -84,7 +103,7 @@
         .user-profile-link { display: flex; align-items: center; cursor: pointer; border-radius: 50%; padding: 2px; }
         .user-profile-link:hover { background: #f2f2f2; }
 
-        .main-container { max-width: 680px; margin: 15px auto; padding: 0 10px; box-sizing: border-box; }
+        .main-container { max-width: 680px; margin: 10px auto; padding: 0; box-sizing: border-box; }
         
         input, textarea, select { width: 100%; padding: 10px 14px; margin: 6px 0; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; font-family: inherit; background: #fff; }
         textarea:focus, select:focus { border-color: #1877f2; box-shadow: 0 0 0 2px #e7f3ff; }
@@ -105,9 +124,13 @@
         .progress-bar-fill { width: 0%; height: 100%; background-color: #1877f2; transition: width 0.2s; }
         .progress-text { font-size: 12px; font-weight: bold; color: #65676b; text-align: right; margin-top: 4px; }
 
-        .post-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 15px; transition: box-shadow 0.4s, background-color 0.4s; position: relative; }
+        /* Facebook-Style Full-Bleed Edge-to-Edge Post Card */
+        .post-item { background: white; padding: 12px 0 8px 0; border-radius: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 10px; transition: box-shadow 0.4s, background-color 0.4s; position: relative; }
+        @media (min-width: 681px) {
+            .post-item { border-radius: 10px; margin-bottom: 15px; }
+        }
         .post-item.highlight-target { box-shadow: 0 0 0 3px #1877f2, 0 6px 20px rgba(24,119,242,0.25); background-color: #f7fbff; }
-        .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+        .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; padding: 0 14px; }
         .post-header-left { display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; min-width: 0; }
         .post-header-right { display: flex; align-items: center; gap: 4px; position: relative; flex-shrink: 0; }
         .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; flex-shrink: 0; }
@@ -162,15 +185,28 @@
         }
         .post-options-dropdown button:hover { background: #f2f3f5; }
 
-        .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; }
-        .post-media { width: 100%; max-height: 450px; border-radius: 6px; margin-bottom: 10px; object-fit: cover; background: black; cursor: pointer; display: block; }
+        .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
+
+        /* Edge-to-Edge Full-Width Media (Facebook Mobile Style) */
+        .post-media {
+            width: 100%;
+            height: auto;
+            max-height: 82vh;
+            border-radius: 0;
+            margin-bottom: 8px;
+            object-fit: contain;
+            background: #000;
+            cursor: pointer;
+            display: block;
+        }
 
         /* Facebook-Style Embedded Shared Post Card */
         .embedded-shared-card {
-            border: 1px solid #dddfe2;
-            border-radius: 10px;
+            border-top: 1px solid #dddfe2;
+            border-bottom: 1px solid #dddfe2;
+            border-radius: 0;
             overflow: hidden;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             background: #fff;
         }
         .embedded-shared-media .post-media,
@@ -179,7 +215,7 @@
             margin-bottom: 0;
         }
         .embedded-shared-info {
-            padding: 10px 12px;
+            padding: 10px 14px;
         }
         .embedded-shared-author-row {
             display: flex;
@@ -212,25 +248,25 @@
         }
 
         /* Carousel for Multiple Photos/Videos in One Post */
-        .carousel-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 10px; }
+        .carousel-wrapper { position: relative; width: 100%; border-radius: 0; overflow: hidden; background: #000; margin-bottom: 8px; }
         .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .carousel-track::-webkit-scrollbar { display: none; }
         .carousel-slide { flex: 0 0 100%; width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; background: #000; }
-        .carousel-slide img, .carousel-slide video { width: 100%; max-height: 460px; object-fit: contain; display: block; }
+        .carousel-slide img, .carousel-slide video { width: 100%; max-height: 82vh; object-fit: contain; display: block; }
         .carousel-counter { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 14px; pointer-events: none; }
-        .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -4px; margin-bottom: 8px; }
+        .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -2px; margin-bottom: 8px; }
         .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; transition: background 0.2s, transform 0.2s; }
         .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
 
         /* Reaction, Views, Comments & Shares Summary Bar */
-        .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #65676b; margin-bottom: 6px; padding: 0 4px; min-height: 24px; flex-wrap: wrap; gap: 6px; }
+        .post-stats-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #65676b; margin-bottom: 6px; padding: 0 14px; min-height: 24px; flex-wrap: wrap; gap: 6px; }
         .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
         .right-stats-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
         .stat-link:hover { text-decoration: underline; }
 
         /* Action Buttons & Persistent Long-Press Reaction Bar */
-        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 0; margin-top: 6px; justify-content: space-around; position: relative; }
+        .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 10px; margin-top: 6px; justify-content: space-around; position: relative; }
         .reaction-wrapper { flex: 1; position: relative; display: flex; }
         .action-btn { flex: 1; background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 7px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; transition: transform 0.1s ease, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
         .action-btn:hover { background: #f2f2f2; }
@@ -277,8 +313,8 @@
         .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
 
         /* Comments Section */
-        .comments-section { margin-top: 10px; border-top: 1px solid #f0f2f5; background: #fff; padding: 0 12px; border-radius: 0 0 8px 8px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
-        .comments-section.open { max-height: 800px; overflow-y: auto; padding: 10px 12px; }
+        .comments-section { margin-top: 8px; border-top: 1px solid #f0f2f5; background: #fff; padding: 0 14px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
+        .comments-section.open { max-height: 800px; overflow-y: auto; padding: 10px 14px; }
 
         .comment-filter-bar { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; color: #65676b; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #e4e6eb; }
         .comment-filter-select { border: none; background: transparent; font-weight: bold; color: #1877f2; cursor: pointer; font-size: 12px; outline: none; width: auto; padding: 0; margin: 0; }
@@ -322,15 +358,27 @@
         <div class="top-bar-row1">
             <div class="top-left">
                 <button class="menu-icon-btn" onclick="toggleMenuDropdown(event)">☰</button>
-                <div class="logo-nav" onclick="switchTab('feed')">CamFeed</div>
-                <div class="dropdown-menu" id="menuDropdown">
-                    <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'">⚙️ Settings & Privacy</div>
-                    <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'">🛡️ Admin Reports</div>
-                    <!-- Language Switcher placed at the very bottom inside ☰ menu -->
-                    <div class="dropdown-item" onclick="toggleLanguageFromMenu(event)" style="border-top: 1px solid #e4e6eb; background: #f8f9fa;">
-                        🌐 <span id="menuLangText">ភាសា / Language: ខ្មែរ</span>
+                <!-- Brand name protected with class="notranslate" so Google Translate never alters "CamFeed" -->
+                <div class="logo-nav notranslate" translate="no" onclick="switchTab('feed')">CamFeed</div>
+                <div class="dropdown-menu" id="menuDropdown" onclick="event.stopPropagation()">
+                    <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'"><span>⚙️ Settings & Privacy</span></div>
+                    <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'"><span>🛡️ Admin Reports</span></div>
+                    <!-- Language Selector with Khmer / English Dropdown inside ☰ Menu -->
+                    <div class="dropdown-item" onclick="toggleLanguageSubmenu(event)" style="background: #f8f9fa;">
+                        <span>🌐 <span id="menuLangText">ភាសា / Language</span></span>
+                        <span id="langArrowIcon" style="font-size: 11px; color: #65676b;">▼</span>
                     </div>
-                    <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;">🚪 Log Out</div>
+                    <div class="lang-submenu" id="langSubmenu">
+                        <div class="lang-option-row" id="optLangKm" onclick="selectAppLanguage('km')">
+                            <span>🇰🇭 ភាសាខ្មែរ (Khmer)</span>
+                            <span id="checkKm" style="display:none;">✓</span>
+                        </div>
+                        <div class="lang-option-row" id="optLangEn" onclick="selectAppLanguage('en')">
+                            <span>🇺🇸 English (អង់គ្លេស)</span>
+                            <span id="checkEn" style="display:none;">✓</span>
+                        </div>
+                    </div>
+                    <div class="dropdown-item" id="menuLogoutText" onclick="logout()" style="color: #fa383e;"><span>🚪 Log Out</span></div>
                 </div>
             </div>
 
@@ -373,7 +421,7 @@
         </div>
     </div>
 
-    <!-- Unified Create Post Modal (Smart Compression enabled by default in background, checkbox removed) -->
+    <!-- Unified Create Post Modal (Automatic Background Video Optimization, No Limit) -->
     <div id="createPostModal" class="modal-overlay" onclick="closeCreatePostModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -486,7 +534,7 @@
                 <span style="cursor: pointer; font-size: 20px;" onclick="closeReportModal()">×</span>
             </div>
             <div class="modal-body">
-                <p style="font-size: 13px; color: #65676b; margin: 0;">សូមជ្រើសរើសមូលហេតុដែលការបង្ហោះ ឬវីដេអូនេះរំលោភបំពានគោលการណ៍៖</p>
+                <p style="font-size: 13px; color: #65676b; margin: 0;">សូមជ្រើសរើសមូលហេតុដែលការបង្ហោះ ឬវីដេអូនេះរំលោភបំពានគោលការណ៍៖</p>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Violence or Harmful Content (អំពើហិង្សា)')">⚠️ អំពើហិង្សា ឬគ្រោះថ្នាក់ធ្ងន់ធ្ងរ</button>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
@@ -503,11 +551,14 @@
         </div>
     </div>
 
+    <!-- Hidden Google Translate Engine -->
+    <div id="google_translate_element" style="display:none;"></div>
+
     <script src="imageModal.js"></script>
 
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        let globalVideoUnmuted = false;
+        let globalVideoUnmuted = sessionStorage.getItem('camfeed_unmuted') === 'true';
         let activePostIdForShare = null;
         let activePostTextForShare = '';
         let activePostIdForReport = null;
@@ -516,6 +567,7 @@
         let isLongPressTriggered = false;
         let selectedMediaFiles = [];
         const trackedViewsInSession = new Set();
+        const activeViewTimers = new Map();
 
         const postReactionsState = {};
 
@@ -557,8 +609,7 @@
                 shareSocialTitle: "Share to Social Media",
                 shareSocialSub: "Telegram, Facebook, Messenger & more",
                 copyLinkLabel: "Copy Link",
-                copyLinkSub: "Copy URL to paste on other websites",
-                langToggleText: "ភាសា / Language: English"
+                copyLinkSub: "Copy URL to paste on other websites"
             },
             km: {
                 searchPlaceholder: "ស្វែងរក...",
@@ -587,8 +638,7 @@
                 shareSocialTitle: "ចែករំលែកទៅកាន់បណ្ដាញសង្គមផ្សេងៗ",
                 shareSocialSub: "Telegram, Facebook, Messenger និងកម្មវិធីផ្សេងទៀត",
                 copyLinkLabel: "ចម្លងតំណភ្ជាប់ (Copy Link)",
-                copyLinkSub: "ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ",
-                langToggleText: "ភាសា / Language: ខ្មែរ"
+                copyLinkSub: "ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ"
             }
         };
 
@@ -617,18 +667,58 @@
             document.getElementById('shareSocialSub').innerText = t.shareSocialSub;
             document.getElementById('copyLinkLabel').innerText = t.copyLinkLabel;
             document.getElementById('copyLinkSub').innerText = t.copyLinkSub;
-            const langTextEl = document.getElementById('menuLangText');
-            if (langTextEl) langTextEl.innerText = t.langToggleText;
+
+            document.getElementById('checkKm').style.display = currentLang === 'km' ? 'inline' : 'none';
+            document.getElementById('checkEn').style.display = currentLang === 'en' ? 'inline' : 'none';
+            document.getElementById('optLangKm').classList.toggle('active-lang', currentLang === 'km');
+            document.getElementById('optLangEn').classList.toggle('active-lang', currentLang === 'en');
         }
 
-        function toggleLanguageFromMenu(event) {
+        function toggleLanguageSubmenu(event) {
             event.stopPropagation();
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
-            const newLang = currentLang === 'en' ? 'km' : 'en';
-            localStorage.setItem('camfeed_lang', newLang);
+            const sub = document.getElementById('langSubmenu');
+            const arrow = document.getElementById('langArrowIcon');
+            sub.classList.toggle('open');
+            arrow.innerText = sub.classList.contains('open') ? '▲' : '▼';
+        }
+
+        function triggerGoogleTranslate(langCode) {
+            const selectEl = document.querySelector('.goog-te-combo');
+            if (selectEl) {
+                selectEl.value = langCode;
+                selectEl.dispatchEvent(new Event('change'));
+            }
+            document.cookie = `googtrans=/en/${langCode}; path=/`;
+            document.cookie = `googtrans=/en/${langCode}; domain=.${window.location.hostname}; path=/`;
+        }
+
+        function selectAppLanguage(langCode) {
+            localStorage.setItem('camfeed_lang', langCode);
             applyLanguage();
+            document.getElementById('langSubmenu').classList.remove('open');
             document.getElementById('menuDropdown').style.display = 'none';
-            loadPosts();
+
+            if (langCode === 'km') {
+                triggerGoogleTranslate('km');
+                loadPosts();
+            } else {
+                document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=.${window.location.hostname}; path=/;`;
+                location.reload();
+            }
+        }
+
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                includedLanguages: 'en,km',
+                autoDisplay: false
+            }, 'google_translate_element');
+
+            const savedLang = localStorage.getItem('camfeed_lang') || 'en';
+            if (savedLang === 'km') {
+                setTimeout(() => triggerGoogleTranslate('km'), 500);
+            }
         }
 
         if (!currentUser) {
@@ -640,7 +730,7 @@
             }
             document.getElementById('modalAuthorName').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`;
             
-            const adminEmails = ['rossaorith@gmail.com', 'saorithkh2018@gmail.com'];
+            const adminEmails = ['rossaorith@gmail.com', 'saorithkh2018@gmail.com', '0962829738'];
             if (currentUser.role === 'super_admin' || currentUser.role === 'admin' || adminEmails.includes((currentUser.email || '').toLowerCase())) {
                 const adminMenuEl = document.getElementById('menuAdminText');
                 if (adminMenuEl) adminMenuEl.classList.remove('hidden');
@@ -758,7 +848,6 @@
             if (files.length === 0) return;
 
             files.forEach(file => {
-                // Removed 250MB limit check so large video files are accepted and compressed automatically
                 selectedMediaFiles.push(file);
             });
             event.target.value = '';
@@ -786,7 +875,7 @@
                 const tile = document.createElement('div');
                 tile.className = 'preview-tile';
                 tile.innerHTML = `
-                    ${isVideo ? `<video src="${url}" muted playsinline></video>` : `<img src="${url}">`}
+                    ${isVideo ? `<video src="${url}" muted playsinline webkit-playsinline></video>` : `<img src="${url}">`}
                     <span class="preview-tile-badge">${isVideo ? '🎬 ' : '🖼️ '}${sizeMB}</span>
                     <button type="button" class="preview-tile-remove" onclick="removeMediaItem(${idx})">×</button>
                 `;
@@ -1008,7 +1097,6 @@
                     for (let i = 0; i < selectedMediaFiles.length; i++) {
                         let fileToUpload = selectedMediaFiles[i];
 
-                        // Always perform automatic video optimization in background
                         if (fileToUpload.type.startsWith('video')) {
                             progressText.innerText = `Optimizing 720p HD video (${i + 1}/${selectedMediaFiles.length})... 0%`;
                             fileToUpload = await optimizeVideoTo720pHD(fileToUpload, (ratio) => {
@@ -1109,6 +1197,10 @@
             return `action-btn`;
         }
 
+        function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video') {
+            return `<video src="${videoUrl}" class="${extraClass}" data-post-id="${postId}" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback onvolumechange="handleVideoVolumeChange(this)"></video>`;
+        }
+
         function renderRawMediaBlock(postId, mediaType, mediaUrl, authorName, authorPic, contentStr, dateStr, likesCount, commentsCount) {
             if (!mediaUrl) return '';
 
@@ -1118,7 +1210,7 @@
                     if (Array.isArray(items) && items.length > 0) {
                         const slidesHtml = items.map(item => {
                             if (item.type === 'video') {
-                                return `<div class="carousel-slide"><video src="${item.url}" class="autoplay-video" data-post-id="${postId}" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline onvolumechange="handleVideoVolumeChange(this)"></video></div>`;
+                                return `<div class="carousel-slide">${buildInlineVideoTag(item.url, postId, 'autoplay-video')}</div>`;
                             }
                             return `<div class="carousel-slide"><img src="${item.url}" onclick="openImageModal(${postId}, '${item.url}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
                         }).join('');
@@ -1139,7 +1231,7 @@
             }
 
             if (mediaType === 'video') {
-                return `<video src="${mediaUrl}" class="post-media autoplay-video" data-post-id="${postId}" controls ${globalVideoUnmuted ? '' : 'muted'} loop playsinline style="cursor: pointer;" onvolumechange="handleVideoVolumeChange(this)"></video>`;
+                return buildInlineVideoTag(mediaUrl, postId, 'post-media autoplay-video');
             }
             return `<img src="${mediaUrl}" class="post-media" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
         }
@@ -1460,9 +1552,7 @@
             }
         }
 
-        // Track Views automatically with 3-second threshold requirement for video posts
-        const activeViewTimers = new Map();
-
+        // Standard 3-Second Video View Counter (Video Posts Only)
         function initPostViewsObserver() {
             const postCards = document.querySelectorAll('.post-item');
             const viewObserver = new IntersectionObserver((entries) => {
@@ -1471,13 +1561,10 @@
                     if (!postId) return;
 
                     if (entry.isIntersecting) {
-                        // Check if this post contains a video
-                        const postCard = entry.target;
-                        const hasVideo = postCard.querySelector('video') !== null;
-                        if (!hasVideo) return; // Images and text do not get views
+                        const hasVideo = entry.target.querySelector('video') !== null;
+                        if (!hasVideo) return;
 
                         if (!trackedViewsInSession.has(postId) && !activeViewTimers.has(postId)) {
-                            // Require at least 3 seconds of continuous visibility before counting a view
                             const timer = setTimeout(() => {
                                 trackedViewsInSession.add(postId);
                                 activeViewTimers.delete(postId);
@@ -1495,12 +1582,11 @@
                                     }
                                 })
                                 .catch(() => {});
-                            }, 3000); // 3 seconds threshold
+                            }, 3000);
 
                             activeViewTimers.set(postId, timer);
                         }
                     } else {
-                        // If user scrolls away before 3 seconds, cancel the view timer
                         if (activeViewTimers.has(postId)) {
                             clearTimeout(activeViewTimers.get(postId));
                             activeViewTimers.delete(postId);
@@ -1672,10 +1758,24 @@
             setTimeout(() => closeShareModal(), 900);
         }
 
+        // Global Unmute Sync: Unmuting one video automatically unmutes all videos on the feed
+        function syncAllVideosMuteState(unmute) {
+            globalVideoUnmuted = unmute;
+            sessionStorage.setItem('camfeed_unmuted', unmute ? 'true' : 'false');
+            document.querySelectorAll('.autoplay-video').forEach(v => {
+                v.muted = !unmute;
+                if (unmute) {
+                    v.removeAttribute('muted');
+                    if (v.volume === 0) v.volume = 1.0;
+                }
+            });
+        }
+
         function handleVideoVolumeChange(videoElem) {
             if (!videoElem.muted && videoElem.volume > 0) {
-                globalVideoUnmuted = true;
-                document.querySelectorAll('.autoplay-video').forEach(v => { v.muted = false; });
+                if (!globalVideoUnmuted) syncAllVideosMuteState(true);
+            } else if (videoElem.muted) {
+                if (globalVideoUnmuted) syncAllVideosMuteState(false);
             }
         }
 
@@ -1772,9 +1872,21 @@
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const video = entry.target;
-                    video.muted = !globalVideoUnmuted;
-                    if (entry.isIntersecting) { video.play().catch(err => console.log("Autoplay prevented:", err)); } 
-                    else { video.pause(); }
+                    if (entry.isIntersecting) {
+                        if (globalVideoUnmuted) {
+                            video.muted = false;
+                            video.removeAttribute('muted');
+                            if (video.volume === 0) video.volume = 1.0;
+                        } else {
+                            video.muted = true;
+                        }
+                        video.play().catch(() => {
+                            video.muted = true;
+                            video.play().catch(() => {});
+                        });
+                    } else {
+                        video.pause();
+                    }
                 });
             }, { threshold: 0.6 });
             videoElements.forEach(video => observer.observe(video));
@@ -1978,5 +2090,6 @@
             window.location.href = 'index.html';
         }
     </script>
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>
 </html>
