@@ -2224,7 +2224,7 @@
             const frameUrl = normalizeVideoFrameUrl(videoUrl);
             return `
                 <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};" onclick="toggleFeedVideoPlayPause('${uid}', event)">
-                    <video id="vid-${uid}" src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
+                    <video id="vid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
                         onloadedmetadata="adjustVideoContainerAspect('${uid}')"
                         onloadeddata="updateFeedVideoClock('${uid}')"
                         ontimeupdate="updateFeedVideoClock('${uid}')"
@@ -2245,10 +2245,35 @@
             `;
         }
 
+        function hydrateVideoSource(v) {
+            if (!v) return;
+            const realSrc = v.dataset.videoSrc;
+            if (realSrc && v.getAttribute('src') !== realSrc) {
+                v.setAttribute('src', realSrc);
+                try { v.load(); } catch (e) {}
+            }
+        }
+
+        function releaseFarVideoDecoder(v) {
+            if (!v) return;
+            try {
+                if (!v.paused) v.pause();
+                v.muted = true;
+                v.autoplay = false;
+                v.removeAttribute('autoplay');
+                v.preload = 'none';
+                if (v.hasAttribute('src') || v.currentSrc) {
+                    v.removeAttribute('src');
+                    v.load(); // Forces browser to immediately abort active HTTP network download for scrolled-past videos
+                }
+            } catch (e) {}
+        }
+
         function toggleFeedVideoPlayPause(uid, event) {
             if (event) event.stopPropagation();
             const vid = document.getElementById(`vid-${uid}`);
             if (!vid) return;
+            hydrateVideoSource(vid);
             if (vid.paused) {
                 vid.dataset.userPaused = 'false';
                 document.querySelectorAll('.autoplay-video').forEach(other => {
@@ -2526,10 +2551,14 @@
         }
 
         window.addEventListener('scroll', () => {
-            if (!feedHasMore || isLoadingMorePosts) return;
+            if (isLoadingMorePosts) return;
             const feedTab = document.getElementById('tabContentFeed');
             if (feedTab && feedTab.style.display === 'none') return;
-            if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 900)) {
+            if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 1400)) {
+                if (!feedHasMore) {
+                    feedOffset = 0;
+                    feedHasMore = true;
+                }
                 loadPosts(true);
             }
         }, { passive: true });
@@ -3223,13 +3252,39 @@
             clearIosMediaSessionWidget();
         }
 
-        function startSingleCenterVideo(video) {
-            if (!video || video.dataset.userPaused === 'true') return;
+        function preloadNextVideoOnlyAfterActiveSmooth(activeVid, nextVid) {
+            if (!activeVid || !nextVid) return;
+            const triggerNext = () => {
+                if (activeCenterFeedVideo !== activeVid) return;
+                hydrateVideoSource(nextVid);
+                if (nextVid.preload !== 'auto') {
+                    nextVid.preload = 'auto';
+                    if (nextVid.readyState === 0) {
+                        try { nextVid.load(); } catch (e) {}
+                    }
+                }
+            };
+            if (activeVid.readyState >= 3 && !activeVid.paused) {
+                triggerNext();
+            } else {
+                activeVid.addEventListener('canplay', triggerNext, { once: true });
+            }
+        }
+
+        function startSingleCenterVideo(video, nextVideo) {
+            if (!video) return;
+            hydrateVideoSource(video);
+            if (video.preload !== 'auto') {
+                video.preload = 'auto';
+            }
             if (video.readyState === 0) {
                 try { video.load(); } catch (e) {}
             }
+            if (video.dataset.userPaused === 'true') {
+                preloadNextVideoOnlyAfterActiveSmooth(video, nextVideo);
+                return;
+            }
             if (video.paused) {
-                // Always initiate play() cleanly on iOS, then sync audio state immediately
                 video.muted = !globalVideoUnmuted;
                 if (globalVideoUnmuted) {
                     video.removeAttribute('muted');
@@ -3239,8 +3294,8 @@
                 if (playPromise && typeof playPromise.then === 'function') {
                     playPromise.then(() => {
                         applyAudioStateToActiveVideo(video);
+                        preloadNextVideoOnlyAfterActiveSmooth(video, nextVideo);
                     }).catch(() => {
-                        // Fallback if iOS requires muted start prior to gesture
                         video.muted = true;
                         video.play().then(() => {
                             if (iosAudioSessionUnlocked && globalVideoUnmuted) {
@@ -3249,11 +3304,13 @@
                                 video.volume = 1.0;
                             }
                             clearIosMediaSessionWidget();
+                            preloadNextVideoOnlyAfterActiveSmooth(video, nextVideo);
                         }).catch(() => {});
                     });
                 }
             } else {
                 applyAudioStateToActiveVideo(video);
+                preloadNextVideoOnlyAfterActiveSmooth(video, nextVideo);
             }
         }
 
@@ -3289,26 +3346,43 @@
                 }
             });
 
-            // Strictly pause & mute every non-active video so two videos NEVER play sound simultaneously
-            videos.forEach(v => {
+            // Fallback to first visible video near top if none strictly crosses 50% yet
+            if (!bestVideo) {
+                videos.forEach((v, idx) => {
+                    const wrap = v.closest('.feed-video-wrap') || v;
+                    const rect = wrap.getBoundingClientRect();
+                    if (rect.height > 0 && rect.bottom > 60 && rect.top < vh - 60 && !bestVideo) {
+                        bestVideo = v;
+                        bestIdx = idx;
+                    }
+                });
+            }
+
+            const nextVideo = (bestIdx >= 0 && bestIdx + 1 < videos.length) ? videos[bestIdx + 1] : null;
+
+            // Strict 2-Video Bandwidth & Decoder Isolation:
+            // - `bestIdx` (currently watched on screen): 100% network priority
+            // - `bestIdx + 1` (next video below): hydrated & preloaded ONLY after `bestIdx` starts smoothly
+            // - ALL scrolled-past videos above (`idx < bestIdx`) and far below (`idx > bestIdx + 1`):
+            //   IMMEDIATELY stopped + `removeAttribute('src')` + `v.load()` to abort background downloading so new videos never get blocked!
+            videos.forEach((v, idx) => {
                 if (v !== bestVideo) {
-                    if (!v.paused) v.pause();
-                    v.muted = true;
+                    if (v === nextVideo) {
+                        if (!v.paused) v.pause();
+                        v.muted = true;
+                        hydrateVideoSource(v);
+                        if (v.preload === 'auto' && (!bestVideo || bestVideo.readyState < 3)) {
+                            v.preload = 'metadata';
+                        }
+                    } else {
+                        releaseFarVideoDecoder(v);
+                    }
                 }
             });
 
             if (bestVideo) {
                 activeCenterFeedVideo = bestVideo;
-                startSingleCenterVideo(bestVideo);
-
-                // Pre-buffer the next video so scrolling to it starts instantaneously on iOS
-                if (bestIdx >= 0 && bestIdx + 1 < videos.length) {
-                    const nextVid = videos[bestIdx + 1];
-                    if (nextVid && nextVid.readyState === 0) {
-                        nextVid.preload = 'auto';
-                        try { nextVid.load(); } catch (e) {}
-                    }
-                }
+                startSingleCenterVideo(bestVideo, nextVideo);
             } else {
                 activeCenterFeedVideo = null;
             }
@@ -3973,12 +4047,14 @@
                         return finish(file);
                     }
 
+                    // Skip client re-encode for long videos (>15 min) so user doesn't wait in real-time
+                    if (duration > 900) {
+                        return finish(file);
+                    }
+                    // Strictly use MP4 (H.264/AAC) so iOS Safari & Appilix WebView never show black 0:00 screen
                     const mimeCandidates = [
                         'video/mp4;codecs=avc1,mp4a.40.2',
-                        'video/mp4',
-                        'video/webm;codecs=vp9,opus',
-                        'video/webm;codecs=vp8,opus',
-                        'video/webm'
+                        'video/mp4'
                     ];
                     const supportedMime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || '';
                     if (!supportedMime) {

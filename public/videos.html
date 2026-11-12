@@ -619,7 +619,7 @@
                     const videoSrcWithFrame = video.media_url.includes('#') ? video.media_url : `${video.media_url}#t=0.001`;
                     return `
                         <div class="reel-item" id="reel-${video.id}" data-post-id="${video.id}" onclick="toggleReelPlayPause(${video.id}, event)">
-                            <video id="rvid-${video.id}" src="${videoSrcWithFrame}" class="reel-video" autoplay loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
+                            <video id="rvid-${video.id}" src="${videoSrcWithFrame}" data-video-src="${videoSrcWithFrame}" class="reel-video" autoplay loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
                                 onloadedmetadata="handleReelMetadata(${video.id})"
                                 ontimeupdate="updateReelProgress(${video.id})"
                                 onplay="document.getElementById('reel-${video.id}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${video.id}'); if(b) b.innerText='⏸';"
@@ -767,16 +767,42 @@
                 }
             });
 
-            // Pause and mute every other video so sound never overlaps
-            reels.forEach(v => {
+            const nextVid = (bestIdx >= 0 && bestIdx + 1 < reels.length) ? reels[bestIdx + 1] : null;
+
+            // Immediately abort network downloading & release decoder for any reel scrolled past above (`idx < bestIdx`) or > 1 below (`idx > bestIdx + 1`)
+            reels.forEach((v, idx) => {
                 if (v !== bestVideo) {
-                    if (!v.paused) v.pause();
-                    v.muted = true;
+                    if (v === nextVid) {
+                        if (!v.paused) v.pause();
+                        v.muted = true;
+                        const realSrc = v.dataset.videoSrc;
+                        if (realSrc && v.getAttribute('src') !== realSrc) {
+                            v.setAttribute('src', realSrc);
+                        }
+                    } else {
+                        try {
+                            if (!v.paused) v.pause();
+                            v.muted = true;
+                            v.autoplay = false;
+                            v.removeAttribute('autoplay');
+                            v.preload = 'none';
+                            if (v.hasAttribute('src') || v.currentSrc) {
+                                v.removeAttribute('src');
+                                v.load();
+                            }
+                        } catch (e) {}
+                    }
                 }
             });
 
             if (bestVideo) {
+                const activeSrc = bestVideo.dataset.videoSrc;
+                if (activeSrc && bestVideo.getAttribute('src') !== activeSrc) {
+                    bestVideo.setAttribute('src', activeSrc);
+                    try { bestVideo.load(); } catch (e) {}
+                }
                 activeCenterReelVideo = bestVideo;
+                bestVideo.preload = 'auto';
                 clearIosMediaSessionWidget();
                 if (globalMuted) {
                     bestVideo.muted = true;
@@ -785,20 +811,25 @@
                     bestVideo.removeAttribute('muted');
                     bestVideo.volume = 1.0;
                 }
+                const queueNextAfterSmooth = () => {
+                    if (activeCenterReelVideo !== bestVideo || !nextVid) return;
+                    if (nextVid.preload !== 'auto') {
+                        nextVid.preload = 'auto';
+                        if (nextVid.readyState === 0) {
+                            try { nextVid.load(); } catch (e) {}
+                        }
+                    }
+                };
+                if (bestVideo.readyState >= 3 && !bestVideo.paused) {
+                    queueNextAfterSmooth();
+                } else {
+                    bestVideo.addEventListener('canplay', queueNextAfterSmooth, { once: true });
+                }
                 if (bestVideo.paused && bestVideo.dataset.userPaused !== 'true') {
                     bestVideo.play().catch(() => {
                         bestVideo.muted = true;
                         bestVideo.play().catch(() => {});
                     });
-                }
-
-                // Pre-buffer next reel video
-                if (bestIdx >= 0 && bestIdx + 1 < reels.length) {
-                    const nextVid = reels[bestIdx + 1];
-                    if (nextVid && nextVid.readyState === 0) {
-                        nextVid.preload = 'auto';
-                        try { nextVid.load(); } catch (e) {}
-                    }
                 }
             } else {
                 activeCenterReelVideo = null;
