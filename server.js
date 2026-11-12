@@ -22,11 +22,19 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Super Admin Emails (Can also be configured via Render Env SUPER_ADMIN_EMAIL)
+const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAIL || 'rossaorith@gmail.com,saorithkh2018@gmail.com')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean);
+
+const ADMIN_MASTER_KEY = process.env.ADMIN_SECRET_KEY || 'CAMFEED2026';
+
 pool.connect(async (err, client, release) => {
   if (err) return console.error('Error connecting to Database:', err.stack);
   console.log('Database connected successfully to Supabase for Camfeed!');
   try {
-    // Ensure AI categorization, Views count, and Embedded Shared Post columns exist
+    // 1. Posts columns
     await client.query(`
       ALTER TABLE posts 
       ADD COLUMN IF NOT EXISTS ai_category VARCHAR(100) DEFAULT 'General',
@@ -35,13 +43,60 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS shared_post_id INTEGER DEFAULT NULL
     `);
 
-    // Create post_views table for accurate view counting & future country/region analytics
+    // 2. Users columns for Per-Field Privacy, Admin Roles & Ban Status
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS relationship_status VARCHAR(150) DEFAULT '',
+      ADD COLUMN IF NOT EXISTS work VARCHAR(150) DEFAULT '',
+      ADD COLUMN IF NOT EXISTS location_privacy VARCHAR(20) DEFAULT 'public',
+      ADD COLUMN IF NOT EXISTS birthdate_privacy VARCHAR(20) DEFAULT 'public',
+      ADD COLUMN IF NOT EXISTS relationship_privacy VARCHAR(20) DEFAULT 'public',
+      ADD COLUMN IF NOT EXISTS gender_privacy VARCHAR(20) DEFAULT 'public',
+      ADD COLUMN IF NOT EXISTS work_privacy VARCHAR(20) DEFAULT 'public',
+      ADD COLUMN IF NOT EXISTS role VARCHAR(30) DEFAULT 'user',
+      ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE
+    `);
+
+    // Ensure Super Admin emails always have super_admin role
+    if (SUPER_ADMIN_EMAILS.length > 0) {
+      await client.query(
+        `UPDATE users SET role = 'super_admin' WHERE LOWER(email) = ANY($1::text[])`,
+        [SUPER_ADMIN_EMAILS]
+      );
+    }
+
+    // 3. Views analytics table
     await client.query(`
       CREATE TABLE IF NOT EXISTS post_views (
         id SERIAL PRIMARY KEY,
         post_id INTEGER NOT NULL,
         viewer_email VARCHAR(255),
         country VARCHAR(100) DEFAULT 'Unknown',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 4. Blocked users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS blocked_users (
+        id SERIAL PRIMARY KEY,
+        blocker_email VARCHAR(255) NOT NULL,
+        blocked_email VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(blocker_email, blocked_email)
+      )
+    `);
+
+    // 5. Moderation Reports table (Posts, Videos & User Profiles)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        reporter_email VARCHAR(255) NOT NULL,
+        target_type VARCHAR(30) NOT NULL,
+        target_post_id INTEGER DEFAULT NULL,
+        target_user_email VARCHAR(255) DEFAULT NULL,
+        reason TEXT NOT NULL,
+        status VARCHAR(30) DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -54,7 +109,26 @@ pool.connect(async (err, client, release) => {
 // Mount Cloudflare R2 Video/Media Upload, AI Classification & Recommendation Routes
 app.use('/api/videos', createVideoRouter(pool));
 
-// Helper: Format short title/caption preview for Khmer notifications
+// Helper: Check if user is Super Admin or appointed Team Admin
+async function verifyAdminAccess(email, secretKey) {
+  if (!email) return { allowed: false, error: 'Missing admin email' };
+  const normalized = email.trim().toLowerCase();
+  const isSuper = SUPER_ADMIN_EMAILS.includes(normalized);
+
+  const userRes = await pool.query('SELECT email, role, is_banned FROM users WHERE LOWER(email) = $1', [normalized]);
+  const dbUser = userRes.rows[0];
+
+  if (!isSuper && (!dbUser || dbUser.is_banned || (dbUser.role !== 'admin' && dbUser.role !== 'super_admin'))) {
+    return { allowed: false, error: 'Access Denied: You do not have Admin permission.' };
+  }
+
+  if (secretKey !== ADMIN_MASTER_KEY) {
+    return { allowed: false, error: 'Invalid Admin Security PIN / Key.' };
+  }
+
+  return { allowed: true, isSuperAdmin: isSuper || dbUser?.role === 'super_admin' };
+}
+
 function getPostPreviewTitle(postRow) {
   if (!postRow) return '';
   const raw = (postRow.content || '').trim();
@@ -67,7 +141,6 @@ function isVideoPost(postRow) {
   return postRow.media_type === 'video' || (postRow.media_url && postRow.media_url.includes('"type":"video"'));
 }
 
-// Helper: Analyze Post/Video content & thumbnail with Gemini AI
 async function classifyPostWithGemini(content, mediaType, thumbnailBase64) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return { category: 'General', tags: '' };
@@ -115,12 +188,14 @@ Respond strictly in JSON format: {"category": "CategoryName", "tags": "tag1, tag
 app.post('/api/register', async (req, res) => {
   const { email, password, firstName, lastName, birthdate, gender, country } = req.body;
   try {
+    const isSuper = SUPER_ADMIN_EMAILS.includes((email || '').trim().toLowerCase());
+    const initialRole = isSuper ? 'super_admin' : 'user';
     const query = `
-      INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'public', 'public') 
+      INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'public', 'public', $8) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, password, firstName, lastName, birthdate, gender, country]);
+    const result = await pool.query(query, [email, password, firstName, lastName, birthdate, gender, country, initialRole]);
     res.status(201).json({ success: true, user: result.rows[0] });
   } catch (err) {
     console.error(err);
@@ -135,7 +210,15 @@ app.post('/api/login', async (req, res) => {
     const query = 'SELECT * FROM users WHERE email = $1 AND password = $2';
     const result = await pool.query(query, [email, password]);
     if (result.rows.length > 0) {
-      res.json({ success: true, user: result.rows[0] });
+      const user = result.rows[0];
+      if (user.is_banned) {
+        return res.status(403).json({ success: false, message: 'គណនីរបស់អ្នកត្រូវបានផ្អាកដោយអ្នកគ្រប់គ្រងប្រព័ន្ធ (Account Suspended).' });
+      }
+      if (SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase()) && user.role !== 'super_admin') {
+        await pool.query("UPDATE users SET role = 'super_admin' WHERE email = $1", [user.email]);
+        user.role = 'super_admin';
+      }
+      res.json({ success: true, user });
     } else {
       res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
@@ -144,7 +227,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Create Post (Supports single/multiple media via R2 + Gemini AI Auto-Tagging)
+// Create Post
 app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -183,7 +266,7 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   }
 });
 
-// Share Post to Profile (Facebook-style Embedded Shared Card + Khmer Notification)
+// Share Post to Profile (Embedded Shared Card + Khmer Notification)
 app.post('/api/posts/share', async (req, res) => {
   const { postId, email, caption } = req.body;
   try {
@@ -194,7 +277,6 @@ app.post('/api/posts/share', async (req, res) => {
     if (orig.rows.length === 0) return res.status(404).json({ success: false, error: 'Post not found' });
 
     const p = orig.rows[0];
-    // If sharing an already-shared post, link directly to the root original post
     const rootPostId = p.shared_post_id ? p.shared_post_id : p.id;
 
     const result = await pool.query(
@@ -204,7 +286,6 @@ app.post('/api/posts/share', async (req, res) => {
       [email, caption || '', p.ai_category || 'General', p.ai_tags || '', rootPostId]
     );
 
-    // Send Khmer notification to original post/video owner
     const sharerRes = await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [email]);
     const sharerName = `${sharerRes.rows[0]?.first_name || ''} ${sharerRes.rows[0]?.last_name || ''}`.trim();
 
@@ -231,7 +312,7 @@ app.post('/api/posts/share', async (req, res) => {
   }
 });
 
-// Get List of People Who Shared a Post/Video (Just like Reactions List)
+// Get List of People Who Shared a Post/Video
 app.get('/api/shares/:postId', async (req, res) => {
   const { postId } = req.params;
   const { email } = req.query;
@@ -252,19 +333,17 @@ app.get('/api/shares/:postId', async (req, res) => {
   }
 });
 
-// Track Post / Video View & Country/Region Metadata
+// Track Post / Video View & Country Metadata
 app.post('/api/posts/:id/view', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
   try {
-    // Detect viewer country from user profile or CDN headers if available
     let viewerCountry = req.headers['cf-ipcountry'] || 'Unknown';
     if (email) {
       const uRes = await pool.query('SELECT country FROM users WHERE email = $1', [email]);
       if (uRes.rows[0]?.country) viewerCountry = uRes.rows[0].country;
     }
 
-    // Prevent duplicate view inflation from same user within 30 minutes
     if (email) {
       const recentCheck = await pool.query(
         `SELECT 1 FROM post_views WHERE post_id = $1 AND viewer_email = $2 AND created_at > NOW() - INTERVAL '30 minutes' LIMIT 1`,
@@ -290,10 +369,85 @@ app.post('/api/posts/:id/view', async (req, res) => {
   }
 });
 
-// Get Feed & Profile Posts (80-90% Following Priority + Viral Engagement Boost + Randomized Discovery)
+// Report Post or Video to Admin
+app.post('/api/posts/:id/report', async (req, res) => {
+  const { id } = req.params;
+  const { email, reason } = req.body;
+  try {
+    const postRes = await pool.query('SELECT user_email FROM posts WHERE id = $1', [id]);
+    const targetUserEmail = postRes.rows[0]?.user_email || null;
+
+    await pool.query(
+      `INSERT INTO reports (reporter_email, target_type, target_post_id, target_user_email, reason)
+       VALUES ($1, 'post', $2, $3, $4)`,
+      [email, id, targetUserEmail, reason || 'Violation reported']
+    );
+    res.json({ success: true, message: 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Report User Profile to Admin
+app.post('/api/users/report', async (req, res) => {
+  const { reporterEmail, targetEmail, reason } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO reports (reporter_email, target_type, target_user_email, reason)
+       VALUES ($1, 'profile', $2, $3)`,
+      [reporterEmail, targetEmail, reason || 'Profile violation reported']
+    );
+    res.json({ success: true, message: 'របាយការណ៍អំពីគណនីនេះត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Block & Unblock User
+app.post('/api/block', async (req, res) => {
+  const { blockerEmail, blockedEmail } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO blocked_users (blocker_email, blocked_email) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [blockerEmail, blockedEmail]
+    );
+    // Automatically unfollow each other when blocked
+    await pool.query(
+      'DELETE FROM follows WHERE (follower_email = $1 AND following_email = $2) OR (follower_email = $2 AND following_email = $1)',
+      [blockerEmail, blockedEmail]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/unblock', async (req, res) => {
+  const { blockerEmail, blockedEmail } = req.body;
+  try {
+    await pool.query(
+      'DELETE FROM blocked_users WHERE blocker_email = $1 AND blocked_email = $2',
+      [blockerEmail, blockedEmail]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get Feed & Profile Posts (Excludes Blocked Users + 85-90% Following Priority + Viral & Random)
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type } = req.query;
   try {
+    const blockFilter = `
+      AND p.user_email NOT IN (
+        SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
+        UNION
+        SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
+      )
+      AND COALESCE(u.is_banned, FALSE) = FALSE
+    `;
+
     let baseSelect = `
       SELECT p.*, u.first_name, u.last_name, u.profile_pic,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
@@ -327,9 +481,9 @@ app.get('/api/posts', async (req, res) => {
         }
       } else {
         if (type === 'videos') {
-          query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND p.privacy = 'public'`;
+          query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND p.privacy = 'public' ${blockFilter}`;
         } else {
-          query += ` WHERE p.user_email = $2 AND p.privacy = 'public'`;
+          query += ` WHERE p.user_email = $2 AND p.privacy = 'public' ${blockFilter}`;
         }
       }
       query += ` ORDER BY p.created_at DESC`;
@@ -337,10 +491,6 @@ app.get('/api/posts', async (req, res) => {
       return res.json({ success: true, posts: result.rows });
     }
 
-    // News Feed Algorithm:
-    // - 85% to 90%+ priority for people the user follows (and own recent posts)
-    // - Viral boost for posts/videos with high reactions, comments, shares, and views
-    // - Randomized shuffle + unseen boost so feed is fresh and never repetitive
     const feedQuery = `
       WITH scored_posts AS (
         ${baseSelect},
@@ -363,9 +513,10 @@ app.get('/api/posts', async (req, res) => {
           + (25.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
           + (RANDOM() * 35.0)
         ) AS feed_rank_score
-        WHERE p.privacy = 'public' 
+        WHERE (p.privacy = 'public' 
            OR p.user_email = $1 
-           OR p.user_email IN (SELECT following_email FROM follows WHERE follower_email = $1)
+           OR p.user_email IN (SELECT following_email FROM follows WHERE follower_email = $1))
+          ${blockFilter}
       )
       SELECT * FROM scored_posts
       ORDER BY feed_rank_score DESC
@@ -379,7 +530,6 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-// Get Single Post by ID (Used when clicking a Notification to jump directly to that post/video)
 app.get('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
@@ -450,7 +600,7 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
-// Update Profile & Cover Pictures (Prioritizes Cloudflare R2 URLs)
+// Update Profile & Cover Pictures
 app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
   const { email, bio, profilePicUrl, coverPicUrl } = req.body;
   try {
@@ -479,23 +629,49 @@ app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePi
   }
 });
 
+// Update Personal Details & Per-Field Privacy
 app.post('/api/update-profile-details', async (req, res) => {
-  const { email, birthdate, location, phone_privacy, email_privacy } = req.body;
+  const {
+    email,
+    location, location_privacy,
+    birthdate, birthdate_privacy,
+    relationship_status, relationship_privacy,
+    gender, gender_privacy,
+    work, work_privacy,
+    phone, phone_privacy,
+    email_privacy
+  } = req.body;
+
   try {
     const query = `
       UPDATE users 
-      SET birthdate = $1, location = $2, phone_privacy = $3, email_privacy = $4 
-      WHERE email = $5 
+      SET location = $1, location_privacy = $2,
+          birthdate = $3, birthdate_privacy = $4,
+          relationship_status = $5, relationship_privacy = $6,
+          gender = $7, gender_privacy = $8,
+          work = $9, work_privacy = $10,
+          phone = $11, phone_privacy = $12,
+          email_privacy = $13
+      WHERE email = $14 
       RETURNING *
     `;
-    const result = await pool.query(query, [birthdate, location, phone_privacy, email_privacy, email]);
+    const result = await pool.query(query, [
+      location || '', location_privacy || 'public',
+      birthdate || '', birthdate_privacy || 'public',
+      relationship_status || '', relationship_privacy || 'public',
+      gender || 'Male', gender_privacy || 'public',
+      work || '', work_privacy || 'public',
+      phone || '', phone_privacy || 'public',
+      email_privacy || 'public',
+      email
+    ]);
     res.json({ success: true, user: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Reaction Endpoint (With Khmer Notification Including Post/Video Title)
+// Reaction Endpoint
 app.post('/api/reaction', async (req, res) => {
   const { postId, email, reactionType } = req.body;
   try {
@@ -580,7 +756,6 @@ app.get('/api/comments/:postId', async (req, res) => {
   }
 });
 
-// Comments Endpoint (With Khmer Notification Including Post/Video Title)
 app.post('/api/comments', async (req, res) => {
   const { postId, email, content, replyToCommentId } = req.body;
   try {
@@ -674,6 +849,11 @@ app.delete('/api/comments/:id', async (req, res) => {
 app.post('/api/comments/report', async (req, res) => {
   const { commentId, email, reason } = req.body;
   try {
+    await pool.query(
+      `INSERT INTO reports (reporter_email, target_type, target_post_id, reason)
+       VALUES ($1, 'comment', $2, $3)`,
+      [email, commentId, reason || 'Comment violation']
+    );
     res.json({ success: true, message: 'Report received successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -699,11 +879,22 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
+// User Profile (Respects Block & Per-Field Privacy)
 app.get('/api/user-profile', async (req, res) => {
   const { email, viewerEmail } = req.query;
   try {
+    if (viewerEmail && viewerEmail !== email) {
+      const blockCheck = await pool.query(
+        'SELECT 1 FROM blocked_users WHERE (blocker_email = $1 AND blocked_email = $2) OR (blocker_email = $2 AND blocked_email = $1)',
+        [viewerEmail, email]
+      );
+      if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ success: false, blocked: true, error: 'Profile unavailable' });
+      }
+    }
+
     const query = `
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.cover_pic, u.bio, u.birthdate, u.location, u.phone, u.phone_privacy, u.email_privacy,
+      SELECT u.*,
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
@@ -713,7 +904,18 @@ app.get('/api/user-profile', async (req, res) => {
     const result = await pool.query(query, [email, viewerEmail]);
     if (result.rows.length > 0) {
       const u = result.rows[0];
+      delete u.password;
       u.is_friend = u.is_following && u.is_followed_by;
+
+      // Strip private fields when viewed by someone else
+      if (viewerEmail !== email) {
+        if (u.location_privacy === 'private') u.location = '';
+        if (u.birthdate_privacy === 'private') u.birthdate = '';
+        if (u.relationship_privacy === 'private') u.relationship_status = '';
+        if (u.gender_privacy === 'private') u.gender = '';
+        if (u.work_privacy === 'private') u.work = '';
+        if (u.phone_privacy === 'private') u.phone = '';
+      }
       res.json({ success: true, user: u });
     } else {
       res.status(404).json({ success: false, error: 'User not found' });
@@ -730,6 +932,12 @@ app.get('/api/users', async (req, res) => {
       SELECT email, first_name, last_name, profile_pic, cover_pic, bio, birthdate, location, phone_privacy, email_privacy
       FROM users 
       WHERE email != $1
+        AND COALESCE(is_banned, FALSE) = FALSE
+        AND email NOT IN (
+          SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
+          UNION
+          SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
+        )
       ORDER BY first_name ASC
     `;
     const result = await pool.query(query, [email]);
@@ -766,11 +974,20 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Follow List (Supports 'friends', 'followers', 'following')
 app.get('/api/follow-list', async (req, res) => {
   const { email, type } = req.query;
   try {
     let query = '';
-    if (type === 'followers') {
+    if (type === 'friends') {
+      query = `
+        SELECT u.email, u.first_name, u.last_name, u.profile_pic, TRUE AS is_following
+        FROM follows f1
+        JOIN follows f2 ON f1.following_email = f2.follower_email AND f2.following_email = $1
+        JOIN users u ON u.email = f1.following_email
+        WHERE f1.follower_email = $1
+      `;
+    } else if (type === 'followers') {
       query = `
         SELECT u.email, u.first_name, u.last_name, u.profile_pic,
         EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = $2 AND f2.following_email = u.email) AS is_following
@@ -787,7 +1004,7 @@ app.get('/api/follow-list', async (req, res) => {
         WHERE f.follower_email = $1
       `;
     }
-    const result = await pool.query(query, [email, email]);
+    const result = await pool.query(query, type === 'friends' ? [email] : [email, email]);
     res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -817,6 +1034,7 @@ app.post('/api/follow', async (req, res) => {
   }
 });
 
+// Chat Conversations (Excludes Blocked Users)
 app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
@@ -835,6 +1053,11 @@ app.get('/api/chat-conversations', async (req, res) => {
       FROM users u
       JOIN messages m ON u.email = m.sender_email OR u.email = m.receiver_email
       WHERE (m.sender_email = $1 OR m.receiver_email = $1) AND u.email != $1
+        AND u.email NOT IN (
+          SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
+          UNION
+          SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
+        )
       
       UNION
       
@@ -843,10 +1066,16 @@ app.get('/api/chat-conversations', async (req, res) => {
       NOW() - INTERVAL '1 year' as last_time
       FROM users u
       JOIN follows f ON (f.following_email = u.email AND f.follower_email = $1) OR (f.follower_email = u.email AND f.following_email = $1)
-      WHERE u.email != $1 AND u.email NOT IN (
-        SELECT DISTINCT CASE WHEN sender_email = $1 THEN receiver_email ELSE sender_email END 
-        FROM messages WHERE sender_email = $1 OR receiver_email = $1
-      )
+      WHERE u.email != $1 
+        AND u.email NOT IN (
+          SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
+          UNION
+          SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
+        )
+        AND u.email NOT IN (
+          SELECT DISTINCT CASE WHEN sender_email = $1 THEN receiver_email ELSE sender_email END 
+          FROM messages WHERE sender_email = $1 OR receiver_email = $1
+        )
       
       ORDER BY last_time DESC NULLS LAST
     `;
@@ -864,7 +1093,14 @@ app.get('/api/search-users', async (req, res) => {
     const query = `
       SELECT email, first_name, last_name, profile_pic 
       FROM users 
-      WHERE email != $1 AND (first_name ILIKE $2 OR last_name ILIKE $2 OR email ILIKE $2)
+      WHERE email != $1 
+        AND COALESCE(is_banned, FALSE) = FALSE
+        AND email NOT IN (
+          SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
+          UNION
+          SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
+        )
+        AND (first_name ILIKE $2 OR last_name ILIKE $2 OR email ILIKE $2)
       LIMIT 10
     `;
     const result = await pool.query(query, [email, `%${keyword || ''}%`]);
@@ -919,6 +1155,7 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
+// Send Chat Message (Blocks sending if either user blocked the other)
 app.post('/api/messages', (req, res, next) => {
   cloudinaryUpload.single('mediaFile')(req, res, (err) => {
     if (err) {
@@ -931,6 +1168,18 @@ app.post('/api/messages', (req, res, next) => {
   try {
     const sender = req.body.sender;
     const receiver = req.body.receiver;
+
+    if (!sender || !receiver) {
+      return res.status(400).json({ success: false, error: 'Sender and receiver are required' });
+    }
+
+    const blockCheck = await pool.query(
+      'SELECT 1 FROM blocked_users WHERE (blocker_email = $1 AND blocked_email = $2) OR (blocker_email = $2 AND blocked_email = $1)',
+      [sender, receiver]
+    );
+    if (blockCheck.rows.length > 0) {
+      return res.status(403).json({ success: false, error: 'Cannot send messages to this user (Blocked).' });
+    }
     
     let defaultMsg = '';
     let messageType = 'text';
@@ -952,10 +1201,6 @@ app.post('/api/messages', (req, res, next) => {
     const message = req.body.message || defaultMsg;
     const mediaUrl = req.file ? req.file.path : null;
 
-    if (!sender || !receiver) {
-      return res.status(400).json({ success: false, error: 'Sender and receiver are required' });
-    }
-
     const query = `
       INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read) 
       VALUES ($1, $2, $3, $4, $5, FALSE) 
@@ -965,6 +1210,156 @@ app.post('/api/messages', (req, res, next) => {
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
     console.error("Error saving message in DB:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =============================================================================
+// ADMIN CONTROL CENTER ROUTES (Protected by Super Admin / Team Admin Role + PIN)
+// =============================================================================
+
+// 1. Verify Admin Login & Fetch Full Dashboard Data
+app.post('/api/admin/dashboard', async (req, res) => {
+  const { adminEmail, adminKey } = req.body;
+  try {
+    const auth = await verifyAdminAccess(adminEmail, adminKey);
+    if (!auth.allowed) {
+      return res.status(403).json({ success: false, error: auth.error });
+    }
+
+    const [usersRes, reportsRes, postsRes, viewsSumRes] = await Promise.all([
+      pool.query(`
+        SELECT email, first_name, last_name, profile_pic, country, role, is_banned,
+               (SELECT COUNT(*) FROM posts p WHERE p.user_email = users.email) as posts_count,
+               (SELECT COUNT(*) FROM follows f WHERE f.following_email = users.email) as followers_count
+        FROM users
+        ORDER BY CASE WHEN role = 'super_admin' THEN 1 WHEN role = 'admin' THEN 2 ELSE 3 END, first_name ASC
+      `),
+      pool.query(`
+        SELECT r.*,
+               ru.first_name as reporter_first, ru.last_name as reporter_last,
+               tu.first_name as target_first, tu.last_name as target_last, tu.profile_pic as target_pic,
+               p.content as post_content, p.media_type as post_media_type, p.media_url as post_media_url
+        FROM reports r
+        LEFT JOIN users ru ON r.reporter_email = ru.email
+        LEFT JOIN users tu ON r.target_user_email = tu.email
+        LEFT JOIN posts p ON r.target_post_id = p.id
+        ORDER BY CASE WHEN r.status = 'pending' THEN 1 ELSE 2 END, r.created_at DESC
+        LIMIT 100
+      `),
+      pool.query(`
+        SELECT p.*, u.first_name, u.last_name, u.profile_pic,
+               (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
+               (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comments_count
+        FROM posts p
+        JOIN users u ON p.user_email = u.email
+        ORDER BY p.created_at DESC
+        LIMIT 60
+      `),
+      pool.query(`SELECT COALESCE(SUM(views_count), 0) as total_views FROM posts`)
+    ]);
+
+    res.json({
+      success: true,
+      isSuperAdmin: auth.isSuperAdmin,
+      stats: {
+        totalUsers: usersRes.rows.length,
+        totalPosts: postsRes.rows.length,
+        totalViews: parseInt(viewsSumRes.rows[0]?.total_views || 0),
+        pendingReports: reportsRes.rows.filter(r => r.status === 'pending').length
+      },
+      users: usersRes.rows,
+      reports: reportsRes.rows,
+      posts: postsRes.rows
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Super Admin: Promote or Demote Team Admins (e.g. your 5-member Admin team)
+app.post('/api/admin/set-role', async (req, res) => {
+  const { adminEmail, adminKey, targetEmail, newRole } = req.body;
+  try {
+    const auth = await verifyAdminAccess(adminEmail, adminKey);
+    if (!auth.allowed || !auth.isSuperAdmin) {
+      return res.status(403).json({ success: false, error: 'Only Super Admin can assign or remove Team Admins.' });
+    }
+    if (SUPER_ADMIN_EMAILS.includes(targetEmail.toLowerCase())) {
+      return res.status(400).json({ success: false, error: 'Cannot change role of Super Admin.' });
+    }
+    const safeRole = newRole === 'admin' ? 'admin' : 'user';
+    await pool.query('UPDATE users SET role = $1 WHERE email = $2', [safeRole, targetEmail]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Admin: Ban or Unban a User Account
+app.post('/api/admin/ban-user', async (req, res) => {
+  const { adminEmail, adminKey, targetEmail, ban } = req.body;
+  try {
+    const auth = await verifyAdminAccess(adminEmail, adminKey);
+    if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
+
+    if (SUPER_ADMIN_EMAILS.includes(targetEmail.toLowerCase())) {
+      return res.status(400).json({ success: false, error: 'Cannot ban Super Admin.' });
+    }
+    await pool.query('UPDATE users SET is_banned = $1 WHERE email = $2', [!!ban, targetEmail]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Super Admin: Delete a User Account Permanently
+app.delete('/api/admin/users/:targetEmail', async (req, res) => {
+  const { targetEmail } = req.params;
+  const { adminEmail, adminKey } = req.body;
+  try {
+    const auth = await verifyAdminAccess(adminEmail, adminKey);
+    if (!auth.allowed || !auth.isSuperAdmin) {
+      return res.status(403).json({ success: false, error: 'Only Super Admin can delete user accounts.' });
+    }
+    if (SUPER_ADMIN_EMAILS.includes(targetEmail.toLowerCase())) {
+      return res.status(400).json({ success: false, error: 'Cannot delete Super Admin.' });
+    }
+    await pool.query('DELETE FROM posts WHERE user_email = $1', [targetEmail]);
+    await pool.query('DELETE FROM users WHERE email = $1', [targetEmail]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5. Admin: Delete Any Violating Post or Video
+app.delete('/api/admin/posts/:postId', async (req, res) => {
+  const { postId } = req.params;
+  const { adminEmail, adminKey } = req.body;
+  try {
+    const auth = await verifyAdminAccess(adminEmail, adminKey);
+    if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
+
+    await pool.query('DELETE FROM posts WHERE id = $1', [postId]);
+    await pool.query("UPDATE reports SET status = 'resolved_deleted' WHERE target_post_id = $1", [postId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 6. Admin: Resolve or Dismiss Report
+app.post('/api/admin/reports/:reportId/status', async (req, res) => {
+  const { reportId } = req.params;
+  const { adminEmail, adminKey, status } = req.body;
+  try {
+    const auth = await verifyAdminAccess(adminEmail, adminKey);
+    if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
+
+    await pool.query('UPDATE reports SET status = $1 WHERE id = $2', [status || 'dismissed', reportId]);
+    res.json({ success: true });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
