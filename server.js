@@ -38,13 +38,26 @@ pool.connect(async (err, client, release) => {
   if (err) return console.error('Error connecting to Database:', err.stack);
   console.log('Database connected successfully to Supabase for Camfeed!');
   try {
-    // 1. Posts columns
+    // 1. Posts columns & Fast Query Indexes
     await client.query(`
       ALTER TABLE posts 
       ADD COLUMN IF NOT EXISTS ai_category VARCHAR(100) DEFAULT 'General',
       ADD COLUMN IF NOT EXISTS ai_tags TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS shared_post_id INTEGER DEFAULT NULL
+      ADD COLUMN IF NOT EXISTS shared_post_id INTEGER DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) DEFAULT ''
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_posts_user_email ON posts(user_email);
+      CREATE INDEX IF NOT EXISTS idx_posts_shared_post_id ON posts(shared_post_id);
+      CREATE INDEX IF NOT EXISTS idx_likes_post_id ON likes(post_id);
+      CREATE INDEX IF NOT EXISTS idx_likes_user_post ON likes(user_email, post_id);
+      CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);
+      CREATE INDEX IF NOT EXISTS idx_follows_pair ON follows(follower_email, following_email);
+      CREATE INDEX IF NOT EXISTS idx_post_views_pair ON post_views(post_id, viewer_email);
+      CREATE INDEX IF NOT EXISTS idx_messages_pair_time ON messages(sender_email, receiver_email, created_at DESC);
     `);
 
     // 2. Users columns for Per-Field Privacy, Admin Roles, Ban Status & Real-Time Online Presence
@@ -264,6 +277,7 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
   const content = req.body.content || '';
   const privacy = req.body.privacy || 'public';
   const thumbnailBase64 = req.body.thumbnailBase64 || null;
+  const mediaAspect = req.body.mediaAspect || '';
 
   let mediaUrl = req.file ? req.file.path : (req.body.mediaUrl || null);
   let mediaType = req.file ? (req.file.mimetype && req.file.mimetype.startsWith('video') ? 'video' : 'image') : (req.body.mediaType || 'text');
@@ -282,11 +296,11 @@ app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) =>
     const aiResult = await classifyPostWithGemini(content, mediaType, thumbnailBase64);
 
     const query = `
-      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, media_aspect) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags]);
+    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect]);
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -450,64 +464,83 @@ app.post('/api/unblock', async (req, res) => {
   }
 });
 
-// Get Feed, Profile & Video Posts
+// Get Feed, Profile & Video Posts (Optimized with Pre-Aggregated CTEs & Fast Pagination)
 app.get('/api/posts', async (req, res) => {
-  const { email, profileEmail, type } = req.query;
+  const { email, profileEmail, type, limit, offset } = req.query;
   const safeViewer = email || '';
+  const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 15, 5), 50);
+  const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
   try {
-    const blockFilter = `
-      AND p.user_email NOT IN (
-        SELECT blocked_email FROM blocked_users WHERE blocker_email = $1
+    const cteAndJoins = `
+      WITH blocked AS (
+        SELECT blocked_email AS u_email FROM blocked_users WHERE blocker_email = $1
         UNION
-        SELECT blocker_email FROM blocked_users WHERE blocker_email = $1
+        SELECT blocker_email AS u_email FROM blocked_users WHERE blocker_email = $1
+      ),
+      like_stats AS (
+        SELECT post_id,
+               COUNT(*)::int AS likes_count,
+               ARRAY_AGG(DISTINCT reaction_type) AS reaction_types,
+               MAX(CASE WHEN user_email = $1 THEN reaction_type ELSE NULL END) AS user_reaction
+        FROM likes
+        GROUP BY post_id
+      ),
+      comment_stats AS (
+        SELECT post_id, COUNT(*)::int AS comments_count
+        FROM comments
+        GROUP BY post_id
+      ),
+      share_stats AS (
+        SELECT shared_post_id AS post_id, COUNT(*)::int AS shares_count
+        FROM posts
+        WHERE shared_post_id IS NOT NULL
+        GROUP BY shared_post_id
       )
-      AND COALESCE(u.is_banned, FALSE) = FALSE
+      SELECT
+        p.*, u.first_name, u.last_name, u.profile_pic,
+        COALESCE(ls.likes_count, 0) AS likes_count,
+        COALESCE(cs.comments_count, 0) AS comments_count,
+        COALESCE(ss.shares_count, 0) AS shares_count,
+        ls.user_reaction,
+        ls.reaction_types,
+        op.id AS orig_id,
+        op.content AS orig_content,
+        op.media_type AS orig_media_type,
+        op.media_url AS orig_media_url,
+        op.media_aspect AS orig_media_aspect,
+        op.created_at AS orig_created_at,
+        op.privacy AS orig_privacy,
+        ou.email AS orig_author_email,
+        ou.first_name AS orig_first_name,
+        ou.last_name AS orig_last_name,
+        ou.profile_pic AS orig_profile_pic
     `;
 
-    const selectColumns = `
-      p.*, u.first_name, u.last_name, u.profile_pic,
-      (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
-      (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comments_count,
-      (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id) as shares_count,
-      (SELECT reaction_type FROM likes l WHERE l.post_id = p.id AND l.user_email = $1) as user_reaction,
-      (SELECT ARRAY_AGG(DISTINCT reaction_type) FROM likes l WHERE l.post_id = p.id) as reaction_types,
-      op.id as orig_id,
-      op.content as orig_content,
-      op.media_type as orig_media_type,
-      op.media_url as orig_media_url,
-      op.created_at as orig_created_at,
-      op.privacy as orig_privacy,
-      ou.email as orig_author_email,
-      ou.first_name as orig_first_name,
-      ou.last_name as orig_last_name,
-      ou.profile_pic as orig_profile_pic
-    `;
-
-    const joinTables = `
-      FROM posts p 
+    const baseFrom = `
+      FROM posts p
       JOIN users u ON p.user_email = u.email
+      LEFT JOIN like_stats ls ON ls.post_id = p.id
+      LEFT JOIN comment_stats cs ON cs.post_id = p.id
+      LEFT JOIN share_stats ss ON ss.post_id = p.id
       LEFT JOIN posts op ON p.shared_post_id = op.id
       LEFT JOIN users ou ON op.user_email = ou.email
     `;
 
     if (profileEmail) {
-      let query = `SELECT ${selectColumns} ${joinTables}`;
+      let query = `${cteAndJoins} ${baseFrom}`;
       if (profileEmail === safeViewer) {
-        if (type === 'videos') {
-          query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video')`;
-        } else {
-          query += ` WHERE p.user_email = $2`;
-        }
+        query += type === 'videos'
+          ? ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video')`
+          : ` WHERE p.user_email = $2`;
       } else {
-        if (type === 'videos') {
-          query += ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND p.privacy = 'public' ${blockFilter}`;
-        } else {
-          query += ` WHERE p.user_email = $2 AND p.privacy = 'public' ${blockFilter}`;
-        }
+        query += type === 'videos'
+          ? ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND p.privacy = 'public' AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`
+          : ` WHERE p.user_email = $2 AND p.privacy = 'public' AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`;
       }
-      query += ` ORDER BY p.created_at DESC`;
-      const result = await pool.query(query, [safeViewer, profileEmail]);
-      return res.json({ success: true, posts: result.rows });
+      query += ` ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
+      const result = await pool.query(query, [safeViewer, profileEmail, parsedLimit, parsedOffset]);
+      return res.json({ success: true, posts: result.rows, hasMore: result.rows.length === parsedLimit });
     }
 
     const videoOnlyCondition = type === 'videos'
@@ -515,38 +548,34 @@ app.get('/api/posts', async (req, res) => {
       : '';
 
     const feedQuery = `
-      SELECT ${selectColumns},
+      ${cteAndJoins},
       (
         CASE 
           WHEN p.user_email = $1 THEN 85
-          WHEN EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = p.user_email) THEN 90
+          WHEN f.following_email IS NOT NULL THEN 90
           ELSE 12
         END
-        + (SELECT COUNT(*) * 3.0 FROM likes l WHERE l.post_id = p.id)
-        + (SELECT COUNT(*) * 4.5 FROM comments c WHERE c.post_id = p.id)
-        + (SELECT COUNT(*) * 6.0 FROM posts sp WHERE sp.shared_post_id = p.id)
+        + (COALESCE(ls.likes_count, 0) * 3.0)
+        + (COALESCE(cs.comments_count, 0) * 4.5)
+        + (COALESCE(ss.shares_count, 0) * 6.0)
         + (COALESCE(p.views_count, 0) * 0.15)
-        + (
-            SELECT COUNT(*) * 3.5 FROM likes l2 
-            JOIN posts p2 ON l2.post_id = p2.id 
-            WHERE l2.user_email = $1 AND p2.ai_category = p.ai_category AND p.ai_category != 'General'
-          )
-        + (CASE WHEN EXISTS (SELECT 1 FROM post_views pv WHERE pv.post_id = p.id AND pv.viewer_email = $1) THEN -25 ELSE 18 END)
+        + (CASE WHEN pv.post_id IS NOT NULL THEN -25 ELSE 18 END)
         + (25.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
-        + (RANDOM() * 35.0)
+        + (RANDOM() * 25.0)
       ) AS feed_rank_score
-      ${joinTables}
-      WHERE (p.privacy = 'public' 
-         OR p.user_email = $1 
-         OR p.user_email IN (SELECT following_email FROM follows WHERE follower_email = $1))
+      ${baseFrom}
+      LEFT JOIN follows f ON f.follower_email = $1 AND f.following_email = p.user_email
+      LEFT JOIN (SELECT DISTINCT post_id FROM post_views WHERE viewer_email = $1) pv ON pv.post_id = p.id
+      WHERE (p.privacy = 'public' OR p.user_email = $1 OR f.following_email IS NOT NULL)
         ${videoOnlyCondition}
-        ${blockFilter}
-      ORDER BY feed_rank_score DESC
-      LIMIT 60
+        AND COALESCE(u.is_banned, FALSE) = FALSE
+        AND p.user_email NOT IN (SELECT u_email FROM blocked)
+      ORDER BY feed_rank_score DESC, p.created_at DESC
+      LIMIT $2 OFFSET $3
     `;
 
-    const result = await pool.query(feedQuery, [safeViewer]);
-    res.json({ success: true, posts: result.rows });
+    const result = await pool.query(feedQuery, [safeViewer, parsedLimit, parsedOffset]);
+    res.json({ success: true, posts: result.rows, hasMore: result.rows.length === parsedLimit });
   } catch (err) {
     console.error('Error loading posts:', err);
     res.status(500).json({ success: false, error: err.message });

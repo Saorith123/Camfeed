@@ -440,6 +440,46 @@
             });
         }
 
+        function detectMediaAspectRatio(file) {
+            return new Promise((resolve) => {
+                if (!file) return resolve('');
+                const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
+                const url = URL.createObjectURL(file);
+                if (isVideo) {
+                    const v = document.createElement('video');
+                    v.preload = 'metadata';
+                    v.muted = true;
+                    v.playsInline = true;
+                    v.onloadedmetadata = () => {
+                        const w = v.videoWidth || 0;
+                        const h = v.videoHeight || 0;
+                        URL.revokeObjectURL(url);
+                        if (w > 0 && h > 0) {
+                            resolve(h > w ? '9 / 16' : (w === h ? '1 / 1' : '16 / 9'));
+                        } else {
+                            resolve('9 / 16');
+                        }
+                    };
+                    v.onerror = () => { URL.revokeObjectURL(url); resolve('9 / 16'); };
+                    v.src = url;
+                } else {
+                    const img = new Image();
+                    img.onload = () => {
+                        const w = img.width || 0;
+                        const h = img.height || 0;
+                        URL.revokeObjectURL(url);
+                        if (w > 0 && h > 0) {
+                            resolve(`${w} / ${h}`);
+                        } else {
+                            resolve('');
+                        }
+                    };
+                    img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+                    img.src = url;
+                }
+            });
+        }
+
         function extractThumbnailBase64(file) {
             return new Promise((resolve) => {
                 let settled = false;
@@ -619,9 +659,11 @@
             try {
                 const uploadedItems = [];
                 let thumbnailBase64 = null;
+                let detectedMediaAspect = '';
 
                 if (selectedFiles.length > 0) {
                     updateProgressUI('កំពុងរៀបចំឯកសារ...', 2);
+                    detectedMediaAspect = await detectMediaAspectRatio(selectedFiles[0]);
                     thumbnailBase64 = await extractThumbnailBase64(selectedFiles[0]);
 
                     for (let i = 0; i < selectedFiles.length; i++) {
@@ -666,7 +708,8 @@
                         content: content,
                         privacy: privacy,
                         mediaItems: uploadedItems,
-                        thumbnailBase64: thumbnailBase64
+                        thumbnailBase64: thumbnailBase64,
+                        mediaAspect: detectedMediaAspect
                     })
                 });
                 const postData = await postRes.json();

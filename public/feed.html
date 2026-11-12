@@ -166,16 +166,26 @@
 
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
 
-        /* Custom Video Player Controls (Scrubbing Bar, Minutes/Seconds, Play/Pause, Mute, Fullscreen - Zero iOS Dynamic Island Interference) */
+        /* Custom Video Player Controls (Pre-Sized Portrait/Landscape Aspect Ratio + First-Frame Poster + Zero iOS Dynamic Island Interference) */
         .feed-video-wrap {
             position: relative;
             width: 100%;
-            background: #000;
+            background: #0b0e14;
             margin: 0 0 8px 0;
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-height: 78vh;
         }
-        .feed-video-wrap .post-media {
+        .feed-video-wrap .post-media,
+        .feed-video-wrap video {
+            width: 100%;
+            height: 100%;
+            max-height: 78vh;
+            object-fit: cover;
             margin: 0;
+            display: block;
         }
         .feed-video-center-play {
             position: absolute;
@@ -373,6 +383,151 @@
 
         .emoji-option { font-size: 27px; cursor: pointer; transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; line-height: 1; }
         .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
+
+        /* Modern Half-Screen Bottom-Sheet Comment Drawer */
+        .comment-sheet-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.52);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
+            z-index: 3200;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .comment-sheet-backdrop.open {
+            display: flex;
+        }
+        .comment-sheet-drawer {
+            width: 100%;
+            max-width: 680px;
+            height: 64vh;
+            height: 64dvh;
+            max-height: 85vh;
+            background: #ffffff;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -6px 30px rgba(0, 0, 0, 0.22);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideUpSheet 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @keyframes slideUpSheet {
+            from { transform: translateY(100%); opacity: 0.6; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .comment-sheet-handle-bar {
+            width: 40px;
+            height: 4px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            margin: 8px auto 2px;
+            flex-shrink: 0;
+        }
+        .comment-sheet-header {
+            padding: 8px 16px 10px;
+            border-bottom: 1px solid #e4e6eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .comment-sheet-title {
+            font-size: 15.5px;
+            font-weight: 800;
+            color: #050505;
+        }
+        .comment-sheet-close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f2f5;
+            color: #050505;
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .comment-sheet-close-btn:hover {
+            background: #e4e6eb;
+        }
+        .comment-sheet-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #ffffff;
+        }
+        .comment-sheet-footer {
+            padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+            border-top: 1px solid #e4e6eb;
+            background: #ffffff;
+            flex-shrink: 0;
+        }
+        .comment-sheet-reply-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background: #e7f3ff;
+            color: #1877f2;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+        }
+        .comment-sheet-reply-bar.active {
+            display: flex;
+        }
+        .comment-sheet-input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .comment-sheet-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #e4e6eb;
+        }
+        .comment-sheet-input {
+            flex: 1;
+            border: 1px solid #dddfe2;
+            background: #f0f2f5;
+            border-radius: 20px;
+            padding: 9px 14px;
+            font-size: 14px;
+            outline: none;
+            margin: 0;
+        }
+        .comment-sheet-input:focus {
+            background: #ffffff;
+            border-color: #1877f2;
+        }
+        .comment-sheet-send-btn {
+            background: #1877f2;
+            color: #ffffff;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .comment-sheet-send-btn:disabled {
+            background: #b0d3f8;
+            cursor: not-allowed;
+        }
 
         /* Comments Section with Reactions & Replies */
         .comments-section { margin-top: 8px; border-top: 1px solid #f0f2f5; background: #fff; padding: 0 14px; max-height: 0; overflow: hidden; transition: max-height 0.35s ease-out, padding 0.35s ease-out; }
@@ -609,6 +764,39 @@
                 </div>
                 <textarea id="editPostContentTextarea" rows="4" placeholder="កែប្រែអត្ថបទរបស់អ្នក..." style="border: 1px solid #dddfe2; background: #f0f2f5; border-radius: 12px; padding: 12px 14px; resize: vertical; font-size: 15px;"></textarea>
                 <button type="button" id="saveEditPostBtn" class="btn-primary" onclick="submitEditPost()">រក្សាទុកការកែប្រែ (Save)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Half-Screen Bottom-Sheet Comment Drawer -->
+    <div id="commentSheetBackdrop" class="comment-sheet-backdrop" onclick="closeCommentSheet()">
+        <div class="comment-sheet-drawer" onclick="event.stopPropagation()">
+            <div class="comment-sheet-handle-bar"></div>
+            <div class="comment-sheet-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="comment-sheet-title" id="commentSheetTitle">💬 មតិយោបល់ (Comments)</span>
+                    <select id="commentSheetSortSelect" class="comment-filter-select" onchange="reloadActiveCommentSheet()">
+                        <option value="relevant">ពាក់ព័ន្ធបំផុត</option>
+                        <option value="newest">ថ្មីបំផុត</option>
+                    </select>
+                </div>
+                <button type="button" class="comment-sheet-close-btn" onclick="closeCommentSheet()" title="បិទ (Close)">✕</button>
+            </div>
+
+            <div class="comment-sheet-body" id="commentSheetList">
+                <div style="text-align:center; color:#65676b; padding:24px;">កំពុងផ្ទុកមតិយោបល់...</div>
+            </div>
+
+            <div class="comment-sheet-footer">
+                <div class="comment-sheet-reply-bar" id="commentSheetReplyBar">
+                    <span id="commentSheetReplyText">កំពុងឆ្លើយតប...</span>
+                    <button type="button" onclick="cancelSheetReplyTarget()" style="background:none; border:none; color:#fa383e; font-weight:800; cursor:pointer;">✕</button>
+                </div>
+                <div class="comment-sheet-input-row">
+                    <img src="https://via.placeholder.com/34" id="commentSheetUserAvatar" class="comment-sheet-avatar">
+                    <input type="text" id="commentSheetInput" class="comment-sheet-input" placeholder="សរសេរមតិយោបល់របស់អ្នក..." onkeypress="if(event.key==='Enter') submitCommentFromSheet()">
+                    <button type="button" id="commentSheetSendBtn" class="comment-sheet-send-btn" onclick="submitCommentFromSheet()">ផ្ញើ</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1151,7 +1339,7 @@
 
                 const post = postData.post;
                 const dateStr = new Date(post.created_at).toLocaleString();
-                const mediaHtml = renderPostMediaHtml(post, dateStr);
+                const mediaHtml = renderPostMediaHtml(post, dateStr, !append && idx < 2);
                 const comments = commentsData.success ? (commentsData.comments || []) : [];
 
                 const commentsHtml = comments.length === 0
@@ -1338,13 +1526,34 @@
             return `${m}:${s < 10 ? '0' : ''}${s}`;
         }
 
-        function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video') {
+        function normalizeVideoFrameUrl(url) {
+            if (!url) return '';
+            return url.includes('#') ? url : `${url}#t=0.001`;
+        }
+
+        function adjustVideoContainerAspect(uid) {
+            const vid = document.getElementById(`vid-${uid}`);
+            const wrap = document.getElementById(`vwrap-${uid}`);
+            if (!vid || !wrap) return;
+            const w = vid.videoWidth;
+            const h = vid.videoHeight;
+            if (w > 0 && h > 0) {
+                wrap.style.aspectRatio = `${w} / ${h}`;
+            }
+            updateFeedVideoClock(uid);
+        }
+
+        function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video', mediaAspect = '', isPriority = false) {
             const uid = `${postId}-${Math.random().toString(36).slice(2, 7)}`;
+            // Default to vertical 9/16 frame if aspect isn't explicitly wide so vertical videos render cleanly without layout jump!
+            const initialAspect = mediaAspect && mediaAspect.trim() ? mediaAspect.trim() : '9 / 16';
+            const preloadMode = isPriority ? 'auto' : 'metadata';
+            const frameUrl = normalizeVideoFrameUrl(videoUrl);
             return `
-                <div class="feed-video-wrap" id="vwrap-${uid}" onclick="toggleFeedVideoPlayPause('${uid}', event)">
-                    <video id="vid-${uid}" src="${videoUrl}" class="${extraClass}" data-post-id="${postId}" ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
-                        style="width:100%; height:auto; object-fit:cover; background:#000; display:block;"
-                        onloadedmetadata="updateFeedVideoClock('${uid}')"
+                <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};" onclick="toggleFeedVideoPlayPause('${uid}', event)">
+                    <video id="vid-${uid}" src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" ${globalVideoUnmuted ? '' : 'muted'} loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="${preloadMode}"
+                        onloadedmetadata="adjustVideoContainerAspect('${uid}')"
+                        onloadeddata="updateFeedVideoClock('${uid}')"
                         ontimeupdate="updateFeedVideoClock('${uid}')"
                         onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='⏸';"
                         onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='▶';"></video>
@@ -1408,18 +1617,18 @@
             syncAllVideosMuteState(!globalVideoUnmuted);
         }
 
-        function renderRawMediaBlock(postId, mediaType, mediaUrl, authorName, authorPic, contentStr, dateStr, likesCount, commentsCount) {
+        function renderRawMediaBlock(postId, mediaType, mediaUrl, authorName, authorPic, contentStr, dateStr, likesCount, commentsCount, mediaAspect = '', isPriority = false) {
             if (!mediaUrl) return '';
 
             if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
                 try {
                     const items = JSON.parse(mediaUrl);
                     if (Array.isArray(items) && items.length > 0) {
-                        const slidesHtml = items.map(item => {
+                        const slidesHtml = items.map((item, sIdx) => {
                             if (item.type === 'video') {
-                                return `<div class="carousel-slide">${buildInlineVideoTag(item.url, postId, 'autoplay-video')}</div>`;
+                                return `<div class="carousel-slide">${buildInlineVideoTag(item.url, postId, 'autoplay-video', mediaAspect, isPriority && sIdx === 0)}</div>`;
                             }
-                            return `<div class="carousel-slide"><img src="${item.url}" onclick="openImageModal(${postId}, '${item.url}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
+                            return `<div class="carousel-slide"><img src="${item.url}" loading="${isPriority ? 'eager' : 'lazy'}" onclick="openImageModal(${postId}, '${item.url}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
                         }).join('');
 
                         const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${postId}-${idx}"></span>`).join('');
@@ -1438,9 +1647,9 @@
             }
 
             if (mediaType === 'video') {
-                return buildInlineVideoTag(mediaUrl, postId, 'post-media autoplay-video');
+                return buildInlineVideoTag(mediaUrl, postId, 'post-media autoplay-video', mediaAspect, isPriority);
             }
-            return `<img src="${mediaUrl}" class="post-media" style="width:100%; height:auto; object-fit:cover; background:#000; display:block;" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
+            return `<img src="${mediaUrl}" class="post-media" loading="${isPriority ? 'eager' : 'lazy'}" style="width:100%; height:auto; object-fit:cover; background:#000; display:block;" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
         }
 
         function isPostVideoType(post) {
@@ -1456,7 +1665,7 @@
             return false;
         }
 
-        function renderPostMediaHtml(post, dateStr) {
+        function renderPostMediaHtml(post, dateStr, isPriority = false) {
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
                     const sp = JSON.parse(post.media_url);
@@ -1490,7 +1699,9 @@
                     post.orig_content || '',
                     origDate,
                     post.likes_count || 0,
-                    post.comments_count || 0
+                    post.comments_count || 0,
+                    post.orig_media_aspect || '',
+                    isPriority
                 );
                 return `
                     <div class="embedded-shared-card" style="margin: 0 12px 8px 12px; border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden;">
@@ -1518,7 +1729,9 @@
                 post.content || '',
                 dateStr,
                 post.likes_count || 0,
-                post.comments_count || 0
+                post.comments_count || 0,
+                post.media_aspect || '',
+                isPriority
             );
         }
 
@@ -1533,29 +1746,79 @@
             }
         }
 
-        async function loadPosts() {
+        let feedOffset = 0;
+        let feedHasMore = true;
+        let isLoadingMorePosts = false;
+        const FEED_PAGE_SIZE = 12;
+
+        async function loadPosts(append = false) {
+            const cacheKey = `camfeed_feed_cache_${currentUser.email}`;
+            if (!append) {
+                feedOffset = 0;
+                feedHasMore = true;
+                // 0ms Instant Render from local cache while fresh data loads in background!
+                try {
+                    const cachedRaw = localStorage.getItem(cacheKey);
+                    if (cachedRaw) {
+                        const cachedPosts = JSON.parse(cachedRaw);
+                        if (Array.isArray(cachedPosts) && cachedPosts.length > 0) {
+                            renderPosts(cachedPosts, 'postsContainer', false);
+                        }
+                    } else {
+                        const cEl = document.getElementById('postsContainer');
+                        if (cEl && !cEl.innerHTML.trim()) {
+                            cEl.innerHTML = '<div style="text-align:center; padding:32px; color:#65676b; font-weight:700;">⏳ កំពុងផ្ទុកព័ត៌មាន...</div>';
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            if (isLoadingMorePosts) return;
+            isLoadingMorePosts = true;
+
             try {
-                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}`);
+                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&limit=${FEED_PAGE_SIZE}&offset=${feedOffset}`);
                 const data = await res.json();
                 if (data.success) {
-                    renderPosts(data.posts || [], 'postsContainer');
+                    const batch = data.posts || [];
+                    feedHasMore = data.hasMore !== undefined ? data.hasMore : (batch.length === FEED_PAGE_SIZE);
+                    if (!append) {
+                        try { localStorage.setItem(cacheKey, JSON.stringify(batch)); } catch (e) {}
+                        renderPosts(batch, 'postsContainer', false);
+                    } else {
+                        renderPosts(batch, 'postsContainer', true);
+                    }
+                    feedOffset += batch.length;
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                isLoadingMorePosts = false;
+            }
         }
 
-        function renderPosts(posts, containerId) {
+        window.addEventListener('scroll', () => {
+            if (!feedHasMore || isLoadingMorePosts) return;
+            const feedTab = document.getElementById('tabContentFeed');
+            if (feedTab && feedTab.style.display === 'none') return;
+            if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 900)) {
+                loadPosts(true);
+            }
+        }, { passive: true });
+
+        function renderPosts(posts, containerId, append = false) {
             const container = document.getElementById(containerId);
             if (!container) return;
-            container.innerHTML = '';
+            if (!append) container.innerHTML = '';
             const currentLang = localStorage.getItem('camfeed_lang') || 'en';
             const t = uiTexts[currentLang];
 
-            if (posts.length === 0) {
+            if (posts.length === 0 && !append) {
                 container.innerHTML = `<p style="text-align: center; color: #65676b;">${currentLang === 'km' ? 'រកមិនឃើញការបង្ហោះទេ។' : 'No posts found.'}</p>`;
                 return;
             }
 
-            posts.forEach(post => {
+            posts.forEach((post, idx) => {
                 const count = parseInt(post.likes_count) || 0;
                 const viewsCount = parseInt(post.views_count) || 0;
                 const sharesCount = parseInt(post.shares_count) || 0;
@@ -1575,7 +1838,7 @@
                 div.style.paddingLeft = '0';
                 div.style.paddingRight = '0';
 
-                const mediaHtml = renderPostMediaHtml(post, dateStr);
+                const mediaHtml = renderPostMediaHtml(post, dateStr, !append && idx < 2);
                 const categoryBadge = (post.ai_category && post.ai_category !== 'General')
                     ? `<span class="ai-topic-pill">#${post.ai_category}</span>`
                     : '';
@@ -2196,11 +2459,103 @@
             videoElements.forEach(video => observer.observe(video));
         }
 
+        let activeCommentSheetPostId = null;
+        let activeSheetReplyCommentId = null;
+
         function toggleCommentBox(postId) {
-            const sec = document.getElementById(`commentsSection-${postId}`);
-            if (!sec) return;
-            sec.classList.toggle('open');
-            if (sec.classList.contains('open')) { loadComments(postId); }
+            openCommentSheet(postId);
+        }
+
+        function openCommentSheet(postId) {
+            activeCommentSheetPostId = postId;
+            activeSheetReplyCommentId = null;
+            cancelSheetReplyTarget();
+
+            const backdrop = document.getElementById('commentSheetBackdrop');
+            const listEl = document.getElementById('commentSheetList');
+            const avEl = document.getElementById('commentSheetUserAvatar');
+            const inpEl = document.getElementById('commentSheetInput');
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
+
+            if (avEl && currentUser && currentUser.profile_pic) {
+                avEl.src = currentUser.profile_pic;
+            }
+            if (inpEl) {
+                inpEl.value = '';
+                inpEl.placeholder = currentLang === 'km' ? 'សរសេរមតិយោបល់របស់អ្នក...' : 'Write a comment...';
+            }
+
+            listEl.innerHTML = `<div style="text-align:center; color:#65676b; padding:28px;">⏳ កំពុងផ្ទុកមតិយោបល់...</div>`;
+            backdrop.classList.add('open');
+            document.body.style.overflow = 'hidden';
+
+            loadComments(postId);
+            setTimeout(() => { if (inpEl) inpEl.focus(); }, 180);
+        }
+
+        function closeCommentSheet() {
+            const backdrop = document.getElementById('commentSheetBackdrop');
+            if (backdrop) backdrop.classList.remove('open');
+            document.body.style.overflow = '';
+            activeCommentSheetPostId = null;
+            activeSheetReplyCommentId = null;
+        }
+
+        function reloadActiveCommentSheet() {
+            if (activeCommentSheetPostId) {
+                loadComments(activeCommentSheetPostId);
+            }
+        }
+
+        function setSheetReplyTarget(commentId, authorName) {
+            activeSheetReplyCommentId = commentId;
+            const bar = document.getElementById('commentSheetReplyBar');
+            const txt = document.getElementById('commentSheetReplyText');
+            if (bar && txt) {
+                txt.innerText = `↳ កំពុងឆ្លើយតបទៅកាន់ ${authorName}...`;
+                bar.classList.add('active');
+            }
+            const inp = document.getElementById('commentSheetInput');
+            if (inp) inp.focus();
+        }
+
+        function cancelSheetReplyTarget() {
+            activeSheetReplyCommentId = null;
+            const bar = document.getElementById('commentSheetReplyBar');
+            if (bar) bar.classList.remove('active');
+        }
+
+        async function submitCommentFromSheet() {
+            if (!activeCommentSheetPostId) return;
+            const inp = document.getElementById('commentSheetInput');
+            const btn = document.getElementById('commentSheetSendBtn');
+            if (!inp || !inp.value.trim()) return;
+
+            const postId = activeCommentSheetPostId;
+            const content = inp.value.trim();
+            const replyToCommentId = activeSheetReplyCommentId || null;
+
+            inp.value = '';
+            cancelSheetReplyTarget();
+            if (btn) btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, content, replyToCommentId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    await loadComments(postId);
+                    const listEl = document.getElementById('commentSheetList');
+                    if (listEl) listEl.scrollTop = listEl.scrollHeight;
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         }
 
         function sortComments(postId, sortType) { loadComments(postId); }
@@ -2210,38 +2565,65 @@
                 const res = await fetch(`/api/comments/${postId}?email=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
                 if (data.success) {
-                    const list = document.getElementById(`commentList-${postId}`);
+                    let commentsArr = Array.isArray(data.comments) ? [...data.comments] : [];
+                    const sortMode = document.getElementById('commentSheetSortSelect')?.value || 'relevant';
+                    if (sortMode === 'newest') {
+                        commentsArr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    }
+
+                    const currentLang = localStorage.getItem('camfeed_lang') || 'km';
+                    const countElem = document.getElementById(`commentCount-${postId}`);
+                    if (countElem) {
+                        countElem.innerText = `${formatCompactNumber(commentsArr.length)} ${currentLang === 'km' ? 'មតិ' : 'Comments'}`;
+                    }
+                    const sheetTitle = document.getElementById('commentSheetTitle');
+                    if (sheetTitle && Number(activeCommentSheetPostId) === Number(postId)) {
+                        sheetTitle.innerText = `💬 មតិយោបល់ (${commentsArr.length})`;
+                    }
+
+                    const list = (Number(activeCommentSheetPostId) === Number(postId))
+                        ? document.getElementById('commentSheetList')
+                        : document.getElementById(`commentList-${postId}`);
                     if (!list) return;
 
-                    list.innerHTML = data.comments.map(c => {
+                    if (commentsArr.length === 0) {
+                        list.innerHTML = `<div style="text-align:center; color:#65676b; padding:32px 12px; font-size:13.5px;">មិនទាន់មានមតិយោបល់នៅឡើយទេ។ សរសេរមតិដំបូងខាងក្រោម!</div>`;
+                        return;
+                    }
+
+                    list.innerHTML = commentsArr.map(c => {
                         const isOwner = currentUser.email === c.user_email;
                         const likesCount = parseInt(c.likes_count) || 0;
                         const userReact = c.user_reaction || '';
+                        const isReply = !!c.reply_to_id;
+                        const replyBadge = isReply ? `<span style="font-size:11px; color:#1877f2; font-weight:600;">↳ បានឆ្លើយតប</span> ` : '';
+                        const safeFirstName = (c.first_name || '').replace(/'/g, "\'");
+
                         return `
-                            <div class="comment-container" id="comment-${c.id}" style="flex-direction:column; gap:2px;">
+                            <div class="comment-container ${isReply ? 'is-reply' : ''}" id="comment-${c.id}" style="flex-direction:column; gap:2px; margin-bottom:4px;">
                                 <div style="display:flex; gap:8px; width:100%; align-items:flex-start;">
                                     <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${c.user_email}'" title="View Profile">
-                                    <div class="comment-content-wrapper">
+                                    <div class="comment-content-wrapper" style="flex:1;">
                                         <div style="flex: 1;">
-                                            <span class="comment-author" onclick="window.location.href='profile.html?email=${c.user_email}'">${c.first_name} ${c.last_name}</span>
-                                            <div id="comment-text-${c.id}">${c.content}</div>
+                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${c.user_email}'">${c.first_name} ${c.last_name} ${replyBadge}</span>
+                                            <div id="comment-text-${c.id}" class="notranslate" translate="no" style="font-size:14px; line-height:1.4;">${c.content}</div>
                                         </div>
                                         <button class="comment-options-btn" onclick="toggleCommentMenu(event, ${c.id})">⋮</button>
                                     </div>
                                 </div>
-                                <div style="display:flex; align-items:center; gap:12px; padding-left:44px; font-size:11.5px; color:#65676b; font-weight:700;">
+                                <div style="display:flex; align-items:center; gap:14px; padding-left:44px; font-size:12px; color:#65676b; font-weight:700;">
                                     <span style="cursor:pointer; color:${userReact ? '#1877f2' : '#65676b'};" onclick="quickReactFeedComment(${c.id}, ${postId}, '${userReact || '👍'}')">
                                         ${userReact ? `${userReact} Liked` : '👍 Like'} ${likesCount > 0 ? `(${likesCount})` : ''}
                                     </span>
-                                    <span style="cursor:pointer;" onclick="openInstantPostModal(${postId}, ${c.id})">💬 Reply</span>
+                                    <span style="cursor:pointer;" onclick="setSheetReplyTarget(${c.id}, '${safeFirstName}')">💬 Reply</span>
                                 </div>
                                 
                                 <div class="comment-menu-dropdown" id="comment-menu-${c.id}">
                                     ${isOwner ? `
-                                        <button onclick="enableEditComment(${c.id}, '${encodeURIComponent(c.content)}')">Edit</button>
-                                        <button onclick="deleteComment(${c.id}, ${postId})" style="color: red;">Delete</button>
+                                        <button onclick="enableEditComment(${c.id}, '${encodeURIComponent(c.content)}')">✏️ Edit</button>
+                                        <button onclick="deleteComment(${c.id}, ${postId})" style="color: red;">🗑️ Delete</button>
                                     ` : `
-                                        <button onclick="reportComment(${c.id})">Report</button>
+                                        <button onclick="reportComment(${c.id})">🚩 Report</button>
                                     `}
                                 </div>
                             </div>
@@ -2337,12 +2719,13 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    const commentContainer = document.getElementById(`comment-${commentId}`);
-                    if (commentContainer) {
-                        const section = commentContainer.closest('.comments-section');
-                        if (section) {
-                            const postId = section.id.split('-')[1];
-                            loadComments(postId);
+                    if (activeCommentSheetPostId) {
+                        loadComments(activeCommentSheetPostId);
+                    } else {
+                        const commentContainer = document.getElementById(`comment-${commentId}`);
+                        if (commentContainer) {
+                            const section = commentContainer.closest('.comments-section');
+                            if (section) loadComments(section.id.split('-')[1]);
                         }
                     }
                 } else {
