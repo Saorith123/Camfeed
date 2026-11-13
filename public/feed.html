@@ -13,6 +13,7 @@
         body, input, textarea, select, button { font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background-color: #f0f2f5; margin: 0; padding: 0; overflow-x: hidden; top: 0 !important; }
 
+        /* Create Post Modal & Aa Text Styles */
         .composer-stage-wrap {
             position: relative;
             width: 100%;
@@ -119,10 +120,6 @@
             font-size: 18px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        .style-grid-tile.selected {
-            border-color: #050505;
-            box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1877f2;
-        }
         .composer-preview-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
@@ -168,6 +165,7 @@
             cursor: pointer;
         }
 
+        /* Floating Corner Progress Mini-Widget */
         .bg-upload-floating-widget {
             position: fixed;
             bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -203,68 +201,20 @@
             font-weight: 600;
         }
         .bg-upload-floating-widget.visible { display: flex; }
-        .bg-widget-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-        .bg-widget-title {
-            font-size: 12.5px;
-            font-weight: 800;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            flex: 1;
-        }
-        .bg-widget-ctrl-btn {
-            background: rgba(255,255,255,0.14);
-            border: none;
-            color: #fff;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            font-size: 12px;
-            font-weight: 800;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .bg-widget-ctrl-btn:hover { background: rgba(255,255,255,0.26); }
-        .bg-metric-row {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .bg-metric-labels {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 11.5px;
-            font-weight: 700;
-            color: #e2e8f0;
-        }
-        .bg-metric-bar-bg {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.18);
+        .bg-upload-floating-widget.minimized {
+            width: auto;
+            padding: 8px 14px;
             border-radius: 999px;
-            overflow: hidden;
+            cursor: pointer;
         }
-        .bg-metric-bar-fill-compress {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #f59e0b, #fbbf24);
-            transition: width 0.2s ease;
-        }
-        .bg-metric-bar-fill-upload {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #38bdf8, #1877f2);
-            transition: width 0.2s ease;
-        }
+        .bg-widget-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .bg-widget-title { font-size: 12.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        .bg-widget-ctrl-btn { background: rgba(255,255,255,0.14); border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .bg-metric-row { display: flex; flex-direction: column; gap: 4px; }
+        .bg-metric-labels { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; font-weight: 700; color: #e2e8f0; }
+        .bg-metric-bar-bg { width: 100%; height: 6px; background: rgba(255, 255, 255, 0.18); border-radius: 999px; overflow: hidden; }
+        .bg-metric-bar-fill-compress { height: 100%; width: 0%; background: linear-gradient(90deg, #f59e0b, #fbbf24); transition: width 0.2s ease; }
+        .bg-metric-bar-fill-upload { height: 100%; width: 0%; background: linear-gradient(90deg, #38bdf8, #1877f2); transition: width 0.2s ease; }
 
         @keyframes fbShimmerWave {
             0% { background-position: -450px 0; }
@@ -287,12 +237,7 @@
             background-size: 450px 100%;
             animation: fbShimmerWave 1.25s infinite linear;
         }
-        .fb-skel-header {
-            display: flex;
-            align-items: center;
-            gap: 11px;
-            margin-bottom: 16px;
-        }
+        .fb-skel-header { display: flex; align-items: center; gap: 11px; margin-bottom: 16px; }
         .fb-skel-avatar { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; }
         .fb-skel-meta { display: flex; flex-direction: column; gap: 7px; flex: 1; }
         .fb-skel-line { height: 11px; border-radius: 6px; }
@@ -438,23 +383,33 @@
             .post-item { border-radius: 10px; margin-bottom: 15px; }
         }
         .post-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; padding: 0 14px; }
-        .post-header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+        .post-header-left { display: flex; align-items: center; gap: 10px; cursor: pointer; flex: 1; min-width: 0; }
         .post-header-right { display: flex; align-items: center; gap: 4px; position: relative; flex-shrink: 0; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; flex-shrink: 0; cursor: pointer; }
-        .post-author { font-weight: bold; color: #050505; cursor: pointer; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; flex-shrink: 0; }
+        .post-author { font-weight: bold; color: #050505; }
         .post-author:hover { text-decoration: underline; }
         .post-time { font-size: 11px; color: #90949c; }
         .ai-topic-pill { font-size: 10px; background: #f0f2f5; color: #65676b; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
 
-        .post-dots-btn { width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent; color: #65676b; font-size: 17px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+        .post-dots-btn {
+            width: 28px; height: 28px; border-radius: 50%; border: none; background: transparent;
+            color: #65676b; font-size: 17px; line-height: 1; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; padding: 0;
+        }
         .post-dots-btn:hover { background: #f0f2f5; color: #050505; }
-        .post-options-dropdown { display: none; position: absolute; right: 0; top: 30px; background: #fff; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); border: 1px solid #e4e6eb; min-width: 155px; z-index: 400; overflow: hidden; }
-        .post-options-dropdown button { width: 100%; text-align: left; background: none; border: none; padding: 10px 13px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #050505; }
+        .post-options-dropdown {
+            display: none; position: absolute; right: 0; top: 30px; background: #fff; border-radius: 8px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.18); border: 1px solid #e4e6eb; min-width: 155px; z-index: 400; overflow: hidden;
+        }
+        .post-options-dropdown button {
+            width: 100%; text-align: left; background: none; border: none; padding: 10px 13px;
+            font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #050505;
+        }
         .post-options-dropdown button:hover { background: #f2f3f5; }
 
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
 
-        /* Smooth Video Player Controls (Like Profile Page Sample) */
+        /* Smooth Video Player Controls & Natural Aspect Ratio */
         .feed-video-wrap {
             position: relative;
             width: 100%;
@@ -569,6 +524,14 @@
         .fvc-seek::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .fvc-seek::-moz-range-thumb {
             width: 13px;
             height: 13px;
             border-radius: 50%;
@@ -743,7 +706,7 @@
     <div id="feedCreatePostModal" class="modal-overlay" onclick="closeFeedCreatePostModal()">
         <div class="modal-card" style="max-width: 540px;" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <span id="createModalTitle">បង្កើតការបង្ហោះថ្មី (Create Post)</span>
+                <span id="createModalTitle">បង្កើតการបង្ហោះใหม่ (Create Post)</span>
                 <span style="cursor: pointer; font-size: 22px;" onclick="closeFeedCreatePostModal()">&times;</span>
             </div>
             <div class="modal-body" style="gap: 10px;">
