@@ -91,11 +91,11 @@ function createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }) {
   const clientId = () => String(process.env.TELEGRAM_CLIENT_ID || '').trim();
   const clientSecret = () => String(process.env.TELEGRAM_CLIENT_SECRET || '').trim();
   const redirectUri = () => process.env.TELEGRAM_REDIRECT_URI || 'https://camfeedkh.com/auth/telegram/callback';
-  const isConfigured = () => !!(clientId() && clientSecret());
+  // OFF by default: CamFeed uses phone number + a code inside Telegram instead. Only ENABLE_TELEGRAM_LOGIN=true turns this redirect-style login on.
+  const isConfigured = () => process.env.ENABLE_TELEGRAM_LOGIN === 'true' && !!(clientId() && clientSecret());
   const secret = () => process.env.JWT_SECRET || 'camfeed-dev-secret-not-for-production';
   const limiter = auth.makeLimiter(40, 60 * 60 * 1000);
 
-  if (!isConfigured()) console.warn('[telegram] TELEGRAM_CLIENT_ID / TELEGRAM_CLIENT_SECRET not set: "Continue with Telegram" is hidden.');
 
   async function ensureSchema() {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_id VARCHAR(40)');

@@ -113,13 +113,6 @@
                 </div>
                 <button type="submit" class="btn-primary" id="btnLoginText">Log In</button>
             </form>
-            <div id="tgLoginBox" class="hidden" style="margin-top: 14px;">
-                <div style="text-align: center; color: #8a8d91; font-size: 13px; margin-bottom: 10px;"><span id="tgOrText">or</span></div>
-                <a href="/auth/telegram/start" id="tgLoginBtn" style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; background: #229ED9; color: #fff; border-radius: 8px; font-size: 16px; font-weight: bold; text-decoration: none; box-sizing: border-box;">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-                    <span id="tgLoginText">Continue with Telegram</span>
-                </a>
-            </div>
             <div style="text-align: center; margin-top: 15px;">
                 <a href="#" onclick="showResetForm(); return false;" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="forgotText">Forgot password?</a>
             </div>
@@ -200,29 +193,6 @@
                 <a href="#" onclick="showLoginForm()" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="haveAccText">Already have an account?</a>
             </div>
             <div class="msg" id="regMsg"></div>
-        </div>
-
-        <!-- TELEGRAM SIGN-UP: a few details before the account is created -->
-        <div class="card hidden" id="tgCompleteCard">
-            <h3 id="tgcTitle" style="margin-top: 4px; color: #229ED9; text-align: center;">Almost done!</h3>
-            <p id="tgcDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;"></p>
-            <form onsubmit="event.preventDefault(); completeTelegramSignup();">
-                <label id="tgcDobLbl">Date of birth</label>
-                <div class="row">
-                    <select id="tgDobDay" required></select>
-                    <select id="tgDobMonth" required></select>
-                    <select id="tgDobYear" required></select>
-                </div>
-                <label id="tgcGenderLbl">Gender</label>
-                <select id="tgGender" required></select>
-                <label id="tgcCountryLbl">Country</label>
-                <select id="tgCountry" required></select>
-                <button type="submit" class="btn-primary" style="margin-top: 14px;" id="tgcBtn">Finish</button>
-            </form>
-            <div style="text-align: center; margin-top: 12px;">
-                <a href="index.html" style="color: #606770; font-size: 13px; text-decoration: none;" id="tgcCancel">Cancel</a>
-            </div>
-            <div class="msg" id="tgcMsg"></div>
         </div>
 
         <!-- FORGOT PASSWORD: e-mail -> 6-digit code -> new password -->
@@ -362,7 +332,6 @@
             document.getElementById('langSwitch').value = savedLang;
             changeLanguage();
             loadAuthOptions();
-            handleTelegramReturn();
 
             const savedEmail = localStorage.getItem('camfeed_remembered_email');
             if (savedEmail) {
@@ -450,7 +419,6 @@
             document.getElementById('btnBackToStep1').innerText = t.backBtn;
             applyVerifyTexts();
             applyResetTexts();
-            applyTelegramTexts();
 
             document.getElementById('welcomeTitle').innerText = t.welcomeTitle;
             document.getElementById('welcomeDesc').innerText = t.welcomeDesc;
@@ -955,44 +923,15 @@
             }
         }
 
-        // ---- Continue with Telegram: the server does the Telegram login; the page only starts it and finishes it ----
-        let tgSignupToken = '';
-
-        const tgTexts = {
-            en: {
-                btn: 'Continue with Telegram', or: 'or', title: 'Almost done!',
-                desc: (n) => `Welcome ${n}! Tell us a little more to finish your account.`,
-                dob: 'Date of birth', gender: 'Gender', country: 'Country', finish: 'Finish', cancel: 'Cancel',
-                day: 'Day', month: 'Month', year: 'Year', pickGender: 'Select gender', pickCountry: 'Select Country',
-                male: 'Male', female: 'Female', custom: 'Custom', fill: 'Please enter your date of birth, gender and country.',
-                errors: {
-                    unavailable: 'Telegram login is not available yet.',
-                    busy: 'Too many attempts. Please try again later.',
-                    failed: 'Telegram login failed. Please try again.',
-                    state: 'The login session expired. Please try again.',
-                    cancelled: 'Telegram login was cancelled.',
-                    phone_required: 'Please allow CamFeed to see your phone number in Telegram, then try again.',
-                    banned: 'Your account has been suspended.'
-                }
-            },
-            km: {
-                btn: 'បន្តជាមួយ Telegram', or: 'ឬ', title: 'ជិតរួចរាល់ហើយ!',
-                desc: (n) => `សូមស្វាគមន៍ ${n}! សូមបំពេញព័ត៌មានបន្តិចទៀតដើម្បីបញ្ចប់គណនីរបស់អ្នក។`,
-                dob: 'ថ្ងៃខែឆ្នាំកំណើត', gender: 'ភេទ', country: 'ប្រទេស', finish: 'បញ្ចប់', cancel: 'បោះបង់',
-                day: 'ថ្ងៃ', month: 'ខែ', year: 'ឆ្នាំ', pickGender: 'ជ្រើសរើសភេទ', pickCountry: 'ជ្រើសរើសប្រទេស',
-                male: 'ប្រុស', female: 'ស្រី', custom: 'ផ្សេងៗ', fill: 'សូមបញ្ចូលថ្ងៃខែឆ្នាំកំណើត ភេទ និងប្រទេស។',
-                errors: {
-                    unavailable: 'ការចូលតាម Telegram មិនទាន់អាចប្រើបានទេ។',
-                    busy: 'ព្យាយាមច្រើនពេក។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។',
-                    failed: 'ការចូលតាម Telegram បរាជ័យ។ សូមព្យាយាមម្តងទៀត។',
-                    state: 'សម័យចូលផុតកំណត់ហើយ។ សូមព្យាយាមម្តងទៀត។',
-                    cancelled: 'ការចូលតាម Telegram ត្រូវបានបោះបង់។',
-                    phone_required: 'សូមអនុញ្ញាតឱ្យ CamFeed មើលលេខទូរស័ព្ទរបស់អ្នកក្នុង Telegram រួចព្យាយាមម្តងទៀត។',
-                    banned: 'គណនីរបស់អ្នកត្រូវបានផ្អាក។'
-                }
-            }
-        };
-        function tgt() { return tgTexts[localStorage.getItem('camfeed_lang') || 'en'] || tgTexts.en; }
+        // ---- Which options does the server offer? (phone numbers get their code inside Telegram once the server has the Gateway key) ----
+        async function loadAuthOptions() {
+            try {
+                const res = await fetch('/api/auth-options');
+                const data = await res.json();
+                authOptions.phone = !!(data && data.phone);
+                applyIdentityPlaceholders();
+            } catch (e) { /* the form simply stays Gmail-only */ }
+        }
 
         function applyIdentityPlaceholders() {
             const lang = localStorage.getItem('camfeed_lang') || 'en';
@@ -1001,130 +940,6 @@
             if (reg) { reg.placeholder = identityPlaceholder(t); reg.setAttribute('inputmode', authOptions.phone ? 'text' : 'email'); }
             if (rst) { rst.setAttribute('inputmode', authOptions.phone ? 'text' : 'email'); }
             applyResetTexts();
-        }
-
-        function applyTelegramTexts() {
-            const t = tgt();
-            const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
-            set('tgLoginText', t.btn); set('tgOrText', t.or); set('tgcTitle', t.title); set('tgcDobLbl', t.dob);
-            set('tgcGenderLbl', t.gender); set('tgcCountryLbl', t.country); set('tgcBtn', t.finish); set('tgcCancel', t.cancel);
-        }
-
-        async function loadAuthOptions() {
-            try {
-                const res = await fetch('/api/auth-options');
-                const data = await res.json();
-                if (data && data.telegram) document.getElementById('tgLoginBox').classList.remove('hidden');
-                authOptions.telegram = !!(data && data.telegram);
-                authOptions.phone = !!(data && data.phone);
-                applyIdentityPlaceholders();
-            } catch (e) { /* the button simply stays hidden */ }
-        }
-
-        function showTelegramError(code) {
-            const lm = document.getElementById('loginMsg');
-            lm.style.color = 'red';
-            lm.innerText = tgt().errors[code] || tgt().errors.failed;
-        }
-
-        function addOption(sel, value, text, extra) {
-            const o = document.createElement('option');
-            o.value = value; o.innerText = text;
-            if (extra && extra.disabled) o.disabled = true;
-            if (extra && extra.selected) o.selected = true;
-            sel.appendChild(o);
-        }
-
-        function fillTelegramSelects(defaultCountry) {
-            const t = tgt();
-            const day = document.getElementById('tgDobDay'), month = document.getElementById('tgDobMonth'), year = document.getElementById('tgDobYear');
-            const gender = document.getElementById('tgGender'), country = document.getElementById('tgCountry');
-            [day, month, year, gender, country].forEach(s => { s.innerHTML = ''; });
-            addOption(day, '', t.day, { disabled: true, selected: true });
-            for (let i = 1; i <= 31; i++) addOption(day, i < 10 ? '0' + i : String(i), String(i));
-            addOption(month, '', t.month, { disabled: true, selected: true });
-            ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach((m, i) => addOption(month, String(i + 1).padStart(2, '0'), m));
-            addOption(year, '', t.year, { disabled: true, selected: true });
-            const cy = new Date().getFullYear();
-            for (let y = cy; y >= cy - 100; y--) addOption(year, String(y), String(y));
-            addOption(gender, '', t.pickGender, { disabled: true, selected: true });
-            addOption(gender, 'Male', t.male); addOption(gender, 'Female', t.female); addOption(gender, 'Custom', t.custom);
-            addOption(country, '', t.pickCountry, { disabled: true, selected: !defaultCountry });
-            // same country list as the normal sign-up form
-            Array.from(document.getElementById('country').options).forEach(o => { if (o.value) addOption(country, o.value, o.innerText, { selected: o.value === defaultCountry }); });
-        }
-
-        function openTelegramComplete(token) {
-            tgSignupToken = token;
-            let name = '', cc = '';
-            try {   // the token is signed by the server; here we only read it to show a friendly name
-                const b = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-                const p = JSON.parse(decodeURIComponent(escape(atob(b))));
-                name = p.fn || ''; cc = p.cc || '';
-            } catch (e) {}
-            ['loginCard', 'registerCard', 'verifyEmailCard', 'welcomeWizardCard', 'resetCard'].forEach(id => document.getElementById(id).classList.add('hidden'));
-            fillTelegramSelects(cc);
-            applyTelegramTexts();
-            document.getElementById('tgcDesc').innerText = tgt().desc(name);
-            document.getElementById('tgcMsg').innerText = '';
-            document.getElementById('tgCompleteCard').classList.remove('hidden');
-        }
-
-        async function completeTelegramSignup() {
-            const msg = document.getElementById('tgcMsg');
-            const btn = document.getElementById('tgcBtn');
-            msg.style.color = 'red'; msg.innerText = '';
-            const d = document.getElementById('tgDobDay').value, m = document.getElementById('tgDobMonth').value, y = document.getElementById('tgDobYear').value;
-            const gender = document.getElementById('tgGender').value, country = document.getElementById('tgCountry').value;
-            if (!d || !m || !y || !gender || !country) { msg.innerText = tgt().fill; return; }
-            btn.disabled = true;
-            try {
-                const res = await fetch('/api/telegram/complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: tgSignupToken, birthdate: `${d}-${m}-${y}`, gender, country })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
-                    window.location.href = 'feed.html';
-                    return;
-                }
-                msg.innerText = serverMsg(data, tgt().errors.failed);
-            } catch (e) {
-                msg.innerText = vt().network;
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        // runs when the page opens: did Telegram just send the person back to us?
-        async function handleTelegramReturn() {
-            const params = new URLSearchParams(window.location.search);
-            const hash = window.location.hash || '';
-            const m = /^#(tg_login|tg_signup)=(.+)$/.exec(hash);
-            if (params.get('tg_error') || m) history.replaceState(null, '', window.location.pathname);   // remove the code from the address bar / history
-            if (params.get('tg_error')) { showTelegramError(params.get('tg_error')); return; }
-            if (!m) return;
-            const token = decodeURIComponent(m[2]);
-            if (m[1] === 'tg_signup') { openTelegramComplete(token); return; }
-            try {
-                const res = await fetch('/api/telegram/exchange', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
-                    window.location.href = 'feed.html';
-                } else {
-                    const lm = document.getElementById('loginMsg');
-                    lm.style.color = 'red'; lm.innerText = serverMsg(data, tgt().errors.failed);
-                }
-            } catch (e) {
-                showTelegramError('failed');
-            }
         }
 
         function proceedToStep2() {
