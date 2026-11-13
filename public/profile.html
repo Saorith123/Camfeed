@@ -196,6 +196,216 @@
         .post-time { font-size: 12px; color: #65676b; }
         .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
         .post-media { width: 100%; height: auto; max-height: none; object-fit: cover; background: #e4e6eb; border-radius: 0; margin-bottom: 10px; display: block; }
+        /* YouTube-Style Sleek Modern Video Player Controls (Matches Feed & Videos) */
+        .feed-video-wrap {
+            position: relative;
+            width: 100%;
+            background: #000;
+            margin: 0 0 10px 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-height: 78vh;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .feed-video-wrap .post-media,
+        .feed-video-wrap video {
+            width: 100%;
+            height: 100%;
+            max-height: 78vh;
+            object-fit: cover;
+            margin: 0;
+            display: block;
+            cursor: pointer;
+        }
+        .feed-video-center-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.85);
+            z-index: 18;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 1.5px solid rgba(255,255,255,0.25);
+            background: rgba(15, 23, 42, 0.65);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .feed-video-wrap.is-paused .feed-video-center-play {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .feed-video-center-play:active {
+            transform: translate(-50%, -50%) scale(0.92);
+        }
+        .feed-video-controls-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 22;
+            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.48) 55%, transparent 100%);
+            padding: 26px 12px 9px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: #fff;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.28s ease;
+        }
+        .feed-video-wrap.is-paused .feed-video-controls-bar,
+        .feed-video-wrap.controls-visible .feed-video-controls-bar,
+        .feed-video-wrap:hover .feed-video-controls-bar {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .yt-progress-area {
+            position: relative;
+            width: 100%;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            touch-action: none;
+        }
+        .yt-progress-track {
+            position: relative;
+            width: 100%;
+            height: 3.5px;
+            background: rgba(255, 255, 255, 0.28);
+            border-radius: 4px;
+            transition: height 0.15s ease;
+        }
+        .yt-progress-area:hover .yt-progress-track,
+        .yt-progress-area.scrubbing .yt-progress-track {
+            height: 6px;
+        }
+        .yt-buffer-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background: rgba(255, 255, 255, 0.42);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .yt-play-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background: #1877f2;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .yt-play-thumb {
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%) scale(0.85);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #1877f2;
+            border: 2px solid #fff;
+            box-shadow: 0 0 6px rgba(0,0,0,0.6);
+            transition: transform 0.15s ease;
+        }
+        .yt-progress-area:hover .yt-play-thumb,
+        .yt-progress-area.scrubbing .yt-play-thumb {
+            transform: translateY(-50%) scale(1.2);
+        }
+        .yt-hover-time-tip {
+            position: absolute;
+            bottom: 16px;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
+        }
+        .yt-progress-area:hover .yt-hover-time-tip,
+        .yt-progress-area.scrubbing .yt-hover-time-tip {
+            display: block;
+        }
+        .yt-controls-bottom-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .yt-controls-left,
+        .yt-controls-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .fvc-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            padding: 0;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .fvc-btn:hover { background: rgba(255, 255, 255, 0.16); }
+        .fvc-btn:active { transform: scale(0.9); }
+        .fvc-btn svg { width: 20px; height: 20px; fill: currentColor; }
+        .fvc-time {
+            font-size: 12px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            color: rgba(255, 255, 255, 0.95);
+            white-space: nowrap;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+        }
+        .yt-speed-pill {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 7px;
+            border-radius: 6px;
+            cursor: pointer;
+            line-height: 1.2;
+        }
+        .yt-speed-pill:hover { background: rgba(255, 255, 255, 0.28); }
+        .feed-video-spinner {
+            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px;
+            border-radius: 50%; border: 3px solid rgba(0,0,0,.15); border-top-color: #1877f2;
+            animation: fvspin .8s linear infinite; z-index: 17; display: none; pointer-events: none;
+        }
+        .feed-video-wrap.is-loading .feed-video-spinner { display: block; }
+        @keyframes fvspin { to { transform: rotate(360deg); } }
         /* Smooth videos: light placeholder (never black), reserved space so the page does not jump, fade-in when the first frame is ready */
         video.sv { width: 100%; aspect-ratio: 9 / 16; max-height: 78vh; object-fit: cover; background: #e4e6eb; display: block; opacity: 0; transition: opacity .22s ease; }
         video.sv.vid-ready { opacity: 1; }
@@ -952,7 +1162,328 @@
             return `post-action-btn`;
         }
 
-        function renderRawMediaBlock(postId, mediaType, mediaUrl) {
+        let globalProfileVideoUnmuted = (function() {
+            try { return localStorage.getItem('camfeed_sound') === 'on'; } catch (e) { return false; }
+        })();
+
+        const YT_SVG = {
+            play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+            pause: '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
+            volOn: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
+            volOff: '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
+            full: '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>'
+        };
+
+        const profileVideoHideTimers = new Map();
+
+        function formatProfileVideoClock(sec) {
+            if (!sec || !isFinite(sec) || sec < 0) return '0:00';
+            const totalSec = Math.floor(sec);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h > 0) return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function adjustProfileVideoAspect(uid) {
+            const vid = document.getElementById(`pvid-${uid}`);
+            const wrap = document.getElementById(`pvwrap-${uid}`);
+            if (!vid || !wrap) return;
+            if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+                wrap.style.aspectRatio = `${vid.videoWidth} / ${vid.videoHeight}`;
+            }
+            updateProfileVideoClock(uid);
+        }
+
+        function revealProfileVideoControls(uid) {
+            const wrap = document.getElementById(`pvwrap-${uid}`);
+            if (!wrap) return;
+            wrap.classList.add('controls-visible');
+            if (profileVideoHideTimers.has(uid)) clearTimeout(profileVideoHideTimers.get(uid));
+            const vid = document.getElementById(`pvid-${uid}`);
+            if (vid && !vid.paused) {
+                const t = setTimeout(() => {
+                    wrap.classList.remove('controls-visible');
+                    profileVideoHideTimers.delete(uid);
+                }, 2600);
+                profileVideoHideTimers.set(uid, t);
+            }
+        }
+
+        function handleProfileVideoSurfaceTap(uid, event) {
+            if (event) event.stopPropagation();
+            const wrap = document.getElementById(`pvwrap-${uid}`);
+            const vid = document.getElementById(`pvid-${uid}`);
+            if (!wrap || !vid) return;
+            if (!vid.paused && !wrap.classList.contains('controls-visible') && window.matchMedia('(pointer: coarse)').matches) {
+                revealProfileVideoControls(uid);
+                return;
+            }
+            toggleProfileVideoPlayPause(uid, event);
+            revealProfileVideoControls(uid);
+        }
+
+        function toggleProfileVideoPlayPause(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`pvid-${uid}`);
+            if (!vid) return;
+            const realSrc = vid.dataset.videoSrc;
+            if (realSrc && vid.getAttribute('src') !== realSrc) {
+                vid.setAttribute('src', realSrc);
+                try { vid.load(); } catch (e) {}
+            }
+            if (vid.paused) {
+                vid.dataset.userPaused = 'false';
+                document.querySelectorAll('.profile-autoplay-video').forEach(other => {
+                    if (other !== vid && !other.paused) {
+                        other.pause();
+                        other.muted = true;
+                    }
+                });
+                if (globalProfileVideoUnmuted) {
+                    vid.muted = false;
+                    vid.removeAttribute('muted');
+                    vid.volume = 1.0;
+                }
+                vid.play().catch(() => {});
+            } else {
+                vid.dataset.userPaused = 'true';
+                vid.pause();
+            }
+        }
+
+        function updateProfileVideoBuffer(uid) {
+            const vid = document.getElementById(`pvid-${uid}`);
+            const bufEl = document.getElementById(`pvbuf-${uid}`);
+            if (!vid || !bufEl || !isFinite(vid.duration) || vid.duration <= 0) return;
+            if (vid.buffered.length > 0) {
+                const end = vid.buffered.end(vid.buffered.length - 1);
+                bufEl.style.width = `${Math.min(100, (end / vid.duration) * 100).toFixed(1)}%`;
+            }
+        }
+
+        function updateProfileVideoClock(uid) {
+            const vid = document.getElementById(`pvid-${uid}`);
+            const curEl = document.getElementById(`pvcur-${uid}`);
+            const durEl = document.getElementById(`pvdur-${uid}`);
+            const fillEl = document.getElementById(`pvfill-${uid}`);
+            if (!vid) return;
+            const cur = vid.currentTime || 0;
+            const dur = isFinite(vid.duration) ? vid.duration : 0;
+            if (curEl) curEl.innerText = formatProfileVideoClock(cur);
+            if (durEl) durEl.innerText = formatProfileVideoClock(dur);
+            if (fillEl && dur > 0 && !vid.dataset.isScrubbing) {
+                fillEl.style.width = `${Math.min(100, (cur / dur) * 100).toFixed(2)}%`;
+            }
+        }
+
+        function computeProfileTimelinePct(uid, clientX) {
+            const area = document.getElementById(`pvprog-${uid}`);
+            if (!area) return 0;
+            const rect = area.getBoundingClientRect();
+            return Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+        }
+
+        function startScrubProfileVideo(uid, event) {
+            event.stopPropagation();
+            const area = document.getElementById(`pvprog-${uid}`);
+            const vid = document.getElementById(`pvid-${uid}`);
+            if (!area || !vid) return;
+            area.classList.add('scrubbing');
+            vid.dataset.isScrubbing = 'true';
+            try { area.setPointerCapture(event.pointerId); } catch (e) {}
+            applyProfileScrubPos(uid, event.clientX);
+        }
+
+        function moveScrubProfileVideo(uid, event) {
+            const area = document.getElementById(`pvprog-${uid}`);
+            const vid = document.getElementById(`pvid-${uid}`);
+            const tip = document.getElementById(`pvtip-${uid}`);
+            if (!area || !vid) return;
+            const pct = computeProfileTimelinePct(uid, event.clientX);
+            if (tip && isFinite(vid.duration) && vid.duration > 0) {
+                tip.style.left = `${(pct * 100).toFixed(1)}%`;
+                tip.innerText = formatProfileVideoClock(pct * vid.duration);
+            }
+            if (vid.dataset.isScrubbing === 'true') {
+                applyProfileScrubPos(uid, event.clientX);
+            }
+        }
+
+        function endScrubProfileVideo(uid, event) {
+            const area = document.getElementById(`pvprog-${uid}`);
+            const vid = document.getElementById(`pvid-${uid}`);
+            if (!area || !vid) return;
+            if (vid.dataset.isScrubbing === 'true') {
+                applyProfileScrubPos(uid, event.clientX);
+                delete vid.dataset.isScrubbing;
+                area.classList.remove('scrubbing');
+                try { area.releasePointerCapture(event.pointerId); } catch (e) {}
+                revealProfileVideoControls(uid);
+            }
+        }
+
+        function applyProfileScrubPos(uid, clientX) {
+            const vid = document.getElementById(`pvid-${uid}`);
+            const fillEl = document.getElementById(`pvfill-${uid}`);
+            const curEl = document.getElementById(`pvcur-${uid}`);
+            if (!vid) return;
+            const pct = computeProfileTimelinePct(uid, clientX);
+            if (fillEl) fillEl.style.width = `${(pct * 100).toFixed(2)}%`;
+            if (isFinite(vid.duration) && vid.duration > 0) {
+                const newTime = pct * vid.duration;
+                vid.currentTime = newTime;
+                if (curEl) curEl.innerText = formatProfileVideoClock(newTime);
+            }
+        }
+
+        function cycleProfileVideoSpeed(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`pvid-${uid}`);
+            const btn = document.getElementById(`pvspd-${uid}`);
+            if (!vid || !btn) return;
+            const speeds = [1, 1.25, 1.5, 2, 0.5];
+            const curIdx = speeds.indexOf(vid.playbackRate);
+            const nextSpeed = speeds[(curIdx + 1) % speeds.length];
+            vid.playbackRate = nextSpeed;
+            btn.innerText = `${nextSpeed}x`;
+            revealProfileVideoControls(uid);
+        }
+
+        function fullscreenProfileVideo(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`pvid-${uid}`);
+            if (!vid) return;
+            if (vid.requestFullscreen) vid.requestFullscreen().catch(() => {});
+            else if (vid.webkitEnterFullscreen) vid.webkitEnterFullscreen();
+        }
+
+        function toggleProfileVideoMute(event) {
+            if (event) event.stopPropagation();
+            globalProfileVideoUnmuted = !globalProfileVideoUnmuted;
+            try { localStorage.setItem('camfeed_sound', globalProfileVideoUnmuted ? 'on' : 'off'); } catch (e) {}
+            document.querySelectorAll('.profile-mute-btn').forEach(btn => {
+                btn.innerHTML = globalProfileVideoUnmuted ? YT_SVG.volOn : YT_SVG.volOff;
+            });
+            evaluateCenterProfileVideo();
+        }
+
+        function buildProfileVideoTag(videoUrl, postId, extraClass = 'post-media profile-autoplay-video', mediaAspect = '') {
+            const uid = `${postId}-${Math.random().toString(36).slice(2, 7)}`;
+            const initialAspect = mediaAspect && mediaAspect.trim() ? mediaAspect.trim() : '9 / 16';
+            const frameUrl = (videoUrl || '').split('#')[0] + '#t=0.001';
+            return `
+                <div class="feed-video-wrap" id="pvwrap-${uid}" style="aspect-ratio: ${initialAspect};"
+                     onmousemove="revealProfileVideoControls('${uid}')"
+                     onclick="handleProfileVideoSurfaceTap('${uid}', event)">
+                    <video id="pvid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="sv ${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
+                        onloadedmetadata="adjustProfileVideoAspect('${uid}')"
+                        onloadeddata="this.classList.add('vid-ready'); updateProfileVideoClock('${uid}')"
+                        onprogress="updateProfileVideoBuffer('${uid}')"
+                        oncanplay="document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
+                        onwaiting="document.getElementById('pvwrap-${uid}')?.classList.add('is-loading')"
+                        onplaying="this.classList.add('vid-ready'); document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
+                        onerror="document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
+                        ontimeupdate="updateProfileVideoClock('${uid}')"
+                        onplay="document.getElementById('pvwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('pvplay-${uid}'); if(b) b.innerHTML=YT_SVG.pause; revealProfileVideoControls('${uid}');"
+                        onpause="document.getElementById('pvwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('pvplay-${uid}'); if(b) b.innerHTML=YT_SVG.play;"></video>
+
+                    <div class="feed-video-spinner"></div>
+
+                    <button type="button" class="feed-video-center-play" onclick="toggleProfileVideoPlayPause('${uid}', event)" aria-label="Play">
+                        <svg viewBox="0 0 24 24" style="width:28px; height:28px; fill:#fff; margin-left:3px;"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+
+                    <div class="feed-video-controls-bar" onclick="event.stopPropagation(); revealProfileVideoControls('${uid}')">
+                        <div class="yt-progress-area" id="pvprog-${uid}"
+                             onpointerdown="startScrubProfileVideo('${uid}', event)"
+                             onpointermove="moveScrubProfileVideo('${uid}', event)"
+                             onpointerup="endScrubProfileVideo('${uid}', event)"
+                             onpointercancel="endScrubProfileVideo('${uid}', event)">
+                            <div class="yt-hover-time-tip" id="pvtip-${uid}">0:00</div>
+                            <div class="yt-progress-track">
+                                <div class="yt-buffer-fill" id="pvbuf-${uid}"></div>
+                                <div class="yt-play-fill" id="pvfill-${uid}">
+                                    <div class="yt-play-thumb"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="yt-controls-bottom-row">
+                            <div class="yt-controls-left">
+                                <button type="button" class="fvc-btn" id="pvplay-${uid}" onclick="toggleProfileVideoPlayPause('${uid}', event)" title="Play / Pause">${YT_SVG.pause}</button>
+                                <button type="button" class="fvc-btn profile-mute-btn" onclick="toggleProfileVideoMute(event)" title="Mute / Unmute">${globalProfileVideoUnmuted ? YT_SVG.volOn : YT_SVG.volOff}</button>
+                                <span class="fvc-time"><span id="pvcur-${uid}">0:00</span> / <span id="pvdur-${uid}">0:00</span></span>
+                            </div>
+                            <div class="yt-controls-right">
+                                <button type="button" class="yt-speed-pill" id="pvspd-${uid}" onclick="cycleProfileVideoSpeed('${uid}', event)" title="Playback Speed">1x</button>
+                                <button type="button" class="fvc-btn" onclick="fullscreenProfileVideo('${uid}', event)" title="Fullscreen">${YT_SVG.full}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function evaluateCenterProfileVideo() {
+            const videos = Array.from(document.querySelectorAll('.profile-autoplay-video'));
+            if (videos.length === 0) return;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+            const midY = vh * 0.5;
+            let best = null, bestDist = Infinity;
+            videos.forEach(v => {
+                const wrap = v.closest('.feed-video-wrap') || v;
+                const rect = wrap.getBoundingClientRect();
+                if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) return;
+                const visH = Math.max(0, Math.min(vh, rect.bottom) - Math.max(0, rect.top));
+                if ((rect.top <= midY && rect.bottom >= midY) || (visH / rect.height) >= 0.6) {
+                    const dist = Math.abs(rect.top + rect.height * 0.5 - midY);
+                    if (dist < bestDist) { bestDist = dist; best = v; }
+                }
+            });
+            videos.forEach(v => {
+                if (v === best) return;
+                if (!v.paused) v.pause();
+                v.muted = true;
+            });
+            if (best && best.dataset.userPaused !== 'true') {
+                const realSrc = best.dataset.videoSrc;
+                if (realSrc && best.getAttribute('src') !== realSrc) {
+                    best.setAttribute('src', realSrc);
+                    try { best.load(); } catch (e) {}
+                }
+                if (globalProfileVideoUnmuted) {
+                    best.muted = false;
+                    best.removeAttribute('muted');
+                    best.volume = 1.0;
+                } else {
+                    best.muted = true;
+                }
+                if (best.paused) {
+                    best.play().catch(() => {
+                        best.muted = true;
+                        best.play().catch(() => {});
+                    });
+                }
+            }
+        }
+
+        window.addEventListener('scroll', () => requestAnimationFrame(evaluateCenterProfileVideo), { passive: true });
+        ['touchstart', 'pointerdown', 'click'].forEach(evt => {
+            document.addEventListener(evt, () => {
+                try { if (localStorage.getItem('camfeed_sound') === 'off') return; } catch (e) {}
+                if (!globalProfileVideoUnmuted) {
+                    globalProfileVideoUnmuted = true;
+                    try { localStorage.setItem('camfeed_sound', 'on'); } catch (e) {}
+                    document.querySelectorAll('.profile-mute-btn').forEach(btn => {
+                        btn.innerHTML = YT_SVG.volOn;
+                    });
+                    evaluateCenterProfileVideo();
+                }
+            }, { once: true, passive: true });
+        });
+
+        function renderRawMediaBlock(postId, mediaType, mediaUrl, mediaAspect = '') {
             if (!mediaUrl) return '';
             if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
                 try {
@@ -960,7 +1491,7 @@
                     if (Array.isArray(items) && items.length > 0) {
                         const slidesHtml = items.map(item => {
                             if (item.type === 'video') {
-                                return `<div class="carousel-slide"><video class="sv" data-sv-src="${SmoothVideo.src(item.url)}" preload="none" muted loop playsinline controls></video></div>`;
+                                return `<div class="carousel-slide">${buildProfileVideoTag(item.url, postId, 'profile-autoplay-video', mediaAspect)}</div>`;
                             }
                             return `<div class="carousel-slide"><img src="${item.url}"></div>`;
                         }).join('');
@@ -978,7 +1509,7 @@
                 } catch (e) {}
             }
             if (mediaType === 'video') {
-                return `<video class="sv post-media" data-sv-src="${SmoothVideo.src(mediaUrl)}" preload="none" muted loop playsinline controls></video>`;
+                return buildProfileVideoTag(mediaUrl, postId, 'post-media profile-autoplay-video', mediaAspect);
             }
             return `<img src="${mediaUrl}" class="post-media">`;
         }
@@ -1026,7 +1557,7 @@
                 }
                 const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
                 const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
-                const origMedia = renderRawMediaBlock(post.orig_id, post.orig_media_type, post.orig_media_url);
+                const origMedia = renderRawMediaBlock(post.orig_id, post.orig_media_type, post.orig_media_url, post.orig_media_aspect || '');
                 return `
                     <div class="embedded-shared-card" style="border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden; margin-bottom: 10px;">
                         <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
@@ -1044,7 +1575,7 @@
                 `;
             }
 
-            return renderRawMediaBlock(post.id, post.media_type, post.media_url);
+            return renderRawMediaBlock(post.id, post.media_type, post.media_url, post.media_aspect || '');
         }
 
         function updateCarouselIndicator(track, postId, total) {
@@ -1163,6 +1694,8 @@
                             content.appendChild(div);
                         });
                         initProfileViewsObserver();
+                        evaluateCenterProfileVideo();
+                        setTimeout(evaluateCenterProfileVideo, 200);
                     }
                 } else if (tab === 'friends' || tab === 'followers' || tab === 'following') {
                     const res = await fetch(`/api/follow-list?email=${encodeURIComponent(profileEmail)}&type=${tab}`);

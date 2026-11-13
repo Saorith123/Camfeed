@@ -109,23 +109,32 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translate(-50%, -50%) scale(0.85);
             z-index: 12;
-            width: 64px;
-            height: 64px;
+            width: 66px;
+            height: 66px;
             border-radius: 50%;
-            border: none;
-            background: rgba(0, 0, 0, 0.55);
+            border: 1.5px solid rgba(255,255,255,0.28);
+            background: rgba(15, 23, 42, 0.65);
             color: #fff;
-            font-size: 26px;
-            display: none;
+            display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .reel-item.is-paused .reel-center-play {
-            display: flex;
+            opacity: 1;
+            pointer-events: auto;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .reel-center-play:active {
+            transform: translate(-50%, -50%) scale(0.92);
         }
 
         /* Bottom Gradient for Readability */
@@ -133,41 +142,126 @@
 
         .reel-overlay {
             position: absolute;
-            bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
             left: 15px;
             right: 82px;
             z-index: 10;
             color: #fff;
             text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+            transition: bottom 0.25s ease;
         }
 
-        /* Bottom Interactive Video Control Bar */
+        /* YouTube-Style Bottom Interactive Video Control Bar */
         .reel-controls-bar {
             position: absolute;
-            bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-            left: 12px;
-            right: 12px;
+            bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+            left: 10px;
+            right: 10px;
             z-index: 25;
             display: flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(15, 23, 42, 0.55);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            padding: 6px 10px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.14);
+            flex-direction: column;
+            gap: 5px;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.45) 70%, transparent 100%);
+            padding: 14px 10px 6px 10px;
+            border-radius: 12px;
             color: #fff;
             user-select: none;
             -webkit-user-select: none;
+        }
+        .yt-reel-progress-area {
+            position: relative;
+            width: 100%;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            touch-action: none;
+        }
+        .yt-reel-track {
+            position: relative;
+            width: 100%;
+            height: 3.5px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            transition: height 0.15s ease;
+        }
+        .yt-reel-progress-area:hover .yt-reel-track,
+        .yt-reel-progress-area.scrubbing .yt-reel-track {
+            height: 6px;
+        }
+        .yt-reel-buffer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background: rgba(255, 255, 255, 0.42);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .yt-reel-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background: #1877f2;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .yt-reel-thumb {
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%) scale(0.9);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #1877f2;
+            border: 2px solid #fff;
+            box-shadow: 0 0 6px rgba(0,0,0,0.6);
+            transition: transform 0.15s ease;
+        }
+        .yt-reel-progress-area:hover .yt-reel-thumb,
+        .yt-reel-progress-area.scrubbing .yt-reel-thumb {
+            transform: translateY(-50%) scale(1.25);
+        }
+        .yt-reel-tip {
+            position: absolute;
+            bottom: 16px;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.92);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
+        }
+        .yt-reel-progress-area:hover .yt-reel-tip,
+        .yt-reel-progress-area.scrubbing .yt-reel-tip {
+            display: block;
+        }
+        .yt-reel-bottom-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .yt-reel-left,
+        .yt-reel-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .rc-btn {
             background: none;
             border: none;
             color: #fff;
-            font-size: 16px;
-            width: 28px;
-            height: 28px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -175,8 +269,11 @@
             cursor: pointer;
             flex-shrink: 0;
             padding: 0;
+            transition: background 0.15s, transform 0.1s;
         }
+        .rc-btn:hover { background: rgba(255, 255, 255, 0.16); }
         .rc-btn:active { transform: scale(0.9); }
+        .rc-btn svg { width: 20px; height: 20px; fill: currentColor; }
         .rc-speed-btn {
             background: rgba(255, 255, 255, 0.18);
             border: 1px solid rgba(255, 255, 255, 0.25);
@@ -184,49 +281,20 @@
             font-size: 11px;
             font-weight: 800;
             padding: 3px 7px;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             flex-shrink: 0;
-            min-width: 38px;
+            min-width: 36px;
             text-align: center;
         }
         .rc-speed-btn:active { transform: scale(0.92); }
         .rc-time {
-            font-size: 11.5px;
-            font-weight: 700;
+            font-size: 12px;
+            font-weight: 600;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
             flex-shrink: 0;
-        }
-        .rc-seek {
-            flex: 1;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.35);
-            border-radius: 4px;
-            outline: none;
-            margin: 0;
-            padding: 0;
-            cursor: pointer;
-        }
-        .rc-seek::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 13px;
-            height: 13px;
-            border-radius: 50%;
-            background: #38bdf8;
-            border: 2px solid #fff;
-            cursor: pointer;
-        }
-        .rc-seek::-moz-range-thumb {
-            width: 13px;
-            height: 13px;
-            border-radius: 50%;
-            background: #38bdf8;
-            border: 2px solid #fff;
-            cursor: pointer;
+            color: rgba(255,255,255,0.95);
         }
         .reel-author-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
         .reel-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; background: #333; }
@@ -450,7 +518,10 @@
 
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        let globalMuted = true;
+        // Start muted ONLY if user explicitly muted before or browser hasn't unlocked audio yet; remember sound preference across pages!
+        let savedSoundPref = null;
+        try { savedSoundPref = localStorage.getItem('camfeed_sound'); } catch (e) {}
+        let globalMuted = (savedSoundPref === 'off');
         let activePostIdForComment = null;
         let activePostIdForShare = null;
         let activeCaptionForShare = '';
@@ -463,6 +534,13 @@
         const loadedReelVideoIds = new Set();
         let isLoadingMoreReels = false;
 
+        const YT_REEL_SVG = {
+            play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+            pause: '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
+            volOn: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
+            volOff: '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>'
+        };
+
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
@@ -471,7 +549,6 @@
 
         const REEL_SPEEDS = [1, 1.25, 1.5, 2, 0.75];
 
-        // បំបែកនាទីលើស ៦០ ទៅជា ម៉ោង:នាទី:វិនាទី (H:MM:SS)
         function formatReelClock(sec) {
             if (!sec || !isFinite(sec) || sec < 0) return '0:00';
             const totalSec = Math.floor(sec);
@@ -493,26 +570,99 @@
             updateReelProgress(uid);
         }
 
+        function updateReelBuffer(uid) {
+            const vid = document.getElementById(`rvid-${uid}`);
+            const bufEl = document.getElementById(`rbuf-${uid}`);
+            if (!vid || !bufEl || !isFinite(vid.duration) || vid.duration <= 0) return;
+            if (vid.buffered.length > 0) {
+                const end = vid.buffered.end(vid.buffered.length - 1);
+                bufEl.style.width = `${Math.min(100, (end / vid.duration) * 100).toFixed(1)}%`;
+            }
+        }
+
         function updateReelProgress(uid) {
             const vid = document.getElementById(`rvid-${uid}`);
             const curEl = document.getElementById(`rcur-${uid}`);
             const durEl = document.getElementById(`rdur-${uid}`);
-            const seekEl = document.getElementById(`rseek-${uid}`);
+            const fillEl = document.getElementById(`rfill-${uid}`);
             if (!vid) return;
             const cur = vid.currentTime || 0;
             const dur = isFinite(vid.duration) ? vid.duration : 0;
             if (curEl) curEl.innerText = formatReelClock(cur);
             if (durEl) durEl.innerText = formatReelClock(dur);
-            if (seekEl && dur > 0) {
-                seekEl.value = ((cur / dur) * 100).toFixed(1);
+            if (fillEl && dur > 0 && !vid.dataset.isScrubbing) {
+                fillEl.style.width = `${Math.min(100, (cur / dur) * 100).toFixed(2)}%`;
             }
         }
 
-        function seekReelVideo(uid, pct) {
+        function computeReelTimelinePct(uid, clientX) {
+            const area = document.getElementById(`rprog-${uid}`);
+            if (!area) return 0;
+            const rect = area.getBoundingClientRect();
+            return Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+        }
+
+        function startScrubReelVideo(uid, event) {
+            event.stopPropagation();
+            const area = document.getElementById(`rprog-${uid}`);
             const vid = document.getElementById(`rvid-${uid}`);
-            if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
-            vid.currentTime = (parseFloat(pct) / 100) * vid.duration;
-            updateReelProgress(uid);
+            if (!area || !vid) return;
+            area.classList.add('scrubbing');
+            vid.dataset.isScrubbing = 'true';
+            try { area.setPointerCapture(event.pointerId); } catch (e) {}
+            applyReelScrubPos(uid, event.clientX);
+        }
+
+        function moveScrubReelVideo(uid, event) {
+            const area = document.getElementById(`rprog-${uid}`);
+            const vid = document.getElementById(`rvid-${uid}`);
+            const tip = document.getElementById(`rtip-${uid}`);
+            if (!area || !vid) return;
+            const pct = computeReelTimelinePct(uid, event.clientX);
+            if (tip && isFinite(vid.duration) && vid.duration > 0) {
+                tip.style.left = `${(pct * 100).toFixed(1)}%`;
+                tip.innerText = formatReelClock(pct * vid.duration);
+            }
+            if (vid.dataset.isScrubbing === 'true') {
+                applyReelScrubPos(uid, event.clientX);
+            }
+        }
+
+        function endScrubReelVideo(uid, event) {
+            const area = document.getElementById(`rprog-${uid}`);
+            const vid = document.getElementById(`rvid-${uid}`);
+            if (!area || !vid) return;
+            if (vid.dataset.isScrubbing === 'true') {
+                applyReelScrubPos(uid, event.clientX);
+                delete vid.dataset.isScrubbing;
+                area.classList.remove('scrubbing');
+                try { area.releasePointerCapture(event.pointerId); } catch (e) {}
+            }
+        }
+
+        function applyReelScrubPos(uid, clientX) {
+            const vid = document.getElementById(`rvid-${uid}`);
+            const fillEl = document.getElementById(`rfill-${uid}`);
+            const curEl = document.getElementById(`rcur-${uid}`);
+            if (!vid) return;
+            const pct = computeReelTimelinePct(uid, clientX);
+            if (fillEl) fillEl.style.width = `${(pct * 100).toFixed(2)}%`;
+            if (isFinite(vid.duration) && vid.duration > 0) {
+                const newTime = pct * vid.duration;
+                vid.currentTime = newTime;
+                if (curEl) curEl.innerText = formatReelClock(newTime);
+            }
+        }
+
+        function toggleReelMute(event) {
+            if (event) event.stopPropagation();
+            audioUnlocked = true;
+            globalMuted = !globalMuted;
+            try { localStorage.setItem('camfeed_sound', globalMuted ? 'off' : 'on'); } catch (e) {}
+            document.querySelectorAll('.reel-mute-btn').forEach(btn => {
+                btn.innerHTML = globalMuted ? YT_REEL_SVG.volOff : YT_REEL_SVG.volOn;
+            });
+            evaluateCenterReelVideo();
         }
 
         function toggleReelPlayPause(uid, event) {
@@ -526,6 +676,11 @@
             }
             if (vid.paused) {
                 vid.dataset.userPaused = 'false';
+                if (!globalMuted) {
+                    vid.muted = false;
+                    vid.removeAttribute('muted');
+                    vid.volume = 1.0;
+                }
                 vid.play().catch(() => {});
             } else {
                 vid.dataset.userPaused = 'true';
@@ -555,20 +710,25 @@
         let audioUnlocked = false;
         function unlockReelsAudio() {
             if (audioUnlocked) return;
-            try { if (localStorage.getItem('camfeed_sound') === 'off') return; } catch (e) {}     // the person muted on purpose: keep it silent
             audioUnlocked = true;
+            try { if (localStorage.getItem('camfeed_sound') === 'off') return; } catch (e) {}
             try { localStorage.setItem('camfeed_sound', 'on'); } catch (e) {}
             globalMuted = false;
-            const visibleVideo = Array.from(document.querySelectorAll('.reel-video')).find(v => !v.paused) || document.querySelector('.reel-video');
+            document.querySelectorAll('.reel-mute-btn').forEach(btn => {
+                btn.innerHTML = YT_REEL_SVG.volOn;
+            });
+            const visibleVideo = activeCenterReelVideo || Array.from(document.querySelectorAll('.reel-video')).find(v => !v.paused) || document.querySelector('.reel-video');
             if (visibleVideo) {
                 visibleVideo.muted = false;
                 visibleVideo.removeAttribute('muted');
                 visibleVideo.volume = 1.0;
-                visibleVideo.play().catch(() => {});
+                if (visibleVideo.paused && visibleVideo.dataset.userPaused !== 'true') {
+                    visibleVideo.play().catch(() => {});
+                }
             }
         }
         ['touchstart', 'pointerdown', 'click'].forEach(evt => {
-            document.addEventListener(evt, unlockReelsAudio, { once: true, passive: true });
+            document.addEventListener(evt, unlockReelsAudio, { passive: true });
         });
 
         function extractVideoUrlFromPost(post) {
@@ -681,22 +841,42 @@
                     return `
                         <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
                             <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
-                                onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="this.classList.add('vid-ready')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
+                                onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="this.classList.add('vid-ready')" onprogress="updateReelBuffer('${uid}')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
                                 ontimeupdate="updateReelProgress('${uid}')"
-                                onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='⏸';"
-                                onpause="document.getElementById('reel-${uid}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='▶';"></video>
+                                onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerHTML=YT_REEL_SVG.pause;"
+                                onpause="document.getElementById('reel-${uid}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerHTML=YT_REEL_SVG.play;"></video>
 
                             <div class="reel-spinner"></div>
-                            <button type="button" class="reel-center-play" onclick="toggleReelPlayPause('${uid}', event)">▶</button>
+                            <button type="button" class="reel-center-play" onclick="toggleReelPlayPause('${uid}', event)" aria-label="Play">
+                                <svg viewBox="0 0 24 24" style="width:30px; height:30px; fill:#fff; margin-left:3px;"><path d="M8 5v14l11-7z"/></svg>
+                            </button>
                             <div class="reel-gradient"></div>
 
-                            <!-- Bottom Interactive Video Controls (Current Time on Left, Total Duration on Right) -->
+                            <!-- YouTube-Style Bottom Interactive Video Controls -->
                             <div class="reel-controls-bar" onclick="event.stopPropagation()">
-                                <button type="button" class="rc-btn" id="rplay-${uid}" onclick="toggleReelPlayPause('${uid}', event)" title="Play / Pause">⏸</button>
-                                <span class="rc-time" id="rcur-${uid}">0:00</span>
-                                <input type="range" class="rc-seek" id="rseek-${uid}" min="0" max="100" value="0" step="0.1" oninput="seekReelVideo('${uid}', this.value)">
-                                <span class="rc-time" id="rdur-${uid}">0:00</span>
-                                <button type="button" class="rc-speed-btn" id="rspeed-${uid}" onclick="cycleReelSpeed('${uid}', event)" title="Playback Speed">1x</button>
+                                <div class="yt-reel-progress-area" id="rprog-${uid}"
+                                     onpointerdown="startScrubReelVideo('${uid}', event)"
+                                     onpointermove="moveScrubReelVideo('${uid}', event)"
+                                     onpointerup="endScrubReelVideo('${uid}', event)"
+                                     onpointercancel="endScrubReelVideo('${uid}', event)">
+                                    <div class="yt-reel-tip" id="rtip-${uid}">0:00</div>
+                                    <div class="yt-reel-track">
+                                        <div class="yt-reel-buffer" id="rbuf-${uid}"></div>
+                                        <div class="yt-reel-fill" id="rfill-${uid}">
+                                            <div class="yt-reel-thumb"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="yt-reel-bottom-row">
+                                    <div class="yt-reel-left">
+                                        <button type="button" class="rc-btn" id="rplay-${uid}" onclick="toggleReelPlayPause('${uid}', event)" title="Play / Pause">${YT_REEL_SVG.pause}</button>
+                                        <button type="button" class="rc-btn reel-mute-btn" onclick="toggleReelMute(event)" title="Mute / Unmute">${globalMuted ? YT_REEL_SVG.volOff : YT_REEL_SVG.volOn}</button>
+                                        <span class="rc-time"><span id="rcur-${uid}">0:00</span> / <span id="rdur-${uid}">0:00</span></span>
+                                    </div>
+                                    <div class="yt-reel-right">
+                                        <button type="button" class="rc-speed-btn" id="rspeed-${uid}" onclick="cycleReelSpeed('${uid}', event)" title="Playback Speed">1x</button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="reel-overlay">
