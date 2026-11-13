@@ -64,10 +64,10 @@ async function dummyVerify() {
 }
 
 // ---------- tokens (HS256 JWT) ----------
-function signToken(payload) {
+function signToken(payload, ttlSeconds) {
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify({ ...payload, iat: now, exp: now + TOKEN_TTL_SECONDS })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ ...payload, iat: now, exp: now + (ttlSeconds || TOKEN_TTL_SECONDS) })).toString('base64url');
   const sig = crypto.createHmac('sha256', SECRET).update(header + '.' + body).digest('base64url');
   return header + '.' + body + '.' + sig;
 }
@@ -132,7 +132,7 @@ function sanitizeJson(req, res, next) {
 }
 
 // ---------- factory (needs the pg pool for ban / password-change checks) ----------
-const PUBLIC_ROUTES = new Set(['POST /api/login', 'POST /api/register']);
+const PUBLIC_ROUTES = new Set(['POST /api/login', 'POST /api/register', 'POST /api/register/send-code', 'POST /api/register/verify-code']);
 const BODY_ACTOR_FIELDS = ['email', 'sender', 'userEmail', 'user_email', 'followerEmail', 'blockerEmail', 'reporterEmail', 'adminEmail'];
 // GET routes where ?email= is the profile being looked at (not the person asking)
 const QUERY_EMAIL_IS_TARGET = new Set(['/api/user-profile', '/api/follow-list']);
@@ -166,7 +166,7 @@ function createAuth(pool) {
       if (PUBLIC_ROUTES.has(route)) return next();
       const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
       const payload = m ? verifyToken(m[1]) : null;
-      if (!payload || !payload.sub) {
+      if (!payload || !payload.sub || payload.purpose) {
         return res.status(401).json({ success: false, code: 'AUTH_REQUIRED', error: 'Please log in again.' });
       }
       const state = await getUserState(payload.sub);
@@ -223,9 +223,48 @@ function createAuth(pool) {
   return { authenticate, forceActor, issueToken, invalidate, getUserState };
 }
 
+// ---------- Cloudflare Turnstile (CAPTCHA) ----------
+if (!process.env.TURNSTILE_SECRET_KEY) {
+  console.warn('[auth] TURNSTILE_SECRET_KEY is not set: sign-up CAPTCHA is NOT enforced. Set it in Render to turn it on.');
+}
+async function verifyTurnstile(token, ip) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return { ok: true, skipped: true };           // not configured yet
+  if (typeof token !== 'string' || !token || token.length > 2048) return { ok: false };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const body = new URLSearchParams({ secret, response: token });
+    if (ip) body.set('remoteip', ip);
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      { method: 'POST', body, signal: ctl.signal });
+    const d = await r.json();
+    return { ok: !!d.success };
+  } catch (e) {
+    return { ok: false, unavailable: true };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------- simple in-memory limiter (max hits per window per key) ----------
+function makeLimiter(max, windowMs) {
+  const map = new Map();
+  setInterval(() => { const n = Date.now(); for (const [k, v] of map) if (v.resetAt < n) map.delete(k); },
+    Math.max(windowMs, 60000)).unref();
+  return {
+    isLimited(key) { const e = map.get(key); return !!e && e.resetAt >= Date.now() && e.count >= max; },
+    hit(key) {
+      const n = Date.now(), e = map.get(key);
+      if (!e || e.resetAt < n) map.set(key, { count: 1, resetAt: n + windowMs }); else e.count++;
+    }
+  };
+}
+
 module.exports = {
   createAuth, sanitizeJson, stripSecrets,
   hashPassword, verifyPassword, isHashed, dummyVerify, safeEqual,
   signToken, verifyToken, fingerprint,
-  isRateLimited, recordFailure, clearFailures
+  isRateLimited, recordFailure, clearFailures,
+  verifyTurnstile, makeLimiter
 };
