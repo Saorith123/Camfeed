@@ -144,5 +144,24 @@
     return encodeURIComponent(String(v === null || v === undefined ? '' : v)).replace(/[!'()*]/g, function (ch) { return '%' + ch.charCodeAt(0).toString(16).toUpperCase(); });
   };
 
+  // ---- Dark mode: one switch for every page. Pages without their own dark colours are inverted (pictures / videos are turned back). ----
+  (function () {
+    function apply(v) { try { document.documentElement.setAttribute('data-theme', v === 'dark' ? 'dark' : 'light'); } catch (e) {} }
+    var saved = 'light'; try { saved = localStorage.getItem('camfeed_theme') === 'dark' ? 'dark' : 'light'; } catch (e) {}
+    apply(saved);
+    try {
+      var st = document.createElement('style'); st.id = 'camfeed-dark-style';
+      st.textContent = 'html[data-theme="dark"]:not([data-native-dark]){filter:invert(1) hue-rotate(180deg);background:#fff}' +
+        'html[data-theme="dark"]:not([data-native-dark]) img,html[data-theme="dark"]:not([data-native-dark]) video,html[data-theme="dark"]:not([data-native-dark]) canvas,' +
+        'html[data-theme="dark"]:not([data-native-dark]) iframe,html[data-theme="dark"]:not([data-native-dark]) picture,html[data-theme="dark"]:not([data-native-dark]) [style*="background-image"]{filter:invert(1) hue-rotate(180deg)}';
+      (document.head || document.documentElement).appendChild(st);
+    } catch (e) {}
+    window.CamTheme = {
+      get: function () { try { return localStorage.getItem('camfeed_theme') === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; } },
+      set: function (v) { try { localStorage.setItem('camfeed_theme', v === 'dark' ? 'dark' : 'light'); } catch (e) {} apply(v); }
+    };
+    try { window.addEventListener('storage', function (e) { if (e.key === 'camfeed_theme') apply(e.newValue); }); } catch (e) {}   // another tab changed it
+  })();
+
   window.CamAuth = { getToken: getToken, setToken: setToken, useAccount: useAccount, forgetAccount: forgetAccount, logout: function () { clearSession(); window.location.href = 'index.html'; } };
 })();

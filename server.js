@@ -179,6 +179,12 @@ pool.connect(async (err, client, release) => {
     await security.neutralizeExistingData(pool);   // older names / posts / comments / chats: make < > harmless
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_epoch INTEGER DEFAULT 0');      // "log out of all devices"
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs TEXT DEFAULT ''");   // which notifications to receive
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS show_active_status BOOLEAN DEFAULT TRUE');   // "Active status" switch
+    await pool.query(`CREATE TABLE IF NOT EXISTS user_sessions (
+      sid VARCHAR(40) PRIMARY KEY, email TEXT NOT NULL, browser VARCHAR(40), os VARCHAR(40), ip_masked VARCHAR(60), country VARCHAR(60), city VARCHAR(60),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(), revoked BOOLEAN NOT NULL DEFAULT FALSE)`);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_email ON user_sessions (email)');
+    await pool.query("DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL '90 days'");
   } catch (e) {
     console.error('email verification schema notice:', e.message);
   }
@@ -466,7 +472,7 @@ app.post('/api/register', async (req, res) => {
     // password is stripped from the response by auth.sanitizeJson
     user.contact_mail = ownContact(user);
     user.passwordless = false;
-    res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
+    res.status(201).json({ success: true, user, token: authCore.issueToken(user, req) });
   } catch (err) {
     if (err && err.code === '23505') {
       return res.status(409).json({ success: false, error: viaPhone ? 'This phone number is already registered.' : 'This email is already registered.' });
@@ -520,7 +526,7 @@ app.post('/api/login', async (req, res) => {
     // password is stripped from the response by auth.sanitizeJson; the e-mail field becomes the public id, so the owner gets their own contact detail separately
     user.contact_mail = ownContact(user);
     user.passwordless = isTelegramOnlyAccount(user.email);
-    res.json({ success: true, user, token: authCore.issueToken(user) });
+    res.json({ success: true, user, token: authCore.issueToken(user, req) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
@@ -1333,7 +1339,7 @@ app.get('/api/user-profile', async (req, res) => {
     }
 
     const query = `
-      SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds') AS is_online,
+      SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $2), TRUE)) AS is_online,
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
@@ -1357,7 +1363,8 @@ app.get('/api/user-profile', async (req, res) => {
         if (u.work_privacy === 'private') u.work = '';
         if (u.phone_privacy === 'private') u.phone = '';
       }
-      if (!isSelf) for (const k of ['role', 'is_banned', 'name_changed_at', 'last_active', 'country']) delete u[k];   // internal details of other people
+      if (isSelf) u.show_active_status = u.show_active_status !== false;
+      if (!isSelf) for (const k of ['role', 'is_banned', 'name_changed_at', 'last_active', 'country', 'show_active_status']) delete u[k];   // internal details of other people
       res.json({ success: true, user: u });
     } else {
       res.status(404).json({ success: false, error: 'User not found' });
@@ -1473,7 +1480,7 @@ app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds') AS is_online,
+      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
       (
         SELECT m.message FROM messages m 
         WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
@@ -1504,7 +1511,7 @@ app.get('/api/chat-conversations', async (req, res) => {
       
       UNION
       
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds') AS is_online,
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
       'Start a conversation' as last_message,
       NULL as last_sender_email,
       0 as unread_count,
@@ -1536,7 +1543,7 @@ app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
     const query = `
-      SELECT email, first_name, last_name, profile_pic, last_active, (last_active IS NOT NULL AND last_active >= NOW() - INTERVAL '35 seconds') AS is_online 
+      SELECT email, first_name, last_name, profile_pic, CASE WHEN COALESCE(show_active_status, TRUE) THEN last_active END AS last_active, (last_active IS NOT NULL AND last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online 
       FROM users 
       WHERE email != $1 
         AND COALESCE(is_banned, FALSE) = FALSE
@@ -1939,7 +1946,8 @@ app.post('/api/settings/logout-all', async (req, res) => {
     const r = await pool.query('UPDATE users SET sessions_epoch = COALESCE(sessions_epoch, 0) + 1 WHERE email = $1 RETURNING *', [req.authEmail]);
     if (!r.rows[0]) return res.status(404).json({ success: false, message: 'Account not found.' });
     authCore.invalidate(req.authEmail);
-    res.json({ success: true, message: 'Logged out of all other devices.', token: authCore.issueToken(r.rows[0]) });
+    await authCore.revokeAll(req.authEmail).catch(() => {});
+    res.json({ success: true, message: 'Logged out of all other devices.', token: authCore.issueToken(r.rows[0], req) });
   } catch (err) {
     console.error('Logout-all error:', err.message);
     res.status(500).json({ success: false, message: 'Could not do that. Please try again.' });
@@ -1974,6 +1982,63 @@ app.get('/api/settings/export', async (req, res) => {
   } catch (err) {
     console.error('Export error:', err.message);
     res.status(500).json({ success: false, message: 'Could not prepare your data. Please try again.' });
+  }
+});
+
+app.put('/api/settings/active-status', async (req, res) => {
+  try {
+    if (typeof (req.body || {}).show !== 'boolean') return res.status(400).json({ success: false, message: 'Invalid value.' });
+    await pool.query('UPDATE users SET show_active_status = $1 WHERE email = $2', [req.body.show, req.authEmail]);
+    res.json({ success: true, show: req.body.show });
+  } catch (err) { res.status(500).json({ success: false, message: 'Could not save. Please try again.' }); }
+});
+
+// where I am logged in (one row per device) and ending one device / all the others
+app.get('/api/settings/sessions', async (req, res) => {
+  try {
+    const rows = await authCore.listSessions(req.authEmail);
+    res.json({ success: true, sessions: rows.map((r) => ({ sid: r.sid, browser: r.browser, os: r.os, ip_masked: r.ip_masked, country: r.country, city: r.city, created_at: r.created_at, last_seen: r.last_seen, current: r.sid === req.sid })) });
+  } catch (err) { res.status(500).json({ success: false, message: 'Could not load.' }); }
+});
+app.post('/api/settings/sessions/revoke', async (req, res) => {
+  try {
+    const sid = String((req.body || {}).sid || '');
+    if (!/^[0-9a-f]{24}$/.test(sid)) return res.status(400).json({ success: false, message: 'Invalid device.' });
+    const ok = await authCore.revokeSession(req.authEmail, sid);
+    res.json({ success: ok, endedCurrent: ok && sid === req.sid, message: ok ? 'Device logged out.' : 'Device not found.' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Could not do that. Please try again.' }); }
+});
+app.post('/api/settings/sessions/revoke-others', async (req, res) => {
+  try { const n = await authCore.revokeOthers(req.authEmail, req.sid); res.json({ success: true, count: n }); }
+  catch (err) { res.status(500).json({ success: false, message: 'Could not do that. Please try again.' }); }
+});
+
+// what I did: reactions, shares, comments & replies, posts & uploads (newest first)
+app.get('/api/settings/activity', async (req, res) => {
+  const type = String(req.query.type || '');
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50), offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  try {
+    let rows;
+    const who = req.authEmail;
+    if (type === 'reactions') {
+      const base = (order) => `SELECT l.post_id, l.reaction_type, p.content, p.media_type, p.user_email AS author_email, u.first_name AS author_first, u.last_name AS author_last, ${order === 'time' ? 'l.created_at' : 'NULL::timestamp'} AS at
+        FROM likes l JOIN posts p ON p.id = l.post_id JOIN users u ON u.email = p.user_email WHERE l.user_email = $1 AND p.privacy <> 'private' OR (l.user_email = $1 AND p.user_email = $1)
+        ORDER BY ${order === 'time' ? 'l.created_at DESC NULLS LAST' : 'l.post_id DESC'} LIMIT $2 OFFSET $3`;
+      try { rows = (await pool.query(base('time'), [who, limit, offset])).rows; }
+      catch (e) { if (e && e.code === '42703') rows = (await pool.query(base('id'), [who, limit, offset])).rows; else throw e; }
+    } else if (type === 'comments') {
+      rows = (await pool.query(`SELECT c.id, c.post_id, c.content, c.reply_to_id, c.created_at AS at, p.user_email AS author_email, u.first_name AS author_first, u.last_name AS author_last
+        FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.email = p.user_email WHERE c.user_email = $1 ORDER BY c.created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
+    } else if (type === 'shares') {
+      rows = (await pool.query(`SELECT p.id, p.content AS caption, p.created_at AS at, o.id AS post_id, o.content, o.media_type, o.user_email AS author_email, u.first_name AS author_first, u.last_name AS author_last
+        FROM posts p JOIN posts o ON o.id = p.shared_post_id JOIN users u ON u.email = o.user_email WHERE p.user_email = $1 AND p.shared_post_id IS NOT NULL ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
+    } else if (type === 'posts') {
+      rows = (await pool.query(`SELECT id, content, media_type, privacy, created_at AS at FROM posts WHERE user_email = $1 AND shared_post_id IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
+    } else return res.status(400).json({ success: false, message: 'Unknown activity.' });
+    res.json({ success: true, type, items: rows, hasMore: rows.length === limit });
+  } catch (err) {
+    console.error('Activity error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not load.' });
   }
 });
 

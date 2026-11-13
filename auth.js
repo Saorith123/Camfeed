@@ -147,7 +147,23 @@ const BODY_ACTOR_FIELDS = ['email', 'sender', 'userEmail', 'user_email', 'follow
 // GET routes where ?email= is the profile being looked at (not the person asking)
 const QUERY_EMAIL_IS_TARGET = new Set(['/api/user-profile', '/api/follow-list']);
 
+// "Chrome on Android", masked address and (when Cloudflare provides it) the country / city of a request
+function describeRequest(req) {
+  const ua = String((req.headers && req.headers['user-agent']) || '');
+  const browser = /Edg\//.test(ua) ? 'Edge' : /OPR\/|Opera/.test(ua) ? 'Opera' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Firefox|FxiOS/.test(ua) ? 'Firefox'
+    : /Chrome|CriOS/.test(ua) ? 'Chrome' : /Safari/.test(ua) ? 'Safari' : 'Browser';
+  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows' : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Unknown device';
+  const ip = String(req.ip || '').replace(/^::ffff:/, '');
+  const ipMasked = ip.includes(':') ? ip.split(':').slice(0, 2).join(':') + ':*' : ip.split('.').slice(0, 2).join('.') + '.*.*';
+  const h = (k) => String((req.headers && req.headers[k]) || '').slice(0, 60).replace(/[<>]/g, '');
+  return { browser, os, ipMasked, country: h('cf-ipcountry'), city: h('cf-ipcity') };
+}
+
 function createAuth(pool) {
+  const sidCache = new Map();    // sid -> { revoked, at }
+  const touched = new Map();     // sid -> last time we wrote last_seen
+  const SID_TTL_MS = 30 * 1000, TOUCH_EVERY_MS = 5 * 60 * 1000;
+
   const stateCache = new Map(); // lower(email) -> { email, banned, pv, at }
   const STATE_TTL_MS = 30 * 1000;
 
@@ -173,8 +189,50 @@ function createAuth(pool) {
 
   function invalidate(email) { if (email) stateCache.delete(String(email).toLowerCase()); }
 
-  function issueToken(userRow) {
-    return signToken({ sub: userRow.email, pv: sessionPv(userRow.password, userRow.sessions_epoch) });
+  async function writeSession(sid, email, req) {
+    try {
+      const d = describeRequest(req);
+      await pool.query(
+        `INSERT INTO user_sessions (sid, email, browser, os, ip_masked, country, city) VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (sid) DO UPDATE SET last_seen = NOW()`, [sid, email, d.browser, d.os, d.ipMasked, d.country, d.city]);
+    } catch (e) { console.error('[auth] could not record the session:', e.message); }
+  }
+
+  // every login gets its own id (sid): that is what lets a person end ONE device
+  function issueToken(userRow, req) {
+    const sid = crypto.randomBytes(12).toString('hex');
+    if (req) { touched.set(sid, Date.now()); writeSession(sid, userRow.email, req); }
+    return signToken({ sub: userRow.email, pv: sessionPv(userRow.password, userRow.sessions_epoch), sid });
+  }
+
+  async function sessionRevoked(sid) {
+    const hit = sidCache.get(sid);
+    if (hit && Date.now() - hit.at < SID_TTL_MS) return hit.revoked;
+    try {
+      const r = await pool.query('SELECT revoked FROM user_sessions WHERE sid = $1', [sid]);
+      const revoked = !!(r.rows[0] && r.rows[0].revoked);
+      sidCache.set(sid, { revoked, at: Date.now() });
+      return revoked;
+    } catch (e) { return false; }      // table not there yet: do not lock anybody out
+  }
+
+  async function listSessions(email) {
+    const r = await pool.query(
+      `SELECT sid, browser, os, ip_masked, country, city, created_at, last_seen FROM user_sessions
+       WHERE LOWER(email) = LOWER($1) AND revoked = FALSE AND last_seen > NOW() - INTERVAL '60 days' ORDER BY last_seen DESC LIMIT 50`, [email]);
+    return r.rows;
+  }
+  async function revokeSession(email, sid) {
+    const r = await pool.query('UPDATE user_sessions SET revoked = TRUE WHERE sid = $1 AND LOWER(email) = LOWER($2) RETURNING sid', [sid, email]);
+    sidCache.delete(sid); return r.rows.length > 0;
+  }
+  async function revokeOthers(email, keepSid) {
+    const r = await pool.query('UPDATE user_sessions SET revoked = TRUE WHERE LOWER(email) = LOWER($1) AND revoked = FALSE AND sid <> $2 RETURNING sid', [email, keepSid || '']);
+    r.rows.forEach((x) => sidCache.delete(x.sid)); return r.rows.length;
+  }
+  async function revokeAll(email) {
+    const r = await pool.query('UPDATE user_sessions SET revoked = TRUE WHERE LOWER(email) = LOWER($1) AND revoked = FALSE RETURNING sid', [email]);
+    r.rows.forEach((x) => sidCache.delete(x.sid)); return r.rows.length;
   }
 
   async function authenticate(req, res, next) {
@@ -192,6 +250,14 @@ function createAuth(pool) {
       }
       if (state.banned) {
         return res.status(403).json({ success: false, error: 'Account Suspended.' });
+      }
+      if (payload.sid) {
+        if (await sessionRevoked(payload.sid)) {
+          return res.status(401).json({ success: false, code: 'AUTH_REQUIRED', error: 'This device was logged out. Please log in again.' });
+        }
+        req.sid = payload.sid;
+        const last = touched.get(payload.sid) || 0;
+        if (Date.now() - last > TOUCH_EVERY_MS) { touched.set(payload.sid, Date.now()); writeSession(payload.sid, state.email, req); }
       }
       req.authEmail = state.email;
       next();
@@ -237,7 +303,7 @@ function createAuth(pool) {
     next();
   }
 
-  return { authenticate, forceActor, issueToken, invalidate, getUserState };
+  return { authenticate, forceActor, issueToken, invalidate, getUserState, listSessions, revokeSession, revokeOthers, revokeAll };
 }
 
 // ---------- Cloudflare Turnstile (CAPTCHA) ----------
