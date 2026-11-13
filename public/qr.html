@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="km" data-native-dark>
+<head>
+<script src="auth-client.js"></script>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1877f2">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<script src="pwa.js" defer></script>
+<script src="qr.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>CamFeed - QR code</title>
+<link rel="icon" type="image/png" href="logo-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f0f2f5;--card:#fff;--text:#1c1e21;--muted:#65676b;--line:#e4e6eb;--chip:#e4e6eb;--primary:#1877f2;--primary-dark:#1464cc;--input:#fff;--inputline:#ccd0d5;--shadow:0 1px 3px rgba(0,0,0,.1)}
+html[data-theme="dark"]{--bg:#18191a;--card:#242526;--text:#e4e6eb;--muted:#b0b3b8;--line:#3a3b3c;--chip:#3a3b3c;--primary:#2d88ff;--primary-dark:#1f6fd6;--input:#3a3b3c;--inputline:#4e4f50;--shadow:0 1px 3px rgba(0,0,0,.5)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans','Noto Sans Khmer',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.5}
+button,input{font-family:inherit}button{cursor:pointer}.hidden{display:none!important}
+.topbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;display:flex;align-items:center;gap:12px}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:0;background:var(--chip);font-size:20px;color:var(--text);display:inline-flex;align-items:center;justify-content:center}
+.topbar h1{margin:0;font-size:19px;font-weight:800;flex:1}
+.wrap{max-width:460px;margin:16px auto 60px;padding:0 14px}
+.seg{display:flex;background:var(--chip);border-radius:14px;padding:4px;margin-bottom:16px}.seg button{flex:1;border:0;background:transparent;padding:10px;border-radius:11px;font-weight:700;font-size:14.5px;color:var(--muted)}.seg button.on{background:var(--card);color:var(--primary);box-shadow:var(--shadow)}
+.card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:22px;text-align:center}
+.avatar{width:72px;height:72px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#1877f2,#42a5ff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;overflow:hidden}.avatar img{width:100%;height:100%;object-fit:cover}
+.name{font-size:20px;font-weight:800;margin:0 0 2px;word-break:break-word}.sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+.qrbox{background:#fff;border-radius:16px;padding:10px;display:inline-block;line-height:0;border:1px solid var(--line)}.qrbox canvas{width:min(72vw,280px);height:auto;image-rendering:pixelated}
+.link{font-size:12.5px;color:var(--muted);word-break:break-all;margin:12px 0}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;border-radius:10px;border:0;font-weight:700;font-size:14.5px;background:var(--primary);color:#fff}.btn:hover{background:var(--primary-dark)}.btn.secondary{background:var(--chip);color:var(--text)}.btn.block{width:100%}
+.hint{font-size:13.5px;color:var(--muted);margin:14px 4px 0}
+.scanbox{position:relative;border-radius:18px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:420px;margin:0 auto}.scanbox video{width:100%;height:100%;object-fit:cover}
+.frame{position:absolute;inset:14%;border:3px solid rgba(255,255,255,.9);border-radius:18px;box-shadow:0 0 0 999px rgba(0,0,0,.35);pointer-events:none}
+.note{font-size:13.5px;padding:12px 14px;border-radius:12px;background:#e7f3ff;color:#0b4fb3;margin:14px 0;text-align:left}html[data-theme="dark"] .note{background:#263951;color:#8cb8ff}.note.warn{background:#fff6e0;color:#8a5a00}html[data-theme="dark"] .note.warn{background:#3f3417;color:#f3c97a}
+input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--inputline);border-radius:10px;font-size:15px;background:var(--input);color:var(--text);outline:none}
+.paste{display:flex;gap:8px;margin-top:12px}.paste input{flex:1}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:80;background:#242526;color:#fff;padding:12px 18px;border-radius:12px;font-size:14.5px;font-weight:600;max-width:min(92vw,460px);text-align:center;transition:.25s}#toast.show{opacity:1;transform:translate(-50%,0)}#toast.err{background:#b3122a}#toast.ok{background:#176f35}
+</style>
+</head>
+<body>
+<header class="topbar"><button class="icon-btn" id="backBtn" type="button" aria-label="Back">←</button><h1 id="pageTitle">QR code</h1></header>
+<div class="wrap">
+<div class="seg"><button type="button" id="tabMine" class="on" data-i18n="tab_mine">QR របស់ខ្ញុំ</button><button type="button" id="tabScan" data-i18n="tab_scan">ស្កេន</button></div>
+
+<section id="paneMine"><div class="card">
+<div class="avatar" id="avatar">?</div><p class="name" id="myName">…</p><p class="sub" data-i18n="mine_sub">ឱ្យមិត្តស្កេនកូដនេះ ដើម្បីតាមដាន និងជជែកជាមួយអ្នកភ្លាមៗ</p>
+<div class="qrbox"><canvas id="qrCanvas" width="280" height="280" aria-label="QR code"></canvas></div>
+<div class="link" id="myLink"></div>
+<div class="row"><button type="button" class="btn" id="shareBtn" data-i18n="share">ចែករំលែក</button><button type="button" class="btn secondary" id="copyBtn" data-i18n="copy">ចម្លងតំណ</button><button type="button" class="btn secondary" id="saveBtn" data-i18n="save">រក្សាទុករូប</button></div>
+</div></section>
+
+<section id="paneScan" class="hidden"><div class="card">
+<div id="scanArea"><div class="scanbox"><video id="video" playsinline muted></video><div class="frame"></div></div><p class="hint" data-i18n="scan_hint">ដាក់ QR code របស់គេក្នុងស៊ុម</p>
+<div class="row" style="margin-top:12px"><button type="button" class="btn secondary" id="photoBtn" data-i18n="from_photo">ជ្រើសរូប QR</button><input type="file" id="photoInput" accept="image/*" class="hidden"></div></div>
+<div class="note hidden" id="noScanner"></div>
+<div style="text-align:left;margin-top:16px"><div style="font-weight:700;margin-bottom:6px" data-i18n="paste_t">ឬបិទភ្ជាប់តំណ ឬលេខសម្គាល់</div>
+<div class="paste"><input type="text" id="pasteInput" inputmode="text" autocomplete="off" data-i18n-ph="paste_ph" placeholder="https://camfeedkh.com/profile.html?email=…"><button type="button" class="btn" id="pasteGo" data-i18n="open">បើក</button></div></div>
+</div></section>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+'use strict';
+var me = null; try { me = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
+if (!me) { location.href = 'index.html'; return; }
+var ID_RE = /^1\d{14}$/;
+var T = {
+ km: { title: 'QR code', tab_mine: 'QR របស់ខ្ញុំ', tab_scan: 'ស្កេន', mine_sub: 'ឱ្យមិត្តស្កេនកូដនេះ ដើម្បីតាមដាន និងជជែកជាមួយអ្នកភ្លាមៗ', share: 'ចែករំលែក', copy: 'ចម្លងតំណ', save: 'រក្សាទុករូប', copied: 'បានចម្លងតំណហើយ',
+   scan_hint: 'ដាក់ QR code របស់គេក្នុងស៊ុម', from_photo: 'ជ្រើសរូប QR', paste_t: 'ឬបិទភ្ជាប់តំណ ឬលេខសម្គាល់', paste_ph: 'https://camfeedkh.com/profile.html?email=…', open: 'បើក',
+   no_scanner: 'browser នេះមិនអាចស្កេនក្នុង CamFeed បានទេ។ សូមបើកកម្មវិធី «កាមេរ៉ា» (Camera) របស់ទូរស័ព្ទ ហើយចង្អុលទៅ QR code វានឹងបើក CamFeed ដោយខ្លួនឯង ឬបិទភ្ជាប់តំណខាងក្រោម។',
+   cam_denied: 'មិនអាចបើកកាមេរ៉ាបានទេ។ សូមអនុញ្ញាតកាមេរ៉ាសម្រាប់គេហទំព័រនេះ ឬបិទភ្ជាប់តំណខាងក្រោម។', not_ours: 'នេះមិនមែនជា QR code របស់ CamFeed ទេ', own: 'នេះគឺជា QR code របស់អ្នកផ្ទាល់', no_code: 'រកមិនឃើញ QR code ក្នុងរូបនេះទេ', bad_link: 'តំណ ឬលេខសម្គាល់មិនត្រឹមត្រូវ', saved: 'បានរក្សាទុករូប' },
+ en: { title: 'QR code', tab_mine: 'My QR code', tab_scan: 'Scan', mine_sub: 'Let a friend scan this code to follow you and chat with you right away', share: 'Share', copy: 'Copy link', save: 'Save image', copied: 'Link copied',
+   scan_hint: 'Put their QR code inside the frame', from_photo: 'Choose a QR photo', paste_t: 'Or paste a link or ID', paste_ph: 'https://camfeedkh.com/profile.html?email=…', open: 'Open',
+   no_scanner: 'This browser can not scan inside CamFeed. Open your phone\'s Camera app and point it at the QR code; it opens CamFeed by itself, or paste the link below.',
+   cam_denied: 'The camera could not be opened. Please allow the camera for this site, or paste the link below.', not_ours: 'This is not a CamFeed QR code', own: 'This is your own QR code', no_code: 'No QR code found in this picture', bad_link: 'That link or ID is not valid', saved: 'Image saved' } };
+var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
+function t(k) { return (T[lang] && T[lang][k]) || T.en[k]; }
+function $(id) { return document.getElementById(id); }
+var toastTimer; function toast(m, kind) { var n = $('toast'); n.textContent = m; n.className = 'show ' + (kind || ''); clearTimeout(toastTimer); toastTimer = setTimeout(function () { n.className = ''; }, 3000); }
+document.querySelectorAll('[data-i18n]').forEach(function (n) { n.textContent = t(n.getAttribute('data-i18n')); });
+document.querySelectorAll('[data-i18n-ph]').forEach(function (n) { n.placeholder = t(n.getAttribute('data-i18n-ph')); });
+$('pageTitle').textContent = t('title');
+$('backBtn').addEventListener('click', function () { if (document.referrer && document.referrer.indexOf(location.origin) === 0 && history.length > 1) history.back(); else location.href = 'feed.html'; });
+
+// ---------- my code ----------
+var link = location.origin + '/profile.html?email=' + encodeURIComponent(me.email) + '&qr=1';
+var shown = false;
+function initial(u) { return ((u.first_name || '').trim()[0] || '?').toUpperCase(); }
+function paintProfile(u) {
+  var av = $('avatar'); av.textContent = '';
+  if (u.profile_pic) { var img = document.createElement('img'); img.alt = ''; img.src = u.profile_pic; img.onerror = function () { av.textContent = initial(u); }; av.appendChild(img); } else av.textContent = initial(u);
+  $('myName').textContent = ((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'CamFeed';
+}
+paintProfile(me);
+$('myLink').textContent = link.replace(/^https?:\/\//, '');
+function drawMine() { try { CamQR.draw($('qrCanvas'), link, 560); } catch (e) { toast(String(e.message || e), 'err'); } }
+drawMine();
+fetch('/api/user-profile?email=' + encodeURIComponent(me.email) + '&viewerEmail=' + encodeURIComponent(me.email)).then(function (r) { return r.json(); }).then(function (d) { if (d && d.success && d.user) paintProfile(d.user); }).catch(function () {});
+function copyText(text) { var fb = function () { var ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta); }; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(fb); else fb(); toast(t('copied'), 'ok'); }
+$('copyBtn').addEventListener('click', function () { copyText(link); });
+$('shareBtn').addEventListener('click', function () { if (navigator.share) navigator.share({ title: 'CamFeed', text: $('myName').textContent, url: link }).catch(function () {}); else copyText(link); });
+$('saveBtn').addEventListener('click', function () {
+  var c = document.createElement('canvas'); CamQR.draw(c, link, 720);
+  c.toBlob(function (b) { if (!b) return; var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'camfeed-qr.png'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast(t('saved'), 'ok'); });
+});
+
+// ---------- scanning ----------
+function parse(text) {                                   // only OUR profile links or a plain id: never open anything else
+  var s = String(text || '').trim();
+  if (ID_RE.test(s)) return s;
+  try { var u = new URL(s); if ((u.origin === location.origin || u.origin === 'https://camfeedkh.com') && /\/profile\.html$/.test(u.pathname)) { var id = u.searchParams.get('email'); if (ID_RE.test(String(id))) return id; } } catch (e) {}
+  return null;
+}
+function openProfile(raw, fromScan) {
+  var id = parse(raw);
+  if (!id) { toast(t(fromScan ? 'not_ours' : 'bad_link'), 'err'); return false; }
+  if (id === me.email) { toast(t('own'), 'err'); return false; }
+  location.href = 'profile.html?email=' + encodeURIComponent(id) + '&qr=1'; return true;
+}
+var stream = null, detector = null, scanning = false;
+function stopScan() { scanning = false; if (stream) { stream.getTracks().forEach(function (tr) { tr.stop(); }); stream = null; } var v = $('video'); try { v.pause(); v.srcObject = null; } catch (e) {} }
+function loop() {
+  if (!scanning) return;
+  detector.detect($('video')).then(function (codes) {
+    if (codes && codes.length) { var raw = codes[0].rawValue; if (openProfile(raw, true)) { stopScan(); return; } setTimeout(loop, 1500); return; }
+    setTimeout(loop, 160);
+  }).catch(function () { setTimeout(loop, 300); });
+}
+async function startScan() {
+  var hasDetector = typeof window.BarcodeDetector === 'function';
+  $('noScanner').classList.toggle('hidden', hasDetector);
+  $('photoBtn').classList.toggle('hidden', !hasDetector);
+  if (!hasDetector) { $('noScanner').textContent = t('no_scanner'); $('scanArea').classList.add('hidden'); return; }
+  $('scanArea').classList.remove('hidden');
+  try {
+    detector = new BarcodeDetector({ formats: ['qr_code'] });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    var v = $('video'); v.srcObject = stream; await v.play(); scanning = true; loop();
+  } catch (e) { $('scanArea').classList.add('hidden'); $('noScanner').classList.remove('hidden'); $('noScanner').textContent = t('cam_denied'); }
+}
+$('photoBtn').addEventListener('click', function () { $('photoInput').click(); });
+$('photoInput').addEventListener('change', async function () {
+  var f = this.files && this.files[0]; this.value = ''; if (!f || typeof window.BarcodeDetector !== 'function') return;
+  try { var bmp = await createImageBitmap(f); var codes = await new BarcodeDetector({ formats: ['qr_code'] }).detect(bmp); if (!codes.length) return toast(t('no_code'), 'err'); openProfile(codes[0].rawValue, true); } catch (e) { toast(t('no_code'), 'err'); }
+});
+$('pasteGo').addEventListener('click', function () { openProfile($('pasteInput').value, false); });
+$('pasteInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') openProfile(this.value, false); });
+
+function tab(which) {
+  var scan = which === 'scan'; $('tabMine').classList.toggle('on', !scan); $('tabScan').classList.toggle('on', scan);
+  $('paneMine').classList.toggle('hidden', scan); $('paneScan').classList.toggle('hidden', !scan);
+  if (scan) startScan(); else stopScan();
+  try { history.replaceState(null, '', scan ? '#scan' : '#'); } catch (e) {}
+}
+$('tabMine').addEventListener('click', function () { tab('mine'); }); $('tabScan').addEventListener('click', function () { tab('scan'); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') stopScan(); else if (!$('paneScan').classList.contains('hidden')) startScan(); });
+window.addEventListener('pagehide', stopScan);
+if (location.hash === '#scan') tab('scan');
+})();
+</script>
+</body>
+</html>

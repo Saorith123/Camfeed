@@ -833,6 +833,11 @@ app.get('/api/posts', async (req, res) => {
       ? ` AND NOT (p.id = ANY($4::int[]))`
       : '';
 
+    // The first page (and Home) shows the NEWEST posts first. Scrolling down is a mixed, never-ending stream
+    // (what you have not seen yet, ranked), not the old posts in date order. FEED_MODE=latest / ranked forces one way.
+    const isFirstPage = excludeIds.length === 0 && parsedOffset === 0 && req.query.shuffle !== '1';
+    const useLatest = process.env.FEED_MODE === 'latest' || (process.env.FEED_MODE !== 'ranked' && isFirstPage);
+    const feedOrder = useLatest ? 'p.created_at DESC, p.id DESC' : 'feed_rank_score DESC, p.created_at DESC';
     const feedQuery = `
       ${cteAndJoins},
       (
@@ -857,7 +862,7 @@ app.get('/api/posts', async (req, res) => {
         ${excludeCondition}
         AND COALESCE(u.is_banned, FALSE) = FALSE
         AND p.user_email NOT IN (SELECT u_email FROM blocked)
-      ORDER BY feed_rank_score DESC, p.created_at DESC
+      ORDER BY ${feedOrder}
       LIMIT $2 OFFSET $3
     `;
 
@@ -1552,11 +1557,23 @@ app.get('/api/search-users', async (req, res) => {
           UNION
           SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
         )
-        AND (first_name ILIKE $2 OR last_name ILIKE $2 OR LOWER(email) = LOWER($3))
+        AND (first_name ILIKE $2 OR last_name ILIKE $2 OR LOWER(email) = ANY($3::text[])
+             OR ($4 <> '' AND COALESCE(phone_privacy, 'public') = 'public'
+                 AND (regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = $4
+                      OR (regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE '0%' AND '855' || substr(regexp_replace(COALESCE(phone, ''), '\\D', '', 'g'), 2) = $4))))
       LIMIT 10
     `;
     const likeSafe = String(keyword || '').replace(/[\\%_]/g, '\\$&');      // a typed % or _ must not act as a wildcard
-    const result = await pool.query(query, [email, `%${likeSafe}%`, String(keyword || '').trim()]);
+    const typed = String(keyword || '').trim();
+    // a FULL phone number finds the person, however it is written (012 345 678, +855 12 345 678, 85512345678 ...); only exact matches, never part of a number
+    const e164 = normalizePhone(typed);
+    const identities = [typed.toLowerCase()];
+    if (e164) {
+      const digits = e164.slice(1);
+      identities.push(phoneEmail(e164), digits, '+' + digits);                       // the hidden identity of accounts made with a phone, and old accounts that used the number as their login
+      if (digits.startsWith('855')) identities.push('0' + digits.slice(3));
+    }
+    const result = await pool.query(query, [email, `%${likeSafe}%`, identities, e164 ? e164.slice(1) : '']);
     res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

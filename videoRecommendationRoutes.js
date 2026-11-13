@@ -340,6 +340,9 @@ module.exports = function createVideoRouter(pool) {
       const parsedLimit = Math.min(parseInt(limit, 10) || 20, 50);
       const parsedOffset = parseInt(offset, 10) || 0;
 
+      // first page = newest videos first; further pages = the mixed recommendation stream (VIDEO_FEED_MODE=latest / ranked forces one way)
+      const useLatest = process.env.VIDEO_FEED_MODE === 'latest' || (process.env.VIDEO_FEED_MODE !== 'ranked' && parsedOffset === 0);
+      const videoOrder = useLatest ? 'v.created_at DESC, v.id DESC' : 'recommendation_score DESC, v.created_at DESC';
       const feedQuery = `
         SELECT
           v.*,
@@ -363,7 +366,7 @@ module.exports = function createVideoRouter(pool) {
         LEFT JOIN follows f
           ON f.follower_email = $1 AND f.following_email = v.user_email
         WHERE v.moderation_status = 'approved'
-        ORDER BY recommendation_score DESC, v.created_at DESC
+        ORDER BY ${videoOrder}
         LIMIT $2 OFFSET $3
       `;
 

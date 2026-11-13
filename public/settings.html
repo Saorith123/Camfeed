@@ -163,7 +163,7 @@ const T = {
 km: {
 title:'ការកំណត់',viewProfile:'មើលប្រវត្តិរូប',logout:'ចាកចេញ',loading:'កំពុងផ្ទុក…',g_settings:'ការកំណត់ និងឯកជនភាព',g_help:'ជំនួយ និងគោលការណ៍',
 save:'រក្សាទុក',copy:'ចម្លង',copied:'បានចម្លងហើយ',cancel:'បោះបង់',confirm:'បញ្ជាក់',retry:'ព្យាយាមម្តងទៀត',open:'បើក',more:'មើលបន្ថែម',soon:'ឆាប់ៗនេះ',
-dark_t:'Dark mode',dark_s:'ប្តូរទៅពណ៌ងងឹត ទូទាំង website',active_t:'ស្ថានភាពអនឡាញ (Active status)',active_s:'បង្ហាញនៅពេលអ្នកអនឡាញ។ បើបិទ អ្នកក៏មិនឃើញស្ថានភាពអ្នកដទៃដែរ',
+qr_t:'QR code របស់ខ្ញុំ និងស្កេន',qr_s:'ឱ្យមិត្តស្កេនដើម្បីតាមដាន និងជជែក ឬស្កេនរបស់គេ',dark_t:'Dark mode',dark_s:'ប្តូរទៅពណ៌ងងឹត ទូទាំង website',active_t:'ស្ថានភាពអនឡាញ (Active status)',active_s:'បង្ហាញនៅពេលអ្នកអនឡាញ។ បើបិទ អ្នកក៏មិនឃើញស្ថានភាពអ្នកដទៃដែរ',
 nav_login:'ការចូល និងសុវត្ថិភាព',nav_login_s:'ឈ្មោះ លេខទូរស័ព្ទ ពាក្យសម្ងាត់ ឧបករណ៍ដែលបានចូល',nav_privacy:'ឯកជនភាព',nav_privacy_s:'អ្នកណាអាចឃើញព័ត៌មានរបស់អ្នក',
 nav_notifications:'ការជូនដំណឹងដែលអ្នកចង់បាន',nav_notifications_s:'ប្រតិកម្ម អ្នកតាមដានថ្មី ការចែករំលែក',nav_blocking:'ការហាមឃាត់',nav_blocking_s:'បញ្ជីអ្នកដែលអ្នកបានហាមឃាត់',
 nav_activity:'សកម្មភាពរបស់អ្នក',nav_activity_s:'ប្រតិកម្ម ការចែករំលែក មតិ ប្រកាស',nav_data:'ទិន្នន័យរបស់ខ្ញុំ',nav_data_s:'ទាញយក ឬលុបគណនី',
@@ -203,7 +203,7 @@ err_net:'មានបញ្ហាក្នុងការភ្ជាប់ទ�
 en: {
 title:'Settings',viewProfile:'View profile',logout:'Log out',loading:'Loading…',g_settings:'Settings & privacy',g_help:'Help & policies',
 save:'Save',copy:'Copy',copied:'Copied',cancel:'Cancel',confirm:'Confirm',retry:'Try again',open:'Open',more:'Show more',soon:'Coming soon',
-dark_t:'Dark mode',dark_s:'Dark colours across the whole website',active_t:'Active status',active_s:'Show when you are online. When off, you also cannot see when others are online',
+qr_t:'My QR code & scan',qr_s:'Let friends scan to follow and chat, or scan theirs',dark_t:'Dark mode',dark_s:'Dark colours across the whole website',active_t:'Active status',active_s:'Show when you are online. When off, you also cannot see when others are online',
 nav_login:'Login and security',nav_login_s:'Name, phone, password, devices',nav_privacy:'Privacy',nav_privacy_s:'Who can see your details',
 nav_notifications:'Notifications you want',nav_notifications_s:'Reactions, new followers, shares',nav_blocking:'Blocking',nav_blocking_s:'People you blocked',
 nav_activity:'Your activity',nav_activity_s:'Reactions, shares, comments, posts',nav_data:'My data',nav_data_s:'Download or delete your account',
@@ -287,6 +287,7 @@ function fillRows(id,rows){const box=$(id);if(!box)return;box.textContent='';row
 const mailto=(subject)=>'mailto:support@camfeedkh.com?subject='+encodeURIComponent(subject);
 function renderAllRows(){
   fillRows('homeRows',[
+    {ic:'🔳',t:'qr_t',s:'qr_s',href:'qr.html'},
     {ic:'🌙',t:'dark_t',s:'dark_s',sw:{get:()=>window.CamTheme&&CamTheme.get()==='dark',set:async(on)=>{if(window.CamTheme)CamTheme.set(on?'dark':'light');return true;}}},
     {ic:'🟢',t:'active_t',s:'active_s',sw:{get:()=>activeOn,set:async(on)=>{const r=await api('/api/settings/active-status',jsonOpts('PUT',{show:on}));if(r.ok){activeOn=on;toast(t('pr_saved'),'ok');return true;}toast(t('pr_fail'),'err');return false;}}},
     {ic:'🔐',t:'nav_login',s:'nav_login_s',go:'login'},{ic:'🔒',t:'nav_privacy',s:'nav_privacy_s',go:'privacy'},{ic:'🔔',t:'nav_notifications',s:'nav_notifications_s',go:'notifications'},

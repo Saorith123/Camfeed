@@ -1,0 +1,1 @@
+Copy the files in this folder into your project folder (keep the same sub-folders: root and public). Do not delete anything else. Do not include .env in anything you share.

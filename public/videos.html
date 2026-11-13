@@ -554,7 +554,9 @@
         let audioUnlocked = false;
         function unlockReelsAudio() {
             if (audioUnlocked) return;
+            try { if (localStorage.getItem('camfeed_sound') === 'off') return; } catch (e) {}     // the person muted on purpose: keep it silent
             audioUnlocked = true;
+            try { localStorage.setItem('camfeed_sound', 'on'); } catch (e) {}
             globalMuted = false;
             const visibleVideo = Array.from(document.querySelectorAll('.reel-video')).find(v => !v.paused) || document.querySelector('.reel-video');
             if (visibleVideo) {
@@ -1454,6 +1456,19 @@
                 document.querySelectorAll('.v-comment-emoji-bar').forEach(b => b.style.display = 'none');
             }
         });
+    </script>
+
+    <script>
+    // coming back after a while (or with the browser's back button): load the newest videos
+    (function () {
+        var hiddenAt = 0;
+        function freshStart() { try { loadVideosFeed(false); } catch (e) {} try { window.scrollTo({ top: 0 }); var c = document.querySelector('.reels-container, #reelsContainer'); if (c) c.scrollTop = 0; } catch (e) {} }
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+            if (hiddenAt && Date.now() - hiddenAt > 90000) { hiddenAt = 0; freshStart(); }
+        });
+        window.addEventListener('pageshow', function (e) { if (e.persisted) freshStart(); });
+    })();
     </script>
 </body>
 </html>

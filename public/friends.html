@@ -392,10 +392,18 @@
                 const postsData = await postsRes.json();
                 const q = keyword.toLowerCase();
 
-                const matchedUsers = (usersData.users || []).filter(u =>
+                let matchedUsers = (usersData.users || []).filter(u =>
                     u.email !== currentUser.email &&
                     (`${u.first_name || ''} ${u.last_name || ''}`.toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
                 );
+                // a FULL phone number (or e-mail) finds the person on the server even when the list above does not show them
+                if (/^\+?[\d\s().-]{8,20}$/.test(keyword) || keyword.includes('@')) {
+                    try {
+                        const sr = await fetch(`/api/search-users?email=${encodeURIComponent(currentUser.email)}&keyword=${encodeURIComponent(keyword)}`);
+                        const sd = await sr.json();
+                        (sd.users || []).forEach(u => { if (!matchedUsers.some(m => m.email === u.email)) matchedUsers.push(u); });
+                    } catch (e) {}
+                }
 
                 const allMatchedPosts = (postsData.posts || []).filter(p =>
                     (p.content || '').toLowerCase().includes(q) ||
