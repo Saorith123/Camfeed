@@ -173,7 +173,7 @@
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            document.getElementById('lockAccountInfo').innerText = `Logged in as: ${currentUser.email}`;
+            document.getElementById('lockAccountInfo').innerText = `Logged in as: ${currentUser.contact_mail || currentUser.first_name || ''}`;
             if (savedAdminKey) {
                 document.getElementById('adminSecretInput').value = savedAdminKey;
                 unlockAdmin();
@@ -263,20 +263,20 @@
                                 <div style="display:flex; align-items:center; gap:10px;">
                                     <img src="${r.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                     <div>
-                                        <div style="font-weight:700;">${r.first_name} ${r.last_name}</div>
-                                        <div style="font-size:12px; color:#65676b;">${r.user_email}</div>
+                                        <div style="font-weight:700;">${esc(r.first_name)} ${esc(r.last_name)}</div>
+                                        <div style="font-size:12px; color:#65676b;">${esc(r.user_email)}</div>
                                     </div>
                                 </div>
                             </td>
                             <td><b>${r.followers_count || 0}</b> / 1,000</td>
                             <td><b>${r.total_views || 0}</b> / 10,000</td>
-                            <td><span class="badge ${r.status === 'pending' ? 'badge-pending' : (r.status === 'approved' ? 'badge-resolved' : 'badge-banned')}">${r.status}</span></td>
+                            <td><span class="badge ${r.status === 'pending' ? 'badge-pending' : (r.status === 'approved' ? 'badge-resolved' : 'badge-banned')}">${esc(r.status)}</span></td>
                             <td>
                                 ${r.status === 'pending' ? `
-                                    <button class="btn-sm btn-green" onclick="updateMonetizationAction('${r.user_email}', 'approved')">Approve</button>
-                                    <button class="btn-sm btn-red" onclick="updateMonetizationAction('${r.user_email}', 'rejected')">Reject</button>
+                                    <button class="btn-sm btn-green" onclick="updateMonetizationAction(decodeURIComponent('${ea(r.user_email)}'), 'approved')">Approve</button>
+                                    <button class="btn-sm btn-red" onclick="updateMonetizationAction(decodeURIComponent('${ea(r.user_email)}'), 'rejected')">Reject</button>
                                 ` : `
-                                    <button class="btn-sm btn-gray" onclick="updateMonetizationAction('${r.user_email}', 'pending')">Reset to Pending</button>
+                                    <button class="btn-sm btn-gray" onclick="updateMonetizationAction(decodeURIComponent('${ea(r.user_email)}'), 'pending')">Reset to Pending</button>
                                 `}
                             </td>
                         </tr>
@@ -316,18 +316,18 @@
                 <div class="report-card">
                     <div class="report-top">
                         <div>
-                            <strong>Type: ${r.target_type.toUpperCase()}</strong> · Reported by <b>${r.reporter_first || ''} ${r.reporter_last || ''}</b> (${r.reporter_email})
+                            <strong>Type: ${esc(r.target_type.toUpperCase())}</strong> · Reported by <b>${esc(r.reporter_first || '')} ${esc(r.reporter_last || '')}</b> (${esc(r.reporter_email)})
                         </div>
-                        <span class="badge ${r.status === 'pending' ? 'badge-pending' : 'badge-resolved'}">${r.status}</span>
+                        <span class="badge ${r.status === 'pending' ? 'badge-pending' : 'badge-resolved'}">${esc(r.status)}</span>
                     </div>
-                    <div class="report-reason">Reason: ${r.reason}</div>
+                    <div class="report-reason">Reason: ${esc(r.reason)}</div>
                     <div style="font-size:13.5px; margin-bottom:10px; color:#1c1e21;">
-                        ${r.target_user_email ? `<div>Target User: <b>${r.target_first || ''} ${r.target_last || ''}</b> (${r.target_user_email})</div>` : ''}
-                        ${r.target_post_id ? `<div>Post #${r.target_post_id}: "${r.post_content || '[Media Post]'}"</div>` : ''}
+                        ${r.target_user_email ? `<div>Target User: <b>${esc(r.target_first || '')} ${esc(r.target_last || '')}</b> (${esc(r.target_user_email)})</div>` : ''}
+                        ${r.target_post_id ? `<div>Post #${r.target_post_id}: "${esc(r.post_content || '[Media Post]')}"</div>` : ''}
                     </div>
                     <div>
                         ${r.target_post_id ? `<button class="btn-sm btn-red" onclick="adminDeletePost(${r.target_post_id})">🗑️ Delete Post/Video</button>` : ''}
-                        ${r.target_user_email ? `<button class="btn-sm btn-red" onclick="adminBanUser('${r.target_user_email}', true)">🚫 Ban User</button>` : ''}
+                        ${r.target_user_email ? `<button class="btn-sm btn-red" onclick="adminBanUser(decodeURIComponent('${ea(r.target_user_email)}'), true)">🚫 Ban User</button>` : ''}
                         ${r.status === 'pending' ? `<button class="btn-sm btn-gray" onclick="adminDismissReport(${r.id})">✓ Dismiss Report</button>` : ''}
                     </div>
                 </div>
@@ -346,13 +346,13 @@
 
                 const isSuper = u.role === 'super_admin';
                 return `
-                    <tr class="user-search-row" data-search="${(u.first_name + ' ' + u.last_name + ' ' + u.email).toLowerCase()}">
+                    <tr class="user-search-row" data-search="${esc((u.first_name + ' ' + u.last_name + ' ' + u.email).toLowerCase())}">
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <img src="${u.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:700;">${u.first_name} ${u.last_name}</div>
-                                    <div style="font-size:12px; color:#65676b;">${u.email}</div>
+                                    <div style="font-weight:700;">${esc(u.first_name)} ${esc(u.last_name)}</div>
+                                    <div style="font-size:12px; color:#65676b;">${esc(u.email)}</div>
                                 </div>
                             </div>
                         </td>
@@ -362,15 +362,15 @@
                         <td>
                             ${!isSuper && dashboardData.isSuperAdmin ? (
                                 u.role === 'admin'
-                                    ? `<button class="btn-sm btn-gray" onclick="adminSetRole('${u.email}', 'user')">Remove Admin</button>`
-                                    : `<button class="btn-sm btn-blue" onclick="adminSetRole('${u.email}', 'admin')">+ Make Team Admin</button>`
+                                    ? `<button class="btn-sm btn-gray" onclick="adminSetRole(decodeURIComponent('${ea(u.email)}'), 'user')">Remove Admin</button>`
+                                    : `<button class="btn-sm btn-blue" onclick="adminSetRole(decodeURIComponent('${ea(u.email)}'), 'admin')">+ Make Team Admin</button>`
                             ) : ''}
                             ${!isSuper ? (
                                 u.is_banned
-                                    ? `<button class="btn-sm btn-green" onclick="adminBanUser('${u.email}', false)">Unban</button>`
-                                    : `<button class="btn-sm btn-red" onclick="adminBanUser('${u.email}', true)">Ban</button>`
+                                    ? `<button class="btn-sm btn-green" onclick="adminBanUser(decodeURIComponent('${ea(u.email)}'), false)">Unban</button>`
+                                    : `<button class="btn-sm btn-red" onclick="adminBanUser(decodeURIComponent('${ea(u.email)}'), true)">Ban</button>`
                             ) : ''}
-                            ${!isSuper && dashboardData.isSuperAdmin ? `<button class="btn-sm btn-red" onclick="adminDeleteUser('${u.email}')">Delete</button>` : ''}
+                            ${!isSuper && dashboardData.isSuperAdmin ? `<button class="btn-sm btn-red" onclick="adminDeleteUser(decodeURIComponent('${ea(u.email)}'))">Delete</button>` : ''}
                         </td>
                     </tr>
                 `;
@@ -389,14 +389,14 @@
             tbody.innerHTML = posts.map(p => `
                 <tr>
                     <td>
-                        <b>${p.first_name} ${p.last_name}</b><br>
-                        <span style="font-size:11.5px; color:#65676b;">${p.user_email}</span>
+                        <b>${esc(p.first_name)} ${esc(p.last_name)}</b><br>
+                        <span style="font-size:11.5px; color:#65676b;">${esc(p.user_email)}</span>
                     </td>
                     <td>
-                        <div style="max-width:340px; white-space:pre-wrap;">${p.content || '[No caption]'}</div>
-                        ${p.media_url && !p.media_url.startsWith('[') ? `<a href="${p.media_url}" target="_blank" style="font-size:12px; color:#1877f2;">View ${p.media_type}</a>` : ''}
+                        <div style="max-width:340px; white-space:pre-wrap;">${esc(p.content || '[No caption]')}</div>
+                        ${p.media_url && !p.media_url.startsWith('[') ? `<a href="${p.media_url}" target="_blank" style="font-size:12px; color:#1877f2;">View ${esc(p.media_type)}</a>` : ''}
                     </td>
-                    <td>#${p.ai_category || 'General'} · 👁️ ${p.views_count || 0}</td>
+                    <td>#${esc(p.ai_category || 'General')} · 👁️ ${p.views_count || 0}</td>
                     <td>
                         <button class="btn-sm btn-red" onclick="adminDeletePost(${p.id})">🗑️ Delete</button>
                     </td>

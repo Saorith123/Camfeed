@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camfeed - Settings & Privacy</title>
@@ -62,12 +69,18 @@
         </div>
     </div>
 
+    <div style="text-align: center; font-size: 12.5px; margin: 6px 0 30px;">
+        <a href="/privacy.html" style="color: #1877f2; text-decoration: none;">គោលការណ៍ឯកជនភាព / Privacy Policy</a> ·
+        <a href="/terms.html" style="color: #1877f2; text-decoration: none;">លក្ខខណ្ឌ / Terms</a> ·
+        <a href="/delete-account.html" style="color: #1877f2; text-decoration: none;">លុបគណនី / Delete account</a>
+    </div>
+
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         if (!currentUser) window.location.href = 'index.html';
 
         // Accounts created with Telegram have no password: hide the password card and confirm deletion by typing DELETE
-        if (/^tg\d+@telegram\.camfeedkh\.com$/i.test(currentUser.email || '')) {
+        if (currentUser.passwordless === true) {
             document.getElementById('passwordCard').style.display = 'none';
             document.getElementById('deletePwLabel').innerText = 'Type DELETE to confirm';
             const dp = document.getElementById('deletePassword');

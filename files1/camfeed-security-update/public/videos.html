@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CamFeed - Videos</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="apple-touch-icon" href="logo-icon.png">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html, input, textarea, select, button {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body, html {
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            background-color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            overscroll-behavior-y: none;
+        }
+
+        .reels-top-bar {
+            position: fixed;
+            top: calc(12px + env(safe-area-inset-top, 0px));
+            left: 14px;
+            right: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .top-circle-btn { pointer-events: auto; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .top-circle-btn:hover { background: rgba(255,255,255,0.2); }
+
+        .reels-container {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+        }
+        .reels-container::-webkit-scrollbar { display: none; }
+
+        .reel-item {
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            overflow: hidden;
+        }
+        .reel-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            cursor: pointer;
+            will-change: transform;
+            transform: translateZ(0);
+        }
+
+        /* Smooth start: video fades in when its first frame is ready; spinner only if it really stalls */
+        .reel-video { opacity: 0; transition: opacity .22s ease; }
+        .reel-video.vid-ready { opacity: 1; }
+        .reel-spinner {
+            position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+            border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff;
+            animation: reelspin .8s linear infinite; z-index: 11; display: none; pointer-events: none;
+        }
+        .reel-item.is-loading .reel-spinner { display: block; }
+        @keyframes reelspin { to { transform: rotate(360deg); } }
+
+        /* Dark Skeleton Shimmer Loader for Reels */
+        @keyframes reelShimmerWave {
+            0% { background-position: -450px 0; }
+            100% { background-position: 450px 0; }
+        }
+        .reel-skel-bone {
+            background: #1e293b;
+            background-image: linear-gradient(90deg, #1e293b 0px, #334155 90px, #1e293b 180px);
+            background-size: 450px 100%;
+            animation: reelShimmerWave 1.25s infinite linear;
+        }
+
+        /* Center Play Indicator when Paused */
+        .reel-center-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 12;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 26px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+        }
+        .reel-item.is-paused .reel-center-play {
+            display: flex;
+        }
+
+        /* Bottom Gradient for Readability */
+        .reel-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 48%; background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.45) 60%, transparent 100%); z-index: 5; pointer-events: none; }
+
+        .reel-overlay {
+            position: absolute;
+            bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+            left: 15px;
+            right: 82px;
+            z-index: 10;
+            color: #fff;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+        }
+
+        /* Bottom Interactive Video Control Bar */
+        .reel-controls-bar {
+            position: absolute;
+            bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+            left: 12px;
+            right: 12px;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 6px 10px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .rc-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            padding: 0;
+        }
+        .rc-btn:active { transform: scale(0.9); }
+        .rc-speed-btn {
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 7px;
+            border-radius: 8px;
+            cursor: pointer;
+            flex-shrink: 0;
+            min-width: 38px;
+            text-align: center;
+        }
+        .rc-speed-btn:active { transform: scale(0.92); }
+        .rc-time {
+            font-size: 11.5px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .rc-seek {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 4px;
+            outline: none;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+        }
+        .rc-seek::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .rc-seek::-moz-range-thumb {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #38bdf8;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .reel-author-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; cursor: pointer; }
+        .reel-avatar { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; background: #333; }
+        .reel-caption { font-size: 14.5px; line-height: 1.4; color: #f5f5f5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; white-space: pre-wrap; }
+        .reel-category-badge { display: inline-block; background: rgba(24, 119, 242, 0.9); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 12px; margin-bottom: 7px; }
+        .reel-views-text { font-size: 12.5px; color: #e4e6eb; font-weight: 600; }
+
+        /* Right Side Action Buttons */
+        .reel-actions {
+            position: absolute;
+            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            right: 12px;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            color: #fff;
+        }
+        .action-slot { position: relative; display: flex; flex-direction: column; align-items: center; }
+        .action-icon-btn { background: rgba(255,255,255,0.16); border: none; color: #fff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 21px; cursor: pointer; backdrop-filter: blur(6px); transition: transform 0.12s, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        .action-icon-btn:active { transform: scale(0.9); }
+        .action-icon-btn.reacted { background: rgba(24, 119, 242, 0.92); box-shadow: 0 2px 10px rgba(24,119,242,0.5); }
+        .action-count { font-size: 12px; font-weight: 700; text-align: center; margin-top: 4px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); cursor: pointer; padding: 2px 6px; border-radius: 8px; }
+        .action-count:hover { background: rgba(255,255,255,0.18); }
+
+        /* Floating Cute Reaction Bar */
+        .reaction-picker {
+            display: none;
+            position: absolute;
+            right: 54px;
+            top: 0;
+            background: #fff;
+            padding: 7px 12px;
+            border-radius: 30px;
+            box-shadow: 0 6px 22px rgba(0,0,0,0.4);
+            gap: 10px;
+            z-index: 300;
+            animation: popLeft 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .reaction-picker.show { display: flex; }
+
+        @keyframes popLeft {
+            from { opacity: 0; transform: translateX(10px) scale(0.9); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .emoji-option { font-size: 26px; cursor: pointer; transition: transform 0.15s; user-select: none; line-height: 1; }
+        .emoji-option:hover { transform: scale(1.35) translateY(-3px); }
+
+        /* Video 3-Dots Menu */
+        .video-options-dropdown {
+            display: none;
+            position: absolute;
+            right: 52px;
+            bottom: 0;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            min-width: 165px;
+            z-index: 400;
+            overflow: hidden;
+        }
+        .video-options-dropdown button {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 11px 14px;
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #050505;
+        }
+        .video-options-dropdown button:hover { background: #f2f3f5; }
+
+        /* Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
+        .modal-card { background: #fff; width: 100%; max-width: 450px; border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); overflow: hidden; max-height: 82vh; display: flex; flex-direction: column; color: #050505; }
+        .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 14px 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+
+        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14px; font-weight: 600; color: #050505; }
+        .share-option-btn:hover { background: #e4e6eb; }
+        .share-icon { font-size: 20px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-shrink: 0; }
+
+        .reactor-row { display: flex; justify-content: space-between; align-items: center; }
+        .btn-follow-mini { padding: 6px 14px; background: #1877f2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12.5px; }
+        .btn-unfollow-mini { background: #e4e6eb; color: #050505; }
+
+        .report-reason-btn { width: 100%; text-align: left; padding: 11px 14px; border: 1px solid #e4e6eb; border-radius: 8px; background: #f8f9fa; font-size: 14px; font-weight: 600; cursor: pointer; color: #050505; }
+        .report-reason-btn:hover, .report-reason-btn.selected { background: #ffebe9; border-color: #fa383e; color: #d93025; }
+
+        .comment-container { display: flex; gap: 10px; font-size: 13px; align-items: flex-start; position: relative; width: 100%; }
+        .comment-avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex-shrink: 0; cursor: pointer; }
+        .comment-content-wrapper { flex: 1; display: flex; justify-content: space-between; align-items: flex-start; background: #f0f2f5; padding: 8px 12px; border-radius: 16px; color: #050505; }
+        .comment-bubble { word-break: break-word; flex: 1; }
+        .comment-author { font-weight: bold; color: #050505; font-size: 12.5px; margin-bottom: 2px; display: block; cursor: pointer; }
+        .comment-options-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #65676b; padding: 0 5px; }
+
+        input[type="text"], textarea { width: 100%; padding: 10px 14px; border: 1px solid #dddfe2; border-radius: 12px; outline: none; font-size: 14px; font-family: inherit; }
+        .send-comment-btn { padding: 9px 16px; background: #1877f2; color: #fff; border: none; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+    </style>
+</head>
+<body>
+
+    <div class="reels-top-bar">
+        <button class="top-circle-btn" onclick="window.location.href='feed.html'" title="Back to Feed">🡠</button>
+        <div class="notranslate" translate="no" style="font-weight: 800; font-size: 18px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.85);">Videos</div>
+        <div style="width: 40px;"></div>
+    </div>
+
+    <div class="reels-container" id="reelsFeedContainer">
+        <!-- Dark Skeleton Loader while first videos fetch -->
+        <div class="reel-item" id="initialReelSkeleton">
+            <div style="position:absolute; bottom:80px; left:16px; right:80px; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div class="reel-skel-bone" style="width:42px; height:42px; border-radius:50%;"></div>
+                    <div class="reel-skel-bone" style="width:130px; height:13px; border-radius:6px;"></div>
+                </div>
+                <div class="reel-skel-bone" style="width:85%; height:11px; border-radius:6px;"></div>
+                <div class="reel-skel-bone" style="width:60%; height:11px; border-radius:6px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comments Modal Popup -->
+    <div id="commentsModal" class="modal-overlay" onclick="closeCommentsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>Comments</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeCommentsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modalCommentList"></div>
+            <div style="display: flex; padding: 10px 15px; border-top: 1px solid #e4e6eb; gap: 8px; background: #fff; align-items: center;">
+                <input type="text" id="modalCommentInput" placeholder="Write a comment..." onkeypress="if(event.key==='Enter') addModalComment()">
+                <button onclick="addModalComment()" class="send-comment-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Video Modal -->
+    <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="shareModalTitle">ចែករំលែកវីដេអូ (Share Video)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeShareModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="shareCaptionInput" placeholder="សរសេរអ្វីមួយអំពីវីដេអូនេះ (ស្រេចចិត្ត)...">
+                
+                <button class="share-option-btn" onclick="shareToMyProfile()">
+                    <span class="share-icon">👤</span>
+                    <div>
+                        <div>ស៊ែរចូលទៅក្នុង Profile របស់ខ្ញុំ</div>
+                        <div style="font-size: 12px; color: #65676b; font-weight: normal;">បង្ហោះផ្ទាល់ទៅលើទំព័រផ្ទាល់ខ្លួនរបស់អ្នក</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="shareToSocialMedia()">
+                    <span class="share-icon">🌐</span>
+                    <div>
+                        <div>ចែករំលែកទៅកាន់បណ្ដាញសង្គមផ្សេងៗ</div>
+                        <div style="font-size: 12px; color: #65676b; font-weight: normal;">Telegram, Facebook, Messenger និងកម្មវិធីផ្សេងទៀត</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="copyVideoLink()">
+                    <span class="share-icon">🔗</span>
+                    <div>
+                        <div id="copyLinkLabel">ចម្លងតំណភ្ជាប់ (Copy Link)</div>
+                        <div style="font-size: 12px; color: #65676b; font-weight: normal;">ចម្លង Link ដើម្បីយកទៅបិទភ្ជាប់នៅគេហទំព័រផ្សេងៗ</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reactors List Modal -->
+    <div id="reactionsModal" class="modal-overlay" onclick="closeReactionsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>អ្នកដែលបានប្រតិកម្ម</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeReactionsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="reactionsModalList"></div>
+        </div>
+    </div>
+
+    <!-- Sharers List Modal -->
+    <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>អ្នកដែលបានចែករំលែក</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeSharersModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="sharersModalList"></div>
+        </div>
+    </div>
+
+    <!-- Report Video Modal -->
+    <div id="reportModal" class="modal-overlay" onclick="closeReportModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>🚩 រាយការណ៍វីដេអូ (Report Video)</span>
+                <span style="cursor: pointer; font-size: 20px;" onclick="closeReportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #65676b;">សូមជ្រើសរើសមូលហេតុដែលវីដេអូនេះរំលោភបំពានគោលការណ៍៖</p>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Violence or Harmful Content (អំពើហិង្សា)')">⚠️ អំពើហិង្សា ឬគ្រោះថ្នាក់ធ្ងន់ធ្ងរ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Harassment or Hate Speech (រំលោភបំពាន)')">💢 ការជេរប្រមាថ ឬរំលោភបំពាន</button>
+                <textarea id="reportCustomDetails" rows="2" placeholder="បញ្ជាក់ព័ត៌មានបន្ថែម (ស្រេចចិត្ត)..."></textarea>
+                <button type="button" class="send-comment-btn" style="background: #fa383e; width: 100%; border-radius: 8px; padding: 11px;" onclick="submitVideoReport()">បញ្ជូនរបាយការណ៍ទៅ Admin</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let globalMuted = true;
+        let activePostIdForComment = null;
+        let activePostIdForShare = null;
+        let activeCaptionForShare = '';
+        let activePostIdForReport = null;
+        let selectedReportReasonText = '';
+        let pressTimer = null;
+        let isLongPressTriggered = false;
+        const trackedVideoViews = new Set();
+        const videoReactionState = {};
+        const loadedReelVideoIds = new Set();
+        let isLoadingMoreReels = false;
+
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            loadVideosFeed(false);
+        }
+
+        const REEL_SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+
+        // បំបែកនាទីលើស ៦០ ទៅជា ម៉ោង:នាទី:វិនាទី (H:MM:SS)
+        function formatReelClock(sec) {
+            if (!sec || !isFinite(sec) || sec < 0) return '0:00';
+            const totalSec = Math.floor(sec);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h > 0) {
+                return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            }
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function handleReelMetadata(uid) {
+            const vid = document.getElementById(`rvid-${uid}`);
+            if (!vid) return;
+            if (vid.videoWidth > 0 && vid.videoHeight > 0 && vid.videoWidth > vid.videoHeight) {
+                vid.classList.add('landscape-video');
+            }
+            updateReelProgress(uid);
+        }
+
+        function updateReelProgress(uid) {
+            const vid = document.getElementById(`rvid-${uid}`);
+            const curEl = document.getElementById(`rcur-${uid}`);
+            const durEl = document.getElementById(`rdur-${uid}`);
+            const seekEl = document.getElementById(`rseek-${uid}`);
+            if (!vid) return;
+            const cur = vid.currentTime || 0;
+            const dur = isFinite(vid.duration) ? vid.duration : 0;
+            if (curEl) curEl.innerText = formatReelClock(cur);
+            if (durEl) durEl.innerText = formatReelClock(dur);
+            if (seekEl && dur > 0) {
+                seekEl.value = ((cur / dur) * 100).toFixed(1);
+            }
+        }
+
+        function seekReelVideo(uid, pct) {
+            const vid = document.getElementById(`rvid-${uid}`);
+            if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
+            vid.currentTime = (parseFloat(pct) / 100) * vid.duration;
+            updateReelProgress(uid);
+        }
+
+        function toggleReelPlayPause(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`rvid-${uid}`);
+            if (!vid) return;
+            const realSrc = vid.dataset.videoSrc;
+            if (realSrc && vid.getAttribute('src') !== realSrc) {
+                vid.setAttribute('src', realSrc);
+                try { vid.load(); } catch (e) {}
+            }
+            if (vid.paused) {
+                vid.dataset.userPaused = 'false';
+                vid.play().catch(() => {});
+            } else {
+                vid.dataset.userPaused = 'true';
+                vid.pause();
+            }
+        }
+
+        function cycleReelSpeed(uid, event) {
+            if (event) event.stopPropagation();
+            const vid = document.getElementById(`rvid-${uid}`);
+            const btn = document.getElementById(`rspeed-${uid}`);
+            if (!vid) return;
+            const curRate = vid.playbackRate || 1;
+            const idx = REEL_SPEEDS.indexOf(curRate);
+            const nextRate = REEL_SPEEDS[(idx + 1) % REEL_SPEEDS.length];
+            vid.playbackRate = nextRate;
+            if (btn) btn.innerText = `${nextRate}x`;
+        }
+
+        function formatCompactNumber(num) {
+            const n = parseInt(num) || 0;
+            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return n.toString();
+        }
+
+        let audioUnlocked = false;
+        function unlockReelsAudio() {
+            if (audioUnlocked) return;
+            audioUnlocked = true;
+            globalMuted = false;
+            const visibleVideo = Array.from(document.querySelectorAll('.reel-video')).find(v => !v.paused) || document.querySelector('.reel-video');
+            if (visibleVideo) {
+                visibleVideo.muted = false;
+                visibleVideo.removeAttribute('muted');
+                visibleVideo.volume = 1.0;
+                visibleVideo.play().catch(() => {});
+            }
+        }
+        ['touchstart', 'pointerdown', 'click'].forEach(evt => {
+            document.addEventListener(evt, unlockReelsAudio, { once: true, passive: true });
+        });
+
+        function extractVideoUrlFromPost(post) {
+            if (post.media_type === 'video' && post.media_url) return post.media_url;
+            if (post.orig_media_type === 'video' && post.orig_media_url) return post.orig_media_url;
+
+            const rawUrl = post.media_url || post.orig_media_url || '';
+            if (rawUrl.trim().startsWith('[')) {
+                try {
+                    const items = JSON.parse(rawUrl);
+                    const vid = items.find(it => it.type === 'video');
+                    if (vid) return vid.url;
+                } catch (e) {}
+            }
+            return null;
+        }
+
+        async function loadVideosFeed(appendReels = false) {
+            if (isLoadingMoreReels) return;
+            isLoadingMoreReels = true;
+            const container = document.getElementById('reelsFeedContainer');
+            try {
+                const excludeParam = (appendReels && loadedReelVideoIds.size > 0)
+                    ? `&excludeIds=${Array.from(loadedReelVideoIds).join(',')}`
+                    : '';
+                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos&limit=10&offset=0${excludeParam}`);
+                const data = await res.json();
+
+                let videoItems = [];
+                const seenOriginalIds = new Set();
+                if (data.success && Array.isArray(data.posts)) {
+                    videoItems = data.posts
+                        .map(p => {
+                            const vidUrl = extractVideoUrlFromPost(p);
+                            if (!vidUrl) return null;
+
+                            const isSharedWrapper = !!(p.shared_post_id && p.orig_id);
+                            const targetId = isSharedWrapper ? p.orig_id : p.id;
+
+                            if (seenOriginalIds.has(String(targetId))) return null;
+                            seenOriginalIds.add(String(targetId));
+
+                            const creatorEmail = isSharedWrapper ? (p.orig_author_email || p.user_email) : p.user_email;
+                            const creatorFirst = isSharedWrapper ? (p.orig_first_name || '') : (p.first_name || '');
+                            const creatorLast = isSharedWrapper ? (p.orig_last_name || '') : (p.last_name || '');
+                            const creatorPic = isSharedWrapper ? (p.orig_profile_pic || 'https://via.placeholder.com/42') : (p.profile_pic || 'https://via.placeholder.com/42');
+                            const originalCaption = isSharedWrapper ? (p.orig_content || '') : (p.content || '');
+
+                            return {
+                                id: targetId,
+                                wrapperPostId: p.id,
+                                user_email: creatorEmail,
+                                author_name: `${creatorFirst} ${creatorLast}`.trim() || 'User',
+                                profile_pic: creatorPic,
+                                media_url: vidUrl,
+                                caption: originalCaption,
+                                category: (p.ai_category && p.ai_category !== 'General') ? p.ai_category : '',
+                                likes_count: parseInt(p.likes_count) || 0,
+                                comments_count: parseInt(p.comments_count) || 0,
+                                shares_count: parseInt(p.shares_count) || 0,
+                                views_count: parseInt(p.views_count) || 0,
+                                user_reaction: p.user_reaction || null
+                            };
+                        })
+                        .filter(Boolean);
+                }
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const targetVideoId = urlParams.get('v') || urlParams.get('post');
+                if (!appendReels && targetVideoId) {
+                    const idx = videoItems.findIndex(v => String(v.id) === String(targetVideoId) || String(v.wrapperPostId) === String(targetVideoId));
+                    if (idx > 0) {
+                        const [targetVid] = videoItems.splice(idx, 1);
+                        videoItems.unshift(targetVid);
+                    }
+                }
+
+                if (!appendReels) {
+                    loadedReelVideoIds.clear();
+                    container.innerHTML = '';
+                    if (videoItems.length === 0) {
+                        isLoadingMoreReels = false;
+                        container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
+                        return;
+                    }
+                } else {
+                    videoItems = videoItems.filter(v => !loadedReelVideoIds.has(String(v.id)) && !loadedReelVideoIds.has(String(v.wrapperPostId)));
+                    if (videoItems.length === 0 && loadedReelVideoIds.size > 0) {
+                        loadedReelVideoIds.clear();
+                        isLoadingMoreReels = false;
+                        return loadVideosFeed(true);
+                    }
+                }
+
+                videoItems.forEach(v => {
+                    loadedReelVideoIds.add(String(v.id));
+                    loadedReelVideoIds.add(String(v.wrapperPostId));
+                });
+
+                const newReelsHtml = videoItems.map(video => {
+                    const uid = `${video.id}-${Math.random().toString(36).slice(2, 6)}`;
+                    videoAuthorMap[video.id] = video.user_email;
+                    videoReactionState[video.id] = {
+                        count: video.likes_count,
+                        userReaction: video.user_reaction
+                    };
+                    const isOwn = currentUser.email === video.user_email;
+                    const cleanVideoSrc = video.media_url.split('#')[0] + '#t=0.001'; // shows the first frame while loading
+
+                    return `
+                        <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
+                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
+                                onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="this.classList.add('vid-ready')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
+                                ontimeupdate="updateReelProgress('${uid}')"
+                                onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='⏸';"
+                                onpause="document.getElementById('reel-${uid}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='▶';"></video>
+
+                            <div class="reel-spinner"></div>
+                            <button type="button" class="reel-center-play" onclick="toggleReelPlayPause('${uid}', event)">▶</button>
+                            <div class="reel-gradient"></div>
+
+                            <!-- Bottom Interactive Video Controls (Current Time on Left, Total Duration on Right) -->
+                            <div class="reel-controls-bar" onclick="event.stopPropagation()">
+                                <button type="button" class="rc-btn" id="rplay-${uid}" onclick="toggleReelPlayPause('${uid}', event)" title="Play / Pause">⏸</button>
+                                <span class="rc-time" id="rcur-${uid}">0:00</span>
+                                <input type="range" class="rc-seek" id="rseek-${uid}" min="0" max="100" value="0" step="0.1" oninput="seekReelVideo('${uid}', this.value)">
+                                <span class="rc-time" id="rdur-${uid}">0:00</span>
+                                <button type="button" class="rc-speed-btn" id="rspeed-${uid}" onclick="cycleReelSpeed('${uid}', event)" title="Playback Speed">1x</button>
+                            </div>
+
+                            <div class="reel-overlay">
+                                ${video.category ? `<div class="reel-category-badge">#${video.category}</div>` : ''}
+                                <div class="reel-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(video.user_email)}'">
+                                    <img src="${video.profile_pic}" class="reel-avatar">
+                                    <div class="notranslate" translate="no" style="font-weight: 700; font-size: 15.5px;">${video.author_name}</div>
+                                </div>
+                                ${video.caption ? `<div class="reel-caption notranslate" translate="no">${video.caption}</div>` : ''}
+                                <div class="reel-views-text" id="viewCount-${video.id}">${formatCompactNumber(video.views_count)} Views</div>
+                            </div>
+
+                            <div class="reel-actions">
+                                <div class="action-slot">
+                                    <div id="picker-${uid}" class="reaction-picker" onclick="event.stopPropagation()">
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '👍')">👍</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '❤️')">❤️</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '🥰')">🥰</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😆')">😆</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😮')">😮</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😢')">😢</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😡')">😡</span>
+                                    </div>
+                                    <button class="action-icon-btn ${video.user_reaction ? 'reacted' : ''}"
+                                            id="likeBtn-${uid}"
+                                            style="touch-action: manipulation;"
+                                            onpointerdown="startHoldReaction(event, ${video.id}, '${uid}')"
+                                            onpointerup="endHoldReaction(event, ${video.id}, '${uid}')"
+                                            onpointercancel="cancelHoldTimer()"
+                                            oncontextmenu="event.preventDefault(); return false;">
+                                        ${video.user_reaction || '👍'}
+                                    </button>
+                                    <div class="action-count" id="likeCount-${uid}" onclick="openReactionsList(${video.id})">${formatCompactNumber(video.likes_count)}</div>
+                                </div>
+
+                                <div class="action-slot">
+                                    <button class="action-icon-btn" onclick="openCommentsModal(${video.id})">💬</button>
+                                    <div class="action-count" id="commentCount-${video.id}" onclick="openCommentsModal(${video.id})">${formatCompactNumber(video.comments_count)}</div>
+                                </div>
+
+                                <div class="action-slot">
+                                    <button class="action-icon-btn" onclick="openShareModal(${video.id}, '${encodeURIComponent(video.caption)}')">↗️</button>
+                                    <div class="action-count" id="shareCount-${video.id}" onclick="openSharersList(${video.id})">${formatCompactNumber(video.shares_count)}</div>
+                                </div>
+
+                                <div class="action-slot">
+                                    <button class="action-icon-btn" style="width:40px; height:40px; font-size:18px;" onclick="toggleVideoOptions(event, '${uid}')">⋮</button>
+                                    <div class="video-options-dropdown" id="videoOptions-${uid}" onclick="event.stopPropagation()">
+                                        ${isOwn ? `<button onclick="deleteOwnVideo(${video.id}, '${uid}')" style="color:#fa383e;">🗑️ លុបវីដេអូនេះ</button>` : ''}
+                                        <button onclick="openReportModal(${video.id})" style="color:#d93025;">🚩 រាយការណ៍វីដេអូ</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                if (appendReels) {
+                    container.insertAdjacentHTML('beforeend', newReelsHtml);
+                } else {
+                    container.innerHTML = newReelsHtml;
+                }
+
+                initReelsAutoplayAndViews();
+            } catch (err) {
+                console.error(err);
+                if (!appendReels) container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh;">Error loading videos.</div>';
+            } finally {
+                isLoadingMoreReels = false;
+            }
+        }
+
+        let activeCenterReelVideo = null;
+        let reelScrollRaf = null;
+
+        function clearIosMediaSessionWidget() {
+            if ('mediaSession' in navigator) {
+                try {
+                    navigator.mediaSession.metadata = null;
+                    navigator.mediaSession.playbackState = 'none';
+                    ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack'].forEach(act => {
+                        try { navigator.mediaSession.setActionHandler(act, null); } catch (e) {}
+                    });
+                } catch (e) {}
+            }
+        }
+
+        // Neighbours stay ready: the reel you just left (swipe back is instant) and the next two (first frame already visible).
+        const REEL_KEEP_BEHIND = 1;
+        const REEL_PRELOAD_AHEAD = 2;
+        let lastActiveReelIdx = -1;
+
+        function reelUidOf(v) { return v && v.id ? v.id.replace(/^rvid-/, '') : ''; }
+
+        function reelShowLoading(uid) {
+            const item = document.getElementById(`reel-${uid}`);
+            if (!item || item.classList.contains('is-loading') || item._loadTimer) return;
+            // spinner only if still not ready after a short delay (no flicker)
+            item._loadTimer = setTimeout(() => { item._loadTimer = null; item.classList.add('is-loading'); }, 350);
+        }
+
+        function reelHideLoading(uid) {
+            const item = document.getElementById(`reel-${uid}`);
+            if (!item) return;
+            if (item._loadTimer) { clearTimeout(item._loadTimer); item._loadTimer = null; }
+            item.classList.remove('is-loading');
+        }
+
+        function hydrateReel(v) {
+            const realSrc = v.dataset.videoSrc;
+            if (realSrc && v.getAttribute('src') !== realSrc) {
+                v.setAttribute('src', realSrc);
+                try { v.load(); } catch (e) {}
+            }
+        }
+
+        function releaseReel(v) {
+            if (!v.hasAttribute('src')) return;
+            try {
+                if (!v.paused) v.pause();
+                v.muted = true;
+                v.autoplay = false;
+                v.removeAttribute('autoplay');
+                v.preload = 'none';
+                v.dataset.deepPreload = '';
+                v.classList.remove('vid-ready');
+                reelHideLoading(reelUidOf(v));
+                v.removeAttribute('src');
+                v.load(); // stops the download of reels far away from the screen
+            } catch (e) {}
+        }
+
+        function pickCenterReel(reels, from, to, vh) {
+            const screenMidY = vh * 0.5;
+            let best = null, bestIdx = -1, bestDist = Infinity;
+            for (let idx = from; idx <= to; idx++) {
+                const rect = reels[idx].getBoundingClientRect();
+                if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) continue;
+                const visibleHeight = Math.max(0, Math.min(vh, rect.bottom) - Math.max(0, rect.top));
+                const visibleRatio = visibleHeight / rect.height;
+                const crossesScreenCenter = (rect.top <= screenMidY && rect.bottom >= screenMidY);
+                if (crossesScreenCenter || visibleRatio >= 0.55) {
+                    const dist = Math.abs(rect.top + rect.height * 0.5 - screenMidY);
+                    if (dist < bestDist) { bestDist = dist; best = reels[idx]; bestIdx = idx; }
+                }
+            }
+            return { best, bestIdx };
+        }
+
+        function evaluateCenterReelVideo() {
+            const reels = Array.from(document.querySelectorAll('.reel-video'));
+            if (reels.length === 0) return;
+
+            const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+
+            // measure only the reels around the last active one; scan everything after a big jump
+            let picked = { best: null, bestIdx: -1 };
+            if (lastActiveReelIdx >= 0 && lastActiveReelIdx < reels.length) {
+                picked = pickCenterReel(reels, Math.max(0, lastActiveReelIdx - 3), Math.min(reels.length - 1, lastActiveReelIdx + 3), vh);
+            }
+            if (!picked.best) picked = pickCenterReel(reels, 0, reels.length - 1, vh);
+
+            const bestVideo = picked.best;
+            const bestIdx = picked.bestIdx;
+            lastActiveReelIdx = bestIdx;
+            const nextVid = (bestIdx >= 0 && bestIdx + 1 < reels.length) ? reels[bestIdx + 1] : null;
+
+            reels.forEach((v, idx) => {
+                if (v === bestVideo) return;
+                const d = bestIdx < 0 ? Infinity : idx - bestIdx;
+                if (d >= -REEL_KEEP_BEHIND && d <= REEL_PRELOAD_AHEAD) {
+                    if (!v.paused) v.pause();
+                    v.muted = true;
+                    hydrateReel(v);
+                    if (v.preload === 'none') v.preload = 'metadata';
+                } else {
+                    releaseReel(v);
+                }
+            });
+
+            if (bestVideo) {
+                hydrateReel(bestVideo);
+                if (bestVideo.readyState < 3) reelShowLoading(reelUidOf(bestVideo));
+                activeCenterReelVideo = bestVideo;
+                bestVideo.preload = 'auto';
+                clearIosMediaSessionWidget();
+                if (globalMuted) {
+                    bestVideo.muted = true;
+                } else {
+                    bestVideo.muted = false;
+                    bestVideo.removeAttribute('muted');
+                    bestVideo.volume = 1.0;
+                }
+                // buffer the NEXT reel deeply once, only after this one can play (never starves the one being watched)
+                const queueNextAfterSmooth = () => {
+                    if (activeCenterReelVideo !== bestVideo || !nextVid || nextVid.dataset.deepPreload === '1') return;
+                    hydrateReel(nextVid);
+                    nextVid.dataset.deepPreload = '1';
+                    nextVid.preload = 'auto';
+                    if (nextVid.readyState === 0) {
+                        try { nextVid.load(); } catch (e) {}
+                    }
+                };
+                if (bestVideo.readyState >= 3) {
+                    queueNextAfterSmooth();
+                } else {
+                    bestVideo.addEventListener('canplay', queueNextAfterSmooth, { once: true });
+                }
+                if (bestVideo.paused && bestVideo.dataset.userPaused !== 'true') {
+                    bestVideo.play().catch(() => {
+                        bestVideo.muted = true;
+                        bestVideo.play().catch(() => {});
+                    });
+                }
+            } else {
+                activeCenterReelVideo = null;
+            }
+        }
+
+        function onReelsScrollEvaluate() {
+            const c = document.getElementById('reelsFeedContainer');
+            if (c && !isLoadingMoreReels && (c.scrollTop + c.clientHeight >= c.scrollHeight - (window.innerHeight * 2.2))) {
+                loadVideosFeed(true);
+            }
+            if (reelScrollRaf) return;
+            reelScrollRaf = requestAnimationFrame(() => {
+                reelScrollRaf = null;
+                evaluateCenterReelVideo();
+            });
+        }
+
+        document.getElementById('reelsFeedContainer').addEventListener('scroll', onReelsScrollEvaluate, { passive: true });
+        window.addEventListener('resize', onReelsScrollEvaluate, { passive: true });
+
+        function initReelsAutoplayAndViews() {
+            evaluateCenterReelVideo();
+            setTimeout(evaluateCenterReelVideo, 200);
+
+            const reelItems = Array.from(document.querySelectorAll('.reel-item[data-post-id]'));
+            const viewObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const item = entry.target;
+                        const postId = item.getAttribute('data-post-id');
+                        if (postId && !trackedVideoViews.has(postId)) {
+                            trackedVideoViews.add(postId);
+                            fetch(`/api/posts/${postId}/view`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: currentUser.email })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success && data.views_count !== undefined) {
+                                    const viewEl = document.getElementById(`viewCount-${postId}`);
+                                    if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
+                                }
+                            })
+                            .catch(() => {});
+                        }
+                    }
+                });
+            }, { threshold: 0.65 });
+
+            reelItems.forEach(item => viewObserver.observe(item));
+        }
+
+        function startHoldReaction(event, postId, uid) {
+            if (event.button && event.button !== 0) return;
+            event.stopPropagation();
+            isLongPressTriggered = false;
+            cancelHoldTimer();
+            pressTimer = setTimeout(() => {
+                isLongPressTriggered = true;
+                if (navigator.vibrate) navigator.vibrate(30);
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                document.querySelectorAll('.v-comment-emoji-bar').forEach(b => b.style.display = 'none');
+                const picker = document.getElementById(`picker-${uid}`);
+                if (picker) picker.classList.add('show');
+            }, 650);
+        }
+
+        function endHoldReaction(event, postId, uid) {
+            cancelHoldTimer();
+            if (!isLongPressTriggered) {
+                const picker = document.getElementById(`picker-${uid}`);
+                if (picker && picker.classList.contains('show')) {
+                    picker.classList.remove('show');
+                    return;
+                }
+                const state = videoReactionState[postId] || { count: 0, userReaction: null };
+                applyReaction(postId, uid, state.userReaction || '👍');
+            }
+        }
+
+        function cancelHoldTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        }
+
+        function selectReaction(event, postId, uid, emoji) {
+            event.stopPropagation();
+            const picker = document.getElementById(`picker-${uid}`);
+            if (picker) picker.classList.remove('show');
+            applyReaction(postId, uid, emoji);
+        }
+
+        async function applyReaction(postId, uid, emoji) {
+            const state = videoReactionState[postId] || { count: 0, userReaction: null };
+            const btn = document.getElementById(`likeBtn-${uid}`);
+            const countEl = document.getElementById(`likeCount-${uid}`);
+
+            if (state.userReaction === emoji) {
+                state.userReaction = null;
+                state.count = Math.max(0, state.count - 1);
+            } else {
+                if (!state.userReaction) state.count += 1;
+                state.userReaction = emoji;
+            }
+            videoReactionState[postId] = state;
+
+            if (btn) {
+                btn.innerText = state.userReaction || '👍';
+                btn.classList.toggle('reacted', !!state.userReaction);
+            }
+            if (countEl) countEl.innerText = formatCompactNumber(state.count);
+
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    state.count = parseInt(data.likes_count) || 0;
+                    state.userReaction = data.reacted ? emoji : null;
+                    if (btn) {
+                        btn.innerText = state.userReaction || '👍';
+                        btn.classList.toggle('reacted', !!state.userReaction);
+                    }
+                    if (countEl) countEl.innerText = formatCompactNumber(state.count);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function openShareModal(postId, encodedCaption) {
+            activePostIdForShare = postId;
+            activeCaptionForShare = decodeURIComponent(encodedCaption || '');
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = 'ចម្លងតំណភ្ជាប់ (Copy Link)';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+            activePostIdForShare = null;
+        }
+
+        async function shareToMyProfile() {
+            if (!activePostIdForShare) return;
+            const caption = document.getElementById('shareCaptionInput').value.trim();
+            try {
+                const res = await fetch('/api/posts/share', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        postId: activePostIdForShare,
+                        email: currentUser.email,
+                        caption: caption
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const shareCountEl = document.getElementById(`shareCount-${activePostIdForShare}`);
+                    if (shareCountEl) {
+                        const cur = parseInt(shareCountEl.innerText) || 0;
+                        shareCountEl.innerText = formatCompactNumber(cur + 1);
+                    }
+                    closeShareModal();
+                    alert('បានស៊ែរវីដេអូចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function shareToSocialMedia() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/videos.html?v=${activePostIdForShare}`;
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'CamFeed Video',
+                        text: activeCaptionForShare || 'ទស្សនាវីដេអូនេះនៅលើ CamFeed!',
+                        url: shareUrl
+                    });
+                    closeShareModal();
+                } catch (err) {}
+            } else {
+                window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(activeCaptionForShare)}`, '_blank');
+                closeShareModal();
+            }
+        }
+
+        function copyVideoLink() {
+            if (!activePostIdForShare) return;
+            const shareUrl = `${window.location.origin}/videos.html?v=${activePostIdForShare}`;
+            navigator.clipboard.writeText(shareUrl);
+            document.getElementById('copyLinkLabel').innerText = '✓ បានចម្លងតំណភ្ជាប់!';
+            setTimeout(() => closeShareModal(), 900);
+        }
+
+        async function openReactionsList(postId) {
+            const modal = document.getElementById('reactionsModal');
+            const listContainer = document.getElementById('reactionsModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">កំពុងផ្ទុក...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/reactions/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.reactors.length > 0) {
+                    listContainer.innerHTML = data.reactors.map(r => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
+                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
+                                </div>
+                            </div>
+                            ${r.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser('${r.email}', ${r.is_following}, 'react', ${postId})">
+                                    ${r.is_following ? 'កំពុងតាមដាន' : 'តាមដាន'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">មិនទាន់មានប្រតិកម្មនៅឡើយទេ។</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeReactionsModal() { document.getElementById('reactionsModal').style.display = 'none'; }
+
+        async function openSharersList(postId) {
+            const modal = document.getElementById('sharersModal');
+            const listContainer = document.getElementById('sharersModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">កំពុងផ្ទុក...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/shares/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.sharers.length > 0) {
+                    listContainer.innerHTML = data.sharers.map(s => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
+                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            ${s.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser('${s.email}', ${s.is_following}, 'share', ${postId})">
+                                    ${s.is_following ? 'កំពុងតាមដាន' : 'តាមដាន'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">មិនទាន់មានការចែករំលែកនៅឡើយទេ។</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeSharersModal() { document.getElementById('sharersModal').style.display = 'none'; }
+
+        async function toggleFollowUser(targetEmail, isFollowing, mode, postId) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            if (mode === 'react') openReactionsList(postId);
+            else openSharersList(postId);
+        }
+
+        function toggleVideoOptions(event, uid) {
+            event.stopPropagation();
+            document.querySelectorAll('.video-options-dropdown').forEach(m => {
+                if (m.id !== `videoOptions-${uid}`) m.style.display = 'none';
+            });
+            const menu = document.getElementById(`videoOptions-${uid}`);
+            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function deleteOwnVideo(postId, uid) {
+            if (!confirm('តើអ្នកពិតជាចង់លុបវីដេអូនេះមែនទេ?')) return;
+            try {
+                const res = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const el = document.getElementById(`reel-${uid}`);
+                    if (el) el.remove();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function openReportModal(postId) {
+            document.querySelectorAll('.video-options-dropdown').forEach(m => m.style.display = 'none');
+            activePostIdForReport = postId;
+            selectedReportReasonText = '';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+            activePostIdForReport = null;
+        }
+
+        function selectReportReason(btn, reason) {
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedReportReasonText = reason;
+        }
+
+        async function submitVideoReport() {
+            if (!activePostIdForReport) return;
+            const customNote = document.getElementById('reportCustomDetails').value.trim();
+            const fullReason = selectedReportReasonText
+                ? (customNote ? `${selectedReportReasonText} - ${customNote}` : selectedReportReasonText)
+                : customNote;
+
+            if (!fullReason) {
+                alert('សូមជ្រើសរើសមូលហេតុ ឬសរសេរបញ្ជាក់មុននឹងបញ្ជូន!');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/posts/${activePostIdForReport}/report`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, reason: fullReason })
+                });
+                const data = await res.json();
+                closeReportModal();
+                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
+            } catch (err) {
+                console.error(err);
+                closeReportModal();
+            }
+        }
+
+        const videoAuthorMap = {};
+        let activeReplyToCommentId = null;
+
+        function setVideoReplyTarget(commentId, authorName) {
+            activeReplyToCommentId = commentId;
+            const inp = document.getElementById('modalCommentInput');
+            if (inp) {
+                inp.placeholder = `ឆ្លើយតបទៅកាន់ ${authorName}...`;
+                inp.focus();
+            }
+        }
+
+        function toggleVideoCommentEmojiBar(commentId, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.v-comment-emoji-bar').forEach(el => {
+                if (el.id !== `v-c-picker-${commentId}`) el.style.display = 'none';
+            });
+            const bar = document.getElementById(`v-c-picker-${commentId}`);
+            if (bar) bar.style.display = bar.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        async function reactToVideoComment(commentId, postId, emoji) {
+            const bar = document.getElementById(`v-c-picker-${commentId}`);
+            if (bar) bar.style.display = 'none';
+            try {
+                const res = await fetch(`/api/comments/${commentId}/reaction`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    openCommentsModal(postId);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function enableEditVideoComment(commentId, postId, encodedContent) {
+            const rawText = decodeURIComponent(encodedContent || '');
+            const textEl = document.getElementById(`v-comment-text-${commentId}`);
+            if (!textEl) return;
+            textEl.innerHTML = `
+                <div style="display:flex; gap:6px; margin-top:4px;">
+                    <input type="text" id="v-edit-c-inp-${commentId}" value="${rawText.replace(/"/g, '&quot;')}" style="padding:5px 10px; font-size:13px; border-radius:12px; border:1px solid #ccc;">
+                    <button type="button" onclick="saveEditVideoComment(${commentId}, ${postId})" style="background:#1877f2; color:#fff; border:none; border-radius:12px; padding:5px 12px; font-size:12px; font-weight:700; cursor:pointer;">Save</button>
+                </div>
+            `;
+            setTimeout(() => document.getElementById(`v-edit-c-inp-${commentId}`)?.focus(), 50);
+        }
+
+        async function saveEditVideoComment(commentId, postId) {
+            const inp = document.getElementById(`v-edit-c-inp-${commentId}`);
+            if (!inp || !inp.value.trim()) return;
+            try {
+                const res = await fetch(`/api/comments/${commentId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, content: inp.value.trim() })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    openCommentsModal(postId);
+                } else {
+                    alert(data.error || 'មិនអាចកែប្រែ Comment បានទេ');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function openCommentsModal(postId) {
+            activePostIdForComment = postId;
+            activeReplyToCommentId = null;
+            const inp = document.getElementById('modalCommentInput');
+            if (inp) inp.placeholder = 'សរសេរមតិយោបល់ (Write a comment)...';
+            const modal = document.getElementById('commentsModal');
+            const list = document.getElementById('modalCommentList');
+            list.innerHTML = '<p style="text-align:center; color:#65676b;">Loading comments...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/comments/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success) {
+                    if (data.comments.length === 0) {
+                        list.innerHTML = '<p style="text-align:center; color:#65676b; padding:20px;">មិនទាន់មានមតិយោបល់នៅឡើយទេ។</p>';
+                        return;
+                    }
+                    const isVideoOwner = videoAuthorMap[postId] === currentUser.email;
+                    list.innerHTML = data.comments.map(c => {
+                        const isCommentOwner = currentUser.email === c.user_email;
+                        const canDelete = isCommentOwner || isVideoOwner;
+                        const likesCount = parseInt(c.likes_count) || 0;
+                        const userReact = c.user_reaction || '';
+                        const types = Array.isArray(c.reaction_types) ? c.reaction_types.filter(Boolean) : [];
+                        const iconsStr = types.length > 0 ? types.join('') : (userReact || '');
+                        const replyBadge = c.reply_to_id ? `<span style="font-size:11px; color:#1877f2; font-weight:600;">↳ បានឆ្លើយតប</span> ` : '';
+
+                        return `
+                            <div class="comment-container" id="comment-${c.id}" style="flex-direction:column; gap:2px;">
+                                <div style="display:flex; gap:10px; width:100%; align-items:flex-start;">
+                                    <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
+                                    <div class="comment-content-wrapper">
+                                        <div class="comment-bubble">
+                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name} ${c.last_name} ${replyBadge}</span>
+                                            <div id="v-comment-text-${c.id}" class="notranslate" translate="no">${c.content}</div>
+                                        </div>
+                                        <div style="display:flex; gap:4px; align-items:center;">
+                                            ${isCommentOwner ? `<button class="comment-options-btn" onclick="enableEditVideoComment(${c.id}, ${postId}, '${encodeURIComponent(c.content)}')" title="កែប្រែ">✏️</button>` : ''}
+                                            ${canDelete ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})" title="លុប">🗑️</button>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:12px; padding-left:44px; font-size:11.5px; color:#65676b; font-weight:700; position:relative;">
+                                    <span style="cursor:pointer; color:${userReact ? '#1877f2' : '#65676b'};" onclick="toggleVideoCommentEmojiBar(${c.id}, event)">
+                                        ${userReact ? `${userReact} Reacted` : '👍 React'}
+                                    </span>
+                                    <span style="cursor:pointer;" onclick="setVideoReplyTarget(${c.id}, '${(c.first_name || '').replace(/'/g, '')}')">💬 Reply</span>
+                                    ${likesCount > 0 ? `<span style="margin-left:auto; background:#f0f2f5; padding:1px 7px; border-radius:10px; font-size:11px;">${iconsStr} ${likesCount}</span>` : ''}
+
+                                    <div id="v-c-picker-${c.id}" class="v-comment-emoji-bar" style="display:none; position:absolute; bottom:22px; left:40px; background:#fff; padding:5px 10px; border-radius:24px; box-shadow:0 4px 14px rgba(0,0,0,0.25); border:1px solid #e4e6eb; gap:8px; z-index:3000;" onclick="event.stopPropagation()">
+                                        ${['👍','❤️','😆','😮','😢','😡'].map(em => `<span style="font-size:20px; cursor:pointer;" onclick="reactToVideoComment(${c.id}, ${postId}, '${em}')">${em}</span>`).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                list.innerHTML = '<p style="text-align:center; color:red;">Failed to load comments.</p>';
+            }
+        }
+
+        async function deleteComment(commentId, postId) {
+            if (!confirm('លុប Comment នេះមែនទេ?')) return;
+            try {
+                const res = await fetch(`/api/comments/${commentId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    openCommentsModal(postId);
+                    const countElem = document.getElementById(`commentCount-${postId}`);
+                    if (countElem) {
+                        let currentCount = parseInt(countElem.innerText) || 1;
+                        countElem.innerText = Math.max(0, currentCount - 1);
+                    }
+                } else {
+                    alert(data.error || 'មិនអាចលុប Comment នេះបានទេ');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function closeCommentsModal() {
+            document.getElementById('commentsModal').style.display = 'none';
+            activePostIdForComment = null;
+            activeReplyToCommentId = null;
+        }
+
+        async function addModalComment() {
+            const input = document.getElementById('modalCommentInput');
+            const content = input.value.trim();
+            if (!content || !activePostIdForComment) return;
+
+            try {
+                const res = await fetch('/api/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        postId: activePostIdForComment,
+                        email: currentUser.email,
+                        content,
+                        replyToCommentId: activeReplyToCommentId
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    input.value = '';
+                    activeReplyToCommentId = null;
+                    input.placeholder = 'សរសេរមតិយោបល់ (Write a comment)...';
+                    openCommentsModal(activePostIdForComment);
+                    const countElem = document.getElementById(`commentCount-${activePostIdForComment}`);
+                    if (countElem) {
+                        let currentCount = parseInt(countElem.innerText) || 0;
+                        countElem.innerText = currentCount + 1;
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('.video-options-dropdown').forEach(m => m.style.display = 'none');
+            if (!e.target.closest('.action-slot')) {
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                document.querySelectorAll('.v-comment-emoji-bar').forEach(b => b.style.display = 'none');
+            }
+        });
+    </script>
+</body>
+</html>

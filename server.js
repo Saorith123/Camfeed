@@ -1,26 +1,38 @@
 const express = require('express');
 const { Pool } = require('pg');
 const multer = require('multer');
+const security = require('./security');
 const path = require('path');
 require('dotenv').config();
 
 // Cloudinary is no longer used: all media is uploaded straight to Cloudflare R2 (/api/videos/upload-*).
 // These routes now only accept plain text fields (JSON or multipart without files).
-const formFields = multer().none();
+const formFieldsRaw = multer().none();
+// text fields of form posts are checked/cleaned exactly like JSON ones
+const formFields = (req, res, next) => formFieldsRaw(req, res, (err) => (err ? next(err) : security.inputGuard(req, res, next)));
 const createVideoRouter = require('./videoRecommendationRoutes');
 const auth = require('./auth');
 const mailer = require('./mailer');
 const { createSignupVerification, createPasswordReset, EMAIL_RE } = require('./signup-verification');
 const { createTelegramLogin, isTelegramAddress } = require('./telegram-login');
 const gateway = require('./telegram-gateway');
+const { createPublicIds } = require('./public-ids');
 const { createPhoneVerification, normalizePhone, phoneEmail } = require('./phone-verification');
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.disable('x-powered-by');                       // do not announce the framework
+app.use(security.securityHeaders);                 // no framing, no sniffing, CSP, no caching of API answers ...
+// small bodies everywhere (an attacker can not push megabytes into every route); posts may carry a video thumbnail
+const jsonSmall = express.json({ limit: '1mb' });
+const jsonLarge = express.json({ limit: '6mb' });
+app.use((req, res, next) => (/^\/api\/(posts|videos)(\/|$)/.test(req.path) ? jsonLarge : jsonSmall)(req, res, next));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Server files must never be downloadable, even if one is dropped into /public by mistake
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -163,6 +175,10 @@ pool.connect(async (err, client, release) => {
     await passwordReset.ensureSchema();
     await tgLogin.ensureSchema();
     await phoneSignup.ensureSchema();
+    await publicIds.ensureSchema();
+    await security.neutralizeExistingData(pool);   // older names / posts / comments / chats: make < > harmless
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_epoch INTEGER DEFAULT 0');      // "log out of all devices"
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs TEXT DEFAULT ''");   // which notifications to receive
   } catch (e) {
     console.error('email verification schema notice:', e.message);
   }
@@ -186,7 +202,19 @@ pool.connect(async (err, client, release) => {
 // ---- Authentication: every /api call (except login/register) needs a valid token.
 // The acting user's email is taken from the token, never from what the browser sends.
 const authCore = auth.createAuth(pool);
+// People are shown as random numbers instead of e-mails/phone numbers (see public-ids.js). Must run BEFORE authenticate/forceActor.
+const publicIds = createPublicIds({ pool });
+const rateLimits = security.createRateLimits(auth.makeLimiter);
+app.use('/api', security.hideServerErrors);        // the browser never sees database error texts (they go to the log with a reference)
+app.use('/api', rateLimits.network);
+app.use('/api', publicIds.inbound, publicIds.outbound);
 app.use('/api', auth.sanitizeJson, authCore.authenticate, authCore.forceActor);
+app.use('/api', rateLimits.person);                // per person: creating things / chatting / everything
+app.use('/api', security.inputGuard);              // clean text, only our own https links, only real ids and choices
+['id', 'postId', 'commentId', 'reportId'].forEach((name) => app.param(name, security.idParam));   // one call per name (works on every Express version)
+const visibility = security.createVisibility(pool);
+// the browser reports what its strict policy would have blocked (shown in the Render logs)
+app.post('/api/csp-report', express.json({ type: ['application/json', 'application/csp-report', 'application/reports+json'], limit: '20kb' }), security.cspReport(auth.makeLimiter(60, 60 * 1000)));
 
 // E-mail verification before an account can be created (needs EMAIL_PROVIDER + API key + EMAIL_FROM, see README)
 const signup = createSignupVerification({ pool, auth, mailer });
@@ -195,6 +223,8 @@ const tgLogin = createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }
 const phoneSignup = createPhoneVerification({ pool, auth, gateway, mode: 'signup' }); // phone number + code inside Telegram
 const phoneReset = createPhoneVerification({ pool, auth, gateway, mode: 'reset' });
 console.log('[phone] Telegram Gateway key: ' + (gateway.isConfigured() ? 'FOUND - phone sign-up is ON' : 'NOT FOUND (set TELEGRAM_GATEWAY_TOKEN in Render) - the Phone tab shows "coming soon"'));
+// what a person may see as THEIR OWN contact detail (the hidden phone/Telegram identity is shown as the phone number)
+const ownContact = (u) => (isTelegramAddress(u.email) ? (u.phone || '') : u.email);
 const isTelegramOnlyAccount = (email) => /^tg\d+@telegram\.camfeedkh\.com$/i.test(String(email || '')); // made with Continue with Telegram: no password
 
 // Global Real-Time Presence Tracker
@@ -229,9 +259,11 @@ const cleanup = createCleanup({
   deleteR2: (url) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(url) : Promise.resolve())
 });
 
+const adminPinFailures = auth.makeLimiter(5, 15 * 60 * 1000);   // 5 wrong PINs per admin account per 15 minutes
 async function verifyAdminAccess(email, secretKey) {
   if (!email) return { allowed: false, error: 'Missing admin email' };
   const normalized = email.trim().toLowerCase();
+  if (adminPinFailures.isLimited(normalized)) return { allowed: false, error: 'Too many wrong PIN attempts. Please wait 15 minutes.' };
   const isSuper = SUPER_ADMIN_EMAILS.includes(normalized);
 
   const userRes = await pool.query('SELECT email, role, is_banned FROM users WHERE LOWER(email) = $1', [normalized]);
@@ -245,6 +277,7 @@ async function verifyAdminAccess(email, secretKey) {
     return { allowed: false, error: 'Admin PIN is not configured on the server (set ADMIN_SECRET_KEY).' };
   }
   if (!auth.safeEqual(secretKey, ADMIN_MASTER_KEY)) {
+    adminPinFailures.hit(normalized);
     return { allowed: false, error: 'Invalid Admin Security PIN / Key.' };
   }
 
@@ -423,14 +456,16 @@ app.post('/api/register', async (req, res) => {
     const hashed = await auth.hashPassword(password);
     const query = `
       INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role, phone) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, '', $9, $9, $8, $10) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'private', 'private', $8, $10) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole, viaPhone ? 'private' : 'public', viaPhone ? phoneE164 : null]);
+    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole, 'private', viaPhone ? phoneE164 : null]);
     const user = result.rows[0];
     registerLimiter.hit(req.ip);
     if (!viaPhone && signup.isRequired()) pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
     // password is stripped from the response by auth.sanitizeJson
+    user.contact_mail = ownContact(user);
+    user.passwordless = false;
     res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
   } catch (err) {
     if (err && err.code === '23505') {
@@ -482,7 +517,9 @@ app.post('/api/login', async (req, res) => {
       await pool.query("UPDATE users SET role = 'super_admin' WHERE email = $1", [user.email]);
       user.role = 'super_admin';
     }
-    // password is stripped from the response by auth.sanitizeJson
+    // password is stripped from the response by auth.sanitizeJson; the e-mail field becomes the public id, so the owner gets their own contact detail separately
+    user.contact_mail = ownContact(user);
+    user.passwordless = isTelegramOnlyAccount(user.email);
     res.json({ success: true, user, token: authCore.issueToken(user) });
   } catch (err) {
     console.error(err);
@@ -534,6 +571,8 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
 app.post('/api/posts/share', async (req, res) => {
   const { postId, email, caption } = req.body;
   try {
+    if (!postId) return res.status(400).json({ success: false, error: 'Missing post.' });
+    if (!(await visibility.guardPost(req, res, postId))) return;
     const orig = await pool.query(
       'SELECT p.*, u.first_name, u.last_name FROM posts p JOIN users u ON p.user_email = u.email WHERE p.id = $1',
       [postId]
@@ -581,6 +620,7 @@ app.get('/api/shares/:postId', async (req, res) => {
   const { postId } = req.params;
   const { email } = req.query;
   try {
+    if (!(await visibility.guardPost(req, res, postId))) return;
     const query = `
       SELECT p.id as shared_entry_id, p.created_at as shared_at, p.content as share_caption,
              u.email, u.first_name, u.last_name, u.profile_pic,
@@ -602,6 +642,7 @@ app.post('/api/posts/:id/view', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
   try {
+    if (!(await visibility.guardPost(req, res, id))) return;
     let viewerCountry = req.headers['cf-ipcountry'] || 'Unknown';
     if (email) {
       const uRes = await pool.query('SELECT country FROM users WHERE email = $1', [email]);
@@ -627,6 +668,7 @@ app.post('/api/posts/:id/report', async (req, res) => {
   const { id } = req.params;
   const { email, reason } = req.body;
   try {
+    if (!(await visibility.guardPost(req, res, id))) return;
     const postRes = await pool.query('SELECT user_email FROM posts WHERE id = $1', [id]);
     const targetUserEmail = postRes.rows[0]?.user_email || null;
 
@@ -704,7 +746,7 @@ app.get('/api/posts', async (req, res) => {
       WITH blocked AS (
         SELECT blocked_email AS u_email FROM blocked_users WHERE blocker_email = $1
         UNION
-        SELECT blocker_email AS u_email FROM blocked_users WHERE blocker_email = $1
+        SELECT blocker_email AS u_email FROM blocked_users WHERE blocked_email = $1
       ),
       like_stats AS (
         SELECT post_id,
@@ -768,6 +810,7 @@ app.get('/api/posts', async (req, res) => {
       }
       query += ` ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
       const result = await pool.query(query, [safeViewer, profileEmail, parsedLimit, parsedOffset]);
+      result.rows.forEach((r) => visibility.scrubOriginal(r, req.authEmail));
       return res.json({ success: true, posts: result.rows, hasMore: result.rows.length === parsedLimit });
     }
 
@@ -828,6 +871,7 @@ app.get('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
   try {
+    if (!(await visibility.guardPost(req, res, id))) return;
     const query = `
       SELECT p.*, u.first_name, u.last_name, u.profile_pic,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
@@ -853,7 +897,7 @@ app.get('/api/posts/:id', async (req, res) => {
     `;
     const result = await pool.query(query, [id, email || '']);
     if (result.rows.length > 0) {
-      res.json({ success: true, post: result.rows[0] });
+      res.json({ success: true, post: visibility.scrubOriginal(result.rows[0], req.authEmail) });
     } else {
       res.status(404).json({ success: false, error: 'Post not found' });
     }
@@ -981,6 +1025,8 @@ app.post('/api/update-profile-details', async (req, res) => {
 app.post('/api/reaction', async (req, res) => {
   const { postId, email, reactionType } = req.body;
   try {
+    if (!postId) return res.status(400).json({ success: false, error: 'Missing post.' });
+    if (!(await visibility.guardPost(req, res, postId))) return;
     const check = await pool.query('SELECT * FROM likes WHERE post_id = $1 AND user_email = $2', [postId, email]);
     const postInfo = await pool.query(
       'SELECT p.*, u.first_name, u.last_name FROM posts p JOIN users u ON u.email = $2 WHERE p.id = $1',
@@ -1031,6 +1077,7 @@ app.get('/api/reactions/:postId', async (req, res) => {
   const { postId } = req.params;
   const { email } = req.query;
   try {
+    if (!(await visibility.guardPost(req, res, postId))) return;
     const query = `
       SELECT u.email, u.first_name, u.last_name, u.profile_pic, l.reaction_type,
              EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email) AS is_following
@@ -1050,6 +1097,7 @@ app.get('/api/comments/:postId', async (req, res) => {
   const { postId } = req.params;
   const { email } = req.query;
   try {
+    if (!(await visibility.guardPost(req, res, postId))) return;
     const query = `
       SELECT c.*, u.first_name, u.last_name, u.profile_pic,
              (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS likes_count,
@@ -1072,6 +1120,8 @@ app.post('/api/comments/:id/reaction', async (req, res) => {
   const { id } = req.params;
   const { email, reactionType } = req.body;
   try {
+    const parentPost = await visibility.postIdOfComment(id);
+    if (!parentPost || !(await visibility.guardPost(req, res, parentPost))) { if (!parentPost) res.status(404).json({ success: false, error: 'Comment not found' }); return; }
     const check = await pool.query('SELECT * FROM comment_likes WHERE comment_id = $1 AND user_email = $2', [id, email]);
     const cInfo = await pool.query(
       'SELECT c.*, u.first_name, u.last_name FROM comments c JOIN users u ON u.email = $2 WHERE c.id = $1',
@@ -1121,6 +1171,8 @@ app.post('/api/comments/:id/reaction', async (req, res) => {
 app.post('/api/comments', async (req, res) => {
   const { postId, email, content, replyToCommentId } = req.body;
   try {
+    if (!postId || !content || !String(content).trim()) return res.status(400).json({ success: false, error: 'A comment needs a post and some text.' });
+    if (!(await visibility.guardPost(req, res, postId))) return;
     const query = 'INSERT INTO comments (post_id, user_email, content, reply_to_id) VALUES ($1, $2, $3, $4) RETURNING *';
     const result = await pool.query(query, [postId, email, content, replyToCommentId || null]);
     const newComment = result.rows[0];
@@ -1226,16 +1278,19 @@ app.post('/api/comments/report', async (req, res) => {
 app.get('/api/notifications', async (req, res) => {
   const { email } = req.query;
   try {
+    const prefRow = await pool.query('SELECT notification_prefs FROM users WHERE email = $1', [email]);
+    const hiddenTypes = disabledNotificationTypes(readNotificationPrefs(prefRow.rows[0] && prefRow.rows[0].notification_prefs));
     const query = `
       SELECT n.*, u.first_name, u.last_name, u.profile_pic, p.media_type as post_media_type
       FROM notifications n 
       JOIN users u ON n.sender_email = u.email 
       LEFT JOIN posts p ON n.post_id = p.id
       WHERE n.recipient_email = $1 
+        AND n.type <> ALL($2::text[])
       ORDER BY n.created_at DESC
       LIMIT 40
     `;
-    const result = await pool.query(query, [email]);
+    const result = await pool.query(query, [email, hiddenTypes]);
     res.json({ success: true, notifications: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1264,7 +1319,8 @@ app.post('/api/notifications/mark-read', async (req, res) => {
 
 // User Profile
 app.get('/api/user-profile', async (req, res) => {
-  const { email, viewerEmail } = req.query;
+  const { email } = req.query;
+  const viewerEmail = req.authEmail || req.query.viewerEmail;     // who is asking comes from the login, not from what the browser says
   try {
     if (viewerEmail && viewerEmail !== email) {
       const blockCheck = await pool.query(
@@ -1287,8 +1343,11 @@ app.get('/api/user-profile', async (req, res) => {
     const result = await pool.query(query, [email, viewerEmail]);
     if (result.rows.length > 0) {
       const u = result.rows[0];
-      delete u.password;
+      for (const internal of ['password', 'sessions_epoch', 'telegram_id', 'email_verified', 'notification_prefs']) delete u[internal];
       u.is_friend = u.is_following && u.is_followed_by;
+      // "email" is turned into the public id on the way out, so the contact e-mail travels in its own field, only when allowed
+      const isSelf = String(viewerEmail || '').toLowerCase() === String(email || '').toLowerCase();
+      u.contact_mail = isTelegramAddress(u.email) ? '' : ((isSelf || u.email_privacy === 'public') ? u.email : '');
 
       if (viewerEmail !== email) {
         if (u.location_privacy === 'private') u.location = '';
@@ -1298,6 +1357,7 @@ app.get('/api/user-profile', async (req, res) => {
         if (u.work_privacy === 'private') u.work = '';
         if (u.phone_privacy === 'private') u.phone = '';
       }
+      if (!isSelf) for (const k of ['role', 'is_banned', 'name_changed_at', 'last_active', 'country']) delete u[k];   // internal details of other people
       res.json({ success: true, user: u });
     } else {
       res.status(404).json({ success: false, error: 'User not found' });
@@ -1312,7 +1372,9 @@ app.get('/api/users', async (req, res) => {
   const hideDismissed = suggestions === '1' || suggestions === 'true';
   try {
     const buildQuery = (withDismissed) => `
-      SELECT email, first_name, last_name, profile_pic, cover_pic, bio, birthdate, location, phone_privacy, email_privacy
+      SELECT email, first_name, last_name, profile_pic, cover_pic, bio, birthdate, location, phone_privacy, email_privacy, location_privacy, birthdate_privacy,
+             EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = users.email) AS is_following,
+             EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = users.email AND f.following_email = $1) AS is_followed_by
       FROM users 
       WHERE email != $1
         AND COALESCE(is_banned, FALSE) = FALSE
@@ -1323,6 +1385,7 @@ app.get('/api/users', async (req, res) => {
         )
         ${withDismissed ? 'AND email NOT IN (SELECT dismissed_email FROM dismissed_suggestions WHERE user_email = $1)' : ''}
       ORDER BY first_name ASC
+      LIMIT 300
     `;
     let result;
     try {
@@ -1332,30 +1395,11 @@ app.get('/api/users', async (req, res) => {
       else throw e;
     }
     
-    const usersWithFriendship = await Promise.all(result.rows.map(async (u) => {
-      let is_following = false;
-      let is_followed_by = false;
-      try {
-        const followCheck = await pool.query(
-          'SELECT 1 FROM follows WHERE follower_email = $1 AND following_email = $2',
-          [email, u.email]
-        );
-        is_following = followCheck.rows.length > 0;
-
-        const followedByCheck = await pool.query(
-          'SELECT 1 FROM follows WHERE follower_email = $1 AND following_email = $2',
-          [u.email, email]
-        );
-        is_followed_by = followedByCheck.rows.length > 0;
-      } catch (e) {}
-
-      return {
-        ...u,
-        is_following,
-        is_followed_by,
-        is_friend: is_following && is_followed_by
-      };
-    }));
+    const usersWithFriendship = result.rows.map((u) => {
+      if (u.location_privacy === 'private') u.location = '';       // what the owner keeps private is not sent at all
+      if (u.birthdate_privacy === 'private') u.birthdate = '';
+      return { ...u, is_friend: !!(u.is_following && u.is_followed_by) };
+    });
 
     res.json({ success: true, users: usersWithFriendship });
   } catch (err) {
@@ -1501,10 +1545,11 @@ app.get('/api/search-users', async (req, res) => {
           UNION
           SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
         )
-        AND (first_name ILIKE $2 OR last_name ILIKE $2 OR email ILIKE $2)
+        AND (first_name ILIKE $2 OR last_name ILIKE $2 OR LOWER(email) = LOWER($3))
       LIMIT 10
     `;
-    const result = await pool.query(query, [email, `%${keyword || ''}%`]);
+    const likeSafe = String(keyword || '').replace(/[\\%_]/g, '\\$&');      // a typed % or _ must not act as a wildcard
+    const result = await pool.query(query, [email, `%${likeSafe}%`, String(keyword || '').trim()]);
     res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1807,6 +1852,131 @@ app.delete('/api/settings/account', async (req, res) => {
 });
 
 // Remove someone from "People you may know" (stays removed after refresh; search still finds them)
+// ---------------------------------------------------------------------------
+// Settings page: privacy switches, blocked people, notification choices, log out everywhere, download my data
+// ---------------------------------------------------------------------------
+const PRIVACY_FIELDS = ['phone_privacy', 'email_privacy', 'location_privacy', 'birthdate_privacy', 'relationship_privacy', 'gender_privacy', 'work_privacy'];
+const NOTIFICATION_GROUPS = { reactions: ['reaction', 'comment_reaction'], comments: ['comment', 'reply'], follows: ['follow'], shares: ['share'] };
+
+function readNotificationPrefs(raw) {                      // everything is ON unless the person switched it off
+  let saved = {};
+  try { saved = JSON.parse(raw || '{}') || {}; } catch (e) { saved = {}; }
+  const prefs = {};
+  for (const g of Object.keys(NOTIFICATION_GROUPS)) prefs[g] = saved[g] !== false;
+  return prefs;
+}
+function disabledNotificationTypes(prefs) {
+  return Object.keys(NOTIFICATION_GROUPS).filter((g) => prefs[g] === false).flatMap((g) => NOTIFICATION_GROUPS[g]);
+}
+const exportLimiter = auth.makeLimiter(5, 60 * 60 * 1000);   // 5 downloads of "my data" per hour per person
+
+app.put('/api/settings/privacy', async (req, res) => {
+  const email = req.authEmail;
+  const body = req.body || {};
+  try {
+    const sets = [], values = [email];
+    for (const f of PRIVACY_FIELDS) {
+      if (!(f in body)) continue;
+      const v = String(body[f]);
+      if (v !== 'public' && v !== 'private') return res.status(400).json({ success: false, message: 'Invalid privacy value.' });
+      values.push(v); sets.push(`${f} = $${values.length}`);
+    }
+    if (!sets.length) return res.status(400).json({ success: false, message: 'Nothing to change.' });
+    const r = await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE email = $1 RETURNING ${PRIVACY_FIELDS.join(', ')}`, values);
+    res.json({ success: true, privacy: r.rows[0] });
+  } catch (err) {
+    console.error('Privacy settings error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not save. Please try again.' });
+  }
+});
+
+app.get('/api/blocked-users', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT u.email, u.first_name, u.last_name, u.profile_pic, b.created_at AS blocked_at
+       FROM blocked_users b JOIN users u ON u.email = b.blocked_email
+       WHERE b.blocker_email = $1 ORDER BY b.created_at DESC LIMIT 200`, [req.authEmail]);
+    res.json({ success: true, users: r.rows });
+  } catch (err) {
+    console.error('Blocked users error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not load the list.' });
+  }
+});
+
+app.get('/api/settings/notifications', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT notification_prefs FROM users WHERE email = $1', [req.authEmail]);
+    res.json({ success: true, prefs: readNotificationPrefs(r.rows[0] && r.rows[0].notification_prefs) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Could not load.' });
+  }
+});
+
+app.put('/api/settings/notifications', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const r0 = await pool.query('SELECT notification_prefs FROM users WHERE email = $1', [req.authEmail]);
+    const prefs = readNotificationPrefs(r0.rows[0] && r0.rows[0].notification_prefs);
+    let touched = false;
+    for (const g of Object.keys(NOTIFICATION_GROUPS)) {
+      if (g in body) {
+        if (typeof body[g] !== 'boolean') return res.status(400).json({ success: false, message: 'Invalid value.' });
+        prefs[g] = body[g]; touched = true;
+      }
+    }
+    if (!touched) return res.status(400).json({ success: false, message: 'Nothing to change.' });
+    await pool.query('UPDATE users SET notification_prefs = $1 WHERE email = $2', [JSON.stringify(prefs), req.authEmail]);
+    res.json({ success: true, prefs });
+  } catch (err) {
+    console.error('Notification settings error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not save. Please try again.' });
+  }
+});
+
+// every other device (and this one) must log in again; this device gets a fresh token in the answer
+app.post('/api/settings/logout-all', async (req, res) => {
+  try {
+    const r = await pool.query('UPDATE users SET sessions_epoch = COALESCE(sessions_epoch, 0) + 1 WHERE email = $1 RETURNING *', [req.authEmail]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, message: 'Account not found.' });
+    authCore.invalidate(req.authEmail);
+    res.json({ success: true, message: 'Logged out of all other devices.', token: authCore.issueToken(r.rows[0]) });
+  } catch (err) {
+    console.error('Logout-all error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not do that. Please try again.' });
+  }
+});
+
+// a copy of what the person has on CamFeed (never the password; limited size)
+app.get('/api/settings/export', async (req, res) => {
+  const email = req.authEmail;
+  try {
+    if (exportLimiter.isLimited(email)) return res.status(429).json({ success: false, message: 'You can download your data a few times per hour. Please try again later.' });
+    exportLimiter.hit(email);
+    const LIMIT = 5000;
+    const one = async (sql) => (await pool.query(sql, [email, LIMIT])).rows;
+    const me = (await pool.query('SELECT * FROM users WHERE email = $1', [email])).rows[0];
+    if (!me) return res.status(404).json({ success: false, message: 'Account not found.' });
+    const contact = ownContact(me);
+    delete me.password; delete me.sessions_epoch;
+    const data = {
+      exported_at: new Date().toISOString(),
+      note: 'People are shown with their public id instead of an e-mail address. Lists are limited to ' + LIMIT + ' rows.',
+      account: { contact, profile: me },
+      posts: await one('SELECT * FROM posts WHERE user_email = $1 ORDER BY created_at DESC LIMIT $2'),
+      comments: await one('SELECT * FROM comments WHERE user_email = $1 ORDER BY created_at DESC LIMIT $2'),
+      following: await one('SELECT following_email FROM follows WHERE follower_email = $1 LIMIT $2'),
+      followers: await one('SELECT follower_email FROM follows WHERE following_email = $1 LIMIT $2'),
+      blocked: await one('SELECT blocked_email, created_at FROM blocked_users WHERE blocker_email = $1 LIMIT $2'),
+      messages: await one('SELECT * FROM messages WHERE sender_email = $1 OR receiver_email = $1 ORDER BY created_at DESC LIMIT $2')
+    };
+    res.setHeader('Content-Disposition', 'attachment; filename="camfeed-my-data.json"');
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Export error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not prepare your data. Please try again.' });
+  }
+});
+
 app.post('/api/suggestions/dismiss', async (req, res) => {
   const email = req.authEmail;
   const targetEmail = String((req.body && req.body.targetEmail) || '').trim();
@@ -1969,6 +2139,17 @@ app.post('/api/admin/reports/:reportId/status', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// Errors raised by Express itself (broken JSON, body too large ...): a short answer, never a stack trace or file path
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const tooBig = err && (err.type === 'entity.too.large' || err.status === 413);
+  const badJson = err && (err.type === 'entity.parse.failed' || err.status === 400);
+  if (!tooBig && !badJson) console.error('[error] unhandled:', req.method, String(req.originalUrl || '').split('?')[0], err && err.message);
+  const status = tooBig ? 413 : (badJson ? 400 : 500);
+  const text = tooBig ? 'The request is too large.' : (badJson ? 'The request could not be read.' : 'Something went wrong on our side. Please try again.');
+  res.status(status).json({ success: false, error: text });
+});
+
 app.listen(PORT, () => {
   console.log(`Camfeed server is running on port ${PORT}`);
 });

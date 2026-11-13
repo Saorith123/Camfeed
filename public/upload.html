@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <script src="mp4-faststart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -672,14 +679,14 @@
             strip.innerHTML = TEXT_BG_STYLES.slice(0, 10).map(st => {
                 const isSel = st.id === selectedTextStyleId;
                 const bgCss = st.id === 'none' ? '#f0f2f5' : st.bg;
-                return `<div class="style-swatch-item ${isSel ? 'selected' : ''}" style="background:${bgCss}; color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${st.name}">${st.id === 'none' ? '🚫' : (st.icon || 'Aa')}</div>`;
+                return `<div class="style-swatch-item ${isSel ? 'selected' : ''}" style="background:${bgCss}; color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${esc(st.name)}">${st.id === 'none' ? '🚫' : (st.icon || 'Aa')}</div>`;
             }).join('') + `<div class="style-swatch-item" style="background:#e4e6eb; color:#050505; font-size:16px;" onclick="toggleStyleDrawer()" title="More Styles">⊞</div>`;
 
             grid.innerHTML = TEXT_BG_STYLES.map(st => {
                 const isSel = st.id === selectedTextStyleId;
                 const bgCss = st.id === 'none' ? '#ffffff' : st.bg;
                 const borderExtra = st.id === 'none' ? 'border:1.5px solid #cbd5e1;' : '';
-                return `<div class="style-grid-tile ${isSel ? 'selected' : ''}" style="background:${bgCss}; ${borderExtra} color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${st.name}">${st.id === 'none' ? '🚫' : (st.icon || '')}</div>`;
+                return `<div class="style-grid-tile ${isSel ? 'selected' : ''}" style="background:${bgCss}; ${borderExtra} color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${esc(st.name)}">${st.id === 'none' ? '🚫' : (st.icon || '')}</div>`;
             }).join('');
         }
 

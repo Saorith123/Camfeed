@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <script src="mp4-faststart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1627,7 +1634,7 @@
             const activeEmail = (currentUser?.email || '').trim().toLowerCase();
             container.innerHTML = list.map(acc => {
                 const isCurrent = (acc.email || '').trim().toLowerCase() === activeEmail;
-                const fullName = `${acc.first_name || ''} ${acc.last_name || ''}`.trim() || acc.email;
+                const fullName = `${acc.first_name || ''} ${acc.last_name || ''}`.trim() || acc.contact_mail || 'CamFeed';
                 const pic = acc.profile_pic || 'https://via.placeholder.com/32';
                 const safeEmail = (acc.email || '').replace(/'/g, "\\'");
 
@@ -1637,7 +1644,7 @@
                             <img src="${pic}" onerror="this.onerror=null;this.src='https://via.placeholder.com/32';" class="saved-acc-avatar">
                             <div class="saved-acc-info">
                                 <div class="saved-acc-name notranslate" translate="no">${fullName}</div>
-                                <div class="saved-acc-sub notranslate" translate="no">${acc.email}</div>
+                                <div class="saved-acc-sub notranslate" translate="no">${acc.contact_mail || ''}</div>
                             </div>
                         </div>
                         ${isCurrent
@@ -1668,9 +1675,13 @@
                 return;
             }
 
-            // Switch active account immediately without logging out of saved accounts!
+            // Switch active account immediately without logging out of saved accounts: the login of that account must come with it
+            if (!(window.CamAuth && CamAuth.useAccount && CamAuth.useAccount(found.email))) {
+                alert('សូមចូលគណនីនេះម្តងទៀត ដោយចុច «បន្ថែមគណនី»។');
+                return;
+            }
             localStorage.setItem('camfeed_user', JSON.stringify(found));
-            const toast = showLanguageToast(`🔄 កំពុងប្តូរទៅគណនី ${found.first_name || found.email}...`);
+            const toast = showLanguageToast(`🔄 កំពុងប្តូរទៅគណនី ${found.first_name || ''}...`);
             setTimeout(() => {
                 window.location.reload();
             }, 350);
@@ -1680,6 +1691,7 @@
             if (event) event.stopPropagation();
             if (!confirm('ដកគណនីនេះចេញពីបញ្ជីប្តូររហ័សមែនទេ?')) return;
             const list = getSavedAccounts().filter(a => (a.email || '').trim().toLowerCase() !== targetEmail.trim().toLowerCase());
+            if (window.CamAuth && CamAuth.forgetAccount) CamAuth.forgetAccount(targetEmail);
             persistSavedAccounts(list);
             renderSavedAccountsMenu();
         }
@@ -1727,7 +1739,7 @@
                     syncCurrentUserIntoSavedAccounts(data.user);
                     localStorage.setItem('camfeed_user', JSON.stringify(data.user));
                     closeAddAccountModal();
-                    showLanguageToast(`✓ បានបន្ថែម និងប្តូរទៅគណនី ${data.user.first_name || data.user.email}`);
+                    showLanguageToast(`✓ បានបន្ថែម និងប្តូរទៅគណនី ${data.user.first_name || ''}`);
                     setTimeout(() => window.location.reload(), 450);
                 } else {
                     errEl.innerText = data.message || 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ!';
@@ -2442,7 +2454,7 @@
                             if (item.type === 'video') {
                                 return `<div class="carousel-slide">${buildInlineVideoTag(item.url, postId, 'autoplay-video', mediaAspect, isPriority && sIdx === 0)}</div>`;
                             }
-                            return `<div class="carousel-slide"><img src="${item.url}" loading="${isPriority ? 'eager' : 'lazy'}" onclick="openImageModal(${postId}, '${item.url}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
+                            return `<div class="carousel-slide"><img src="${item.url}" loading="${isPriority ? 'eager' : 'lazy'}" onclick="openImageModal(${postId}, '${item.url}', decodeURIComponent('${ea(authorName)}'), decodeURIComponent('${ea(authorPic)}'), '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})"></div>`;
                         }).join('');
 
                         const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${postId}-${idx}"></span>`).join('');
@@ -2463,7 +2475,7 @@
             if (mediaType === 'video') {
                 return buildInlineVideoTag(mediaUrl, postId, 'post-media autoplay-video', mediaAspect, isPriority);
             }
-            return `<img src="${mediaUrl}" class="post-media" loading="${isPriority ? 'eager' : 'lazy'}" style="width:100%; height:auto; object-fit:cover; background:#000; display:block;" onclick="openImageModal(${postId}, '${mediaUrl}', '${authorName}', '${authorPic}', '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
+            return `<img src="${mediaUrl}" class="post-media" loading="${isPriority ? 'eager' : 'lazy'}" style="width:100%; height:auto; object-fit:cover; background:#000; display:block;" onclick="openImageModal(${postId}, '${mediaUrl}', decodeURIComponent('${ea(authorName)}'), decodeURIComponent('${ea(authorPic)}'), '${encodeURIComponent(contentStr)}', '${dateStr}', ${likesCount}, ${commentsCount})">`;
         }
 
         function isPostVideoType(post) {
@@ -2503,8 +2515,8 @@
                             <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
                                 <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
                                 <div>
-                                    <div style="font-weight:700; font-size:15px; color:#050505;">${sp.name}</div>
-                                    <div style="font-size:12.5px; color:#65676b;">${sp.bio || 'View Profile on CamFeed'}</div>
+                                    <div style="font-weight:700; font-size:15px; color:#050505;">${esc(sp.name)}</div>
+                                    <div style="font-size:12.5px; color:#65676b;">${esc(sp.bio || 'View Profile on CamFeed')}</div>
                                 </div>
                             </div>
                         </div>
@@ -2529,7 +2541,7 @@
                                 <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
                                     <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                     <div>
-                                        <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
+                                        <div class="embedded-shared-author notranslate" translate="no">${esc(origAuthor)}</div>
                                         <div class="embedded-shared-time">${origDate} · 🌐</div>
                                     </div>
                                 </div>
@@ -2557,11 +2569,11 @@
                             <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
                                 <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                 <div>
-                                    <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
+                                    <div class="embedded-shared-author notranslate" translate="no">${esc(origAuthor)}</div>
                                     <div class="embedded-shared-time">${origDate} · 🌐</div>
                                 </div>
                             </div>
-                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${post.orig_content}</div>` : ''}
+                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${esc(post.orig_content)}</div>` : ''}
                         </div>
                         <div class="embedded-shared-media">${origMedia}</div>
                     </div>
@@ -2683,7 +2695,7 @@
                 } else if (!append) {
                     const cEl = document.getElementById('postsContainer');
                     if (cEl && !cEl.querySelector('.post-item')) {
-                        cEl.innerHTML = `<div style="text-align:center; padding:30px; color:#65676b;">⚠️ មិនអាចទាញទិន្នន័យបានទេ (${data.error || 'Error'})<br><button onclick="loadPosts(false)" style="margin-top:10px; background:#1877f2; color:#fff; border:none; padding:8px 18px; border-radius:20px; font-weight:700; cursor:pointer;">ព្យាយាមម្តងទៀត</button></div>`;
+                        cEl.innerHTML = `<div style="text-align:center; padding:30px; color:#65676b;">⚠️ មិនអាចទាញទិន្នន័យបានទេ (${esc(data.error || 'Error')})<br><button onclick="loadPosts(false)" style="margin-top:10px; background:#1877f2; color:#fff; border:none; padding:8px 18px; border-radius:20px; font-weight:700; cursor:pointer;">ព្យាយាមម្តងទៀត</button></div>`;
                     }
                 }
             } catch (err) {
@@ -2762,7 +2774,7 @@
 
                 const mediaHtml = renderPostMediaHtml(post, dateStr, !append && idx < 2);
                 const categoryBadge = (post.ai_category && post.ai_category !== 'General')
-                    ? `<span class="ai-topic-pill">#${post.ai_category}</span>`
+                    ? `<span class="ai-topic-pill">#${esc(post.ai_category)}</span>`
                     : '';
 
                 const isOwnPost = currentUser.email === post.user_email;
@@ -2773,9 +2785,9 @@
                             <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" class="avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                             <div style="flex:1; min-width:0;">
                                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                    <div class="post-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${post.first_name} ${post.last_name}</div>
+                                    <div class="post-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${esc(post.first_name)} ${esc(post.last_name)}</div>
                                     ${!isOwnPost ? `
-                                        <button type="button" class="feed-follow-btn ${post.is_following ? 'is-following' : ''}" id="feedFollowBtn-${post.id}" onclick="toggleFeedFollow('${post.user_email}', ${post.id})" style="background:${post.is_following ? '#e4e6eb' : '#e7f3ff'}; color:${post.is_following ? '#050505' : '#1877f2'}; border:none; padding:3px 10px; border-radius:12px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                        <button type="button" class="feed-follow-btn ${post.is_following ? 'is-following' : ''}" id="feedFollowBtn-${post.id}" onclick="toggleFeedFollow(decodeURIComponent('${ea(post.user_email)}'), ${post.id})" style="background:${post.is_following ? '#e4e6eb' : '#e7f3ff'}; color:${post.is_following ? '#050505' : '#1877f2'}; border:none; padding:3px 10px; border-radius:12px; font-size:11.5px; font-weight:700; cursor:pointer;">
                                             ${post.is_following ? '✓ Following' : '＋ Follow'}
                                         </button>
                                     ` : ''}
@@ -2799,7 +2811,7 @@
                         </div>
                     </div>
                     ${post.content ? `
-                        <div class="post-content notranslate ${post.media_type === 'styled_text' ? 'hidden' : ''}" translate="no" id="post-content-orig-${post.id}" style="padding: 0 14px; margin-bottom: 4px;">${post.content}</div>
+                        <div class="post-content notranslate ${post.media_type === 'styled_text' ? 'hidden' : ''}" translate="no" id="post-content-orig-${post.id}" style="padding: 0 14px; margin-bottom: 4px;">${esc(post.content)}</div>
                         <div id="post-translated-${post.id}" class="translated-box notranslate hidden" translate="no"></div>
                         <button type="button" class="see-translation-btn notranslate" translate="no" id="trans-btn-${post.id}" onclick="translateSinglePost(${post.id})">🌐 បកប្រែ (See translation)</button>
                     ` : ''}
@@ -3300,12 +3312,12 @@
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
                                 <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${esc(r.first_name)} ${esc(r.last_name)}</div>
                                     <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
                                 </div>
                             </div>
                             ${r.email !== currentUser.email ? `
-                                <button class="btn-follow ${r.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowReactor('${r.email}', ${r.is_following}, ${postId})">
+                                <button class="btn-follow ${r.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowReactor(decodeURIComponent('${ea(r.email)}'), ${r.is_following}, ${postId})">
                                     ${r.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
                                 </button>
                             ` : ''}
@@ -3344,12 +3356,12 @@
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
                                 <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${esc(s.first_name)} ${esc(s.last_name)}</div>
                                     <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
                                 </div>
                             </div>
                             ${s.email !== currentUser.email ? `
-                                <button class="btn-follow ${s.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowSharer('${s.email}', ${s.is_following}, ${postId})">
+                                <button class="btn-follow ${s.is_following ? 'btn-unfollow' : ''}" onclick="toggleFollowSharer(decodeURIComponent('${ea(s.email)}'), ${s.is_following}, ${postId})">
                                     ${s.is_following ? (currentLang === 'km' ? 'កំពុងតាមដាន' : 'Following') : (currentLang === 'km' ? 'តាមដាន' : 'Follow')}
                                 </button>
                             ` : ''}

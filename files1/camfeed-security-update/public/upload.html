@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
+    <script src="mp4-faststart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CamFeed - Create Post</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="apple-touch-icon" href="logo-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@500;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #050505;
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body, textarea, input, select, button {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Facebook-Style Text Background Canvas & Aa Style Picker */
+        .caption-stage-wrap {
+            position: relative;
+            width: 100%;
+            border-radius: 14px;
+            overflow: hidden;
+            transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .caption-stage-wrap.has-bg-style {
+            aspect-ratio: 1 / 1;
+            min-height: 310px;
+            max-height: 440px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 22px;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+        }
+        .caption-stage-wrap.has-bg-style .caption-textarea {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+            text-align: center;
+            font-size: 26px;
+            font-weight: 800;
+            line-height: 1.4;
+            min-height: unset;
+            height: auto;
+            max-height: 100%;
+            resize: none;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .caption-stage-wrap.has-bg-style .caption-textarea::placeholder {
+            color: rgba(255, 255, 255, 0.72);
+        }
+        .caption-stage-wrap.has-bg-style.dark-ink .caption-textarea::placeholder {
+            color: rgba(15, 23, 42, 0.5);
+        }
+
+        /* Floating Aa Toggle Button inside Caption Box */
+        .aa-toggle-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 15;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1.5px solid rgba(255,255,255,0.85);
+            background: conic-gradient(from 45deg, #ff5f6d, #ffc371, #42e695, #4776e6, #8e54e9, #ff5f6d);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.65);
+            transition: transform 0.15s;
+        }
+        .aa-toggle-btn:active { transform: scale(0.92); }
+
+        /* Horizontal Quick Swatch Strip */
+        .style-quick-strip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 2px;
+            scrollbar-width: none;
+        }
+        .style-quick-strip::-webkit-scrollbar { display: none; }
+        .style-swatch-item {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            flex-shrink: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 800;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+            transition: transform 0.12s, border-color 0.12s;
+        }
+        .style-swatch-item:hover { transform: scale(1.06); }
+        .style-swatch-item.selected {
+            border-color: #1877f2;
+            box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1877f2;
+        }
+
+        /* Facebook-Style Full Style Grid Sheet */
+        .style-drawer-sheet {
+            display: none;
+            background: #ffffff;
+            border: 1px solid #e4e6eb;
+            border-radius: 16px;
+            padding: 12px 14px 14px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+            animation: fadeSlideUp 0.2s ease;
+        }
+        .style-drawer-sheet.open { display: block; }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .style-drawer-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            color: #050505;
+        }
+        .style-grid-5 {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 9px;
+        }
+        .style-grid-tile {
+            aspect-ratio: 1 / 1;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            transition: transform 0.12s;
+        }
+        .style-grid-tile:active { transform: scale(0.94); }
+        .style-grid-tile.selected {
+            border-color: #050505;
+            box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1877f2;
+        }
+
+        /* Sticky Header */
+        .upload-top-bar {
+            background: #fff;
+            height: 54px;
+            padding: 0 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .back-btn {
+            background: #f0f2f5;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 18px;
+            font-weight: 700;
+            color: #050505;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .back-btn:hover { background: #e4e6eb; }
+        .header-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: #050505;
+        }
+        .top-post-btn {
+            background: #1877f2;
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            padding: 7px 18px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .top-post-btn:hover { background: #166fe5; }
+        .top-post-btn:active { transform: scale(0.95); }
+        .top-post-btn:disabled { background: #b0d3f8; cursor: not-allowed; }
+
+        /* Main Upload Card */
+        .upload-container {
+            max-width: 620px;
+            width: 100%;
+            margin: 12px auto;
+            padding: 0 10px 30px;
+            flex: 1;
+        }
+        .upload-card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        /* Author & Privacy Row */
+        .author-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .author-avatar {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #e4e6eb;
+            border: 1px solid #dddfe2;
+        }
+        .author-name {
+            font-weight: 700;
+            font-size: 15.5px;
+            color: #050505;
+        }
+        .privacy-select {
+            margin-top: 4px;
+            background: #f0f2f5;
+            border: 1px solid #dddfe2;
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #050505;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Caption Input */
+        .caption-textarea {
+            width: 100%;
+            min-height: 110px;
+            border: none;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 16px;
+            line-height: 1.45;
+            color: #050505;
+            font-family: inherit;
+            resize: vertical;
+            outline: none;
+        }
+        .caption-textarea:focus {
+            background: #fff;
+            box-shadow: 0 0 0 2px #e7f3ff;
+        }
+
+        /* Media Picker Action Buttons */
+        .media-picker-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .picker-box-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1.5px dashed #bcd6fa;
+            background: #f0f7ff;
+            color: #1877f2;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .picker-box-btn:hover { background: #e1effe; }
+
+        /* Selected Media Preview Grid */
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 10px;
+        }
+        .preview-tile {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #000;
+            border: 1px solid #e4e6eb;
+        }
+        .preview-tile img, .preview-tile video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .tile-badge {
+            position: absolute;
+            bottom: 6px;
+            left: 6px;
+            background: rgba(0, 0, 0, 0.72);
+            color: #fff;
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+        .tile-remove-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.78);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Dual Progress (Compress % & Upload %) + Floating Corner Mini-Widget */
+        .dual-progress-card {
+            display: none;
+            background: #0f172a;
+            color: #ffffff;
+            border-radius: 14px;
+            padding: 14px 16px;
+            box-shadow: 0 6px 22px rgba(15, 23, 42, 0.22);
+            flex-direction: column;
+            gap: 10px;
+            transition: all 0.22s ease;
+        }
+        .dual-progress-card.visible { display: flex; }
+        .dual-progress-card.floating-corner {
+            position: fixed;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            right: 14px;
+            width: 305px;
+            max-width: calc(100vw - 24px);
+            z-index: 3000;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.18);
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: grab;
+        }
+        .dp-warning-note {
+            font-size: 11px;
+            line-height: 1.35;
+            color: #fde68a;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.32);
+            padding: 5px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .dp-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .dp-title {
+            font-size: 13px;
+            font-weight: 800;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+        }
+        .dp-icon-btn {
+            background: rgba(255,255,255,0.14);
+            border: none;
+            color: #fff;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .dp-icon-btn:hover { background: rgba(255,255,255,0.26); }
+        .dp-bar-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .dp-bar-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+        .dp-track {
+            width: 100%;
+            height: 7px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .dp-fill-compress {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            transition: width 0.2s ease;
+        }
+        .dp-fill-upload {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #38bdf8, #1877f2);
+            transition: width 0.2s ease;
+        }
+
+        /* Progress Bar */
+        .progress-wrapper {
+            display: none;
+            background: #f0f7ff;
+            border: 1px solid #cce3fd;
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1877f2;
+            margin-bottom: 6px;
+        }
+        .progress-track {
+            width: 100%;
+            height: 10px;
+            background: #dce8f8;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #1877f2, #00c6ff);
+            transition: width 0.2s ease;
+        }
+
+        .bottom-submit-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            color: #fff;
+            font-size: 15.5px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(24, 119, 242, 0.28);
+        }
+        .bottom-submit-btn:disabled {
+            background: #b0d3f8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .status-msg {
+            text-align: center;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: #fa383e;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="upload-top-bar">
+        <button type="button" class="back-btn" onclick="goBackToFeed()" title="ត្រឡប់ក្រោយ">←</button>
+        <div class="header-title" id="pageTitle">បង្កើតការបង្ហោះថ្មី (Create Post)</div>
+        <button type="button" class="top-post-btn" id="topPostBtn" onclick="submitNewPost()">បង្ហោះ</button>
+    </div>
+
+    <div class="upload-container">
+        <div class="upload-card">
+            <div class="author-row">
+                <img src="https://via.placeholder.com/46" id="authorAvatar" class="author-avatar">
+                <div>
+                    <div class="author-name notranslate" translate="no" id="authorName">User</div>
+                    <select id="postPrivacy" class="privacy-select">
+                        <option value="public" id="optPublic">🌐 ជាសាធារណៈ (Public)</option>
+                        <option value="private" id="optPrivate">🔒 ឯកជន (Private - ឃើញតែខ្ញុំម្នាក់ឯង)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="caption-stage-wrap" id="captionStageWrap">
+                <button type="button" class="aa-toggle-btn" id="aaToggleBtn" onclick="toggleStyleDrawer()" title="ជ្រើសរើសផ្ទៃខាងក្រោយអត្ថបទ (Text Background Style)">Aa</button>
+                <textarea id="postContent" class="caption-textarea" placeholder="តើអ្នកកំពុងគិតអ្វីខ្លះ? សរសេររៀបរាប់នៅទីនេះ..." oninput="autoAdjustStyledTextSize()"></textarea>
+            </div>
+
+            <!-- Quick Horizontal Style Swatch Strip -->
+            <div class="style-quick-strip" id="styleQuickStrip"></div>
+
+            <!-- Full Facebook-Style Background Style Grid -->
+            <div class="style-drawer-sheet" id="styleDrawerSheet">
+                <div class="style-drawer-head">
+                    <span style="width:24px;"></span>
+                    <span id="styleDrawerTitle">Style (ជ្រើសរើសផ្ទៃខាងក្រោយ)</span>
+                    <button type="button" onclick="closeStyleDrawer()" style="background:none; border:none; font-size:18px; font-weight:800; color:#050505; cursor:pointer;">✓</button>
+                </div>
+                <div class="style-grid-5" id="styleGridContainer"></div>
+            </div>
+
+            <!-- Photo & Video Selection Buttons -->
+            <div class="media-picker-grid">
+                <label class="picker-box-btn">
+                    <span style="font-size: 20px;">🖼️</span>
+                    <span id="lblPickPhotos">រូបភាព (Photos)</span>
+                    <input type="file" id="photoInput" accept="image/*" multiple class="hidden" onchange="handleFilesSelected(event)">
+                </label>
+                <label class="picker-box-btn" style="border-color: #c5e8d5; background: #f2fbf6; color: #1e8e3e;">
+                    <span style="font-size: 20px;">🎬</span>
+                    <span id="lblPickVideos">វីដេអូ (Videos)</span>
+                    <input type="file" id="videoInput" accept="video/*" multiple class="hidden" onchange="handleFilesSelected(event)">
+                </label>
+            </div>
+
+            <!-- Selected Files Preview -->
+            <div id="previewGrid" class="preview-grid hidden"></div>
+
+            <!-- Dual Live Progress Card: 1. Compress %  &  2. Upload % -->
+            <div id="dualProgressCard" class="dual-progress-card">
+                <div class="dp-top-row">
+                    <span class="dp-title" id="dpStatusTitle">⚙️ កំពុងរៀបចំឯកសារ...</span>
+                    <button type="button" class="dp-icon-btn" id="dpFloatToggleBtn" onclick="toggleProgressCornerFloat()" title="បង្រួមដាក់ជ្រុងអេក្រង់">◳</button>
+                    <button type="button" class="dp-icon-btn" onclick="cancelUploadJob()" title="បោះបង់ (Cancel)">✕</button>
+                </div>
+                <div class="dp-bar-group">
+                    <div class="dp-bar-labels">
+                        <span>⚙️ កំហាប់ (Compress)</span>
+                        <span id="dpCompressPct">0%</span>
+                    </div>
+                    <div class="dp-track">
+                        <div class="dp-fill-compress" id="dpCompressFill"></div>
+                    </div>
+                </div>
+                <div class="dp-bar-group">
+                    <div class="dp-bar-labels">
+                        <span>☁️ បង្ហោះ (Upload)</span>
+                        <span id="dpUploadPct">0%</span>
+                    </div>
+                    <div class="dp-track">
+                        <div class="dp-fill-upload" id="dpUploadFill"></div>
+                    </div>
+                </div>
+                <div class="dp-warning-note">⚠️ វីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។</div>
+            </div>
+
+            <button type="button" id="bottomPostBtn" class="bottom-submit-btn" onclick="submitNewPost()">បង្ហោះឥឡូវនេះ (Post)</button>
+            <div id="statusMsg" class="status-msg"></div>
+        </div>
+    </div>
+
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let selectedFiles = [];
+        let isUploading = false;
+
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            if (currentUser.profile_pic) {
+                document.getElementById('authorAvatar').src = currentUser.profile_pic;
+            }
+            document.getElementById('authorName').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim();
+            applyPageLanguage();
+        }
+
+        function applyPageLanguage() {
+            const lang = localStorage.getItem('camfeed_lang') || 'km';
+            if (lang === 'en') {
+                document.getElementById('pageTitle').innerText = 'Create Post';
+                document.getElementById('topPostBtn').innerText = 'Post';
+                document.getElementById('bottomPostBtn').innerText = 'Post Now';
+                document.getElementById('postContent').placeholder = "What's on your mind?";
+                document.getElementById('optPublic').innerText = '🌐 Public';
+                document.getElementById('optPrivate').innerText = '🔒 Private (Only me)';
+                document.getElementById('lblPickPhotos').innerText = 'Photos';
+                document.getElementById('lblPickVideos').innerText = 'Videos';
+            }
+        }
+
+        // =========================================================================
+        // TEXT BACKGROUND STYLES CATALOG (20 Artistic Styles like Facebook)
+        // =========================================================================
+        const TEXT_BG_STYLES = [
+            { id: 'none', name: 'None', bg: '', color: '#050505', darkInk: true, icon: '🚫' },
+            { id: 'wave-horizon', name: 'Wavy Horizon', bg: 'repeating-radial-gradient(circle at 50% -20%, #4b6cb7 0px, #6c859e 18px, #b99ca4 36px, #415a77 54px)', color: '#ffffff', darkInk: false, shadow: '0 2px 8px rgba(0,0,0,0.45)' },
+            { id: 'starry-night', name: 'Starry Night', bg: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.45) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(99,102,241,0.5) 0%, transparent 45%), linear-gradient(135deg, #04091a 0%, #0f294a 55%, #061224 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.6)' },
+            { id: 'birthday-cake', name: 'Celebration Pink', bg: 'linear-gradient(160deg, #fbcfe8 0%, #f9a8d4 50%, #f472b6 100%)', color: '#ffffff', darkInk: false, icon: '🎂', shadow: '0 2px 8px rgba(190,24,93,0.4)' },
+            { id: 'aurora-silk', name: 'Aurora Silk', bg: 'linear-gradient(135deg, #0f2027 0%, #203a43 45%, #2c5364 75%, #10b981 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.55)' },
+            { id: 'ocean-sky', name: 'Ocean Sky', bg: 'linear-gradient(180deg, #0284c7 0%, #38bdf8 55%, #bae6fd 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 8px rgba(3,105,161,0.4)' },
+            { id: 'pastel-bubbles', name: 'Pastel Orbs', bg: 'radial-gradient(circle at 25% 25%, #e0f2fe 0%, transparent 50%), radial-gradient(circle at 75% 70%, #f5d0fe 0%, transparent 55%), linear-gradient(135deg, #c7d2fe 0%, #fbcfe8 100%)', color: '#1e1b4b', darkInk: true },
+            { id: 'cosmic-violet', name: 'Cosmic Violet', bg: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.35)' },
+            { id: 'warm-sand', name: 'Warm Sand', bg: 'linear-gradient(135deg, #f3e7d3 0%, #e6ccb2 50%, #ddb892 100%)', color: '#3d2c1e', darkInk: true },
+            { id: 'velvet-rose', name: 'Velvet Rose', bg: 'linear-gradient(135deg, #881337 0%, #be123c 50%, #fb7185 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 10px rgba(0,0,0,0.4)' },
+            { id: 'midnight-wave', name: 'Midnight Wave', bg: 'linear-gradient(145deg, #090d16 0%, #1e293b 60%, #334155 100%)', color: '#ffffff', darkInk: false },
+            { id: 'misty-cloud', name: 'Misty Cloud', bg: 'linear-gradient(135deg, #cbd5e1 0%, #e2e8f0 50%, #94a3b8 100%)', color: '#0f172a', darkInk: true },
+            { id: 'sunset-peach', name: 'Sunset Peach', bg: 'linear-gradient(160deg, #fdba74 0%, #f9a8d4 55%, #c4b5fd 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 8px rgba(0,0,0,0.35)' },
+            { id: 'crimson-red', name: 'Crimson Red', bg: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)', color: '#ffffff', darkInk: false },
+            { id: 'lime-neon', name: 'Fresh Lime', bg: 'linear-gradient(135deg, #84cc16 0%, #bef264 100%)', color: '#1a2e05', darkInk: true },
+            { id: 'cream-soft', name: 'Soft Cream', bg: '#fef3c7', color: '#451a03', darkInk: true },
+            { id: 'lavender-geo', name: 'Soft Lavender', bg: 'linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%)', color: '#2e1065', darkInk: true },
+            { id: 'mint-grid', name: 'Mint Grid', bg: 'linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%)', color: '#115e59', darkInk: true },
+            { id: 'mango-gold', name: 'Mango Gold', bg: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)', color: '#ffffff', darkInk: false, shadow: '0 2px 6px rgba(180,83,9,0.4)' },
+            { id: 'bokeh-dark', name: 'City Bokeh', bg: 'radial-gradient(circle at 25% 30%, rgba(244,63,94,0.65) 0%, transparent 35%), radial-gradient(circle at 75% 65%, rgba(56,189,248,0.6) 0%, transparent 40%), #09090b', color: '#ffffff', darkInk: false }
+        ];
+
+        let selectedTextStyleId = 'none';
+
+        function initTextBackgroundPickers() {
+            const strip = document.getElementById('styleQuickStrip');
+            const grid = document.getElementById('styleGridContainer');
+            if (!strip || !grid) return;
+
+            strip.innerHTML = TEXT_BG_STYLES.slice(0, 10).map(st => {
+                const isSel = st.id === selectedTextStyleId;
+                const bgCss = st.id === 'none' ? '#f0f2f5' : st.bg;
+                return `<div class="style-swatch-item ${isSel ? 'selected' : ''}" style="background:${bgCss}; color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${st.name}">${st.id === 'none' ? '🚫' : (st.icon || 'Aa')}</div>`;
+            }).join('') + `<div class="style-swatch-item" style="background:#e4e6eb; color:#050505; font-size:16px;" onclick="toggleStyleDrawer()" title="More Styles">⊞</div>`;
+
+            grid.innerHTML = TEXT_BG_STYLES.map(st => {
+                const isSel = st.id === selectedTextStyleId;
+                const bgCss = st.id === 'none' ? '#ffffff' : st.bg;
+                const borderExtra = st.id === 'none' ? 'border:1.5px solid #cbd5e1;' : '';
+                return `<div class="style-grid-tile ${isSel ? 'selected' : ''}" style="background:${bgCss}; ${borderExtra} color:${st.color};" onclick="selectTextBgStyle('${st.id}')" title="${st.name}">${st.id === 'none' ? '🚫' : (st.icon || '')}</div>`;
+            }).join('');
+        }
+
+        function toggleStyleDrawer() {
+            if (selectedFiles.length > 0) {
+                alert('ផ្ទៃខាងក្រោយអត្ថបទប្រើបានតែសម្រាប់ការបង្ហោះអត្ថបទសុទ្ធ (គ្មានរូបភាព/វីដេអូ) ប៉ុណ្ណោះ!');
+                return;
+            }
+            const drawer = document.getElementById('styleDrawerSheet');
+            if (drawer) drawer.classList.toggle('open');
+        }
+
+        function closeStyleDrawer() {
+            const drawer = document.getElementById('styleDrawerSheet');
+            if (drawer) drawer.classList.remove('open');
+        }
+
+        function selectTextBgStyle(styleId) {
+            if (selectedFiles.length > 0 && styleId !== 'none') {
+                alert('សូមលុបរូបភាព/វីដេអូចេញសិន ប្រសិនបើអ្នកចង់ប្រើផ្ទៃខាងក្រោយអត្ថបទ!');
+                return;
+            }
+            selectedTextStyleId = styleId;
+            const st = TEXT_BG_STYLES.find(s => s.id === styleId) || TEXT_BG_STYLES[0];
+            const stage = document.getElementById('captionStageWrap');
+            const textarea = document.getElementById('postContent');
+
+            if (st.id === 'none') {
+                stage.classList.remove('has-bg-style', 'dark-ink');
+                stage.style.background = '';
+                textarea.style.color = '#050505';
+                textarea.style.textShadow = 'none';
+                textarea.style.fontSize = '16px';
+            } else {
+                stage.classList.add('has-bg-style');
+                stage.classList.toggle('dark-ink', !!st.darkInk);
+                stage.style.background = st.bg;
+                textarea.style.color = st.color;
+                textarea.style.textShadow = st.shadow || 'none';
+                autoAdjustStyledTextSize();
+            }
+            initTextBackgroundPickers();
+            textarea.focus();
+        }
+
+        function autoAdjustStyledTextSize() {
+            if (selectedTextStyleId === 'none') return;
+            const textarea = document.getElementById('postContent');
+            if (!textarea) return;
+            const len = (textarea.value || '').trim().length;
+            if (len <= 35) textarea.style.fontSize = '28px';
+            else if (len <= 85) textarea.style.fontSize = '23px';
+            else if (len <= 150) textarea.style.fontSize = '19px';
+            else textarea.style.fontSize = '16.5px';
+        }
+
+        initTextBackgroundPickers();
+
+        function goBackToFeed() {
+            if (isUploading && !confirm('កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ?\nវីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។')) {
+                return;
+            }
+            window.location.href = 'feed.html';
+        }
+
+        function handleFilesSelected(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
+            if (selectedTextStyleId !== 'none') {
+                selectTextBgStyle('none');
+                closeStyleDrawer();
+            }
+            files.forEach(f => selectedFiles.push(f));
+            event.target.value = '';
+            renderPreviews();
+        }
+
+        function removeFile(index) {
+            if (isUploading) return;
+            selectedFiles.splice(index, 1);
+            renderPreviews();
+        }
+
+        function renderPreviews() {
+            const grid = document.getElementById('previewGrid');
+            grid.innerHTML = '';
+            if (selectedFiles.length === 0) {
+                grid.classList.add('hidden');
+                return;
+            }
+            grid.classList.remove('hidden');
+
+            selectedFiles.forEach((file, idx) => {
+                const url = URL.createObjectURL(file);
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
+                const tile = document.createElement('div');
+                tile.className = 'preview-tile';
+                tile.innerHTML = `
+                    ${isVideo ? `<video src="${url}" muted playsinline webkit-playsinline></video>` : `<img src="${url}">`}
+                    <span class="tile-badge">${isVideo ? '🎬 ' : '🖼️ '}${sizeMB}</span>
+                    <button type="button" class="tile-remove-btn" onclick="removeFile(${idx})">×</button>
+                `;
+                grid.appendChild(tile);
+            });
+        }
+
+        function compressImageOnClient(file) {
+            return new Promise((resolve) => {
+                if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif') {
+                    return resolve(file);
+                }
+                const img = new Image();
+                const objUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(objUrl);
+                    const maxDim = 1600;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w <= maxDim && h <= maxDim && file.size <= 600 * 1024) {
+                        return resolve(file);
+                    }
+                    if (w > maxDim || h > maxDim) {
+                        const scale = maxDim / Math.max(w, h);
+                        w = Math.round(w * scale);
+                        h = Math.round(h * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        if (blob && blob.size > 0 && blob.size < file.size) {
+                            const newName = (file.name || 'photo.jpg').replace(/\.[^/.]+$/, '') + '.jpg';
+                            resolve(new File([blob], newName, { type: 'image/jpeg' }));
+                        } else {
+                            resolve(file);
+                        }
+                    }, 'image/jpeg', 0.82);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(objUrl);
+                    resolve(file);
+                };
+                img.src = objUrl;
+            });
+        }
+
+        function detectMediaAspectRatio(file) {
+            return new Promise((resolve) => {
+                if (!file) return resolve('');
+                const isVideo = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
+                const url = URL.createObjectURL(file);
+                if (isVideo) {
+                    const v = document.createElement('video');
+                    v.preload = 'metadata';
+                    v.muted = true;
+                    v.playsInline = true;
+                    v.onloadedmetadata = () => {
+                        const w = v.videoWidth || 0;
+                        const h = v.videoHeight || 0;
+                        URL.revokeObjectURL(url);
+                        if (w > 0 && h > 0) {
+                            resolve(h > w ? '9 / 16' : (w === h ? '1 / 1' : '16 / 9'));
+                        } else {
+                            resolve('9 / 16');
+                        }
+                    };
+                    v.onerror = () => { URL.revokeObjectURL(url); resolve('9 / 16'); };
+                    v.src = url;
+                } else {
+                    const img = new Image();
+                    img.onload = () => {
+                        const w = img.width || 0;
+                        const h = img.height || 0;
+                        URL.revokeObjectURL(url);
+                        if (w > 0 && h > 0) {
+                            resolve(`${w} / ${h}`);
+                        } else {
+                            resolve('');
+                        }
+                    };
+                    img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+                    img.src = url;
+                }
+            });
+        }
+
+        function extractThumbnailBase64(file) {
+            return new Promise((resolve) => {
+                let settled = false;
+                const finish = (val) => {
+                    if (settled) return;
+                    settled = true;
+                    resolve(val);
+                };
+                const timer = setTimeout(() => finish(null), 2500);
+
+                if (file.type && file.type.startsWith('image/')) {
+                    const img = new Image();
+                    const url = URL.createObjectURL(file);
+                    img.onload = () => {
+                        clearTimeout(timer);
+                        try {
+                            const canvas = document.createElement('canvas');
+                            const scale = Math.min(1, 512 / Math.max(img.width || 1, img.height || 1));
+                            canvas.width = Math.round(img.width * scale);
+                            canvas.height = Math.round(img.height * scale);
+                            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                            URL.revokeObjectURL(url);
+                            finish(canvas.toDataURL('image/jpeg', 0.7));
+                        } catch (e) { URL.revokeObjectURL(url); finish(null); }
+                    };
+                    img.onerror = () => { clearTimeout(timer); URL.revokeObjectURL(url); finish(null); };
+                    img.src = url;
+                } else if ((file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '')) {
+                    const video = document.createElement('video');
+                    video.muted = true;
+                    video.playsInline = true;
+                    video.setAttribute('webkit-playsinline', 'true');
+                    video.preload = 'metadata';
+                    const url = URL.createObjectURL(file);
+                    video.src = url;
+                    video.onloadeddata = () => {
+                        try {
+                            video.currentTime = Math.min(0.5, (video.duration || 1) / 3);
+                        } catch (e) { clearTimeout(timer); URL.revokeObjectURL(url); finish(null); }
+                    };
+                    video.onseeked = () => {
+                        clearTimeout(timer);
+                        try {
+                            if (!video.videoWidth || !video.videoHeight) {
+                                URL.revokeObjectURL(url);
+                                return finish(null);
+                            }
+                            const canvas = document.createElement('canvas');
+                            const scale = Math.min(1, 512 / Math.max(video.videoWidth, video.videoHeight));
+                            canvas.width = Math.round(video.videoWidth * scale);
+                            canvas.height = Math.round(video.videoHeight * scale);
+                            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                            URL.revokeObjectURL(url);
+                            finish(canvas.toDataURL('image/jpeg', 0.7));
+                        } catch (e) { URL.revokeObjectURL(url); finish(null); }
+                    };
+                    video.onerror = () => { clearTimeout(timer); URL.revokeObjectURL(url); finish(null); };
+                } else {
+                    clearTimeout(timer);
+                    finish(null);
+                }
+            });
+        }
+
+        let uploadJobCancelled = false;
+        let activeUploadXhr = null;
+
+        function toggleProgressCornerFloat() {
+            const card = document.getElementById('dualProgressCard');
+            if (card) card.classList.toggle('floating-corner');
+        }
+
+        function cancelUploadJob() {
+            if (!isUploading) return;
+            if (!confirm('តើអ្នកពិតជាចង់បោះបង់ការកំហាប់ និងបង្ហោះនេះមែនទេ?')) return;
+            uploadJobCancelled = true;
+            if (activeUploadXhr) {
+                try { activeUploadXhr.abort(); } catch (e) {}
+                activeUploadXhr = null;
+            }
+            isUploading = false;
+            document.getElementById('dualProgressCard')?.classList.remove('visible', 'floating-corner');
+            const topBtn = document.getElementById('topPostBtn');
+            const botBtn = document.getElementById('bottomPostBtn');
+            if (topBtn) { topBtn.disabled = false; topBtn.innerText = 'បង្ហោះ'; }
+            if (botBtn) { botBtn.disabled = false; botBtn.innerText = 'បង្ហោះឥឡូវនេះ (Post)'; }
+        }
+
+        function updateDualProgressUI({ visible, title, compressPct, uploadPct }) {
+            const card = document.getElementById('dualProgressCard');
+            if (!card) return;
+            if (visible !== undefined) card.classList.toggle('visible', !!visible);
+            if (title !== undefined) document.getElementById('dpStatusTitle').innerText = title;
+            if (compressPct !== undefined) {
+                const c = Math.min(100, Math.max(0, Math.round(compressPct)));
+                document.getElementById('dpCompressPct').innerText = c + '%';
+                document.getElementById('dpCompressFill').style.width = c + '%';
+            }
+            if (uploadPct !== undefined) {
+                const u = Math.min(100, Math.max(0, Math.round(uploadPct)));
+                document.getElementById('dpUploadPct').innerText = u + '%';
+                document.getElementById('dpUploadFill').style.width = u + '%';
+            }
+        }
+
+        // Moves the video index (moov) to the front of the file so it starts instantly when streamed. No re-encoding, falls back to the original on any problem.
+        async function fastStartIfPossible(file) {
+            try {
+                return (window.CamFaststart && file) ? await window.CamFaststart.ensureFastStart(file) : file;
+            } catch (e) {
+                return file;
+            }
+        }
+
+        // ---- Video size settings (change here to trade storage for quality) ----
+        const SKIP_COMPRESS_BELOW_MB = 8;        // smaller clips are uploaded as-is
+        const VIDEO_KBPS_UP_TO_1_MIN = 1600;     // 720p, about 12 MB per minute
+        const VIDEO_KBPS_1_TO_5_MIN = 1200;      // about 9 MB per minute
+        const VIDEO_KBPS_OVER_5_MIN = 900;       // about 7 MB per minute
+        const AUDIO_KBPS = 96;
+
+        // Smart Adaptive Video Compressor (Estimates duration & size -> 720p HD with adaptive bitrate so video stays crisp & compact!)
+        function smartCompressVideoFile(file, onProgress) {
+            return new Promise((resolve) => {
+                // Skip re-encoding if file is already compact (<= 12MB) so small clips upload immediately at 100% original clarity
+                if (file.size <= SKIP_COMPRESS_BELOW_MB * 1024 * 1024) {
+                    if (onProgress) onProgress(100);
+                    return resolve(file);
+                }
+
+                const url = URL.createObjectURL(file);
+                const video = document.createElement('video');
+                video.src = url;
+                video.muted = true;
+                video.playsInline = true;
+                video.setAttribute('webkit-playsinline', 'true');
+                video.preload = 'auto';
+
+                let settled = false;
+                const finish = (outFile) => {
+                    if (settled) return;
+                    settled = true;
+                    URL.revokeObjectURL(url);
+                    if (onProgress) onProgress(100);
+                    resolve(outFile);
+                };
+
+                video.onerror = () => finish(file);
+
+                video.onloadedmetadata = async () => {
+                    const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : 15;
+                    const origW = video.videoWidth || 720;
+                    const origH = video.videoHeight || 1280;
+
+                    // Scale >720p down to 720p HD preserving exact aspect ratio
+                    const maxShortSide = 720;
+                    const shortSide = Math.min(origW, origH);
+                    const scale = shortSide > maxShortSide ? (maxShortSide / shortSide) : 1;
+                    const targetW = Math.round((origW * scale) / 2) * 2;
+                    const targetH = Math.round((origH * scale) / 2) * 2;
+
+                    // Adaptive bitrate based on video duration (minutes)
+                    let targetVideoBps = VIDEO_KBPS_UP_TO_1_MIN * 1000;
+                    if (duration > 300) targetVideoBps = VIDEO_KBPS_OVER_5_MIN * 1000;
+                    else if (duration > 60) targetVideoBps = VIDEO_KBPS_1_TO_5_MIN * 1000;
+
+                    const estimatedCompressedBytes = ((targetVideoBps + AUDIO_KBPS * 1000) / 8) * duration;
+                    if (estimatedCompressedBytes >= file.size * 0.92) {
+                        return finish(file);
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetW;
+                    canvas.height = targetH;
+                    const ctx = canvas.getContext('2d');
+
+                    if (!canvas.captureStream || typeof MediaRecorder === 'undefined') {
+                        return finish(file);
+                    }
+
+                    // រំលងការកំហាប់លើទូរសព្ទសម្រាប់វីដេអូវែងលើស ១៥ នាទី ដើម្បីកុំឱ្យរង់ចាំយូរ
+                    if (duration > 900) {
+                        return finish(file);
+                    }
+                    // ប្រើតែទម្រង់ MP4 (H.264/AAC) ស្តង់ដារ ដើម្បីកុំឱ្យជាប់អេក្រង់ខ្មៅ 0:00 លើ iOS និង Appilix WebView
+                    const mimeCandidates = [
+                        'video/mp4;codecs=avc1,mp4a.40.2',
+                        'video/mp4'
+                    ];
+                    const supportedMime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || '';
+                    if (!supportedMime) {
+                        return finish(file);
+                    }
+
+                    try {
+                        const stream = canvas.captureStream(30);
+                        try {
+                            const vStream = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
+                            if (vStream) {
+                                vStream.getAudioTracks().forEach(t => stream.addTrack(t));
+                            }
+                        } catch (e) {}
+
+                        const recorder = new MediaRecorder(stream, {
+                            mimeType: supportedMime,
+                            videoBitsPerSecond: targetVideoBps,
+                            audioBitsPerSecond: AUDIO_KBPS * 1000
+                        });
+                        const chunks = [];
+                        recorder.ondataavailable = (e) => {
+                            if (e.data && e.data.size > 0) chunks.push(e.data);
+                        };
+                        recorder.onstop = () => {
+                            if (uploadJobCancelled || chunks.length === 0) return finish(file);
+                            const outBlob = new Blob(chunks, { type: supportedMime });
+                            if (outBlob.size > 0 && outBlob.size < file.size) {
+                                const ext = supportedMime.includes('mp4') ? 'mp4' : 'webm';
+                                const baseName = (file.name || 'video').replace(/\.[^/.]+$/, '');
+                                finish(new File([outBlob], `${baseName}-hd.${ext}`, { type: supportedMime }));
+                            } else {
+                                finish(file);
+                            }
+                        };
+
+                        recorder.start(250);
+                        video.currentTime = 0;
+                        await video.play();
+
+                        const drawFrame = () => {
+                            if (uploadJobCancelled) {
+                                try { recorder.stop(); } catch (e) {}
+                                return;
+                            }
+                            if (video.paused || video.ended) {
+                                if (recorder.state === 'recording') {
+                                    try { recorder.stop(); } catch (e) {}
+                                }
+                                return;
+                            }
+                            ctx.drawImage(video, 0, 0, targetW, targetH);
+                            if (onProgress && duration > 0) {
+                                const pct = Math.min(99, Math.round((video.currentTime / duration) * 100));
+                                onProgress(pct);
+                            }
+                            requestAnimationFrame(drawFrame);
+                        };
+                        drawFrame();
+                    } catch (err) {
+                        finish(file);
+                    }
+                };
+            });
+        }
+
+        function uploadViaServerFallback(file, onProgress) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('user_email', currentUser.email);
+                formData.append('file', file);
+
+                const xhr = new XMLHttpRequest();
+                activeUploadXhr = xhr;
+                xhr.open('POST', '/api/videos/upload-direct', true);
+                xhr.timeout = 90000;
+                xhr.ontimeout = () => { activeUploadXhr = null; reject(new Error('Server upload timed out')); };
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+                };
+                xhr.onload = () => {
+                    activeUploadXhr = null;
+                    try {
+                        const data = JSON.parse(xhr.responseText || '{}');
+                        if (xhr.status >= 200 && xhr.status < 300 && data.publicUrl) {
+                            resolve({
+                                url: data.publicUrl,
+                                r2Key: data.r2Key,
+                                type: data.type || ((file.type && file.type.startsWith('video/')) ? 'video' : 'image')
+                            });
+                        } else {
+                            reject(new Error(data.error || 'Server upload failed (' + xhr.status + ')'));
+                        }
+                    } catch (e) {
+                        reject(new Error('Invalid server response'));
+                    }
+                };
+                xhr.onerror = () => { activeUploadXhr = null; reject(new Error('Connection error while uploading')); };
+                xhr.onabort = () => { activeUploadXhr = null; reject(new Error('Cancelled')); };
+                xhr.send(formData);
+            });
+        }
+
+        function uploadFileToR2(file, onProgress) {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const urlRes = await fetch('/api/videos/upload-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_email: currentUser.email,
+                            file_name: file.name,
+                            content_type: file.type || 'application/octet-stream'
+                        })
+                    });
+                    const urlData = await urlRes.json();
+                    if (!urlRes.ok || !urlData.uploadUrl) {
+                        return uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
+                    }
+
+                    const xhr = new XMLHttpRequest();
+                    activeUploadXhr = xhr;
+                    xhr.open('PUT', urlData.uploadUrl, true);
+                    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+                    };
+                    xhr.onload = () => {
+                        activeUploadXhr = null;
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            const isVid = (file.type && file.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(file.name || '');
+                            resolve({
+                                url: urlData.publicUrl,
+                                r2Key: urlData.r2Key,
+                                type: isVid ? 'video' : 'image'
+                            });
+                        } else {
+                            uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
+                        }
+                    };
+                    xhr.onerror = () => {
+                        activeUploadXhr = null;
+                        uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
+                    };
+                    xhr.onabort = () => { activeUploadXhr = null; reject(new Error('Cancelled')); };
+                    xhr.send(file);
+                } catch (err) {
+                    uploadViaServerFallback(file, onProgress).then(resolve).catch(reject);
+                }
+            });
+        }
+
+        async function submitNewPost() {
+            if (isUploading) return;
+            const content = document.getElementById('postContent').value;
+            const privacy = document.getElementById('postPrivacy').value;
+            const msgEl = document.getElementById('statusMsg');
+            const topBtn = document.getElementById('topPostBtn');
+            const botBtn = document.getElementById('bottomPostBtn');
+
+            if (!content.trim() && selectedFiles.length === 0) {
+                msgEl.innerText = 'សូមសរសេរអត្ថបទ ឬជ្រើសរើសរូបភាព/វីដេអូយ៉ាងតិច ១!';
+                return;
+            }
+            msgEl.innerText = '';
+
+            uploadJobCancelled = false;
+            isUploading = true;
+            topBtn.disabled = true;
+            botBtn.disabled = true;
+            topBtn.innerText = '...';
+            botBtn.innerText = 'កំពុងដំណើរការ...';
+
+            updateDualProgressUI({
+                visible: true,
+                title: selectedFiles.length > 0 ? '⚙️ កំពុងកំហាប់ និងរៀបចំឯកសារ...' : '☁️ កំពុងបង្ហោះអត្ថបទ...',
+                compressPct: selectedFiles.length > 0 ? 0 : 100,
+                uploadPct: 0
+            });
+
+            try {
+                const compressedFiles = [];
+                let thumbnailBase64 = null;
+                let detectedMediaAspect = '';
+
+                if (selectedFiles.length > 0) {
+                    detectedMediaAspect = await detectMediaAspectRatio(selectedFiles[0]);
+                    // Extract thumbnail from first media (video frame or photo) so Gemini AI classifies the video/post category automatically!
+                    thumbnailBase64 = await extractThumbnailBase64(selectedFiles[0]);
+
+                    // Stage 1: Smart Compress all photos & videos with live Compress %
+                    for (let i = 0; i < selectedFiles.length; i++) {
+                        if (uploadJobCancelled) return;
+                        const rawFile = selectedFiles[i];
+                        const isVideo = (rawFile.type && rawFile.type.startsWith('video/')) || /\.(mp4|mov|webm|m4v|avi)$/i.test(rawFile.name || '');
+
+                        updateDualProgressUI({
+                            title: `⚙️ កំពុងកំហាប់ (${i + 1}/${selectedFiles.length})...`
+                        });
+
+                        if (isVideo) {
+                            const compVid = await smartCompressVideoFile(rawFile, (subPct) => {
+                                const overall = ((i + (subPct / 100)) / selectedFiles.length) * 100;
+                                updateDualProgressUI({ compressPct: overall });
+                            });
+                            compressedFiles.push(await fastStartIfPossible(compVid));
+                        } else {
+                            const compImg = await compressImageOnClient(rawFile);
+                            compressedFiles.push(compImg);
+                            updateDualProgressUI({ compressPct: ((i + 1) / selectedFiles.length) * 100 });
+                        }
+                    }
+                }
+
+                if (uploadJobCancelled) return;
+                updateDualProgressUI({ compressPct: 100, title: '☁️ កំពុងបង្ហោះឡើង Server...' });
+
+                // Stage 2: Upload compressed files to Cloudflare R2 + AI Video Classification
+                const uploadedItems = [];
+                for (let i = 0; i < compressedFiles.length; i++) {
+                    if (uploadJobCancelled) return;
+                    const fileToUpload = compressedFiles[i];
+                    const uploaded = await uploadFileToR2(fileToUpload, (ratio) => {
+                        const overallPct = ((i + ratio) / compressedFiles.length) * 95;
+                        updateDualProgressUI({
+                            title: `☁️ កំពុងបង្ហោះ (${i + 1}/${compressedFiles.length})...`,
+                            uploadPct: overallPct
+                        });
+                    });
+                    uploadedItems.push({ url: uploaded.url, type: uploaded.type });
+
+                    // Trigger AI Video Classification & Recommendation indexing when a video is uploaded
+                    if (uploaded.type === 'video') {
+                        fetch('/api/videos/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                            body: JSON.stringify({
+                                user_email: currentUser.email,
+                                title: content.trim() ? content.trim().slice(0, 120) : fileToUpload.name,
+                                description: content.trim(),
+                                r2_key: uploaded.r2Key,
+                                video_url: uploaded.url,
+                                thumbnailBase64: thumbnailBase64
+                            })
+                        }).catch(() => {});
+                    }
+                }
+
+                if (uploadJobCancelled) return;
+                updateDualProgressUI({ title: '🤖 AI កំពុងចាត់ប្រភេទ និងរក្សាទុក...', uploadPct: 98 });
+
+                let finalMediaType = undefined;
+                let finalMediaUrl = undefined;
+                if (uploadedItems.length === 0 && selectedTextStyleId !== 'none') {
+                    const stObj = TEXT_BG_STYLES.find(s => s.id === selectedTextStyleId);
+                    if (stObj) {
+                        finalMediaType = 'styled_text';
+                        finalMediaUrl = JSON.stringify({
+                            styleId: stObj.id,
+                            bg: stObj.bg,
+                            color: stObj.color,
+                            shadow: stObj.shadow || 'none',
+                            icon: stObj.icon || ''
+                        });
+                    }
+                }
+
+                const postRes = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                    body: JSON.stringify({
+                        email: currentUser.email,
+                        content: content,
+                        privacy: privacy,
+                        mediaType: finalMediaType,
+                        mediaUrl: finalMediaUrl,
+                        mediaItems: uploadedItems,
+                        thumbnailBase64: thumbnailBase64,
+                        mediaAspect: detectedMediaAspect
+                    })
+                });
+                const postData = await postRes.json();
+
+                if (postData.success) {
+                    updateDualProgressUI({
+                        title: '✅ បង្ហោះជោគជ័យ 100%!',
+                        compressPct: 100,
+                        uploadPct: 100
+                    });
+                    setTimeout(() => {
+                        window.location.href = 'feed.html';
+                    }, 500);
+                } else {
+                    throw new Error(postData.error || 'Failed to save post');
+                }
+            } catch (err) {
+                if (!uploadJobCancelled) {
+                    console.error(err);
+                    isUploading = false;
+                    topBtn.disabled = false;
+                    botBtn.disabled = false;
+                    topBtn.innerText = 'បង្ហោះ';
+                    botBtn.innerText = 'បង្ហោះឥឡូវនេះ (Post)';
+                    msgEl.innerText = 'បរាជ័យ៖ ' + err.message;
+                }
+            }
+        }
+    
+        // Site-Wide Real-Time Online / Offline Presence Broadcast (Active on all CamFeed pages)
+        (function initSiteWidePresence() {
+            function pingOnlineNow() {
+                const u = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+                if (!u || !u.email || document.visibilityState === 'hidden') return;
+                fetch('/api/presence/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: u.email, online: true })
+                }).catch(() => {});
+            }
+            function signalOfflineNow() {
+                const u = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+                if (!u || !u.email) return;
+                try {
+                    const blob = new Blob([JSON.stringify({ email: u.email, online: false })], { type: 'application/json' });
+                    if (navigator.sendBeacon) navigator.sendBeacon('/api/presence/offline', blob);
+                } catch (e) {}
+            }
+            pingOnlineNow();
+            setInterval(pingOnlineNow, 12000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') pingOnlineNow();
+                else signalOfflineNow();
+            });
+            window.addEventListener('beforeunload', signalOfflineNow);
+            window.addEventListener('pagehide', signalOfflineNow);
+        })();
+
+    
+        // Draggable Floating Progress Card + BeforeUnload Warning
+        (function initDraggableDpCard() {
+            const card = document.getElementById('dualProgressCard');
+            if (!card) return;
+            let dragging = false, sx = 0, sy = 0, ol = 0, ot = 0;
+            card.addEventListener('pointerdown', (e) => {
+                if (!card.classList.contains('floating-corner') || e.target.closest('button')) return;
+                dragging = true;
+                const r = card.getBoundingClientRect();
+                ol = r.left; ot = r.top; sx = e.clientX; sy = e.clientY;
+                card.style.left = ol + 'px'; card.style.top = ot + 'px';
+                card.style.right = 'auto'; card.style.bottom = 'auto';
+                try { card.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+            card.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                const maxL = Math.max(6, window.innerWidth - card.offsetWidth - 6);
+                const maxT = Math.max(6, window.innerHeight - card.offsetHeight - 6);
+                card.style.left = Math.min(maxL, Math.max(6, ol + (e.clientX - sx))) + 'px';
+                card.style.top = Math.min(maxT, Math.max(6, ot + (e.clientY - sy))) + 'px';
+            });
+            const stopD = (e) => { if (dragging) { dragging = false; try { card.releasePointerCapture(e.pointerId); } catch (err) {} } };
+            card.addEventListener('pointerup', stopD);
+            card.addEventListener('pointercancel', stopD);
+        })();
+
+        window.addEventListener('beforeunload', (e) => {
+            if (isUploading) {
+                const msg = 'កំពុងបង្ហោះវីដេអូ តើអ្នកពិតជាចង់ចាកចេញមែនទេ? វីដេអូកំពុងតែបង្ហោះ សូមកុំបិទកម្មវិធី ឬចាកចេញពីទំព័រនេះអី។';
+                e.preventDefault();
+                e.returnValue = msg;
+                return msg;
+            }
+        });
+
+    </script>
+</body>
+</html>

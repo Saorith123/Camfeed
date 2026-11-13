@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Videos</title>
@@ -690,12 +697,12 @@
                             </div>
 
                             <div class="reel-overlay">
-                                ${video.category ? `<div class="reel-category-badge">#${video.category}</div>` : ''}
+                                ${video.category ? `<div class="reel-category-badge">#${esc(video.category)}</div>` : ''}
                                 <div class="reel-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(video.user_email)}'">
                                     <img src="${video.profile_pic}" class="reel-avatar">
-                                    <div class="notranslate" translate="no" style="font-weight: 700; font-size: 15.5px;">${video.author_name}</div>
+                                    <div class="notranslate" translate="no" style="font-weight: 700; font-size: 15.5px;">${esc(video.author_name)}</div>
                                 </div>
-                                ${video.caption ? `<div class="reel-caption notranslate" translate="no">${video.caption}</div>` : ''}
+                                ${video.caption ? `<div class="reel-caption notranslate" translate="no">${esc(video.caption)}</div>` : ''}
                                 <div class="reel-views-text" id="viewCount-${video.id}">${formatCompactNumber(video.views_count)} Views</div>
                             </div>
 
@@ -1115,12 +1122,12 @@
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
                                 <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:bold; font-size:14px;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-weight:bold; font-size:14px;">${esc(r.first_name)} ${esc(r.last_name)}</div>
                                     <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
                                 </div>
                             </div>
                             ${r.email !== currentUser.email ? `
-                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser('${r.email}', ${r.is_following}, 'react', ${postId})">
+                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser(decodeURIComponent('${ea(r.email)}'), ${r.is_following}, 'react', ${postId})">
                                     ${r.is_following ? 'កំពុងតាមដាន' : 'តាមដាន'}
                                 </button>
                             ` : ''}
@@ -1149,12 +1156,12 @@
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
                                 <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:bold; font-size:14px;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-weight:bold; font-size:14px;">${esc(s.first_name)} ${esc(s.last_name)}</div>
                                     <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
                                 </div>
                             </div>
                             ${s.email !== currentUser.email ? `
-                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser('${s.email}', ${s.is_following}, 'share', ${postId})">
+                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowUser(decodeURIComponent('${ea(s.email)}'), ${s.is_following}, 'share', ${postId})">
                                     ${s.is_following ? 'កំពុងតាមដាន' : 'តាមដាន'}
                                 </button>
                             ` : ''}

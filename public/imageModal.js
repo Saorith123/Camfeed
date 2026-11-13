@@ -39,13 +39,13 @@ function openImageModal(postId, mediaUrl, authorName, authorPic, postContent, cr
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                     <img src="${authorPic || 'https://via.placeholder.com/40'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                     <div>
-                        <div style="font-weight: bold; color: #050505; font-size: 14px;">${authorName}</div>
+                        <div style="font-weight: bold; color: #050505; font-size: 14px;">${esc(authorName)}</div>
                         <div style="font-size: 11px; color: #65676b;">${createdAt}</div>
                     </div>
                 </div>
 
                 <div style="font-size: 15px; color: #1c1e21; margin-bottom: 15px; white-space: pre-wrap;">
-                    ${postContent}
+                    ${esc(postContent)}
                 </div>
 
                 <!-- Reactions & Comments Count Bar (អាចចុចមើលបញ្ជីអ្នក Like បាន) -->
@@ -102,11 +102,11 @@ async function openReactionsList(postId) {
 
             container.innerHTML = data.reactions.map(u => `
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 10px; cursor: pointer;" onclick="window.location.href='profile.html?email=${u.email}'">
+                    <div style="display: flex; align-items: center; gap: 10px; cursor: pointer;" onclick="window.location.href='profile.html?email=${ea(u.email)}'">
                         <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                         <div>
-                            <div style="font-weight: bold; font-size: 14px; color: #050505;">${u.first_name} ${u.last_name}</div>
-                            <div style="font-size: 11px; color: #65676b;">${u.mutual_friends || '1 mutual friend'}</div>
+                            <div style="font-weight: bold; font-size: 14px; color: #050505;">${esc(u.first_name)} ${esc(u.last_name)}</div>
+                            <div style="font-size: 11px; color: #65676b;">${esc(u.mutual_friends || '1 mutual friend')}</div>
                         </div>
                     </div>
                     <button style="background: #1877f2; color: white; border: none; border-radius: 6px; padding: 6px 14px; font-weight: bold; font-size: 12px; cursor: pointer;">Add friend</button>
@@ -168,8 +168,8 @@ async function loadModalComments(postId) {
                 <div style="display: flex; gap: 8px; font-size: 13px;">
                     <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
                     <div style="background: #f0f2f5; padding: 8px 12px; border-radius: 16px; max-width: 85%;">
-                        <span style="font-weight: bold; display: block; font-size: 12.5px; color: #050505;">${c.first_name} ${c.last_name}</span>
-                        <div style="color: #050505;">${c.content}</div>
+                        <span style="font-weight: bold; display: block; font-size: 12.5px; color: #050505;">${esc(c.first_name)} ${esc(c.last_name)}</span>
+                        <div style="color: #050505;">${esc(c.content)}</div>
                     </div>
                 </div>
             `).join('');

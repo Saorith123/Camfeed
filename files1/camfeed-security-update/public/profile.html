@@ -1,0 +1,1850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
+    <script src="smooth-video.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CamFeed - Profile</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="apple-touch-icon" href="logo-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; color: #050505; }
+
+        .top-bar { background: #fff; height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        .logo-nav {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 25px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+            letter-spacing: -0.8px;
+        }
+        .back-btn { background: #e4e6eb; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; color: #050505; }
+        .back-btn:hover { background: #d8dadf; }
+
+        .profile-container { max-width: 900px; margin: 0 auto 40px; }
+
+        .profile-header-card { background: #fff; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); overflow: visible; margin-bottom: 16px; position: relative; }
+        .cover-wrapper { position: relative; width: 100%; height: 260px; background: linear-gradient(135deg, #1877f2, #42b72a); overflow: hidden; }
+        .cover-img { width: 100%; height: 100%; object-fit: cover; }
+        .edit-cover-btn { position: absolute; bottom: 14px; right: 14px; background: rgba(255,255,255,0.92); border: none; padding: 7px 13px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+
+        .profile-info-section { padding: 0 20px 16px; position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; }
+        .avatar-and-name { display: flex; align-items: flex-end; gap: 16px; margin-top: -55px; z-index: 2; }
+        .avatar-wrapper { position: relative; width: 132px; height: 132px; border-radius: 50%; border: 4px solid #fff; background: #e4e6eb; box-shadow: 0 2px 8px rgba(0,0,0,0.15); flex-shrink: 0; }
+        .profile-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .edit-avatar-btn { position: absolute; bottom: 4px; right: 4px; background: #e4e6eb; border: 2px solid #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; }
+
+        .user-details { padding-bottom: 6px; }
+        .name-and-badge { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .user-fullname { font-size: 24px; font-weight: bold; color: #050505; }
+        .friend-badge { background: #e7f3ff; color: #1877f2; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 14px; display: inline-flex; align-items: center; gap: 4px; }
+        .user-stats { font-size: 13.5px; color: #65676b; margin-top: 4px; font-weight: 500; }
+        .user-bio { font-size: 14px; color: #050505; margin-top: 6px; }
+
+        .action-buttons { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; position: relative; flex-wrap: wrap; }
+        .btn-action { padding: 8px 15px; border-radius: 7px; font-weight: 600; font-size: 13.5px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: #1877f2; color: #fff; }
+        .btn-primary:hover { background: #166fe5; }
+        .btn-secondary { background: #e4e6eb; color: #050505; }
+        .btn-secondary:hover { background: #d8dadf; }
+        .btn-friend { background: #e7f3ff; color: #1877f2; }
+
+        /* Compact 3-Dot Profile Menu */
+        .profile-dots-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            border: none;
+            background: #e4e6eb;
+            color: #050505;
+            font-size: 18px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .profile-dots-btn:hover { background: #d8dadf; }
+
+        .profile-menu-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 42px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            border: 1px solid #e4e6eb;
+            width: 245px;
+            z-index: 500;
+            overflow: hidden;
+        }
+        .profile-menu-item {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 12px 14px;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-start;
+            gap: 11px;
+            border-bottom: 1px solid #f0f2f5;
+        }
+        .profile-menu-item:last-child { border-bottom: none; }
+        .profile-menu-item:hover { background: #f2f3f5; }
+        .profile-menu-ico { font-size: 18px; line-height: 1.2; margin-top: 2px; }
+        .profile-menu-title { font-weight: 700; font-size: 14px; color: #050505; }
+        .profile-menu-sub { font-size: 11.5px; color: #65676b; margin-top: 2px; }
+
+        /* Personal Details Section (Placed ABOVE the Post Tabs in a Clean 2-Column Grid) */
+        .personal-details-section {
+            padding: 14px 20px 16px;
+            border-top: 1px solid #f0f2f5;
+            background: #fafbfc;
+        }
+        .personal-details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .personal-details-title {
+            font-size: 15.5px;
+            font-weight: 700;
+            color: #050505;
+        }
+        .details-two-col-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 14px;
+        }
+        @media (max-width: 540px) {
+            .details-two-col-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .detail-cell {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #fff;
+            border: 1px solid #e4e6eb;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 13.5px;
+            color: #050505;
+            gap: 8px;
+            min-width: 0;
+        }
+        .detail-cell-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex: 1;
+        }
+        .detail-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        .detail-text {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 500;
+        }
+        .privacy-pill {
+            font-size: 10.5px;
+            background: #f0f2f5;
+            color: #65676b;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .profile-tabs { display: flex; border-top: 1px solid #e4e6eb; padding: 0 16px; gap: 4px; overflow-x: auto; background: #fff; }
+        .tab-btn { padding: 13px 14px; background: none; border: none; font-size: 14.5px; font-weight: 600; color: #65676b; cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+        .tab-btn.active { color: #1877f2; border-bottom-color: #1877f2; }
+
+        .content-area { max-width: 680px; margin: 0 auto; padding: 0 12px; }
+
+        /* Post Card */
+        .post-card { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
+        .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .post-author-info { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #e4e6eb; }
+        .post-author { font-weight: 600; font-size: 15px; }
+        .post-time { font-size: 12px; color: #65676b; }
+        .post-content { font-size: 15px; line-height: 1.45; margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
+        .post-media { width: 100%; height: auto; max-height: none; object-fit: cover; background: #e4e6eb; border-radius: 0; margin-bottom: 10px; display: block; }
+        /* Smooth videos: light placeholder (never black), reserved space so the page does not jump, fade-in when the first frame is ready */
+        video.sv { width: 100%; aspect-ratio: 9 / 16; max-height: 78vh; object-fit: cover; background: #e4e6eb; display: block; opacity: 0; transition: opacity .22s ease; }
+        video.sv.vid-ready { opacity: 1; }
+        .see-translation-btn {
+            background: none;
+            border: none;
+            color: #65676b;
+            font-size: 12.5px;
+            font-weight: 700;
+            padding: 2px 0 8px 0;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .see-translation-btn:hover { text-decoration: underline; color: #1877f2; }
+        .translated-box {
+            margin: 0 0 10px 0;
+            padding: 8px 12px;
+            background: #f0f2f5;
+            border-left: 3px solid #1877f2;
+            border-radius: 6px;
+            font-size: 14.5px;
+            color: #050505;
+            white-space: pre-wrap;
+        }
+
+        /* Facebook-Style Styled Text Background Card */
+        .styled-text-post-card {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            min-height: 290px;
+            max-height: 460px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px 22px;
+            margin: 0 0 8px 0;
+            text-align: center;
+            font-weight: 800;
+            line-height: 1.42;
+            word-break: break-word;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+
+        /* Embedded Shared Post / Profile Card */
+        .embedded-shared-card {
+            border: 1px solid #dddfe2;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            background: #fff;
+        }
+        .embedded-shared-media .post-media,
+        .embedded-shared-media .carousel-wrapper {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .embedded-shared-info { padding: 10px 12px; }
+        .embedded-shared-author-row { display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 6px; }
+        .embedded-shared-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #e4e6eb; }
+        .embedded-shared-author { font-weight: 700; font-size: 13.5px; color: #050505; }
+        .embedded-shared-time { font-size: 11px; color: #65676b; }
+        .embedded-shared-text { font-size: 14px; color: #1c1e21; white-space: pre-wrap; }
+
+        /* Multi-Media Carousel */
+        .carousel-wrapper { position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 10px; }
+        .carousel-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .carousel-track::-webkit-scrollbar { display: none; }
+        .carousel-slide { flex: 0 0 100%; width: 100%; scroll-snap-align: start; display: flex; align-items: center; justify-content: center; background: #000; }
+        .carousel-slide img, .carousel-slide video { width: 100%; height: auto; max-height: none; object-fit: cover; display: block; }
+        .carousel-counter { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 14px; pointer-events: none; }
+        .carousel-dots { display: flex; justify-content: center; gap: 5px; margin-top: -4px; margin-bottom: 8px; }
+        .carousel-dot { width: 6px; height: 6px; border-radius: 50%; background: #ccd0d5; }
+        .carousel-dot.active { background: #1877f2; transform: scale(1.3); }
+
+        .post-stats { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #65676b; padding-bottom: 8px; border-bottom: 1px solid #e4e6eb; min-height: 28px; flex-wrap: wrap; gap: 6px; }
+        .reaction-summary { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .reaction-icons-stack { display: inline-flex; align-items: center; font-size: 16px; letter-spacing: -2px; }
+        .right-stats-group { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+        .stat-link:hover { text-decoration: underline; }
+
+        .post-actions { display: flex; justify-content: space-around; padding-top: 6px; position: relative; }
+        .reaction-wrapper { flex: 1; position: relative; display: flex; }
+        .post-action-btn { flex: 1; background: none; border: none; padding: 8px 4px; font-size: 14px; font-weight: 600; color: #65676b; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; transition: transform 0.1s ease, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+        .post-action-btn:hover { background: #f0f2f5; }
+        .post-action-btn:active { transform: scale(0.95); }
+
+        .post-action-btn.reacted-like { color: #1877f2; font-weight: 700; }
+        .post-action-btn.reacted-love { color: #f33e58; font-weight: 700; }
+        .post-action-btn.reacted-care,
+        .post-action-btn.reacted-haha,
+        .post-action-btn.reacted-wow,
+        .post-action-btn.reacted-sad { color: #f7b125; font-weight: 700; }
+        .post-action-btn.reacted-angry { color: #e9710f; font-weight: 700; }
+
+        .reaction-picker {
+            display: none;
+            position: absolute;
+            bottom: 46px;
+            left: 0;
+            background: #fff;
+            padding: 7px 12px;
+            border-radius: 30px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+            border: 1px solid #e4e6eb;
+            gap: 10px;
+            z-index: 300;
+            animation: popUp 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .reaction-picker.show { display: flex; }
+
+        @keyframes popUp {
+            from { opacity: 0; transform: translateY(8px) scale(0.9); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .emoji-option { font-size: 27px; cursor: pointer; transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; line-height: 1; }
+        .emoji-option:hover { transform: scale(1.35) translateY(-4px); }
+
+        .options-btn { width: 28px; height: 28px; border-radius: 50%; background: none; border: none; font-size: 17px; cursor: pointer; color: #65676b; display: flex; align-items: center; justify-content: center; }
+        .options-btn:hover { background: #f0f2f5; }
+        .dropdown-menu { display: none; position: absolute; right: 0; top: 30px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 50; overflow: hidden; border: 1px solid #e4e6eb; min-width: 145px; }
+        .dropdown-menu button { width: 100%; text-align: left; background: none; border: none; padding: 10px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; display: block; }
+        .dropdown-menu button:hover { background: #f2f2f2; }
+
+        .user-row { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+        .modal-card { background: #fff; width: 100%; max-width: 450px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.25); max-height: 85vh; display: flex; flex-direction: column; }
+        .modal-header { padding: 14px 16px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #e4e6eb; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+
+        .share-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; border: 1px solid #e4e6eb; border-radius: 10px; background: #f8f9fa; cursor: pointer; text-align: left; font-size: 14.5px; font-weight: 600; color: #050505; }
+        .share-option-btn:hover { background: #e4e6eb; }
+        .share-icon { font-size: 22px; width: 36px; height: 36px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        .edit-field-group { background: #f8f9fa; padding: 10px 12px; border-radius: 10px; border: 1px solid #e4e6eb; }
+        .edit-field-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: #050505; }
+        .edit-field-group input, .edit-field-group select { width: 100%; padding: 8px 10px; border: 1px solid #dddfe2; border-radius: 7px; font-size: 13.5px; background: #fff; outline: none; }
+        .privacy-select-mini { width: auto !important; padding: 3px 8px !important; font-size: 11.5px !important; border-radius: 6px !important; font-weight: 600; color: #1877f2; }
+
+        .report-reason-btn { width: 100%; text-align: left; padding: 11px 14px; border: 1px solid #e4e6eb; border-radius: 8px; background: #f8f9fa; font-size: 14px; font-weight: 600; cursor: pointer; color: #050505; }
+        .report-reason-btn:hover, .report-reason-btn.selected { background: #ffebe9; border-color: #fa383e; color: #d93025; }
+
+        .reactor-row { display: flex; justify-content: space-between; align-items: center; }
+        .btn-follow-mini { padding: 6px 14px; background: #1877f2; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12.5px; }
+        .btn-unfollow-mini { background: #e4e6eb; color: #050505; }
+
+        .comment-container { display: flex; gap: 10px; align-items: flex-start; }
+        .comment-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+        .comment-content-wrapper { flex: 1; background: #f0f2f5; padding: 8px 12px; border-radius: 14px; display: flex; justify-content: space-between; font-size: 13.5px; }
+        .comment-author { font-weight: 600; font-size: 12.5px; cursor: pointer; display: block; margin-bottom: 2px; }
+        .comment-options-btn { background: none; border: none; cursor: pointer; color: #65676b; padding: 0 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="logo-nav notranslate" translate="no" onclick="window.location.href='feed.html'">CamFeed</div>
+        <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
+    </div>
+
+    <div class="profile-container">
+        <div class="profile-header-card">
+            <div class="cover-wrapper">
+                <img id="coverPhoto" src="" class="cover-img" style="display:none;">
+                <input type="file" id="coverInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('coverPic', this)">
+                <button id="editCoverBtn" class="edit-cover-btn" style="display:none;" onclick="document.getElementById('coverInput').click()">📷 Edit Cover Photo</button>
+            </div>
+
+            <div class="profile-info-section">
+                <div class="avatar-and-name">
+                    <div class="avatar-wrapper">
+                        <img id="profileAvatar" src="https://via.placeholder.com/140" class="profile-avatar">
+                        <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="uploadProfileImage('profilePic', this)">
+                        <button id="editAvatarBtn" class="edit-avatar-btn" style="display:none;" onclick="document.getElementById('avatarInput').click()" title="Change Profile Picture">📷</button>
+                    </div>
+                    <div class="user-details">
+                        <div class="name-and-badge">
+                            <div class="user-fullname notranslate" translate="no" id="profileName">Loading...</div>
+                            <span id="friendBadge" class="friend-badge" style="display:none;">🤝 Friends</span>
+                        </div>
+                        <div class="user-stats" id="profileStats">0 Followers · 0 Following</div>
+                        <div class="user-bio" id="profileBio"></div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons + Compact 3-Dot Menu -->
+                <div class="action-buttons" id="profileActions"></div>
+            </div>
+
+            <!-- Personal Details Section (Positioned ABOVE the Posts Tabs in 2-Column Layout) -->
+            <div class="personal-details-section" id="personalDetailsCard" style="display:none;">
+                <div class="personal-details-header">
+                    <div class="personal-details-title">Personal details</div>
+                    <button id="editDetailsBtn" class="btn-action btn-secondary" style="display:none; padding:5px 11px; font-size:12px;" onclick="openEditDetailsModal()">✏️ Edit Details & Privacy</button>
+                </div>
+                <div class="details-two-col-grid" id="personalDetailsList"></div>
+            </div>
+
+            <div class="profile-tabs">
+                <button class="tab-btn active" id="tab-posts" onclick="switchProfileTab('posts')">Posts</button>
+                <button class="tab-btn" id="tab-videos" onclick="switchProfileTab('videos')">Videos</button>
+                <button class="tab-btn" id="tab-friends" onclick="switchProfileTab('friends')">Friends</button>
+                <button class="tab-btn" id="tab-followers" onclick="switchProfileTab('followers')">Followers</button>
+                <button class="tab-btn" id="tab-following" onclick="switchProfileTab('following')">Following</button>
+            </div>
+        </div>
+
+        <div class="content-area" id="profileContent">
+            <div style="text-align:center; padding:30px; color:#65676b;">Loading profile...</div>
+        </div>
+    </div>
+
+    <!-- Edit Personal Details & Privacy Modal -->
+    <div id="editDetailsModal" class="modal-overlay" onclick="closeEditDetailsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>✏️ Personal details & Privacy</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeEditDetailsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>📍 Current City / Location</span>
+                        <select id="priv-location" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-location" placeholder="e.g. Phnom Penh">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>🎂 Birthday</span>
+                        <select id="priv-birthdate" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-birthdate" placeholder="DD-MM-YYYY (e.g. 19-01-2009)">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>💕 Relationship Status</span>
+                        <select id="priv-relationship" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-relationship" placeholder="e.g. Married / Single">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>⚧️ Gender</span>
+                        <select id="priv-gender" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <select id="input-gender">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Custom">Custom</option>
+                    </select>
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>💼 Work / Occupation</span>
+                        <select id="priv-work" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-work" placeholder="e.g. Business Owner at RS Shop">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>📞 Phone Number</span>
+                        <select id="priv-phone" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-phone" placeholder="e.g. 096 282 8738">
+                </div>
+
+                <div class="edit-field-group">
+                    <div class="edit-field-top">
+                        <span>✉️ Email Address</span>
+                        <select id="priv-email" class="privacy-select-mini">
+                            <option value="public">🌐 Public</option>
+                            <option value="private">🔒 Only me</option>
+                        </select>
+                    </div>
+                    <input type="text" id="input-email-display" disabled style="background:#e4e6eb; color:#65676b;">
+                </div>
+
+                <button onclick="savePersonalDetails()" style="background:#1877f2; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:700; font-size:15px; cursor:pointer;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Own Post Content & Privacy Modal -->
+    <div id="editPostModal" class="modal-overlay" onclick="closeEditPostModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>✏️ កែប្រែការបង្ហោះ (Edit Post)</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeEditPostModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-size:13px; font-weight:700; color:#050505;">ភាពឯកជន (Privacy):</label>
+                    <select id="editPostPrivacySelect" style="width:auto; padding:6px 12px; font-size:13px; border:1px solid #dddfe2; border-radius:8px; font-weight:600; outline:none;">
+                        <option value="public">🌐 ជាសាធារណៈ (Public)</option>
+                        <option value="private">🔒 ឯកជន (Private - ឃើញតែខ្ញុំម្នាក់ឯង)</option>
+                    </select>
+                </div>
+                <textarea id="editPostContentTextarea" rows="4" placeholder="កែប្រែអត្ថបទរបស់អ្នក..." style="width:100%; padding:12px; border:1px solid #dddfe2; background:#f0f2f5; border-radius:10px; font-size:14.5px; outline:none; resize:vertical;"></textarea>
+                <button type="button" id="saveEditPostBtn" onclick="submitEditPost()" style="background:#1877f2; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:700; font-size:15px; cursor:pointer;">រក្សាទុកការកែប្រែ (Save)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comments Modal -->
+    <div id="commentsModal" class="modal-overlay" onclick="closeCommentsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>Comments</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeCommentsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modalCommentList"></div>
+            <div style="display:flex; padding:10px 14px; border-top:1px solid #e4e6eb; gap:8px;">
+                <input type="text" id="modalCommentInput" placeholder="Write a comment..." style="flex:1; padding:8px 14px; border-radius:20px; border:1px solid #dddfe2; outline:none;" onkeypress="if(event.key==='Enter') addModalComment()">
+                <button onclick="addModalComment()" style="background:#1877f2; color:#fff; border:none; padding:8px 16px; border-radius:20px; font-weight:600; cursor:pointer;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reactors List Modal -->
+    <div id="reactionsModal" class="modal-overlay" onclick="closeReactionsModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>People who reacted</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeReactionsModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="reactionsModalList"></div>
+        </div>
+    </div>
+
+    <!-- Sharers List Modal -->
+    <div id="sharersModal" class="modal-overlay" onclick="closeSharersModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>People who shared</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeSharersModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="sharersModalList"></div>
+        </div>
+    </div>
+
+    <!-- Share Post / Profile Modal -->
+    <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="shareModalTitle">Share Post</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeShareModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="shareCaptionInput" placeholder="Say something about this (optional)..." style="width:100%; padding:10px 14px; border-radius:10px; border:1px solid #dddfe2; outline:none; font-size:14px;">
+                
+                <button class="share-option-btn" onclick="shareToMyProfile()">
+                    <span class="share-icon">👤</span>
+                    <div>
+                        <div>Share to My Profile</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Post directly to your timeline</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="shareToSocialMedia()">
+                    <span class="share-icon">🌐</span>
+                    <div>
+                        <div>Share to Social Media</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Telegram, Facebook, Messenger & more</div>
+                    </div>
+                </button>
+
+                <button class="share-option-btn" onclick="copyShareLink()">
+                    <span class="share-icon">🔗</span>
+                    <div>
+                        <div id="copyLinkLabel">Copy Link</div>
+                        <div style="font-size:12px; color:#65676b; font-weight:normal;">Copy URL to paste anywhere</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Post / Profile Modal -->
+    <div id="reportModal" class="modal-overlay" onclick="closeReportModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="reportModalTitle">🚩 រាយការណ៍ (Report)</span>
+                <span style="cursor:pointer; font-size:20px;" onclick="closeReportModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px; color:#65676b;">សូមជ្រើសរើសមូលហេតុដើម្បីបញ្ជូនទៅកាន់ Admin ត្រួតពិនិត្យ៖</p>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Fake Account or Impersonation (គណនីក្លែងក្លាយ)')">🎭 គណនីក្លែងក្លាយ ឬបន្លំឈ្មោះ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
+                <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Harassment or Hate Speech (រំលោភបំពាន)')">💢 ការជេរប្រមាថ ឬរំលោភបំពាន</button>
+                <textarea id="reportCustomDetails" rows="2" placeholder="បញ្ជាក់ព័ត៌មានបន្ថែម (ស្រេចចិត្ត)..." style="width:100%; padding:8px 12px; border:1px solid #dddfe2; border-radius:8px; font-size:13px;"></textarea>
+                <button type="button" onclick="submitReport()" style="background:#fa383e; color:#fff; border:none; padding:11px; border-radius:8px; font-weight:700; cursor:pointer;">បញ្ជូនរបាយការណ៍ទៅ Admin</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        try {
+            currentUser = JSON.parse(localStorage.getItem('camfeed_user'));
+        } catch (e) {}
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let profileEmail = urlParams.get('email');
+        if (!profileEmail && currentUser) {
+            profileEmail = currentUser.email;
+        }
+
+        let currentTab = 'posts';
+        let loadedProfileUser = null;
+        let targetUserIsFollowing = false;
+        let currentProfileBio = '';
+        let activePostIdForComment = null;
+        let shareContext = { mode: 'post', postId: null };
+        let reportContext = { mode: 'post', postId: null };
+        let selectedReportReasonText = '';
+        let pressTimer = null;
+        let isLongPressTriggered = false;
+        const trackedProfileViews = new Set();
+
+        const postReactionsState = {};
+
+        const REACTION_META = {
+            '👍': { label: 'Liked', cls: 'reacted-like' },
+            '❤️': { label: 'Love', cls: 'reacted-love' },
+            '🥰': { label: 'Care', cls: 'reacted-care' },
+            '😆': { label: 'Haha', cls: 'reacted-haha' },
+            '😮': { label: 'Wow', cls: 'reacted-wow' },
+            '😢': { label: 'Sad', cls: 'reacted-sad' },
+            '😡': { label: 'Angry', cls: 'reacted-angry' }
+        };
+
+        if (!currentUser || !profileEmail) {
+            window.location.href = 'index.html';
+        } else {
+            loadProfileData();
+        }
+
+        function formatCompactNumber(num) {
+            const n = parseInt(num) || 0;
+            if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+            if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+            return n.toString();
+        }
+
+        function formatCleanBirthdate(rawDate) {
+            if (!rawDate) return '';
+            const str = String(rawDate).trim();
+            // database dates look like 2009-01-19 or 2009-01-19T00:00:00.000Z -> show 19-01-2009 (day-month-year)
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str);
+            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+            return str;
+        }
+
+        async function loadProfileData() {
+            try {
+                const res = await fetch(`/api/user-profile?email=${encodeURIComponent(profileEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+
+                if (!data.success || !data.user) {
+                    document.getElementById('profileName').innerText = data.blocked ? 'User unavailable' : 'User not found';
+                    document.getElementById('profileContent').innerHTML = `<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">${data.blocked ? 'This profile is unavailable.' : 'Profile not found.'}</div>`;
+                    return;
+                }
+
+                const user = data.user;
+                loadedProfileUser = user;
+                currentProfileBio = user.bio || '';
+
+                document.getElementById('profileName').innerText = `${user.first_name || ''} ${user.last_name || ''}`;
+                document.getElementById('profileStats').innerText = `${user.followers_count || 0} Followers · ${user.following_count || 0} Following`;
+                document.getElementById('profileBio').innerText = currentProfileBio;
+
+                document.getElementById('friendBadge').style.display = user.is_friend ? 'inline-flex' : 'none';
+
+                if (user.profile_pic) {
+                    document.getElementById('profileAvatar').src = user.profile_pic;
+                }
+                if (user.cover_pic) {
+                    const coverEl = document.getElementById('coverPhoto');
+                    coverEl.src = user.cover_pic;
+                    coverEl.style.display = 'block';
+                }
+
+                const isSelf = currentUser.email === user.email;
+                const actionContainer = document.getElementById('profileActions');
+                actionContainer.innerHTML = '';
+
+                if (isSelf) {
+                    document.getElementById('editCoverBtn').style.display = 'block';
+                    document.getElementById('editAvatarBtn').style.display = 'flex';
+                    document.getElementById('editDetailsBtn').style.display = 'inline-flex';
+
+                    const editBioBtn = document.createElement('button');
+                    editBioBtn.className = 'btn-action btn-secondary';
+                    editBioBtn.innerText = '✏️ Edit Bio';
+                    editBioBtn.onclick = () => editBio(currentProfileBio);
+                    actionContainer.appendChild(editBioBtn);
+
+                    const shareOwnBtn = document.createElement('button');
+                    shareOwnBtn.className = 'btn-action btn-secondary';
+                    shareOwnBtn.innerText = '↗️ Share Profile';
+                    shareOwnBtn.onclick = () => openShareProfileModal();
+                    actionContainer.appendChild(shareOwnBtn);
+                } else {
+                    targetUserIsFollowing = !!user.is_following;
+                    const followBtn = document.createElement('button');
+                    followBtn.id = 'followToggleBtn';
+
+                    if (user.is_friend) {
+                        followBtn.className = 'btn-action btn-friend';
+                        followBtn.innerText = '🤝 Friends';
+                    } else if (targetUserIsFollowing) {
+                        followBtn.className = 'btn-action btn-secondary';
+                        followBtn.innerText = '✓ Following';
+                    } else {
+                        followBtn.className = 'btn-action btn-primary';
+                        followBtn.innerText = '+ Follow';
+                    }
+                    followBtn.onclick = () => toggleFollow(user.email);
+                    actionContainer.appendChild(followBtn);
+
+                    const messageBtn = document.createElement('button');
+                    messageBtn.className = 'btn-action btn-secondary';
+                    messageBtn.innerText = '💬 Message';
+                    messageBtn.onclick = () => {
+                        window.location.href = `messages.html?chat=${encodeURIComponent(user.email)}`;
+                    };
+                    actionContainer.appendChild(messageBtn);
+
+                    const menuWrapper = document.createElement('div');
+                    menuWrapper.style.position = 'relative';
+                    menuWrapper.innerHTML = `
+                        <button class="profile-dots-btn" onclick="toggleProfileDotsMenu(event)" title="More options">⋮</button>
+                        <div class="profile-menu-dropdown" id="profileDotsMenu" onclick="event.stopPropagation()">
+                            <button class="profile-menu-item" onclick="openShareProfileModal()">
+                                <span class="profile-menu-ico">🔗</span>
+                                <div>
+                                    <div class="profile-menu-title">Share</div>
+                                    <div class="profile-menu-sub">Share this profile to your feed</div>
+                                </div>
+                            </button>
+                            <button class="profile-menu-item" onclick="openReportProfileModal()">
+                                <span class="profile-menu-ico">🚩</span>
+                                <div>
+                                    <div class="profile-menu-title">Report</div>
+                                    <div class="profile-menu-sub">Report this profile to admins</div>
+                                </div>
+                            </button>
+                            <button class="profile-menu-item" onclick="blockTargetUser('${user.email}')">
+                                <span class="profile-menu-ico">🚫</span>
+                                <div>
+                                    <div class="profile-menu-title" style="color:#d93025;">Block</div>
+                                    <div class="profile-menu-sub">This user won't be able to reach you</div>
+                                </div>
+                            </button>
+                        </div>
+                    `;
+                    actionContainer.appendChild(menuWrapper);
+                }
+
+                renderPersonalDetails(user, isSelf);
+                loadTabContent(currentTab);
+            } catch (err) {
+                console.error('Error loading profile:', err);
+                document.getElementById('profileContent').innerHTML = '<div style="text-align:center; padding:30px; color:red;">Failed to load profile data.</div>';
+            }
+        }
+
+        function renderPersonalDetails(user, isSelf) {
+            const card = document.getElementById('personalDetailsCard');
+            const list = document.getElementById('personalDetailsList');
+
+            const items = [
+                { icon: '📍', label: user.location, privacy: user.location_privacy || 'public' },
+                { icon: '🎂', label: formatCleanBirthdate(user.birthdate), privacy: user.birthdate_privacy || 'public' },
+                { icon: '💕', label: user.relationship_status, privacy: user.relationship_privacy || 'public' },
+                { icon: '⚧️', label: user.gender, privacy: user.gender_privacy || 'public' },
+                { icon: '💼', label: user.work, privacy: user.work_privacy || 'public' },
+                { icon: '📞', label: user.phone, privacy: user.phone_privacy || 'public' },
+                { icon: '✉️', label: user.contact_mail, privacy: user.email_privacy || 'public' }
+            ];
+
+            const visibleItems = items.filter(it => it.label && (isSelf || it.privacy === 'public'));
+
+            if (visibleItems.length === 0 && !isSelf) {
+                card.style.display = 'none';
+                return;
+            }
+
+            card.style.display = 'block';
+            if (visibleItems.length === 0 && isSelf) {
+                list.innerHTML = `<div style="font-size:13.5px; color:#65676b; grid-column: 1 / -1;">No personal details added yet. Click "Edit Details & Privacy" to add your info.</div>`;
+                return;
+            }
+
+            list.innerHTML = visibleItems.map(it => `
+                <div class="detail-cell">
+                    <div class="detail-cell-left">
+                        <span class="detail-icon">${it.icon}</span>
+                        <span class="detail-text" title="${it.label}">${it.label}</span>
+                    </div>
+                    ${isSelf ? `<span class="privacy-pill">${it.privacy === 'public' ? '🌐 Public' : '🔒 Only me'}</span>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function openEditDetailsModal() {
+            if (!loadedProfileUser) return;
+            const u = loadedProfileUser;
+            document.getElementById('input-location').value = u.location || '';
+            document.getElementById('priv-location').value = u.location_privacy || 'public';
+
+            document.getElementById('input-birthdate').value = formatCleanBirthdate(u.birthdate) || '';
+            document.getElementById('priv-birthdate').value = u.birthdate_privacy || 'public';
+
+            document.getElementById('input-relationship').value = u.relationship_status || '';
+            document.getElementById('priv-relationship').value = u.relationship_privacy || 'public';
+
+            document.getElementById('input-gender').value = u.gender || 'Male';
+            document.getElementById('priv-gender').value = u.gender_privacy || 'public';
+
+            document.getElementById('input-work').value = u.work || '';
+            document.getElementById('priv-work').value = u.work_privacy || 'public';
+
+            document.getElementById('input-phone').value = u.phone || '';
+            document.getElementById('priv-phone').value = u.phone_privacy || 'public';
+
+            document.getElementById('input-email-display').value = u.email || '';
+            document.getElementById('priv-email').value = u.email_privacy || 'public';
+
+            document.getElementById('editDetailsModal').style.display = 'flex';
+        }
+
+        function closeEditDetailsModal() {
+            document.getElementById('editDetailsModal').style.display = 'none';
+        }
+
+        async function savePersonalDetails() {
+            const payload = {
+                email: currentUser.email,
+                location: document.getElementById('input-location').value.trim(),
+                location_privacy: document.getElementById('priv-location').value,
+                birthdate: document.getElementById('input-birthdate').value.trim(),
+                birthdate_privacy: document.getElementById('priv-birthdate').value,
+                relationship_status: document.getElementById('input-relationship').value.trim(),
+                relationship_privacy: document.getElementById('priv-relationship').value,
+                gender: document.getElementById('input-gender').value,
+                gender_privacy: document.getElementById('priv-gender').value,
+                work: document.getElementById('input-work').value.trim(),
+                work_privacy: document.getElementById('priv-work').value,
+                phone: document.getElementById('input-phone').value.trim(),
+                phone_privacy: document.getElementById('priv-phone').value,
+                email_privacy: document.getElementById('priv-email').value
+            };
+
+            try {
+                const res = await fetch('/api/update-profile-details', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeEditDetailsModal();
+                    loadProfileData();
+                } else {
+                    alert(data.error || 'Failed to save details');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function toggleProfileDotsMenu(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function blockTargetUser(targetEmail) {
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = 'none';
+
+            if (!confirm('តើអ្នកពិតជាចង់ Block បុគ្គលនេះមែនទេ? អ្នកទាំងពីរនឹងមិនអាចមើលឃើញគ្នា ឬផ្ញើសារមកកាន់គ្នាទៀតឡើយ។')) return;
+
+            try {
+                const res = await fetch('/api/block', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ blockerEmail: currentUser.email, blockedEmail: targetEmail })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('បាន Block បុគ្គលនេះរួចរាល់!');
+                    window.location.href = 'feed.html';
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function switchProfileTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            loadTabContent(tab);
+        }
+
+        function buildReactionSummaryHtml(postId) {
+            const state = postReactionsState[postId];
+            if (!state || state.count <= 0) return '';
+            const uniqueIcons = (state.types && state.types.length > 0)
+                ? state.types.join('')
+                : (state.userReaction || '👍');
+            return `<span class="reaction-icons-stack">${uniqueIcons}</span> <span>${formatCompactNumber(state.count)}</span>`;
+        }
+
+        function buildActionBtnContent(userReaction) {
+            if (userReaction && REACTION_META[userReaction]) {
+                return `${userReaction} ${REACTION_META[userReaction].label}`;
+            }
+            return `👍 Like`;
+        }
+
+        function buildActionBtnClass(userReaction) {
+            if (userReaction && REACTION_META[userReaction]) {
+                return `post-action-btn ${REACTION_META[userReaction].cls}`;
+            }
+            return `post-action-btn`;
+        }
+
+        function renderRawMediaBlock(postId, mediaType, mediaUrl) {
+            if (!mediaUrl) return '';
+            if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
+                try {
+                    const items = JSON.parse(mediaUrl);
+                    if (Array.isArray(items) && items.length > 0) {
+                        const slidesHtml = items.map(item => {
+                            if (item.type === 'video') {
+                                return `<div class="carousel-slide"><video class="sv" data-sv-src="${SmoothVideo.src(item.url)}" preload="none" muted loop playsinline controls></video></div>`;
+                            }
+                            return `<div class="carousel-slide"><img src="${item.url}"></div>`;
+                        }).join('');
+                        const dotsHtml = items.map((_, idx) => `<span class="carousel-dot ${idx === 0 ? 'active' : ''}" id="dot-${postId}-${idx}"></span>`).join('');
+                        return `
+                            <div class="carousel-wrapper">
+                                <div class="carousel-counter" id="counter-${postId}">1 / ${items.length}</div>
+                                <div class="carousel-track" onscroll="updateCarouselIndicator(this, ${postId}, ${items.length})">
+                                    ${slidesHtml}
+                                </div>
+                            </div>
+                            <div class="carousel-dots">${dotsHtml}</div>
+                        `;
+                    }
+                } catch (e) {}
+            }
+            if (mediaType === 'video') {
+                return `<video class="sv post-media" data-sv-src="${SmoothVideo.src(mediaUrl)}" preload="none" muted loop playsinline controls></video>`;
+            }
+            return `<img src="${mediaUrl}" class="post-media">`;
+        }
+
+        function buildStyledTextCardHtml(textContent, rawStyleJson) {
+            let st = { bg: 'linear-gradient(135deg, #1877f2, #00c6ff)', color: '#ffffff', shadow: '0 2px 8px rgba(0,0,0,0.35)' };
+            try {
+                if (rawStyleJson) {
+                    const parsed = typeof rawStyleJson === 'string' ? JSON.parse(rawStyleJson) : rawStyleJson;
+                    st = { ...st, ...parsed };
+                }
+            } catch (e) {}
+            const len = (textContent || '').trim().length;
+            const fontSize = len <= 35 ? '28px' : (len <= 85 ? '23px' : (len <= 150 ? '19px' : '16.5px'));
+            const safeText = (textContent || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<div class="styled-text-post-card notranslate" translate="no" style="background:${st.bg}; color:${st.color}; text-shadow:${st.shadow || 'none'}; font-size:${fontSize};">${safeText}</div>`;
+        }
+
+        function renderPostMediaHtml(post) {
+            if (post.media_type === 'shared_profile' && post.media_url) {
+                try {
+                    const sp = JSON.parse(post.media_url);
+                    return `
+                        <div class="embedded-shared-card" style="cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(sp.email)}'">
+                            ${sp.cover_pic ? `<img src="${sp.cover_pic}" style="width:100%; height:130px; object-fit:cover; display:block;">` : ''}
+                            <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
+                                <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
+                                <div>
+                                    <div style="font-weight:700; font-size:15px; color:#050505;">${sp.name}</div>
+                                    <div style="font-size:12.5px; color:#65676b;">${sp.bio || 'View Profile on CamFeed'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } catch (e) {}
+            }
+
+            if (post.media_type === 'styled_text') {
+                return buildStyledTextCardHtml(post.content || '', post.media_url);
+            }
+
+            if (post.shared_post_id || post.media_type === 'shared') {
+                if (!post.orig_id) {
+                    return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
+                }
+                const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
+                const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
+                const origMedia = renderRawMediaBlock(post.orig_id, post.orig_media_type, post.orig_media_url);
+                return `
+                    <div class="embedded-shared-card" style="border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden; margin-bottom: 10px;">
+                        <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
+                            <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
+                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
+                                <div>
+                                    <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
+                                    <div class="embedded-shared-time">${origDate} · 🌐</div>
+                                </div>
+                            </div>
+                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${post.orig_content}</div>` : ''}
+                        </div>
+                        <div class="embedded-shared-media">${origMedia}</div>
+                    </div>
+                `;
+            }
+
+            return renderRawMediaBlock(post.id, post.media_type, post.media_url);
+        }
+
+        function updateCarouselIndicator(track, postId, total) {
+            const slideWidth = track.clientWidth || 1;
+            const currentIndex = Math.round(track.scrollLeft / slideWidth);
+            const counter = document.getElementById(`counter-${postId}`);
+            if (counter) counter.innerText = `${currentIndex + 1} / ${total}`;
+            for (let i = 0; i < total; i++) {
+                const dot = document.getElementById(`dot-${postId}-${i}`);
+                if (dot) dot.classList.toggle('active', i === currentIndex);
+            }
+        }
+
+        async function loadTabContent(tab) {
+            const content = document.getElementById('profileContent');
+            content.innerHTML = '<div style="text-align:center; padding:30px; color:#65676b;">Loading...</div>';
+
+            try {
+                if (tab === 'posts' || tab === 'videos') {
+                    const typeParam = tab === 'videos' ? '&type=videos' : '';
+                    const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&profileEmail=${encodeURIComponent(profileEmail)}${typeParam}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        const userPosts = data.posts || [];
+                        if (userPosts.length === 0) {
+                            content.innerHTML = `<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">No ${tab} yet.</div>`;
+                            return;
+                        }
+                        content.innerHTML = '';
+                        userPosts.forEach(post => {
+                            const count = parseInt(post.likes_count) || 0;
+                            const viewsCount = parseInt(post.views_count) || 0;
+                            const sharesCount = parseInt(post.shares_count) || 0;
+                            const types = Array.isArray(post.reaction_types) ? post.reaction_types.filter(Boolean) : (post.user_reaction ? [post.user_reaction] : []);
+                            postReactionsState[post.id] = {
+                                count: count,
+                                userReaction: post.user_reaction || null,
+                                types: types
+                            };
+
+                            const div = document.createElement('div');
+                            div.className = 'post-card';
+                            div.setAttribute('data-post-id', post.id);
+                            const dateStr = post.created_at ? new Date(post.created_at).toLocaleDateString() : '';
+                            const isOwner = currentUser.email === post.user_email;
+
+                            const optionsHtml = `
+                                <div style="position:relative;">
+                                    <button class="options-btn" onclick="togglePostMenu(event, ${post.id})">⋮</button>
+                                    <div class="dropdown-menu" id="post-menu-${post.id}" onclick="event.stopPropagation()" style="min-width:215px;">
+                                        ${isOwner ? `
+                                            <button onclick="openEditPostModal(${post.id}, '${encodeURIComponent(post.content || '')}', '${post.privacy || 'public'}')">✏️ កែប្រែខ្លឹមសារ (Edit Post)</button>
+                                            <button onclick="quickTogglePostPrivacy(${post.id}, '${post.privacy || 'public'}')">
+                                                ${(post.privacy === 'private') ? '🌐 ប្តូរទៅជាសាធារណៈ (Public)' : '🔒 ប្តូរទៅជាឯកជន (Private)'}
+                                            </button>
+                                            <button onclick="deletePost(${post.id})" style="color:red;">🗑️ លុបការបង្ហោះ (Delete)</button>
+                                        ` : ''}
+                                        <button onclick="openReportPostModal(${post.id})" style="color:#d93025;">🚩 Report Post</button>
+                                    </div>
+                                </div>
+                            `;
+
+                            const mediaHtml = renderPostMediaHtml(post);
+
+                            div.innerHTML = `
+                                <div class="post-header">
+                                    <div class="post-author-info" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
+                                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
+                                        <div>
+                                            <div class="post-author notranslate" translate="no">${post.first_name || ''} ${post.last_name || ''}</div>
+                                            <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
+                                        </div>
+                                    </div>
+                                    ${optionsHtml}
+                                </div>
+                                ${post.content ? `
+                                    <div class="post-content notranslate" translate="no" id="prof-post-orig-${post.id}" style="${post.media_type === 'styled_text' ? 'display:none;' : 'margin-bottom:4px;'}">${post.content}</div>
+                                    <div id="prof-post-trans-${post.id}" class="translated-box notranslate" translate="no" style="display:none;"></div>
+                                    <button type="button" class="see-translation-btn notranslate" translate="no" id="prof-trans-btn-${post.id}" onclick="translateProfilePost(${post.id})">🌐 បកប្រែ (See translation)</button>
+                                ` : ''}
+                                ${mediaHtml}
+                                <div class="post-stats">
+                                    <div class="reaction-summary" id="reactionSummary-${post.id}" onclick="openReactionsList(${post.id})">
+                                        ${buildReactionSummaryHtml(post.id)}
+                                    </div>
+                                    <div class="right-stats-group">
+                                        ${(post.media_type === "video" || post.orig_media_type === "video" || (post.media_url && post.media_url.includes('"type":"video"'))) ? `<span id="viewCount-${post.id}">${formatCompactNumber(viewsCount)} Views</span>` : ""}
+                                        <span class="stat-link" id="commentCount-${post.id}" style="cursor:pointer;" onclick="openCommentsModal(${post.id})">${formatCompactNumber(post.comments_count)} Comments</span>
+                                        <span class="stat-link" style="cursor:pointer;" onclick="openSharersList(${post.id})">${formatCompactNumber(sharesCount)} Shares</span>
+                                    </div>
+                                </div>
+                                <div class="post-actions">
+                                    <div class="reaction-wrapper">
+                                        <div class="reaction-picker" id="picker-${post.id}" onclick="event.stopPropagation()">
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '👍')">👍</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '❤️')">❤️</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '🥰')">🥰</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😆')">😆</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😮')">😮</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😢')">😢</span>
+                                            <span class="emoji-option" onclick="selectReaction(event, ${post.id}, '😡')">😡</span>
+                                        </div>
+                                        <button id="reactBtn-${post.id}"
+                                                class="${buildActionBtnClass(post.user_reaction)}"
+                                                onpointerdown="startHoldReaction(event, ${post.id})"
+                                                onpointerup="endHoldReaction(event, ${post.id})"
+                                                onpointerleave="cancelHoldTimer()"
+                                                oncontextmenu="event.preventDefault()">
+                                            ${buildActionBtnContent(post.user_reaction)}
+                                        </button>
+                                    </div>
+                                    <button class="post-action-btn" onclick="openCommentsModal(${post.id})">💬 Comment</button>
+                                    <button class="post-action-btn" onclick="openSharePostModal(${post.id})">↗️ Share</button>
+                                </div>
+                            `;
+                            content.appendChild(div);
+                        });
+                        initProfileViewsObserver();
+                    }
+                } else if (tab === 'friends' || tab === 'followers' || tab === 'following') {
+                    const res = await fetch(`/api/follow-list?email=${encodeURIComponent(profileEmail)}&type=${tab}`);
+                    const data = await res.json();
+                    if (data.success && data.users && data.users.length > 0) {
+                        content.innerHTML = data.users.map(u => `
+                            <div class="user-row">
+                                <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
+                                    <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${u.first_name || ''} ${u.last_name || ''}</div>
+                                </div>
+                                <button class="btn-action btn-secondary" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">View</button>
+                            </div>
+                        `).join('');
+                    } else {
+                        content.innerHTML = `<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">No ${tab} yet.</div>`;
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                content.innerHTML = '<div style="text-align:center; padding:30px; color:red;">Error loading content.</div>';
+            }
+        }
+
+        async function translateProfilePost(postId) {
+            const origEl = document.getElementById(`prof-post-orig-${postId}`);
+            const transBox = document.getElementById(`prof-post-trans-${postId}`);
+            const btn = document.getElementById(`prof-trans-btn-${postId}`);
+            if (!origEl || !transBox || !btn) return;
+
+            if (transBox.style.display !== 'none') {
+                transBox.style.display = 'none';
+                btn.innerText = '🌐 បកប្រែ (See translation)';
+                return;
+            }
+
+            if (transBox.dataset.cachedTranslation) {
+                transBox.innerText = transBox.dataset.cachedTranslation;
+                transBox.style.display = 'block';
+                btn.innerText = '↩️ លាក់ការបកប្រែ (Hide translation)';
+                return;
+            }
+
+            const rawText = origEl.innerText.trim();
+            const isKhmerText = /[\u1780-\u17FF]/.test(rawText);
+            const targetLang = isKhmerText ? 'en' : 'km';
+
+            btn.innerText = '⏳ កំពុងបកប្រែ...';
+            try {
+                const res = await fetch('/api/translate-text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: rawText, targetLang })
+                });
+                const data = await res.json();
+                if (data.success && data.translatedText) {
+                    transBox.dataset.cachedTranslation = data.translatedText;
+                    transBox.innerText = data.translatedText;
+                    transBox.style.display = 'block';
+                    btn.innerText = '↩️ លាក់ការបកប្រែ (Hide translation)';
+                } else {
+                    btn.innerText = '🌐 បកប្រែ (See translation)';
+                }
+            } catch (e) {
+                btn.innerText = '🌐 បកប្រែ (See translation)';
+            }
+        }
+
+        function initProfileViewsObserver() {
+            const cards = document.querySelectorAll('.post-card');
+            const viewObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const postId = entry.target.getAttribute('data-post-id');
+                        if (postId && !trackedProfileViews.has(postId)) {
+                            trackedProfileViews.add(postId);
+                            fetch(`/api/posts/${postId}/view`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: currentUser.email })
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success && data.views_count !== undefined) {
+                                    const viewEl = document.getElementById(`viewCount-${postId}`);
+                                    if (viewEl) viewEl.innerText = `${formatCompactNumber(data.views_count)} Views`;
+                                }
+                            })
+                            .catch(() => {});
+                        }
+                    }
+                });
+            }, { threshold: 0.55 });
+
+            cards.forEach(card => viewObserver.observe(card));
+        }
+
+        function startHoldReaction(event, postId) {
+            if (event.button && event.button !== 0) return;
+            isLongPressTriggered = false;
+            cancelHoldTimer();
+            pressTimer = setTimeout(() => {
+                isLongPressTriggered = true;
+                document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker) picker.classList.add('show');
+            }, 1000);
+        }
+
+        function endHoldReaction(event, postId) {
+            cancelHoldTimer();
+            if (!isLongPressTriggered) {
+                const picker = document.getElementById(`picker-${postId}`);
+                if (picker && picker.classList.contains('show')) {
+                    picker.classList.remove('show');
+                    return;
+                }
+                quickToggleLike(postId);
+            }
+        }
+
+        function cancelHoldTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        }
+
+        function quickToggleLike(postId) {
+            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
+            const emojiToSend = state.userReaction ? state.userReaction : '👍';
+            applyReactionOptimistically(postId, emojiToSend);
+        }
+
+        function selectReaction(event, postId, emoji) {
+            event.stopPropagation();
+            const picker = document.getElementById(`picker-${postId}`);
+            if (picker) picker.classList.remove('show');
+            applyReactionOptimistically(postId, emoji);
+        }
+
+        async function applyReactionOptimistically(postId, emoji) {
+            const state = postReactionsState[postId] || { count: 0, userReaction: null, types: [] };
+
+            if (state.userReaction === emoji) {
+                state.userReaction = null;
+                state.count = Math.max(0, state.count - 1);
+                if (state.count === 0) state.types = [];
+            } else {
+                if (!state.userReaction) state.count += 1;
+                state.userReaction = emoji;
+                if (!state.types.includes(emoji)) state.types.push(emoji);
+            }
+            postReactionsState[postId] = state;
+            updatePostReactionUI(postId);
+
+            try {
+                const res = await fetch('/api/reaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId, email: currentUser.email, reactionType: emoji })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    state.count = parseInt(data.likes_count) || 0;
+                    state.userReaction = data.reacted ? emoji : null;
+                    if (Array.isArray(data.reaction_types)) state.types = data.reaction_types;
+                    postReactionsState[postId] = state;
+                    updatePostReactionUI(postId);
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function updatePostReactionUI(postId) {
+            const state = postReactionsState[postId];
+            const btn = document.getElementById(`reactBtn-${postId}`);
+            const summary = document.getElementById(`reactionSummary-${postId}`);
+            if (btn) {
+                btn.className = buildActionBtnClass(state.userReaction);
+                btn.innerHTML = buildActionBtnContent(state.userReaction);
+            }
+            if (summary) summary.innerHTML = buildReactionSummaryHtml(postId);
+        }
+
+        async function openReactionsList(postId) {
+            const modal = document.getElementById('reactionsModal');
+            const listContainer = document.getElementById('reactionsModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">Loading...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/reactions/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.reactors.length > 0) {
+                    listContainer.innerHTML = data.reactors.map(r => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
+                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
+                                </div>
+                            </div>
+                            ${r.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal('${r.email}', ${r.is_following}, 'react', ${postId})">
+                                    ${r.is_following ? 'Following' : 'Follow'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">No reactions yet.</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeReactionsModal() { document.getElementById('reactionsModal').style.display = 'none'; }
+
+        async function openSharersList(postId) {
+            const modal = document.getElementById('sharersModal');
+            const listContainer = document.getElementById('sharersModalList');
+            listContainer.innerHTML = '<p style="text-align:center; color:#65676b;">Loading...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/shares/${postId}?email=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.sharers.length > 0) {
+                    listContainer.innerHTML = data.sharers.map(s => `
+                        <div class="reactor-row">
+                            <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
+                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:14px;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            ${s.email !== currentUser.email ? `
+                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal('${s.email}', ${s.is_following}, 'share', ${postId})">
+                                    ${s.is_following ? 'Following' : 'Follow'}
+                                </button>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#65676b; padding:15px;">No shares yet.</p>';
+                }
+            } catch (err) { listContainer.innerHTML = '<p style="text-align:center; color:red;">Failed to load.</p>'; }
+        }
+
+        function closeSharersModal() { document.getElementById('sharersModal').style.display = 'none'; }
+
+        async function toggleFollowFromModal(targetEmail, isFollowing, type, postId) {
+            await fetch('/api/follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action: isFollowing ? 'unfollow' : 'follow' })
+            });
+            if (type === 'react') openReactionsList(postId);
+            else openSharersList(postId);
+        }
+
+        function openSharePostModal(postId) {
+            shareContext = { mode: 'post', postId };
+            document.getElementById('shareModalTitle').innerText = 'Share Post';
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = 'Copy Link';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function openShareProfileModal() {
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = 'none';
+            shareContext = { mode: 'profile', postId: null };
+            document.getElementById('shareModalTitle').innerText = 'Share Profile';
+            document.getElementById('shareCaptionInput').value = '';
+            document.getElementById('copyLinkLabel').innerText = 'Copy Profile Link';
+            document.getElementById('shareModal').style.display = 'flex';
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+        }
+
+        async function shareToMyProfile() {
+            const caption = document.getElementById('shareCaptionInput').value.trim();
+            try {
+                if (shareContext.mode === 'profile' && loadedProfileUser) {
+                    const profileCardPayload = JSON.stringify({
+                        email: loadedProfileUser.email,
+                        name: `${loadedProfileUser.first_name || ''} ${loadedProfileUser.last_name || ''}`.trim(),
+                        profile_pic: loadedProfileUser.profile_pic || '',
+                        cover_pic: loadedProfileUser.cover_pic || '',
+                        bio: loadedProfileUser.bio || ''
+                    });
+                    const res = await fetch('/api/posts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: currentUser.email,
+                            content: caption,
+                            privacy: 'public',
+                            mediaType: 'shared_profile',
+                            mediaUrl: profileCardPayload
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        closeShareModal();
+                        alert('បានស៊ែរ Profile នេះចូលទៅក្នុង Timeline របស់អ្នកជោគជ័យ!');
+                        if (profileEmail === currentUser.email) loadTabContent('posts');
+                    }
+                } else if (shareContext.postId) {
+                    const res = await fetch('/api/posts/share', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ postId: shareContext.postId, email: currentUser.email, caption })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        closeShareModal();
+                        alert('បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!');
+                        if (profileEmail === currentUser.email) loadTabContent('posts');
+                    }
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function shareToSocialMedia() {
+            const shareUrl = shareContext.mode === 'profile'
+                ? `${window.location.origin}/profile.html?email=${encodeURIComponent(profileEmail)}`
+                : `${window.location.origin}/feed.html?post=${shareContext.postId}`;
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title: 'CamFeed', url: shareUrl });
+                    closeShareModal();
+                } catch (err) {}
+            } else {
+                copyShareLink();
+            }
+        }
+
+        function copyShareLink() {
+            const shareUrl = shareContext.mode === 'profile'
+                ? `${window.location.origin}/profile.html?email=${encodeURIComponent(profileEmail)}`
+                : `${window.location.origin}/feed.html?post=${shareContext.postId}`;
+            navigator.clipboard.writeText(shareUrl);
+            document.getElementById('copyLinkLabel').innerText = '✓ Link Copied!';
+            setTimeout(() => closeShareModal(), 900);
+        }
+
+        function openReportPostModal(postId) {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            reportContext = { mode: 'post', postId };
+            selectedReportReasonText = '';
+            document.getElementById('reportModalTitle').innerText = '🚩 រាយការណ៍ការបង្ហោះ (Report Post)';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function openReportProfileModal() {
+            const menu = document.getElementById('profileDotsMenu');
+            if (menu) menu.style.display = 'none';
+            reportContext = { mode: 'profile', postId: null };
+            selectedReportReasonText = '';
+            document.getElementById('reportModalTitle').innerText = '🚩 រាយការណ៍គណនី (Report Profile)';
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('reportCustomDetails').value = '';
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
+        }
+
+        function selectReportReason(btn, reason) {
+            document.querySelectorAll('.report-reason-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedReportReasonText = reason;
+        }
+
+        async function submitReport() {
+            const customNote = document.getElementById('reportCustomDetails').value.trim();
+            const fullReason = selectedReportReasonText
+                ? (customNote ? `${selectedReportReasonText} - ${customNote}` : selectedReportReasonText)
+                : customNote;
+
+            if (!fullReason) {
+                alert('សូមជ្រើសរើសមូលហេតុ ឬសរសេរបញ្ជាក់មុននឹងបញ្ជូន!');
+                return;
+            }
+
+            try {
+                const endpoint = reportContext.mode === 'profile'
+                    ? '/api/users/report'
+                    : `/api/posts/${reportContext.postId}/report`;
+                const bodyPayload = reportContext.mode === 'profile'
+                    ? { reporterEmail: currentUser.email, targetEmail: profileEmail, reason: fullReason }
+                    : { email: currentUser.email, reason: fullReason };
+
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyPayload)
+                });
+                const data = await res.json();
+                closeReportModal();
+                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
+            } catch (err) {
+                console.error(err);
+                closeReportModal();
+            }
+        }
+
+        async function toggleFollow(targetEmail) {
+            const action = targetUserIsFollowing ? 'unfollow' : 'follow';
+            try {
+                const res = await fetch('/api/follow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: targetEmail, action })
+                });
+                const data = await res.json();
+                if (data.success) loadProfileData();
+            } catch (err) { console.error(err); }
+        }
+
+        async function uploadProfileImage(fieldName, input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            try {
+                const formData = new FormData();
+                formData.append('user_email', currentUser.email);
+                formData.append('file', file);
+
+                const upRes = await fetch('/api/videos/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                const upData = await upRes.json();
+                if (!upRes.ok || !upData.publicUrl) throw new Error(upData.error || 'Upload to R2 failed');
+
+                const payload = { email: currentUser.email, bio: currentProfileBio };
+                if (fieldName === 'profilePic') payload.profilePicUrl = upData.publicUrl;
+                if (fieldName === 'coverPic') payload.coverPicUrl = upData.publicUrl;
+
+                const res = await fetch('/api/update-profile-pics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success && data.user) {
+                    if (currentUser.email === data.user.email) {
+                        localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                        currentUser = data.user;
+                    }
+                    loadProfileData();
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error uploading image: ' + err.message);
+            }
+        }
+
+        async function editBio(currentBio) {
+            const newBio = prompt('Enter your new bio:', currentBio);
+            if (newBio === null) return;
+            try {
+                const res = await fetch('/api/update-profile-pics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, bio: newBio })
+                });
+                const data = await res.json();
+                if (data.success && data.user) {
+                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                    currentUser = data.user;
+                    loadProfileData();
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function togglePostMenu(event, postId) {
+            event.stopPropagation();
+            const menu = document.getElementById(`post-menu-${postId}`);
+            document.querySelectorAll('.dropdown-menu').forEach(m => {
+                if (m.id !== `post-menu-${postId}`) m.style.display = 'none';
+            });
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        document.addEventListener('click', function(e) {
+            document.querySelectorAll('.dropdown-menu').forEach(el => el.style.display = 'none');
+            const pMenu = document.getElementById('profileDotsMenu');
+            if (pMenu) pMenu.style.display = 'none';
+            if (!e.target.closest('.reaction-wrapper')) {
+                document.querySelectorAll('.reaction-picker').forEach(el => el.classList.remove('show'));
+            }
+        });
+
+        let activePostIdForEdit = null;
+
+        function openEditPostModal(postId, encodedContent, currentPrivacy) {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            activePostIdForEdit = postId;
+            document.getElementById('editPostContentTextarea').value = decodeURIComponent(encodedContent || '');
+            document.getElementById('editPostPrivacySelect').value = currentPrivacy === 'private' ? 'private' : 'public';
+            document.getElementById('editPostModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('editPostContentTextarea').focus(), 80);
+        }
+
+        function closeEditPostModal() {
+            document.getElementById('editPostModal').style.display = 'none';
+            activePostIdForEdit = null;
+        }
+
+        async function submitEditPost() {
+            if (!activePostIdForEdit) return;
+            const content = document.getElementById('editPostContentTextarea').value;
+            const privacy = document.getElementById('editPostPrivacySelect').value;
+            const btn = document.getElementById('saveEditPostBtn');
+            btn.disabled = true;
+            btn.innerText = 'កំពុងរក្សាទុក...';
+
+            try {
+                const res = await fetch(`/api/posts/${activePostIdForEdit}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, content, privacy })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    closeEditPostModal();
+                    loadTabContent(currentTab);
+                } else {
+                    alert(data.error || 'មិនអាចកែប្រែការបង្ហោះបានទេ');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'រក្សាទុកការកែប្រែ (Save)';
+            }
+        }
+
+        async function quickTogglePostPrivacy(postId, currentPrivacy) {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+            const newPrivacy = currentPrivacy === 'private' ? 'public' : 'private';
+            try {
+                const res = await fetch(`/api/posts/${postId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, privacy: newPrivacy })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadTabContent(currentTab);
+                } else {
+                    alert(data.error || 'មិនអាចផ្លាស់ប្តូរភាពឯកជនបានទេ');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function deletePost(postId) {
+            if (!confirm('តើអ្នកពិតជាចង់លុប Post នេះមែនទេ?')) return;
+            try {
+                const res = await fetch(`/api/posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) loadTabContent(currentTab);
+            } catch (err) { console.error(err); }
+        }
+
+        async function openCommentsModal(postId) {
+            activePostIdForComment = postId;
+            const modal = document.getElementById('commentsModal');
+            const list = document.getElementById('modalCommentList');
+            list.innerHTML = '<p style="text-align:center; color:#65676b;">Loading comments...</p>';
+            modal.style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/comments/${postId}`);
+                const data = await res.json();
+                if (data.success) {
+                    if (data.comments.length === 0) {
+                        list.innerHTML = '<p style="text-align:center; color:#65676b; padding:16px;">No comments yet.</p>';
+                        return;
+                    }
+                    list.innerHTML = data.comments.map(c => {
+                        const isOwner = currentUser.email === c.user_email;
+                        return `
+                            <div class="comment-container" id="comment-${c.id}">
+                                <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
+                                <div class="comment-content-wrapper">
+                                    <div style="flex: 1;">
+                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name || ''} ${c.last_name || ''}</span>
+                                        <div>${c.content}</div>
+                                    </div>
+                                    ${isOwner ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})">🗑️</button>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (err) {
+                list.innerHTML = '<p style="text-align:center; color:red;">Failed to load comments.</p>';
+            }
+        }
+
+        async function deleteComment(commentId, postId) {
+            if (!confirm('លុប Comment នេះ?')) return;
+            try {
+                const res = await fetch(`/api/comments/${commentId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email })
+                });
+                const data = await res.json();
+                if (data.success) openCommentsModal(postId);
+            } catch (err) { console.error(err); }
+        }
+
+        function closeCommentsModal() {
+            document.getElementById('commentsModal').style.display = 'none';
+            activePostIdForComment = null;
+        }
+
+        async function addModalComment() {
+            const input = document.getElementById('modalCommentInput');
+            const content = input.value.trim();
+            if (!content || !activePostIdForComment) return;
+            try {
+                const res = await fetch('/api/comments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ postId: activePostIdForComment, email: currentUser.email, content })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    input.value = '';
+                    openCommentsModal(activePostIdForComment);
+                }
+            } catch (err) { console.error(err); }
+        }
+    
+        // Site-Wide Real-Time Online / Offline Presence Broadcast (Active on Profile Page)
+        (function initSiteWidePresence() {
+            function pingOnlineNow() {
+                const u = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+                if (!u || !u.email || document.visibilityState === 'hidden') return;
+                fetch('/api/presence/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: u.email, online: true })
+                }).catch(() => {});
+            }
+            function signalOfflineNow() {
+                const u = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+                if (!u || !u.email) return;
+                try {
+                    const blob = new Blob([JSON.stringify({ email: u.email, online: false })], { type: 'application/json' });
+                    if (navigator.sendBeacon) navigator.sendBeacon('/api/presence/offline', blob);
+                } catch (e) {}
+            }
+            pingOnlineNow();
+            setInterval(pingOnlineNow, 12000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') pingOnlineNow();
+                else signalOfflineNow();
+            });
+            window.addEventListener('beforeunload', signalOfflineNow);
+            window.addEventListener('pagehide', signalOfflineNow);
+        })();
+
+    </script>
+</body>
+</html>

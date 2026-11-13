@@ -29,6 +29,13 @@ function fingerprint(storedPassword) {
   return crypto.createHash('sha256').update(String(storedPassword || '')).digest('hex').slice(0, 12);
 }
 
+// The value a login token must carry. Until somebody uses "log out of all devices" (epoch 0) it is exactly the old value,
+// so nobody is logged out by this update.
+function sessionPv(storedPassword, epoch) {
+  const e = parseInt(epoch, 10) || 0;
+  return e > 0 ? fingerprint(String(storedPassword || '') + ':' + e) : fingerprint(storedPassword);
+}
+
 // ---------- password hashing ----------
 async function hashPassword(plain) {
   const salt = crypto.randomBytes(16);
@@ -135,7 +142,7 @@ function sanitizeJson(req, res, next) {
 const PUBLIC_ROUTES = new Set(['POST /api/login', 'POST /api/register', 'POST /api/register/send-code', 'POST /api/register/verify-code',
   'POST /api/password/forgot', 'POST /api/password/verify-code', 'POST /api/password/reset',
   'POST /api/telegram/exchange', 'POST /api/telegram/complete', 'GET /api/auth-options',
-  'POST /api/phone/send-code', 'POST /api/phone/verify-code']);
+  'POST /api/phone/send-code', 'POST /api/phone/verify-code', 'POST /api/csp-report']);
 const BODY_ACTOR_FIELDS = ['email', 'sender', 'userEmail', 'user_email', 'followerEmail', 'blockerEmail', 'reporterEmail', 'adminEmail'];
 // GET routes where ?email= is the profile being looked at (not the person asking)
 const QUERY_EMAIL_IS_TARGET = new Set(['/api/user-profile', '/api/follow-list']);
@@ -148,11 +155,18 @@ function createAuth(pool) {
     const key = String(email).toLowerCase();
     const hit = stateCache.get(key);
     if (hit && Date.now() - hit.at < STATE_TTL_MS) return hit;
-    const r = await pool.query(
-      'SELECT email, password, COALESCE(is_banned, FALSE) AS is_banned FROM users WHERE LOWER(email) = $1 LIMIT 1', [key]);
+    let r;
+    try {
+      r = await pool.query(
+        'SELECT email, password, COALESCE(is_banned, FALSE) AS is_banned, COALESCE(sessions_epoch, 0) AS sessions_epoch FROM users WHERE LOWER(email) = $1 LIMIT 1', [key]);
+    } catch (e) {
+      if (!e || e.code !== '42703') throw e;      // column not created yet (first seconds after an update): behave as before
+      r = await pool.query(
+        'SELECT email, password, COALESCE(is_banned, FALSE) AS is_banned FROM users WHERE LOWER(email) = $1 LIMIT 1', [key]);
+    }
     if (!r.rows[0]) { stateCache.delete(key); return null; }
     const row = r.rows[0];
-    const state = { email: row.email, banned: !!row.is_banned, pv: fingerprint(row.password), at: Date.now() };
+    const state = { email: row.email, banned: !!row.is_banned, pv: sessionPv(row.password, row.sessions_epoch), at: Date.now() };
     stateCache.set(key, state);
     return state;
   }
@@ -160,7 +174,7 @@ function createAuth(pool) {
   function invalidate(email) { if (email) stateCache.delete(String(email).toLowerCase()); }
 
   function issueToken(userRow) {
-    return signToken({ sub: userRow.email, pv: fingerprint(userRow.password) });
+    return signToken({ sub: userRow.email, pv: sessionPv(userRow.password, userRow.sessions_epoch) });
   }
 
   async function authenticate(req, res, next) {
@@ -267,7 +281,7 @@ function makeLimiter(max, windowMs) {
 module.exports = {
   createAuth, sanitizeJson, stripSecrets,
   hashPassword, verifyPassword, isHashed, dummyVerify, safeEqual,
-  signToken, verifyToken, fingerprint,
+  signToken, verifyToken, fingerprint, sessionPv,
   isRateLimited, recordFailure, clearFailures,
   verifyTurnstile, makeLimiter
 };

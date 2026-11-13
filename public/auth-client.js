@@ -2,12 +2,28 @@
    so existing pages keep working without editing each call. Load it first in <head>. */
 (function () {
   'use strict';
-  var TOKEN_KEY = 'camfeed_token', USER_KEY = 'camfeed_user';
-  var TOKEN_PATHS = ['/api/login', '/api/register', '/api/settings/password', '/api/telegram/exchange', '/api/telegram/complete'];
+  var TOKEN_KEY = 'camfeed_token', USER_KEY = 'camfeed_user', TOKENS_KEY = 'camfeed_tokens_v1', SAVED_KEY = 'camfeed_saved_accounts_v1';
+  var ID_RE = /^1\d{14}$/;   // people are known by a random 15-digit id, not by e-mail
+  var TOKEN_PATHS = ['/api/login', '/api/register', '/api/settings/password', '/api/settings/logout-all', '/api/telegram/exchange', '/api/telegram/complete'];
   var NO_REDIRECT_PATHS = ['/api/login', '/api/register', '/api/telegram/exchange', '/api/telegram/complete'];
 
   function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
-  function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
+  function readJson(key, fallback) { try { var v = JSON.parse(localStorage.getItem(key) || 'null'); return v && typeof v === 'object' ? v : fallback; } catch (e) { return fallback; } }
+  // one token per saved account, so switching accounts also switches who the server thinks you are
+  function rememberToken(token, id) {
+    if (!id) { var cu = readJson(USER_KEY, null); id = cu && cu.email; }
+    if (!id) return;
+    var map = readJson(TOKENS_KEY, {}); map[id] = token;
+    try { localStorage.setItem(TOKENS_KEY, JSON.stringify(map)); } catch (e) {}
+  }
+  function setToken(t, id) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} rememberToken(t, id); }
+  function useAccount(id) {                       // switch to a saved account; false if we no longer hold its login
+    var map = readJson(TOKENS_KEY, {});
+    if (!id || typeof map[id] !== 'string' || !map[id]) return false;
+    try { localStorage.setItem(TOKEN_KEY, map[id]); } catch (e) { return false; }
+    return true;
+  }
+  function forgetAccount(id) { var map = readJson(TOKENS_KEY, {}); delete map[id]; try { localStorage.setItem(TOKENS_KEY, JSON.stringify(map)); } catch (e) {} }
   function clearSession() { try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); } catch (e) {} }
 
   // Old versions stored the user's password inside camfeed_user: wipe it and force a fresh login.
@@ -20,6 +36,29 @@
       localStorage.removeItem(TOKEN_KEY);
     }
   } catch (e) { clearSession(); }
+
+  // Before this update the stored user carried the real e-mail. Swap it for the public id once, before any page code runs.
+  try {
+    var stored = readJson(USER_KEY, null), tok = getToken();
+    if (stored && stored.email && !ID_RE.test(String(stored.email)) && tok && localStorage.getItem('camfeed_idmode') !== 'plain') {
+      var x = new XMLHttpRequest();
+      x.open('GET', '/api/user-profile?email=' + encodeURIComponent(stored.email) + '&viewerEmail=' + encodeURIComponent(stored.email), false);
+      x.setRequestHeader('Authorization', 'Bearer ' + tok);
+      x.send();
+      if (x.status === 401) { clearSession(); }
+      else if (x.status === 200) {
+        var d = JSON.parse(x.responseText);
+        if (d && d.success && d.user && ID_RE.test(String(d.user.email))) {
+          stored.email = d.user.email;
+          if (d.user.contact_mail) stored.contact_mail = d.user.contact_mail;
+          localStorage.setItem(USER_KEY, JSON.stringify(stored));
+          rememberToken(tok, stored.email);
+          var saved = readJson(SAVED_KEY, []);   // older saved accounts carry the old e-mail and no stored login: they must be added again
+          if (Array.isArray(saved)) localStorage.setItem(SAVED_KEY, JSON.stringify(saved.filter(function (s) { return s && ID_RE.test(String(s.email)); })));
+        } else if (d && d.success && d.user) { localStorage.setItem('camfeed_idmode', 'plain'); }   // the server is not hiding e-mails (switch is off): leave everything as it is
+      }
+    }
+  } catch (e) { /* offline or an old server: pages keep working with what they have */ }
 
   function apiPath(url) {
     try {
@@ -55,7 +94,7 @@
     } else if (res.ok && TOKEN_PATHS.indexOf(path) !== -1) {
       try {
         var d = await res.clone().json();   // awaited so the token is saved before the page's next call
-        if (d && typeof d.token === 'string') setToken(d.token);
+        if (d && typeof d.token === 'string') setToken(d.token, d.user && d.user.email);
       } catch (e) {}
     }
     return res;
@@ -93,5 +132,17 @@
     };
   }
 
-  window.CamAuth = { getToken: getToken, setToken: setToken, logout: function () { clearSession(); window.location.href = 'index.html'; } };
+  // Escapes text before it is put into page HTML (names, posts, comments ...). Use esc(value) inside templates.
+  window.esc = function (v) {
+    return String(v === null || v === undefined ? '' : v).replace(/[&<>"'`]/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[ch];
+    });
+  };
+
+  // For values inside an inline handler such as onclick="f('...')": use  decodeURIComponent('${ea(value)}')
+  window.ea = function (v) {
+    return encodeURIComponent(String(v === null || v === undefined ? '' : v)).replace(/[!'()*]/g, function (ch) { return '%' + ch.charCodeAt(0).toString(16).toUpperCase(); });
+  };
+
+  window.CamAuth = { getToken: getToken, setToken: setToken, useAccount: useAccount, forgetAccount: forgetAccount, logout: function () { clearSession(); window.location.href = 'index.html'; } };
 })();

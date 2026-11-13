@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Friends & Search</title>
@@ -419,7 +426,7 @@
                                 <div class="user-actions">
                                     ${u.is_following
                                         ? `<button class="btn-remove" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">View Profile</button>`
-                                        : `<button class="btn-follow ${u.is_followed_by ? 'btn-follow-back' : ''}" onclick="toggleFollow('${u.email}')">${u.is_followed_by ? 'Follow Back' : 'Follow'}</button>`
+                                        : `<button class="btn-follow ${u.is_followed_by ? 'btn-follow-back' : ''}" onclick="toggleFollow(decodeURIComponent('${ea(u.email)}'))">${u.is_followed_by ? 'Follow Back' : 'Follow'}</button>`
                                     }
                                 </div>
                             </div>
@@ -459,14 +466,14 @@
                                         <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (mediaSrc ? '🖼️ Photo' : '📝 Post')} · ${new Date(p.created_at).toLocaleDateString()}</div>
                                     </div>
                                 </div>
-                                ${p.content ? `<div style="padding:0 12px 10px; font-size:14px;">${p.content}</div>` : ''}
+                                ${p.content ? `<div style="padding:0 12px 10px; font-size:14px;">${esc(p.content)}</div>` : ''}
                                 ${thumbHtml}
                             </div>
                         `;
                     }).join('');
                 }
 
-                container.innerHTML = html || `<p style="color:#65676b; text-align:center; padding:24px;">រកមិនឃើញលទ្ធផលសម្រាប់ "${keyword}" ទេ។</p>`;
+                container.innerHTML = html || `<p style="color:#65676b; text-align:center; padding:24px;">រកមិនឃើញលទ្ធផលសម្រាប់ "${esc(keyword)}" ទេ។</p>`;
             } catch (err) {
                 console.error(err);
                 container.innerHTML = `<p style="color:red; text-align:center; padding:20px;">Search failed.</p>`;

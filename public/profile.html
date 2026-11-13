@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <script src="smooth-video.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -765,7 +772,7 @@
                                     <div class="profile-menu-sub">Report this profile to admins</div>
                                 </div>
                             </button>
-                            <button class="profile-menu-item" onclick="blockTargetUser('${user.email}')">
+                            <button class="profile-menu-item" onclick="blockTargetUser(decodeURIComponent('${ea(user.email)}'))">
                                 <span class="profile-menu-ico">🚫</span>
                                 <div>
                                     <div class="profile-menu-title" style="color:#d93025;">Block</div>
@@ -796,7 +803,7 @@
                 { icon: '⚧️', label: user.gender, privacy: user.gender_privacy || 'public' },
                 { icon: '💼', label: user.work, privacy: user.work_privacy || 'public' },
                 { icon: '📞', label: user.phone, privacy: user.phone_privacy || 'public' },
-                { icon: '✉️', label: user.email, privacy: user.email_privacy || 'public' }
+                { icon: '✉️', label: user.contact_mail, privacy: user.email_privacy || 'public' }
             ];
 
             const visibleItems = items.filter(it => it.label && (isSelf || it.privacy === 'public'));
@@ -816,7 +823,7 @@
                 <div class="detail-cell">
                     <div class="detail-cell-left">
                         <span class="detail-icon">${it.icon}</span>
-                        <span class="detail-text" title="${it.label}">${it.label}</span>
+                        <span class="detail-text" title="${esc(it.label)}">${esc(it.label)}</span>
                     </div>
                     ${isSelf ? `<span class="privacy-pill">${it.privacy === 'public' ? '🌐 Public' : '🔒 Only me'}</span>` : ''}
                 </div>
@@ -999,8 +1006,8 @@
                             <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
                                 <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
                                 <div>
-                                    <div style="font-weight:700; font-size:15px; color:#050505;">${sp.name}</div>
-                                    <div style="font-size:12.5px; color:#65676b;">${sp.bio || 'View Profile on CamFeed'}</div>
+                                    <div style="font-weight:700; font-size:15px; color:#050505;">${esc(sp.name)}</div>
+                                    <div style="font-size:12.5px; color:#65676b;">${esc(sp.bio || 'View Profile on CamFeed')}</div>
                                 </div>
                             </div>
                         </div>
@@ -1025,11 +1032,11 @@
                             <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
                                 <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                 <div>
-                                    <div class="embedded-shared-author notranslate" translate="no">${origAuthor}</div>
+                                    <div class="embedded-shared-author notranslate" translate="no">${esc(origAuthor)}</div>
                                     <div class="embedded-shared-time">${origDate} · 🌐</div>
                                 </div>
                             </div>
-                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${post.orig_content}</div>` : ''}
+                            ${post.orig_content ? `<div class="embedded-shared-text notranslate" translate="no" style="margin-top:4px;">${esc(post.orig_content)}</div>` : ''}
                         </div>
                         <div class="embedded-shared-media">${origMedia}</div>
                     </div>
@@ -1106,14 +1113,14 @@
                                     <div class="post-author-info" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                                         <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" class="avatar">
                                         <div>
-                                            <div class="post-author notranslate" translate="no">${post.first_name || ''} ${post.last_name || ''}</div>
+                                            <div class="post-author notranslate" translate="no">${esc(post.first_name || '')} ${esc(post.last_name || '')}</div>
                                             <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
                                         </div>
                                     </div>
                                     ${optionsHtml}
                                 </div>
                                 ${post.content ? `
-                                    <div class="post-content notranslate" translate="no" id="prof-post-orig-${post.id}" style="${post.media_type === 'styled_text' ? 'display:none;' : 'margin-bottom:4px;'}">${post.content}</div>
+                                    <div class="post-content notranslate" translate="no" id="prof-post-orig-${post.id}" style="${post.media_type === 'styled_text' ? 'display:none;' : 'margin-bottom:4px;'}">${esc(post.content)}</div>
                                     <div id="prof-post-trans-${post.id}" class="translated-box notranslate" translate="no" style="display:none;"></div>
                                     <button type="button" class="see-translation-btn notranslate" translate="no" id="prof-trans-btn-${post.id}" onclick="translateProfilePost(${post.id})">🌐 បកប្រែ (See translation)</button>
                                 ` : ''}
@@ -1164,7 +1171,7 @@
                             <div class="user-row">
                                 <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
                                     <img src="${u.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${u.first_name || ''} ${u.last_name || ''}</div>
+                                    <div style="font-weight:bold; font-size:14px; color:#050505;">${esc(u.first_name || '')} ${esc(u.last_name || '')}</div>
                                 </div>
                                 <button class="btn-action btn-secondary" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">View</button>
                             </div>
@@ -1354,12 +1361,12 @@
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
                                 <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:bold; font-size:14px;">${r.first_name} ${r.last_name}</div>
+                                    <div style="font-weight:bold; font-size:14px;">${esc(r.first_name)} ${esc(r.last_name)}</div>
                                     <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
                                 </div>
                             </div>
                             ${r.email !== currentUser.email ? `
-                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal('${r.email}', ${r.is_following}, 'react', ${postId})">
+                                <button class="btn-follow-mini ${r.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal(decodeURIComponent('${ea(r.email)}'), ${r.is_following}, 'react', ${postId})">
                                     ${r.is_following ? 'Following' : 'Follow'}
                                 </button>
                             ` : ''}
@@ -1388,12 +1395,12 @@
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
                                 <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
-                                    <div style="font-weight:bold; font-size:14px;">${s.first_name} ${s.last_name}</div>
+                                    <div style="font-weight:bold; font-size:14px;">${esc(s.first_name)} ${esc(s.last_name)}</div>
                                     <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
                                 </div>
                             </div>
                             ${s.email !== currentUser.email ? `
-                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal('${s.email}', ${s.is_following}, 'share', ${postId})">
+                                <button class="btn-follow-mini ${s.is_following ? 'btn-unfollow-mini' : ''}" onclick="toggleFollowFromModal(decodeURIComponent('${ea(s.email)}'), ${s.is_following}, 'share', ${postId})">
                                     ${s.is_following ? 'Following' : 'Follow'}
                                 </button>
                             ` : ''}
@@ -1759,8 +1766,8 @@
                                 <img src="${c.profile_pic || 'https://via.placeholder.com/30'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                                 <div class="comment-content-wrapper">
                                     <div style="flex: 1;">
-                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name || ''} ${c.last_name || ''}</span>
-                                        <div>${c.content}</div>
+                                        <span class="comment-author" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${esc(c.first_name || '')} ${esc(c.last_name || '')}</span>
+                                        <div>${esc(c.content)}</div>
                                     </div>
                                     ${isOwner ? `<button class="comment-options-btn" onclick="deleteComment(${c.id}, ${postId})">🗑️</button>` : ''}
                                 </div>

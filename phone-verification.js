@@ -14,16 +14,30 @@ const MAX_ATTEMPTS = 5;
 const PROOF_TTL_SECONDS = 30 * 60;
 const SYNTHETIC_DOMAIN = 'telegram.camfeedkh.com';
 
-// "012 345 678", "+855 12 345 678", "85512345678", "0012345..." -> "+85512345678" (Cambodian numbers by default)
-function normalizePhone(raw) {
+// Country calling codes for the countries in the sign-up form
+const DIAL = { 'Cambodia': '855', 'United States': '1', 'Canada': '1', 'Thailand': '66', 'Vietnam': '84', 'China': '86',
+  'Japan': '81', 'South Korea': '82', 'France': '33', 'Australia': '61', 'United Kingdom': '44' };
+
+// "+66 81 234 5678", "0066...", or a LOCAL number of the chosen country ("081 234 5678" + Thailand) -> "+66812345678".
+// Without a country (login / forgot password) a local number is read as Cambodian; numbers from other countries must start with + or 00.
+// For country "Other" a local number can not be guessed, so it must be written with + or 00.
+function normalizePhone(raw, country) {
   const s = String(raw || '').trim();
   if (!s || !/^[+\d(][\d\s\-().]*$/.test(s)) return null;
   const plus = s.startsWith('+');
   let d = s.replace(/\D/g, '');
   if (!plus) {
-    if (d.startsWith('00')) d = d.slice(2);
-    else if (d.startsWith('0')) d = '855' + d.slice(1);
-    else if (!d.startsWith('855')) return null;
+    if (d.startsWith('00')) {
+      d = d.slice(2);
+    } else {
+      const chosen = country !== undefined && country !== null && String(country).trim() !== '';
+      const cc = chosen ? DIAL[country] : '855';
+      if (!cc) return null;
+      if (d.startsWith('0')) d = cc + d.slice(1);                                   // local number with the leading 0
+      else if (d.startsWith(cc) && d.length > cc.length + 6) { /* already starts with the country code */ }
+      else if (chosen) d = cc + d;                                                   // local number written without the leading 0 (e.g. US 555 123 4567)
+      else return null;
+    }
   }
   if (d.length < 9 || d.length > 15 || d.startsWith('0')) return null;
   return '+' + d;
@@ -70,8 +84,8 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
     try {
       if (!gateway.isConfigured()) return notAvailable(res);
       const body = req.body || {};
-      const phone = normalizePhone(body.phone);
-      if (!phone) return fail(res, 400, 'Please enter a valid phone number (for example 012 345 678).', 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ (ឧ. 012 345 678)។');
+      const phone = normalizePhone(body.phone, body.country);
+      if (!phone) return fail(res, 400, 'Please enter a valid phone number. Choose your country, or start the number with + and your country code (for example +66 81 234 5678).', 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។ សូមជ្រើសរើសប្រទេសរបស់អ្នក ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។');
       if (sendLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many requests from this network. Please try again later.', 'សំណើច្រើនពេកពីបណ្តាញនេះ។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
 
       const exists = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [phoneEmail(phone)]);
@@ -137,7 +151,7 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
     try {
       if (!gateway.isConfigured()) return notAvailable(res);
       const body = req.body || {};
-      const phone = normalizePhone(body.phone);
+      const phone = normalizePhone(body.phone, body.country);
       const code = String(body.code || '').replace(/\s/g, '');
       if (!phone || !/^\d{6}$/.test(code)) return fail(res, 400, 'Please enter the 6-digit code.', 'សូមបញ្ចូលលេខកូដ 6 ខ្ទង់។');
       if (verifyLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many attempts. Please try again later.', 'ព្យាយាមច្រើនពេក។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
@@ -185,4 +199,4 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
   return { sendCode, verifyCode, checkToken, ensureSchema };
 }
 
-module.exports = { createPhoneVerification, normalizePhone, phoneEmail, maskPhone, SYNTHETIC_DOMAIN };
+module.exports = { createPhoneVerification, normalizePhone, phoneEmail, maskPhone, SYNTHETIC_DOMAIN, DIAL };

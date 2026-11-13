@@ -42,11 +42,11 @@ async function loadNotifications() {
                         <div class="notification-item" style="${bgStyle}" onclick="${clickAction}; event.stopPropagation();">
                             <img src="${n.profile_pic || 'https://via.placeholder.com/38'}"
                                  class="notif-avatar"
-                                 title="ចុចដើម្បីមើល Profile របស់ ${n.first_name || ''}"
+                                 title="ចុចដើម្បីមើល Profile របស់ ${esc(n.first_name || '')}"
                                  style="width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0;"
                                  onclick="event.stopPropagation(); openSenderProfileFromNotif(${n.id}, '${encodeURIComponent(n.sender_email)}')">
                             <div style="flex: 1;">
-                                <div style="color: #050505; line-height: 1.35;">${n.message}</div>
+                                <div style="color: #050505; line-height: 1.35;">${esc(n.message)}</div>
                                 <div style="font-size: 10.5px; color: ${isUnread ? '#1877f2' : '#90949c'}; margin-top: 3px;">
                                     ${new Date(n.created_at).toLocaleString()} ${isUnread ? '· ថ្មី' : ''}
                                 </div>

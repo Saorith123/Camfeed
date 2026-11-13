@@ -8,6 +8,7 @@ const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
@@ -72,9 +73,37 @@ function compressVideoBufferOnServer(inputBuffer, originalName) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Upload safety: only pictures, videos and voice messages. Never web pages, scripts, SVG or programs
+// (a web page stored on our media address would be shown under our name).
+// ---------------------------------------------------------------------------
+const ALLOWED_UPLOAD = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic', 'image/heif': 'heif',
+  'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm', 'video/x-m4v': 'm4v', 'video/3gpp': '3gp',
+  'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/aac': 'aac'
+};
+const EXT_TO_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif',
+  mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', m4v: 'video/x-m4v', '3gp': 'video/3gpp',
+  m4a: 'audio/mp4', mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', aac: 'audio/aac' };
+// -> the real kind of file, or null when it is not allowed. A phone that does not name the type is accepted only when the file ending is a known one.
+function resolveUploadType(fileName, contentType) {
+  const base = String(contentType || '').split(';')[0].trim().toLowerCase();       // "audio/webm;codecs=opus" -> "audio/webm"
+  if (ALLOWED_UPLOAD[base]) return base;
+  if (!base || base === 'application/octet-stream') {
+    const ext = (String(fileName || '').split('.').pop() || '').toLowerCase();
+    return EXT_TO_MIME[ext] || null;
+  }
+  return null;
+}
+const R2_KEY_RE = /^(images|videos)\/\d{10,16}-(?:[0-9a-f]{8}-)?[A-Za-z0-9._-]{1,200}$/;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+let directUploadsRunning = 0;                                                       // direct uploads are held in memory: only a few at once
+const MAX_DIRECT_UPLOADS = 3;
+
 const memUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024, files: 1, fields: 10 },
+  fileFilter: (req, file, cb) => cb(null, !!resolveUploadType(file.originalname, file.mimetype)),
 });
 
 module.exports = function createVideoRouter(pool) {
@@ -99,10 +128,18 @@ module.exports = function createVideoRouter(pool) {
       if (!user_email || !file_name || !content_type) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
+      if (typeof file_name !== 'string' || typeof content_type !== 'string' || file_name.length > 300 || content_type.length > 100) {
+        return res.status(400).json({ error: 'Invalid file information' });
+      }
+      const kind = resolveUploadType(file_name, content_type);
+      if (!kind) {
+        return res.status(400).json({ success: false, error: 'This file type is not allowed. You can upload pictures, videos and voice messages.' });
+      }
 
-      const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const folder = content_type.startsWith('image/') ? 'images' : 'videos';
-      const r2Key = `${folder}/${Date.now()}-${safeName}`;
+      // the file ending is always the one that belongs to the real kind of file (never .html, .svg, .js ...)
+      const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[A-Za-z0-9]{1,6}$/, '').slice(-100) + '.' + ALLOWED_UPLOAD[kind];
+      const folder = kind.startsWith('image/') ? 'images' : 'videos';
+      const r2Key = `${folder}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
 
       const command = new PutObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage',
@@ -126,8 +163,14 @@ module.exports = function createVideoRouter(pool) {
   async function handleDirectServerR2Upload(req, res) {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'No media file provided' });
+        return res.status(400).json({ success: false, error: 'No media file, or this file type is not allowed. You can upload pictures, videos and voice messages.' });
       }
+      const kind = resolveUploadType(req.file.originalname, req.file.mimetype);
+      if (!kind) return res.status(400).json({ success: false, error: 'This file type is not allowed.' });
+      if (kind.startsWith('image/') && req.file.size > MAX_IMAGE_BYTES) return res.status(413).json({ success: false, error: 'This picture is too large (15 MB at most).' });
+      if (directUploadsRunning >= MAX_DIRECT_UPLOADS) return res.status(503).json({ success: false, error: 'The server is busy. Please try again in a moment.' });
+      directUploadsRunning++;
+      try {
 
       let mime = req.file.mimetype || 'application/octet-stream';
       const isVideo = mime.startsWith('video/') || /\.(mp4|mov|webm|m4v|avi)$/i.test(req.file.originalname || '');
@@ -147,7 +190,7 @@ module.exports = function createVideoRouter(pool) {
         }
       }
 
-      const r2Key = `${folder}/${Date.now()}-${safeName}`;
+      const r2Key = `${folder}/${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeName}`;
 
       await r2.send(
         new PutObjectCommand({
@@ -167,9 +210,12 @@ module.exports = function createVideoRouter(pool) {
         compressed: wasCompressed,
         finalSize: uploadBuffer.length
       });
+      } finally {
+        directUploadsRunning--;
+      }
     } catch (err) {
       console.error('Direct R2 media upload error:', err);
-      res.status(500).json({ error: 'Failed to upload media to R2: ' + err.message });
+      res.status(500).json({ error: 'Failed to upload media.' });
     }
   }
 
@@ -193,6 +239,10 @@ module.exports = function createVideoRouter(pool) {
 
       if (!user_email || !title || !r2_key || !video_url) {
         return res.status(400).json({ error: 'Missing required video fields' });
+      }
+      // the stored file name must be one of ours and must be the file behind the link (nobody can point a video at someone else's file)
+      if (!R2_KEY_RE.test(String(r2_key)) || !String(video_url).endsWith('/' + r2_key)) {
+        return res.status(400).json({ error: 'Invalid video file' });
       }
 
       const insertResult = await pool.query(
@@ -437,3 +487,6 @@ Respond ONLY with valid JSON:
     [status, category, tags, video.id]
   );
 }
+
+module.exports.resolveUploadType = resolveUploadType;
+module.exports.R2_KEY_RE = R2_KEY_RE;
