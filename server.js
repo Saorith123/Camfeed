@@ -10,7 +10,10 @@ const formFields = multer().none();
 const createVideoRouter = require('./videoRecommendationRoutes');
 const auth = require('./auth');
 const mailer = require('./mailer');
-const { createSignupVerification, EMAIL_RE } = require('./signup-verification');
+const { createSignupVerification, createPasswordReset, EMAIL_RE } = require('./signup-verification');
+const { createTelegramLogin, isTelegramAddress } = require('./telegram-login');
+const gateway = require('./telegram-gateway');
+const { createPhoneVerification, normalizePhone, phoneEmail } = require('./phone-verification');
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
@@ -157,6 +160,9 @@ pool.connect(async (err, client, release) => {
   }
   try {
     await signup.ensureSchema();
+    await passwordReset.ensureSchema();
+    await tgLogin.ensureSchema();
+    await phoneSignup.ensureSchema();
   } catch (e) {
     console.error('email verification schema notice:', e.message);
   }
@@ -184,6 +190,11 @@ app.use('/api', auth.sanitizeJson, authCore.authenticate, authCore.forceActor);
 
 // E-mail verification before an account can be created (needs EMAIL_PROVIDER + API key + EMAIL_FROM, see README)
 const signup = createSignupVerification({ pool, auth, mailer });
+const passwordReset = createPasswordReset({ pool, auth, mailer }); // "Forgot password?" by e-mail code
+const tgLogin = createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }); // "Continue with Telegram"
+const phoneSignup = createPhoneVerification({ pool, auth, gateway, mode: 'signup' }); // phone number + code inside Telegram
+const phoneReset = createPhoneVerification({ pool, auth, gateway, mode: 'reset' });
+const isTelegramOnlyAccount = (email) => /^tg\d+@telegram\.camfeedkh\.com$/i.test(String(email || '')); // made with Continue with Telegram: no password
 
 // Global Real-Time Presence Tracker
 const lastGlobalPingMap = new Map();
@@ -313,21 +324,79 @@ function normalizeBirthdate(raw) {
 // The cap is generous because many Cambodian mobile users share one carrier IP.
 const registerLimiter = auth.makeLimiter(parseInt(process.env.REGISTER_MAX_PER_HOUR || '10', 10), 60 * 60 * 1000);
 
+// Continue with Telegram (OpenID Connect): the browser leaves for Telegram and comes back to /callback
+app.get('/auth/telegram/start', tgLogin.start);
+app.get('/auth/telegram/callback', tgLogin.callback);
+app.post('/api/telegram/exchange', tgLogin.exchange);
+app.post('/api/telegram/complete', tgLogin.complete);
+app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: gateway.isConfigured() }));
+
+// Phone number + a code that arrives inside the person's Telegram (Telegram Gateway)
+const phoneFlow = (req) => (req.body && req.body.purpose === 'reset' ? phoneReset : phoneSignup);
+app.post('/api/phone/send-code', (req, res) => phoneFlow(req).sendCode(req, res));
+app.post('/api/phone/verify-code', (req, res) => phoneFlow(req).verifyCode(req, res));
+
 app.post('/api/register/send-code', signup.sendCode);
 app.post('/api/register/verify-code', signup.verifyCode);
 
+// Forgot password: 1) send a code to the e-mail  2) check the code  3) set a new password
+app.post('/api/password/forgot', passwordReset.sendCode);
+app.post('/api/password/verify-code', passwordReset.verifyCode);
+app.post('/api/password/reset', async (req, res) => {
+  const phoneRaw = req.body && req.body.phone;
+  const e164 = phoneRaw ? normalizePhone(phoneRaw) : null;
+  const email = phoneRaw ? (e164 ? phoneEmail(e164) : '') : String((req.body && req.body.email) || '').trim();
+  const token = phoneRaw ? (req.body && req.body.phoneToken) : (req.body && req.body.emailToken);
+  const newPassword = String((req.body && req.body.newPassword) || '');
+  try {
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.', errorKm: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច 6 តួអក្សរ។' });
+    }
+    const needVerify = () => res.status(403).json({ success: false, needsEmailVerification: true, error: 'Please verify your email first.', errorKm: 'សូមផ្ទៀងផ្ទាត់អ៊ីមែលរបស់អ្នកជាមុនសិន។' });
+    const proofOk = phoneRaw ? (!!e164 && phoneReset.checkToken(e164, token)) : passwordReset.checkEmailToken(email, token);
+    if (!proofOk) return needVerify();
+    const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    const user = r.rows[0];
+    if (!user) return res.status(404).json({ success: false, error: 'No account was found with this email.', errorKm: 'រកមិនឃើញគណនីដែលប្រើអ៊ីមែលនេះទេ។' });
+    // single use: the proof is bound to the old password and stops working once it has changed
+    const payload = auth.verifyToken(token);
+    if (!payload || payload.pv !== auth.fingerprint(user.password)) return needVerify();
+
+    const newHash = await auth.hashPassword(newPassword);
+    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [newHash, user.email]);
+    pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
+    authCore.invalidate(user.email);                       // every logged-in device must log in again
+    auth.clearFailures(`${req.ip}|${email.toLowerCase()}`); // do not keep the person locked out after a reset
+    if (phoneRaw) auth.clearFailures(`${req.ip}|${String(phoneRaw).trim().toLowerCase()}`);
+    res.json({ success: true, message: 'Password changed. Please log in with your new password.', messageKm: 'បានប្តូរពាក្យសម្ងាត់ហើយ។ សូមចូលគណនីដោយពាក្យសម្ងាត់ថ្មី។' });
+  } catch (err) {
+    console.error('Password reset error:', err.message);
+    res.status(500).json({ success: false, error: 'Something went wrong. Please try again.', errorKm: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។' });
+  }
+});
+
 app.post('/api/register', async (req, res) => {
   const { password, firstName, lastName, birthdate, gender, country } = req.body || {};
-  const email = String((req.body && req.body.email) || '').trim();
+  let email = String((req.body && req.body.email) || '').trim();
+  const viaPhone = !!(req.body && req.body.phone);       // signed up with a phone number + the code that arrived in Telegram
+  let phoneE164 = '';
   try {
     if (registerLimiter.isLimited(req.ip)) {
       return res.status(429).json({ success: false, error: 'Too many accounts created from this network. Please try again later.' });
     }
-    // new accounts need a real e-mail address (a verification code is sent to it)
-    if (!EMAIL_RE.test(email) || email.length > 254) {
+    if (viaPhone) {
+      phoneE164 = normalizePhone(req.body.phone);
+      if (!phoneE164 || !phoneSignup.checkToken(phoneE164, req.body.phoneToken)) {
+        return res.status(403).json({ success: false, needsEmailVerification: true, error: 'Please verify your phone number first.', errorKm: 'សូមផ្ទៀងផ្ទាត់លេខទូរស័ព្ទរបស់អ្នកជាមុនសិន។' });
+      }
+      email = phoneEmail(phoneE164);      // hidden identity derived from the VERIFIED number
+    } else if (!EMAIL_RE.test(email) || email.length > 254 || isTelegramAddress(email)) {
+      // new e-mail accounts need a real e-mail address (a verification code is sent to it)
       return res.status(400).json({ success: false, error: 'Please enter a valid email address (for example name@gmail.com).', errorKm: 'សូមបញ្ចូលអ៊ីមែលត្រឹមត្រូវ (ឧ. name@gmail.com)។' });
     }
-    if (signup.isRequired()) {
+    if (viaPhone) {
+      // the Telegram code already proved this is a real person who owns the number
+    } else if (signup.isRequired()) {
       // e-mail verification is ON: the signed proof from /verify-code must match this e-mail
       if (!signup.checkEmailToken(email, req.body && req.body.emailToken)) {
         return res.status(403).json({ success: false, needsEmailVerification: true, error: 'Please verify your email first.', errorKm: 'សូមផ្ទៀងផ្ទាត់អ៊ីមែលរបស់អ្នកជាមុនសិន។' });
@@ -352,19 +421,19 @@ app.post('/api/register', async (req, res) => {
     const initialRole = isSuper ? 'super_admin' : 'user';
     const hashed = await auth.hashPassword(password);
     const query = `
-      INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'public', 'public', $8) 
+      INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role, phone) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, '', $9, $9, $8, $10) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole]);
+    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole, viaPhone ? 'private' : 'public', viaPhone ? phoneE164 : null]);
     const user = result.rows[0];
     registerLimiter.hit(req.ip);
-    if (signup.isRequired()) pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
+    if (!viaPhone && signup.isRequired()) pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
     // password is stripped from the response by auth.sanitizeJson
     res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
   } catch (err) {
     if (err && err.code === '23505') {
-      return res.status(409).json({ success: false, error: 'This email is already registered.' });
+      return res.status(409).json({ success: false, error: viaPhone ? 'This phone number is already registered.' : 'This email is already registered.' });
     }
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
@@ -383,7 +452,11 @@ app.post('/api/login', async (req, res) => {
     if (auth.isRateLimited(limitKey)) {
       return res.status(429).json({ success: false, message: 'Too many failed attempts. Please wait 15 minutes and try again.' });
     }
-    const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    let result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    if (!result.rows[0] && !email.includes('@')) {
+      const e164 = normalizePhone(email);                     // typed a phone number: find the account made with that verified number
+      if (e164) result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1', [phoneEmail(e164)]);
+    }
     const user = result.rows[0];
     let check = { ok: false, needsRehash: false };
     if (user) check = await auth.verifyPassword(password, user.password);
@@ -1691,6 +1764,9 @@ app.put('/api/settings/password', async (req, res) => {
     }
     const r = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = r.rows[0];
+    if (user && isTelegramOnlyAccount(user.email)) {
+      return res.status(400).json({ success: false, message: 'Your account signs in with Telegram, so it has no password to change.' });
+    }
     const check = user ? await auth.verifyPassword(currentPassword, user.password) : { ok: false };
     if (!check.ok) {
       return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
@@ -1713,9 +1789,12 @@ app.delete('/api/settings/account', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Super Admin account cannot be deleted here.' });
     }
     const r = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    const check = r.rows[0] ? await auth.verifyPassword(password, r.rows[0].password) : { ok: false };
-    if (!check.ok) {
-      return res.status(400).json({ success: false, message: 'Password is incorrect.' });
+    const row = r.rows[0];
+    let confirmed = false;
+    if (row && isTelegramOnlyAccount(row.email)) confirmed = password.trim().toUpperCase() === 'DELETE';   // no password: type DELETE instead
+    else if (row) confirmed = (await auth.verifyPassword(password, row.password)).ok;
+    if (!confirmed) {
+      return res.status(400).json({ success: false, message: row && isTelegramOnlyAccount(row.email) ? 'Type DELETE to confirm.' : 'Password is incorrect.' });
     }
     await cleanup.deleteUserCompletely(email); // posts, videos, comments, likes, follows, chats, profile pictures + all files
     authCore.invalidate(email);

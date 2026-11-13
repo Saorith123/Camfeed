@@ -41,7 +41,7 @@
         </div>
 
         <!-- 2. CHANGE PASSWORD -->
-        <div class="card">
+        <div class="card" id="passwordCard">
             <h3>🔒 Password & Security</h3>
             <label>Current Password</label>
             <input type="password" id="currentPassword" placeholder="••••••••">
@@ -55,7 +55,7 @@
         <div class="card">
             <h3 style="color: #fa383e;">⚠️ Deactivate or Delete Account</h3>
             <p style="font-size: 12px; color: #65676b;">Once you delete your account, there is no going back. Please be certain.</p>
-            <label>Enter Password to Confirm</label>
+            <label id="deletePwLabel">Enter Password to Confirm</label>
             <input type="password" id="deletePassword" placeholder="••••••••">
             <button class="btn btn-danger" onclick="deleteAccount()">Permanently Delete Account</button>
             <div id="deleteMsg" class="msg"></div>
@@ -65,6 +65,15 @@
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
         if (!currentUser) window.location.href = 'index.html';
+
+        // Accounts created with Telegram have no password: hide the password card and confirm deletion by typing DELETE
+        if (/^tg\d+@telegram\.camfeedkh\.com$/i.test(currentUser.email || '')) {
+            document.getElementById('passwordCard').style.display = 'none';
+            document.getElementById('deletePwLabel').innerText = 'Type DELETE to confirm';
+            const dp = document.getElementById('deletePassword');
+            dp.type = 'text';
+            dp.placeholder = 'DELETE';
+        }
 
         document.getElementById('setFirstName').value = currentUser.first_name || '';
         document.getElementById('setLastName').value = currentUser.last_name || '';

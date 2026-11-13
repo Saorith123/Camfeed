@@ -132,7 +132,10 @@ function sanitizeJson(req, res, next) {
 }
 
 // ---------- factory (needs the pg pool for ban / password-change checks) ----------
-const PUBLIC_ROUTES = new Set(['POST /api/login', 'POST /api/register', 'POST /api/register/send-code', 'POST /api/register/verify-code']);
+const PUBLIC_ROUTES = new Set(['POST /api/login', 'POST /api/register', 'POST /api/register/send-code', 'POST /api/register/verify-code',
+  'POST /api/password/forgot', 'POST /api/password/verify-code', 'POST /api/password/reset',
+  'POST /api/telegram/exchange', 'POST /api/telegram/complete', 'GET /api/auth-options',
+  'POST /api/phone/send-code', 'POST /api/phone/verify-code']);
 const BODY_ACTOR_FIELDS = ['email', 'sender', 'userEmail', 'user_email', 'followerEmail', 'blockerEmail', 'reporterEmail', 'adminEmail'];
 // GET routes where ?email= is the profile being looked at (not the person asking)
 const QUERY_EMAIL_IS_TARGET = new Set(['/api/user-profile', '/api/follow-list']);

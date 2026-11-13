@@ -113,8 +113,15 @@
                 </div>
                 <button type="submit" class="btn-primary" id="btnLoginText">Log In</button>
             </form>
+            <div id="tgLoginBox" class="hidden" style="margin-top: 14px;">
+                <div style="text-align: center; color: #8a8d91; font-size: 13px; margin-bottom: 10px;"><span id="tgOrText">or</span></div>
+                <a href="/auth/telegram/start" id="tgLoginBtn" style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; background: #229ED9; color: #fff; border-radius: 8px; font-size: 16px; font-weight: bold; text-decoration: none; box-sizing: border-box;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+                    <span id="tgLoginText">Continue with Telegram</span>
+                </a>
+            </div>
             <div style="text-align: center; margin-top: 15px;">
-                <a href="#" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="forgotText">Forgot password?</a>
+                <a href="#" onclick="showResetForm(); return false;" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="forgotText">Forgot password?</a>
             </div>
             <div class="divider"></div>
             <button type="button" class="btn-create" onclick="showRegisterForm()" id="btnCreateText">Create new account</button>
@@ -193,6 +200,68 @@
                 <a href="#" onclick="showLoginForm()" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="haveAccText">Already have an account?</a>
             </div>
             <div class="msg" id="regMsg"></div>
+        </div>
+
+        <!-- TELEGRAM SIGN-UP: a few details before the account is created -->
+        <div class="card hidden" id="tgCompleteCard">
+            <h3 id="tgcTitle" style="margin-top: 4px; color: #229ED9; text-align: center;">Almost done!</h3>
+            <p id="tgcDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;"></p>
+            <form onsubmit="event.preventDefault(); completeTelegramSignup();">
+                <label id="tgcDobLbl">Date of birth</label>
+                <div class="row">
+                    <select id="tgDobDay" required></select>
+                    <select id="tgDobMonth" required></select>
+                    <select id="tgDobYear" required></select>
+                </div>
+                <label id="tgcGenderLbl">Gender</label>
+                <select id="tgGender" required></select>
+                <label id="tgcCountryLbl">Country</label>
+                <select id="tgCountry" required></select>
+                <button type="submit" class="btn-primary" style="margin-top: 14px;" id="tgcBtn">Finish</button>
+            </form>
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="index.html" style="color: #606770; font-size: 13px; text-decoration: none;" id="tgcCancel">Cancel</a>
+            </div>
+            <div class="msg" id="tgcMsg"></div>
+        </div>
+
+        <!-- FORGOT PASSWORD: e-mail -> 6-digit code -> new password -->
+        <div class="card hidden" id="resetCard">
+            <div class="wizard-top-bar">
+                <button type="button" class="wizard-back-btn" onclick="closeResetCard()">
+                    <span>←</span> <span id="rBackText">Back</span>
+                </button>
+            </div>
+            <h3 id="rTitle" style="margin-top: 4px; color: #1877f2; text-align: center;">Reset your password</h3>
+            <p id="rDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;"></p>
+
+            <form id="rStageEmail" onsubmit="event.preventDefault(); sendResetCode();">
+                <input type="text" id="resetEmail" inputmode="email" autocomplete="email" placeholder="Email" required>
+                <div id="resetTurnstileBox" style="margin-top: 16px; display: flex; justify-content: center;"></div>
+                <button type="submit" class="btn-primary" style="margin-top: 12px;" id="rSendBtn">Send code</button>
+            </form>
+
+            <form id="rStageCode" class="hidden" onsubmit="event.preventDefault(); verifyResetCode();">
+                <input type="text" id="resetCodeInput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"
+                       style="font-size: 26px; letter-spacing: 8px; text-align: center; font-weight: 700;" required>
+                <button type="submit" class="btn-primary" style="margin-top: 12px;" id="rVerifyBtn">Verify</button>
+                <div style="text-align: center; margin-top: 14px;">
+                    <a href="#" id="rResendLink" onclick="resendResetCode(); return false;" style="color: #1877f2; font-size: 14px; text-decoration: none;">Resend code</a>
+                </div>
+            </form>
+
+            <form id="rStagePassword" class="hidden" onsubmit="event.preventDefault(); submitNewPassword();">
+                <div class="password-container">
+                    <input type="password" id="resetNewPassword" autocomplete="new-password" placeholder="New password" required>
+                    <span class="eye-icon" onclick="togglePassword('resetNewPassword', this)">👁️</span>
+                </div>
+                <div class="password-container">
+                    <input type="password" id="resetNewPassword2" autocomplete="new-password" placeholder="Confirm new password" required>
+                    <span class="eye-icon" onclick="togglePassword('resetNewPassword2', this)">👁️</span>
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top: 12px;" id="rChangeBtn">Change password</button>
+            </form>
+            <div class="msg" id="resetMsg"></div>
         </div>
 
         <!-- VERIFY EMAIL: a 6-digit code is sent to the e-mail before the account is created -->
@@ -292,6 +361,8 @@
             const savedLang = localStorage.getItem('camfeed_lang') || 'en';
             document.getElementById('langSwitch').value = savedLang;
             changeLanguage();
+            loadAuthOptions();
+            handleTelegramReturn();
 
             const savedEmail = localStorage.getItem('camfeed_remembered_email');
             if (savedEmail) {
@@ -307,8 +378,10 @@
                 document.getElementById('loginCard').classList.add('hidden');
                 document.getElementById('registerCard').classList.remove('hidden');
                 document.getElementById('verifyEmailCard').classList.add('hidden');
+                document.getElementById('resetCard').classList.add('hidden');
                 document.getElementById('wizardMsg').innerText = '';
             } else {
+                document.getElementById('resetCard').classList.add('hidden');
                 document.getElementById('verifyEmailCard').classList.add('hidden');
                 document.getElementById('registerCard').classList.add('hidden');
                 document.getElementById('welcomeWizardCard').classList.add('hidden');
@@ -362,7 +435,7 @@
             document.getElementById('regSubtitle').innerText = t.regSubtitle;
             document.getElementById('firstName').placeholder = t.firstName;
             document.getElementById('lastName').placeholder = t.lastName;
-            document.getElementById('regEmail').placeholder = t.regEmail;
+            document.getElementById('regEmail').placeholder = identityPlaceholder(t);
             document.getElementById('regPassword').placeholder = t.regPassword;
             document.getElementById('lblDob').innerText = t.lblDob;
             document.getElementById('lblGender').innerText = t.lblGender;
@@ -376,6 +449,8 @@
             document.getElementById('btnBackToLogin').innerText = t.backBtn;
             document.getElementById('btnBackToStep1').innerText = t.backBtn;
             applyVerifyTexts();
+            applyResetTexts();
+            applyTelegramTexts();
 
             document.getElementById('welcomeTitle').innerText = t.welcomeTitle;
             document.getElementById('welcomeDesc').innerText = t.welcomeDesc;
@@ -415,6 +490,7 @@
         function showLoginForm() {
             document.getElementById('registerCard').classList.add('hidden');
             document.getElementById('welcomeWizardCard').classList.add('hidden');
+            document.getElementById('resetCard').classList.add('hidden');
             document.getElementById('loginCard').classList.remove('hidden');
         }
 
@@ -457,6 +533,17 @@
         let verifyCountdownTimer = null;
         let verifyCountdownLeft = 0;
         const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+        let authOptions = { telegram: false, phone: false };   // filled from /api/auth-options: which sign-in methods the server has switched on
+        let signupChannel = 'email';                            // 'email' (code in the inbox) or 'phone' (code inside Telegram)
+        let resetChannel = 'email';
+        function looksLikePhone(s) {
+            const v = String(s || '').trim();
+            return !v.includes('@') && /^[+\d(][\d\s\-().]{6,24}$/.test(v) && v.replace(/\D/g, '').length >= 8;
+        }
+        function identityPlaceholder(t) {
+            if (!authOptions.phone) return t.regEmail;
+            return (localStorage.getItem('camfeed_lang') || 'en') === 'km' ? 'Gmail ឬលេខទូរស័ព្ទ' : 'Gmail or phone number';
+        }
 
         const verifyTexts = {
             en: {
@@ -467,7 +554,9 @@
                 shortPw: 'Password must be at least 6 characters.',
                 needHuman: 'Please complete the human verification first.',
                 sending: 'Sending code...', checking: 'Checking...', sent: 'A new code was sent.',
-                network: 'Server connection error', failed: 'Something went wrong. Please try again.'
+                network: 'Server connection error', failed: 'Something went wrong. Please try again.',
+                needEmailOrPhone: 'Please enter a valid Gmail / email or phone number.',
+                descPhone: (m) => `We sent a 6-digit code to your Telegram (${m}). Open Telegram and enter the code below.`
             },
             km: {
                 title: 'ផ្ទៀងផ្ទាត់អ៊ីមែលរបស់អ្នក',
@@ -477,7 +566,9 @@
                 shortPw: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច 6 តួអក្សរ។',
                 needHuman: 'សូមបញ្ជាក់ថាអ្នកជាមនុស្សជាមុនសិន។',
                 sending: 'កំពុងផ្ញើលេខកូដ...', checking: 'កំពុងពិនិត្យ...', sent: 'បានផ្ញើលេខកូដថ្មី។',
-                network: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', failed: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'
+                network: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', failed: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។',
+                needEmailOrPhone: 'សូមបញ្ចូល Gmail / អ៊ីមែល ឬលេខទូរស័ព្ទត្រឹមត្រូវ។',
+                descPhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលលេខកូដខាងក្រោម។`
             }
         };
         function vt() { return verifyTexts[localStorage.getItem('camfeed_lang') || 'en'] || verifyTexts.en; }
@@ -513,7 +604,7 @@
         function openVerifyCard(maskedEmail, resendAfterSec) {
             document.getElementById('registerCard').classList.add('hidden');
             document.getElementById('verifyEmailCard').classList.remove('hidden');
-            document.getElementById('vDesc').innerText = vt().desc(maskedEmail);
+            document.getElementById('vDesc').innerText = signupChannel === 'phone' ? vt().descPhone(maskedEmail) : vt().desc(maskedEmail);
             document.getElementById('verifyMsg').innerText = '';
             const input = document.getElementById('verifyCodeInput');
             input.value = '';
@@ -535,7 +626,8 @@
             const password = document.getElementById('regPassword').value;
             const t = vt();
 
-            if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
+            const isPhone = authOptions.phone && looksLikePhone(email);   // a phone number gets its code inside Telegram
+            if (!isPhone && !EMAIL_PATTERN.test(email)) { msg.innerText = authOptions.phone ? t.needEmailOrPhone : t.needEmail; return; }
             if (password.length < 6) { msg.innerText = t.shortPw; return; }
             // user pressed Back from step 2 without changing the e-mail: it is already verified
             if (signupEmailToken && signupVerifiedEmail === email.toLowerCase()) { proceedToStep2(); return; }
@@ -544,16 +636,17 @@
             const btn = document.getElementById('btnNextStep');
             const oldText = btn.innerText;
             btn.disabled = true; btn.innerText = t.sending;
+            signupChannel = isPhone ? 'phone' : 'email';
             try {
-                const res = await fetch('/api/register/send-code', {
+                const res = await fetch(isPhone ? '/api/phone/send-code' : '/api/register/send-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, turnstileToken: getTurnstileToken() })
+                    body: JSON.stringify(isPhone ? { phone: email, purpose: 'signup', turnstileToken: getTurnstileToken() } : { email, turnstileToken: getTurnstileToken() })
                 });
                 const data = await res.json();
                 if (data.success && data.verificationRequired === false) { proceedToStep2(); return; }   // verification is not switched on yet
                 resetTurnstile();                                                                        // the CAPTCHA token is single use
-                if (data.success) { openVerifyCard(data.maskedEmail || email, data.resendAfterSec); return; }
+                if (data.success) { openVerifyCard(data.maskedPhone || data.maskedEmail || email, data.resendAfterSec); return; }
                 msg.innerText = serverMsg(data, t.failed);
             } catch (e) {
                 msg.innerText = t.network;
@@ -572,14 +665,15 @@
             if (!/^\d{6}$/.test(code)) { msg.innerText = serverMsg({ error: 'Please enter the 6-digit code.', errorKm: 'សូមបញ្ចូលលេខកូដ 6 ខ្ទង់។' }); return; }
             btn.disabled = true; btn.innerText = t.checking;
             try {
-                const res = await fetch('/api/register/verify-code', {
+                const res = await fetch(signupChannel === 'phone' ? '/api/phone/verify-code' : '/api/register/verify-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, code })
+                    body: JSON.stringify(signupChannel === 'phone' ? { phone: email, code, purpose: 'signup' } : { email, code })
                 });
                 const data = await res.json();
-                if (data.success && data.emailToken) {
-                    signupEmailToken = data.emailToken;
+                const proofToken = data.emailToken || data.phoneToken;
+                if (data.success && proofToken) {
+                    signupEmailToken = proofToken;
                     signupVerifiedEmail = email.toLowerCase();
                     proceedToStep2();
                     return;
@@ -598,10 +692,11 @@
             const t = vt();
             msg.style.color = 'red'; msg.innerText = '';
             try {
-                const res = await fetch('/api/register/send-code', {
+                const typed = document.getElementById('regEmail').value.trim();
+                const res = await fetch(signupChannel === 'phone' ? '/api/phone/send-code' : '/api/register/send-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: document.getElementById('regEmail').value.trim(), resend: true })
+                    body: JSON.stringify(signupChannel === 'phone' ? { phone: typed, purpose: 'signup', resend: true } : { email: typed, resend: true })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -613,6 +708,422 @@
                 }
             } catch (e) {
                 msg.innerText = t.network;
+            }
+        }
+
+        // ---- Forgot password: e-mail -> 6-digit code -> new password (the account is never touched without the e-mailed code) ----
+        let resetEmailToken = '';
+        let resetEmailValue = '';
+        let resetStage = 'email';
+        let resetCountdownTimer = null;
+        let resetCountdownLeft = 0;
+        let resetTsWidgetId = null;
+        let resetTsTries = 0;
+
+        const resetTexts = {
+            en: {
+                title: 'Reset your password', back: 'Back', placeholderEmail: 'Email', send: 'Send code', verify: 'Verify',
+                descEmail: 'Enter the email of your account. We will send you a 6-digit code.',
+                descBoth: 'Enter the Gmail or phone number of your account. We will send you a 6-digit code.',
+                descCodePhone: (m) => `We sent a 6-digit code to your Telegram (${m}). Open Telegram and enter it below.`,
+                descCode: (m) => `We sent a 6-digit code to ${m}. Check your inbox (and Spam), then enter it below.`,
+                descPassword: 'Choose a new password.',
+                newPw: 'New password', newPw2: 'Confirm new password', change: 'Change password',
+                mismatch: 'The two passwords do not match.', shortPw: 'Password must be at least 6 characters.',
+                done: 'Password changed. Please log in with your new password.'
+            },
+            km: {
+                title: 'កំណត់ពាក្យសម្ងាត់ឡើងវិញ', back: 'ត្រឡប់ក្រោយ', placeholderEmail: 'អ៊ីមែល', send: 'ផ្ញើលេខកូដ', verify: 'ផ្ទៀងផ្ទាត់',
+                descEmail: 'បញ្ចូលអ៊ីមែលនៃគណនីរបស់អ្នក។ យើងនឹងផ្ញើលេខកូដ 6 ខ្ទង់ទៅអ៊ីមែលនោះ។',
+                descBoth: 'បញ្ចូល Gmail ឬលេខទូរស័ព្ទនៃគណនីរបស់អ្នក។ យើងនឹងផ្ញើលេខកូដ 6 ខ្ទង់។',
+                descCodePhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលវាខាងក្រោម។`,
+                descCode: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ ${m}។ សូមពិនិត្យប្រអប់សំបុត្រ (និង Spam) រួចបញ្ចូលវាខាងក្រោម។`,
+                descPassword: 'សូមជ្រើសរើសពាក្យសម្ងាត់ថ្មី។',
+                newPw: 'ពាក្យសម្ងាត់ថ្មី', newPw2: 'បញ្ជាក់ពាក្យសម្ងាត់ថ្មី', change: 'ប្តូរពាក្យសម្ងាត់',
+                mismatch: 'ពាក្យសម្ងាត់ទាំងពីរមិនដូចគ្នាទេ។', shortPw: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច 6 តួអក្សរ។',
+                done: 'បានប្តូរពាក្យសម្ងាត់ហើយ។ សូមចូលគណនីដោយពាក្យសម្ងាត់ថ្មី។'
+            }
+        };
+        function rt() { return resetTexts[localStorage.getItem('camfeed_lang') || 'en'] || resetTexts.en; }
+
+        function renderResetTurnstile() {
+            if (!turnstileEnabled() || resetTsWidgetId !== null) return;
+            const box = document.getElementById('resetTurnstileBox');
+            if (!box) return;
+            if (!window.turnstile) { if (++resetTsTries < 50) setTimeout(renderResetTurnstile, 400); return; }
+            resetTsWidgetId = window.turnstile.render(box, { sitekey: TURNSTILE_SITE_KEY, theme: 'light' });
+        }
+        function getResetTurnstileToken() {
+            if (!turnstileEnabled() || resetTsWidgetId === null || !window.turnstile) return '';
+            return window.turnstile.getResponse(resetTsWidgetId) || '';
+        }
+        function resetResetTurnstile() {
+            if (resetTsWidgetId !== null && window.turnstile) window.turnstile.reset(resetTsWidgetId);
+        }
+
+        function setResetStage(stage, maskedEmail) {
+            resetStage = stage;
+            const t = rt();
+            document.getElementById('rStageEmail').classList.toggle('hidden', stage !== 'email');
+            document.getElementById('rStageCode').classList.toggle('hidden', stage !== 'code');
+            document.getElementById('rStagePassword').classList.toggle('hidden', stage !== 'password');
+            const codeDesc = resetChannel === 'phone' ? t.descCodePhone : t.descCode;
+            document.getElementById('rDesc').innerText = stage === 'email' ? (authOptions.phone ? t.descBoth : t.descEmail) : (stage === 'code' ? codeDesc(maskedEmail || resetEmailValue) : t.descPassword);
+            document.getElementById('resetMsg').innerText = '';
+        }
+
+        function applyResetTexts() {
+            const t = rt();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
+            const ph = (id, v) => { const el = document.getElementById(id); if (el) el.placeholder = v; };
+            set('rTitle', t.title); set('rBackText', t.back); set('rSendBtn', t.send); set('rVerifyBtn', t.verify); set('rChangeBtn', t.change);
+            ph('resetEmail', authOptions.phone ? identityPlaceholder(t) : t.placeholderEmail); ph('resetNewPassword', t.newPw); ph('resetNewPassword2', t.newPw2);
+            const d = document.getElementById('rDesc');
+            const codeDesc = resetChannel === 'phone' ? t.descCodePhone : t.descCode;
+            if (d) d.innerText = resetStage === 'email' ? (authOptions.phone ? t.descBoth : t.descEmail) : (resetStage === 'code' ? codeDesc(resetEmailValue) : t.descPassword);
+            if (resetCountdownLeft <= 0) set('rResendLink', vt().resend);
+        }
+
+        function startResetCountdown(seconds) {
+            clearInterval(resetCountdownTimer);
+            resetCountdownLeft = seconds;
+            const link = document.getElementById('rResendLink');
+            const tick = () => {
+                if (resetCountdownLeft <= 0) {
+                    clearInterval(resetCountdownTimer);
+                    link.innerText = vt().resend; link.style.opacity = '1'; link.style.pointerEvents = 'auto';
+                    return;
+                }
+                link.innerText = vt().resendIn(resetCountdownLeft); link.style.opacity = '0.55'; link.style.pointerEvents = 'none';
+                resetCountdownLeft--;
+            };
+            tick();
+            resetCountdownTimer = setInterval(tick, 1000);
+        }
+
+        function showResetForm() {
+            ['loginCard', 'registerCard', 'verifyEmailCard', 'welcomeWizardCard'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('resetCard').classList.remove('hidden');
+            const typed = document.getElementById('loginEmail').value.trim();
+            const box = document.getElementById('resetEmail');
+            if (!box.value && (typed.includes('@') || (authOptions.phone && looksLikePhone(typed)))) box.value = typed;
+            resetEmailToken = ''; resetEmailValue = '';
+            setResetStage('email');
+            applyResetTexts();
+            renderResetTurnstile();
+            history.pushState({ step: 'reset' }, '');
+        }
+
+        function closeResetCard() {
+            clearInterval(resetCountdownTimer);
+            document.getElementById('resetCard').classList.add('hidden');
+            document.getElementById('loginCard').classList.remove('hidden');
+        }
+
+        async function sendResetCode() {
+            const msg = document.getElementById('resetMsg');
+            const btn = document.getElementById('rSendBtn');
+            const t = vt();
+            msg.style.color = 'red'; msg.innerText = '';
+            const email = document.getElementById('resetEmail').value.trim();
+            const isPhone = authOptions.phone && looksLikePhone(email);
+            if (!isPhone && !EMAIL_PATTERN.test(email)) { msg.innerText = authOptions.phone ? t.needEmailOrPhone : t.needEmail; return; }
+            if (turnstileEnabled() && !getResetTurnstileToken()) { msg.innerText = t.needHuman; return; }
+            const old = btn.innerText;
+            btn.disabled = true; btn.innerText = t.sending;
+            resetChannel = isPhone ? 'phone' : 'email';
+            try {
+                const res = await fetch(isPhone ? '/api/phone/send-code' : '/api/password/forgot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(isPhone ? { phone: email, purpose: 'reset', turnstileToken: getResetTurnstileToken() } : { email, turnstileToken: getResetTurnstileToken() })
+                });
+                const data = await res.json();
+                resetResetTurnstile();                                   // the CAPTCHA token is single use
+                if (data.success) {
+                    resetEmailValue = email;
+                    document.getElementById('resetCodeInput').value = '';
+                    setResetStage('code', data.maskedPhone || data.maskedEmail || email);
+                    startResetCountdown(data.resendAfterSec || 60);
+                    setTimeout(() => document.getElementById('resetCodeInput').focus(), 50);
+                } else {
+                    msg.innerText = serverMsg(data, t.failed);
+                }
+            } catch (e) {
+                msg.innerText = t.network;
+            } finally {
+                btn.disabled = false; btn.innerText = old;
+            }
+        }
+
+        async function verifyResetCode() {
+            const msg = document.getElementById('resetMsg');
+            const btn = document.getElementById('rVerifyBtn');
+            const t = vt();
+            msg.style.color = 'red'; msg.innerText = '';
+            const code = document.getElementById('resetCodeInput').value.replace(/\s/g, '');
+            if (!/^\d{6}$/.test(code)) { msg.innerText = serverMsg({ error: 'Please enter the 6-digit code.', errorKm: 'សូមបញ្ចូលលេខកូដ 6 ខ្ទង់។' }); return; }
+            btn.disabled = true; btn.innerText = t.checking;
+            try {
+                const res = await fetch(resetChannel === 'phone' ? '/api/phone/verify-code' : '/api/password/verify-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(resetChannel === 'phone' ? { phone: resetEmailValue, code, purpose: 'reset' } : { email: resetEmailValue, code })
+                });
+                const data = await res.json();
+                const resetProof = data.emailToken || data.phoneToken;
+                if (data.success && resetProof) {
+                    resetEmailToken = resetProof;
+                    clearInterval(resetCountdownTimer);
+                    document.getElementById('resetNewPassword').value = '';
+                    document.getElementById('resetNewPassword2').value = '';
+                    setResetStage('password');
+                } else {
+                    msg.innerText = serverMsg(data, t.failed);
+                }
+            } catch (e) {
+                msg.innerText = t.network;
+            } finally {
+                btn.disabled = false; btn.innerText = rt().verify;
+            }
+        }
+
+        async function resendResetCode() {
+            if (resetCountdownLeft > 0) return;
+            const msg = document.getElementById('resetMsg');
+            const t = vt();
+            msg.style.color = 'red'; msg.innerText = '';
+            try {
+                const res = await fetch(resetChannel === 'phone' ? '/api/phone/send-code' : '/api/password/forgot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(resetChannel === 'phone' ? { phone: resetEmailValue, purpose: 'reset', resend: true } : { email: resetEmailValue, resend: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    msg.style.color = '#2e7d32'; msg.innerText = t.sent;
+                    startResetCountdown(data.resendAfterSec || 60);
+                } else {
+                    msg.innerText = serverMsg(data, t.failed);
+                    if (data.retryAfterSec) startResetCountdown(data.retryAfterSec);
+                }
+            } catch (e) {
+                msg.innerText = t.network;
+            }
+        }
+
+        async function submitNewPassword() {
+            const msg = document.getElementById('resetMsg');
+            const btn = document.getElementById('rChangeBtn');
+            const t = rt();
+            msg.style.color = 'red'; msg.innerText = '';
+            const pw1 = document.getElementById('resetNewPassword').value;
+            const pw2 = document.getElementById('resetNewPassword2').value;
+            if (pw1.length < 6) { msg.innerText = t.shortPw; return; }
+            if (pw1 !== pw2) { msg.innerText = t.mismatch; return; }
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/password/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(resetChannel === 'phone' ? { phone: resetEmailValue, phoneToken: resetEmailToken, newPassword: pw1 } : { email: resetEmailValue, emailToken: resetEmailToken, newPassword: pw1 })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const email = resetEmailValue;
+                    resetEmailToken = ''; resetEmailValue = '';
+                    document.getElementById('resetNewPassword').value = ''; document.getElementById('resetNewPassword2').value = '';
+                    closeResetCard();
+                    document.getElementById('loginEmail').value = email;
+                    document.getElementById('loginPassword').value = '';
+                    const lm = document.getElementById('loginMsg');
+                    lm.style.color = '#2e7d32'; lm.innerText = t.done;
+                    document.getElementById('loginPassword').focus();
+                } else if (data.needsEmailVerification) {
+                    // the proof expired or was already used: start again from the e-mail step
+                    resetEmailToken = '';
+                    setResetStage('email');
+                    document.getElementById('resetMsg').style.color = 'red';
+                    document.getElementById('resetMsg').innerText = serverMsg(data, vt().failed);
+                } else {
+                    msg.innerText = serverMsg(data, vt().failed);
+                }
+            } catch (e) {
+                msg.innerText = vt().network;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ---- Continue with Telegram: the server does the Telegram login; the page only starts it and finishes it ----
+        let tgSignupToken = '';
+
+        const tgTexts = {
+            en: {
+                btn: 'Continue with Telegram', or: 'or', title: 'Almost done!',
+                desc: (n) => `Welcome ${n}! Tell us a little more to finish your account.`,
+                dob: 'Date of birth', gender: 'Gender', country: 'Country', finish: 'Finish', cancel: 'Cancel',
+                day: 'Day', month: 'Month', year: 'Year', pickGender: 'Select gender', pickCountry: 'Select Country',
+                male: 'Male', female: 'Female', custom: 'Custom', fill: 'Please enter your date of birth, gender and country.',
+                errors: {
+                    unavailable: 'Telegram login is not available yet.',
+                    busy: 'Too many attempts. Please try again later.',
+                    failed: 'Telegram login failed. Please try again.',
+                    state: 'The login session expired. Please try again.',
+                    cancelled: 'Telegram login was cancelled.',
+                    phone_required: 'Please allow CamFeed to see your phone number in Telegram, then try again.',
+                    banned: 'Your account has been suspended.'
+                }
+            },
+            km: {
+                btn: 'បន្តជាមួយ Telegram', or: 'ឬ', title: 'ជិតរួចរាល់ហើយ!',
+                desc: (n) => `សូមស្វាគមន៍ ${n}! សូមបំពេញព័ត៌មានបន្តិចទៀតដើម្បីបញ្ចប់គណនីរបស់អ្នក។`,
+                dob: 'ថ្ងៃខែឆ្នាំកំណើត', gender: 'ភេទ', country: 'ប្រទេស', finish: 'បញ្ចប់', cancel: 'បោះបង់',
+                day: 'ថ្ងៃ', month: 'ខែ', year: 'ឆ្នាំ', pickGender: 'ជ្រើសរើសភេទ', pickCountry: 'ជ្រើសរើសប្រទេស',
+                male: 'ប្រុស', female: 'ស្រី', custom: 'ផ្សេងៗ', fill: 'សូមបញ្ចូលថ្ងៃខែឆ្នាំកំណើត ភេទ និងប្រទេស។',
+                errors: {
+                    unavailable: 'ការចូលតាម Telegram មិនទាន់អាចប្រើបានទេ។',
+                    busy: 'ព្យាយាមច្រើនពេក។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។',
+                    failed: 'ការចូលតាម Telegram បរាជ័យ។ សូមព្យាយាមម្តងទៀត។',
+                    state: 'សម័យចូលផុតកំណត់ហើយ។ សូមព្យាយាមម្តងទៀត។',
+                    cancelled: 'ការចូលតាម Telegram ត្រូវបានបោះបង់។',
+                    phone_required: 'សូមអនុញ្ញាតឱ្យ CamFeed មើលលេខទូរស័ព្ទរបស់អ្នកក្នុង Telegram រួចព្យាយាមម្តងទៀត។',
+                    banned: 'គណនីរបស់អ្នកត្រូវបានផ្អាក។'
+                }
+            }
+        };
+        function tgt() { return tgTexts[localStorage.getItem('camfeed_lang') || 'en'] || tgTexts.en; }
+
+        function applyIdentityPlaceholders() {
+            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const t = texts[lang] || texts.en;
+            const reg = document.getElementById('regEmail'), rst = document.getElementById('resetEmail');
+            if (reg) { reg.placeholder = identityPlaceholder(t); reg.setAttribute('inputmode', authOptions.phone ? 'text' : 'email'); }
+            if (rst) { rst.setAttribute('inputmode', authOptions.phone ? 'text' : 'email'); }
+            applyResetTexts();
+        }
+
+        function applyTelegramTexts() {
+            const t = tgt();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
+            set('tgLoginText', t.btn); set('tgOrText', t.or); set('tgcTitle', t.title); set('tgcDobLbl', t.dob);
+            set('tgcGenderLbl', t.gender); set('tgcCountryLbl', t.country); set('tgcBtn', t.finish); set('tgcCancel', t.cancel);
+        }
+
+        async function loadAuthOptions() {
+            try {
+                const res = await fetch('/api/auth-options');
+                const data = await res.json();
+                if (data && data.telegram) document.getElementById('tgLoginBox').classList.remove('hidden');
+                authOptions.telegram = !!(data && data.telegram);
+                authOptions.phone = !!(data && data.phone);
+                applyIdentityPlaceholders();
+            } catch (e) { /* the button simply stays hidden */ }
+        }
+
+        function showTelegramError(code) {
+            const lm = document.getElementById('loginMsg');
+            lm.style.color = 'red';
+            lm.innerText = tgt().errors[code] || tgt().errors.failed;
+        }
+
+        function addOption(sel, value, text, extra) {
+            const o = document.createElement('option');
+            o.value = value; o.innerText = text;
+            if (extra && extra.disabled) o.disabled = true;
+            if (extra && extra.selected) o.selected = true;
+            sel.appendChild(o);
+        }
+
+        function fillTelegramSelects(defaultCountry) {
+            const t = tgt();
+            const day = document.getElementById('tgDobDay'), month = document.getElementById('tgDobMonth'), year = document.getElementById('tgDobYear');
+            const gender = document.getElementById('tgGender'), country = document.getElementById('tgCountry');
+            [day, month, year, gender, country].forEach(s => { s.innerHTML = ''; });
+            addOption(day, '', t.day, { disabled: true, selected: true });
+            for (let i = 1; i <= 31; i++) addOption(day, i < 10 ? '0' + i : String(i), String(i));
+            addOption(month, '', t.month, { disabled: true, selected: true });
+            ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].forEach((m, i) => addOption(month, String(i + 1).padStart(2, '0'), m));
+            addOption(year, '', t.year, { disabled: true, selected: true });
+            const cy = new Date().getFullYear();
+            for (let y = cy; y >= cy - 100; y--) addOption(year, String(y), String(y));
+            addOption(gender, '', t.pickGender, { disabled: true, selected: true });
+            addOption(gender, 'Male', t.male); addOption(gender, 'Female', t.female); addOption(gender, 'Custom', t.custom);
+            addOption(country, '', t.pickCountry, { disabled: true, selected: !defaultCountry });
+            // same country list as the normal sign-up form
+            Array.from(document.getElementById('country').options).forEach(o => { if (o.value) addOption(country, o.value, o.innerText, { selected: o.value === defaultCountry }); });
+        }
+
+        function openTelegramComplete(token) {
+            tgSignupToken = token;
+            let name = '', cc = '';
+            try {   // the token is signed by the server; here we only read it to show a friendly name
+                const b = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+                const p = JSON.parse(decodeURIComponent(escape(atob(b))));
+                name = p.fn || ''; cc = p.cc || '';
+            } catch (e) {}
+            ['loginCard', 'registerCard', 'verifyEmailCard', 'welcomeWizardCard', 'resetCard'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            fillTelegramSelects(cc);
+            applyTelegramTexts();
+            document.getElementById('tgcDesc').innerText = tgt().desc(name);
+            document.getElementById('tgcMsg').innerText = '';
+            document.getElementById('tgCompleteCard').classList.remove('hidden');
+        }
+
+        async function completeTelegramSignup() {
+            const msg = document.getElementById('tgcMsg');
+            const btn = document.getElementById('tgcBtn');
+            msg.style.color = 'red'; msg.innerText = '';
+            const d = document.getElementById('tgDobDay').value, m = document.getElementById('tgDobMonth').value, y = document.getElementById('tgDobYear').value;
+            const gender = document.getElementById('tgGender').value, country = document.getElementById('tgCountry').value;
+            if (!d || !m || !y || !gender || !country) { msg.innerText = tgt().fill; return; }
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/telegram/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: tgSignupToken, birthdate: `${d}-${m}-${y}`, gender, country })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                    window.location.href = 'feed.html';
+                    return;
+                }
+                msg.innerText = serverMsg(data, tgt().errors.failed);
+            } catch (e) {
+                msg.innerText = vt().network;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // runs when the page opens: did Telegram just send the person back to us?
+        async function handleTelegramReturn() {
+            const params = new URLSearchParams(window.location.search);
+            const hash = window.location.hash || '';
+            const m = /^#(tg_login|tg_signup)=(.+)$/.exec(hash);
+            if (params.get('tg_error') || m) history.replaceState(null, '', window.location.pathname);   // remove the code from the address bar / history
+            if (params.get('tg_error')) { showTelegramError(params.get('tg_error')); return; }
+            if (!m) return;
+            const token = decodeURIComponent(m[2]);
+            if (m[1] === 'tg_signup') { openTelegramComplete(token); return; }
+            try {
+                const res = await fetch('/api/telegram/exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                    window.location.href = 'feed.html';
+                } else {
+                    const lm = document.getElementById('loginMsg');
+                    lm.style.color = 'red'; lm.innerText = serverMsg(data, tgt().errors.failed);
+                }
+            } catch (e) {
+                showTelegramError('failed');
             }
         }
 
@@ -736,6 +1247,12 @@
                     turnstileToken: getTurnstileToken(),
                     emailToken: signupEmailToken
                 };
+                if (signupChannel === 'phone') {     // phone sign-up: the verified number is the identity, no e-mail
+                    latestUserData.phone = latestUserData.email;
+                    latestUserData.phoneToken = signupEmailToken;
+                    latestUserData.email = '';
+                    delete latestUserData.emailToken;
+                }
 
                 const res = await fetch('/api/register', {
                     method: 'POST',
