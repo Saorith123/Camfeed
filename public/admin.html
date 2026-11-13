@@ -109,6 +109,7 @@
             <button class="tab-btn" id="tabBtn-reports" onclick="switchAdminTab('reports')">🚩 Reports Queue</button>
             <button class="tab-btn" id="tabBtn-users" onclick="switchAdminTab('users')">👥 All Users & Team Admins</button>
             <button class="tab-btn" id="tabBtn-posts" onclick="switchAdminTab('posts')">🎬 Posts & Videos</button>
+            <button class="tab-btn" id="tabBtn-accounts" onclick="switchAdminTab('accounts')">👤 Create Account / Reset Password</button>
         </div>
 
         <!-- Tab 0: Monetization Approvals -->
@@ -163,6 +164,44 @@
                 <tbody id="postsTableBody"></tbody>
             </table>
         </div>
+
+        <!-- Tab 4: accounts made / fixed by hand (people who contacted us on Telegram) -->
+        <div class="panel" id="panel-accounts" style="display:none;">
+            <div style="max-width:560px;margin:0 auto;padding:6px 4px;">
+                <h3 style="margin:4px 0 4px;">Create an account for someone</h3>
+                <p style="margin:0 0 12px;color:#65676b;font-size:14px;">For a person who messaged us on Telegram instead of using a phone code. Ask them to use Telegram's "Share contact" so the number you type is really theirs.</p>
+                <div style="display:grid;gap:8px;">
+                    <select id="acKind" onchange="acKindChanged()" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                        <option value="phone">Phone number</option>
+                        <option value="email">Gmail / e-mail</option>
+                    </select>
+                    <input id="acPhone" type="text" inputmode="tel" placeholder="Phone number (e.g. 096 282 9738 or +66 81 234 5678)" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    <input id="acEmail" type="text" inputmode="email" placeholder="name@gmail.com" style="display:none;padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <input id="acFirst" type="text" maxlength="60" placeholder="First name" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                        <input id="acLast" type="text" maxlength="60" placeholder="Last name" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <select id="acGender" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;"><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select>
+                        <input id="acBirth" type="date" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    </div>
+                    <select id="acCountry" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                        <option>Cambodia</option><option>Thailand</option><option>Vietnam</option><option>China</option><option>Japan</option><option>South Korea</option><option>France</option><option>Australia</option><option>United States</option><option>Canada</option><option>United Kingdom</option><option>Other</option>
+                    </select>
+                    <input id="acPassword" type="text" maxlength="128" placeholder="Password (leave empty to make a random one)" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    <button type="button" id="acCreateBtn" onclick="adminCreateUser()" style="padding:11px;border:0;border-radius:8px;background:#1877f2;color:#fff;font-weight:700;cursor:pointer;">Create account</button>
+                </div>
+                <hr style="margin:22px 0;border:0;border-top:1px solid #e4e6eb;">
+                <h3 style="margin:4px 0 4px;">Reset a password</h3>
+                <p style="margin:0 0 12px;color:#65676b;font-size:14px;">Only after you are sure the person owns the account (for example they share the phone number from their own Telegram). All their devices are logged out.</p>
+                <div style="display:grid;gap:8px;">
+                    <input id="rsIdent" type="text" placeholder="Phone number or e-mail of the account" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    <input id="rsPassword" type="text" maxlength="128" placeholder="New password (leave empty to make a random one)" style="padding:10px;border:1px solid #ccd0d5;border-radius:8px;">
+                    <button type="button" id="rsBtn" onclick="adminResetPassword()" style="padding:11px;border:0;border-radius:8px;background:#e41e3f;color:#fff;font-weight:700;cursor:pointer;">Reset password</button>
+                </div>
+                <div id="acResult" style="display:none;margin-top:16px;padding:14px;border-radius:10px;background:#e7f3ff;color:#0b4fb3;font-size:15px;line-height:1.6;word-break:break-word;"></div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -216,16 +255,73 @@
                 document.getElementById('adminDashboard').style.display = 'block';
                 loadMonetizationRequests();
                 renderDashboard();
+                if (window.onAdminUnlocked) window.onAdminUnlocked();
             } catch (err) {
                 errEl.innerText = 'Server error: ' + err.message;
             }
         }
 
+
+        // ---- accounts made / fixed by hand ----
+        function acKindChanged() {
+            const phone = document.getElementById('acKind').value === 'phone';
+            document.getElementById('acPhone').style.display = phone ? '' : 'none';
+            document.getElementById('acEmail').style.display = phone ? 'none' : '';
+        }
+        function showAcResult(ok, lines) {
+            const box = document.getElementById('acResult');
+            box.style.display = 'block';
+            box.style.background = ok ? '#e6f4ea' : '#fdecee';
+            box.style.color = ok ? '#176f35' : '#9b1229';
+            box.textContent = '';
+            lines.forEach((l, i) => { if (i) box.appendChild(document.createElement('br')); box.appendChild(document.createTextNode(l)); });
+        }
+        async function adminCreateUser() {
+            const btn = document.getElementById('acCreateBtn');
+            const kind = document.getElementById('acKind').value;
+            const b = document.getElementById('acBirth').value;
+            const body = {
+                adminEmail: currentUser.email, adminKey: savedAdminKey, kind,
+                phone: document.getElementById('acPhone').value.trim(), loginEmail: document.getElementById('acEmail').value.trim(),
+                firstName: document.getElementById('acFirst').value.trim(), lastName: document.getElementById('acLast').value.trim(),
+                gender: document.getElementById('acGender').value, country: document.getElementById('acCountry').value,
+                birthdate: b ? `${b.slice(8, 10)}-${b.slice(5, 7)}-${b.slice(0, 4)}` : '', password: document.getElementById('acPassword').value
+            };
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const d = await res.json();
+                if (d.success) {
+                    const lines = ['✅ Account created for ' + d.name, 'Login: ' + d.login + (d.kind === 'phone' ? ' (log in with this phone number)' : '')];
+                    lines.push(d.tempPassword ? 'Temporary password: ' + d.tempPassword : 'Password: the one you typed');
+                    lines.push('Send these to the person on Telegram. Tell them to change the password in Settings → Login and security → Change password.');
+                    showAcResult(true, lines);
+                    ['acPhone', 'acEmail', 'acFirst', 'acLast', 'acPassword'].forEach(id => { document.getElementById(id).value = ''; });
+                } else showAcResult(false, ['❌ ' + (d.error || 'Could not create the account.')]);
+            } catch (e) { showAcResult(false, ['❌ Server connection error.']); }
+            btn.disabled = false;
+        }
+        async function adminResetPassword() {
+            const btn = document.getElementById('rsBtn');
+            const ident = document.getElementById('rsIdent').value.trim();
+            if (!ident) return showAcResult(false, ['❌ Please enter the phone number or e-mail of the account.']);
+            if (!confirm('Reset the password of ' + ident + '? All their devices will be logged out.')) return;
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminEmail: currentUser.email, adminKey: savedAdminKey, identifier: ident, newPassword: document.getElementById('rsPassword').value }) });
+                const d = await res.json();
+                if (d.success) {
+                    showAcResult(true, ['✅ Password reset for ' + d.login, d.tempPassword ? 'Temporary password: ' + d.tempPassword : 'Password: the one you typed', 'Send it to the person on Telegram and tell them to change it in Settings → Login and security.']);
+                    document.getElementById('rsIdent').value = ''; document.getElementById('rsPassword').value = '';
+                } else showAcResult(false, ['❌ ' + (d.error || 'Could not reset the password.')]);
+            } catch (e) { showAcResult(false, ['❌ Server connection error.']); }
+            btn.disabled = false;
+        }
+
         function switchAdminTab(tab) {
-            ['monetization', 'reports', 'users', 'posts'].forEach(t => {
-                document.getElementById(`tabBtn-${t}`).classList.toggle('active', t === tab);
-                document.getElementById(`panel-${t}`).style.display = t === tab ? 'block' : 'none';
-            });
+            document.querySelectorAll('.tabs-bar .tab-btn').forEach(b => b.classList.toggle('active', b.id === `tabBtn-${tab}`));
+            document.querySelectorAll('#adminDashboard > .panel').forEach(p => { p.style.display = p.id === `panel-${tab}` ? 'block' : 'none'; });
+            if (window.onAdminTab) window.onAdminTab(tab);
         }
 
         function renderDashboard() {
@@ -461,5 +557,6 @@
             if (data.success) unlockAdmin();
         }
     </script>
+    <script src="admin-tools.js"></script>
 </body>
 </html>

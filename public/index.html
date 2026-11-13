@@ -588,7 +588,9 @@
                 needEmailOrPhone: 'Please enter a valid Gmail / email or phone number.',
                 pickCountryFirst: 'Please choose your country below so we can read your phone number.',
                 tabEmail: 'Gmail / Email', tabPhone: 'Phone number', needPhone: 'Please enter a valid phone number.',
-                phoneSoon: 'Sign-up with a phone number (code sent to your Telegram) is coming soon. Please use your Gmail for now.',
+                phoneSoon: 'Sign-up with a phone number is paused for now. Please use your Gmail, or message us on Telegram and we will create your account for you.',
+            phoneResetPaused: 'Password reset by phone number is paused for now. Please message us on Telegram and we will help you.',
+            contactTg: '💬 Message us on Telegram',
                 phoneResetNote: 'Enter the phone number you registered. For a number outside Cambodia, start with + and your country code (for example +66 81 234 5678).',
                 phoneHint: 'Phone number: choose your country below, or start with + and your country code (for example +66 81 234 5678).',
                 descPhone: (m) => `We sent a 6-digit code to your Telegram (${m}). Open Telegram and enter the code below.`
@@ -605,7 +607,9 @@
                 needEmailOrPhone: 'សូមបញ្ចូល Gmail / អ៊ីមែល ឬលេខទូរស័ព្ទត្រឹមត្រូវ។',
                 pickCountryFirst: 'សូមជ្រើសរើសប្រទេសរបស់អ្នកខាងក្រោម ដើម្បីឱ្យយើងអានលេខទូរស័ព្ទរបស់អ្នក។',
                 tabEmail: 'Gmail / អ៊ីមែល', tabPhone: 'លេខទូរស័ព្ទ', needPhone: 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។',
-                phoneSoon: 'ការចុះឈ្មោះដោយលេខទូរស័ព្ទ (លេខកូដផ្ញើទៅ Telegram) នឹងមកដល់ឆាប់ៗ។ សូមប្រើ Gmail របស់អ្នកសិនឥឡូវនេះ។',
+                phoneSoon: 'ការចុះឈ្មោះដោយលេខទូរស័ព្ទកំពុងផ្អាកបណ្តោះអាសន្ន។ សូមប្រើ Gmail ឬទាក់ទងយើងតាម Telegram ដើម្បីឱ្យយើងបង្កើតគណនីឱ្យអ្នក។',
+            phoneResetPaused: 'ការកំណត់ពាក្យសម្ងាត់ដោយលេខទូរស័ព្ទកំពុងផ្អាកបណ្តោះអាសន្ន។ សូមទាក់ទងយើងតាម Telegram ហើយយើងនឹងជួយអ្នក។',
+            contactTg: '💬 ទាក់ទងយើងតាម Telegram',
                 phoneResetNote: 'បញ្ចូលលេខទូរស័ព្ទដែលអ្នកបានចុះឈ្មោះ។ បើលេខនៅក្រៅកម្ពុជា សូមចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។',
                 phoneHint: 'លេខទូរស័ព្ទ៖ ជ្រើសរើសប្រទេសខាងក្រោម ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។',
                 descPhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលលេខកូដខាងក្រោម។`
@@ -668,7 +672,7 @@
 
             const isPhone = identityMode === 'phone';                     // the selected tab decides: a phone number gets its code inside Telegram
             if (isPhone) {
-                if (!authOptions.phone) { msg.innerText = t.phoneSoon; return; }
+                if (!authOptions.phone) { msg.innerText = vt().phoneSoon; return; }
                 if (!looksLikePhone(email)) { msg.innerText = t.needPhone; return; }
                 if (!document.getElementById('country').value) { msg.innerText = t.pickCountryFirst; return; }
             } else if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
@@ -873,7 +877,7 @@
             const email = document.getElementById('resetEmail').value.trim();
             const isPhone = resetMode === 'phone';
             if (isPhone) {
-                if (!authOptions.phone) { msg.innerText = t.phoneSoon; return; }
+                if (!authOptions.phone) { msg.innerText = vt().phoneResetPaused; return; }
                 if (!looksLikePhone(email)) { msg.innerText = t.needPhone; return; }
             } else if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
             if (turnstileEnabled() && !getResetTurnstileToken()) { msg.innerText = t.needHuman; return; }
@@ -1013,12 +1017,22 @@
             }
         }
 
+        // a button to message us on Telegram (only a plain https://t.me/<username> link is ever used)
+        function addTelegramLink(box, show, label) {
+            if (!show || !/^https:\/\/t\.me\/[A-Za-z][A-Za-z0-9_]{4,31}$/.test(authOptions.telegramContact || '')) return;
+            box.appendChild(document.createElement('br'));
+            const a = document.createElement('a');
+            a.href = authOptions.telegramContact; a.target = '_blank'; a.rel = 'noopener'; a.textContent = label; a.style.cssText = 'font-weight:700;display:inline-block;margin-top:6px';
+            box.appendChild(a);
+        }
+
         // ---- Which options does the server offer? (phone numbers get their code inside Telegram once the server has the Gateway key) ----
         async function loadAuthOptions() {
             try {
                 const res = await fetch('/api/auth-options');
                 const data = await res.json();
                 authOptions.phone = !!(data && data.phone);
+                authOptions.telegramContact = String((data && data.telegramContact) || '');
                 applyIdentityPlaceholders();
             } catch (e) { /* the form simply stays Gmail-only */ }
         }
@@ -1055,6 +1069,7 @@
                 hint.classList.toggle('hidden', !show);
                 hint.classList.toggle('warn', show && !authOptions.phone);
                 hint.innerText = show ? (authOptions.phone ? v.phoneHint : v.phoneSoon) : '';
+                addTelegramLink(hint, show && !authOptions.phone, v.contactTg);
             }
             // forgot-password form
             setTab(resetMode === 'phone' ? 'rTabPhone' : 'rTabEmail', resetMode === 'phone' ? 'rTabEmail' : 'rTabPhone');
@@ -1069,7 +1084,8 @@
                 const show = resetMode === 'phone';
                 rnote.classList.toggle('hidden', !show);
                 rnote.classList.toggle('warn', show && !authOptions.phone);
-                rnote.innerText = show ? (authOptions.phone ? v.phoneResetNote : v.phoneSoon) : '';
+                rnote.innerText = show ? (authOptions.phone ? v.phoneResetNote : v.phoneResetPaused) : '';
+                addTelegramLink(rnote, show && !authOptions.phone, v.contactTg);
             }
             applyResetTexts();
         }

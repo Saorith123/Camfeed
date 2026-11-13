@@ -17,7 +17,7 @@ const { createSignupVerification, createPasswordReset, EMAIL_RE } = require('./s
 const { createTelegramLogin, isTelegramAddress } = require('./telegram-login');
 const gateway = require('./telegram-gateway');
 const { createPublicIds } = require('./public-ids');
-const { createPhoneVerification, normalizePhone, phoneEmail, findAccountEmail } = require('./phone-verification');
+const { createPhoneVerification, normalizePhone, phoneEmail, findAccountEmail, phoneIdentities: phoneIdentitiesOf } = require('./phone-verification');
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
@@ -187,6 +187,10 @@ pool.connect(async (err, client, release) => {
     await pool.query(`CREATE TABLE IF NOT EXISTS user_interest_scores (
       user_email TEXT NOT NULL, category TEXT NOT NULL, score DOUBLE PRECISION NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (user_email, category))`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS admin_audit (
+      id SERIAL PRIMARY KEY, at TIMESTAMPTZ NOT NULL DEFAULT NOW(), admin_email TEXT, action VARCHAR(60), target TEXT, details TEXT)`);
+    await pool.query("DELETE FROM admin_audit WHERE at < NOW() - INTERVAL '180 days'");
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()');   // joined date (accounts that existed before this get the day of the update)
     await pool.query("DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL '90 days'");
   } catch (e) {
     console.error('email verification schema notice:', e.message);
@@ -372,7 +376,13 @@ app.get('/auth/telegram/start', tgLogin.start);
 app.get('/auth/telegram/callback', tgLogin.callback);
 app.post('/api/telegram/exchange', tgLogin.exchange);
 app.post('/api/telegram/complete', tgLogin.complete);
-app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: gateway.isConfigured() }));
+// Where people can message us on Telegram (set SUPPORT_TELEGRAM=yourusername in Render). Only a plain https://t.me/<username> link is ever given out.
+function supportTelegramLink() {
+  const v = String(process.env.SUPPORT_TELEGRAM || '').trim();
+  const m = /^(?:https?:\/\/)?(?:t\.me\/|telegram\.me\/)?@?([A-Za-z][A-Za-z0-9_]{4,31})$/.exec(v);
+  return m ? 'https://t.me/' + m[1] : '';
+}
+app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: gateway.isConfigured(), telegramContact: supportTelegramLink() }));
 
 // Phone number + a code that arrives inside the person's Telegram (Telegram Gateway)
 const phoneFlow = (req) => (req.body && req.body.purpose === 'reset' ? phoneReset : phoneSignup);
@@ -2177,6 +2187,7 @@ app.post('/api/admin/set-role', async (req, res) => {
     }
     const safeRole = newRole === 'admin' ? 'admin' : 'user';
     await pool.query('UPDATE users SET role = $1 WHERE email = $2', [safeRole, targetEmail]);
+    audit(adminEmail, 'set-role', targetEmail, safeRole);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2194,10 +2205,316 @@ app.post('/api/admin/ban-user', async (req, res) => {
     }
     await pool.query('UPDATE users SET is_banned = $1 WHERE email = $2', [!!ban, targetEmail]);
     authCore.invalidate(targetEmail);
+    audit(adminEmail, ban ? 'ban-user' : 'unban-user', targetEmail, '');
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+
+// ---------------------------------------------------------------------------
+// Accounts made / fixed BY HAND by an admin (for people who contact us on Telegram while phone codes are paused)
+// ---------------------------------------------------------------------------
+function makeTempPassword() {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';            // no look-alike letters (l, 1, o, 0, i)
+  const bytes = require('crypto').randomBytes(10);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+}
+const cleanName = (v) => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+
+app.post('/api/admin/create-user', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const access = await verifyAdminAccess(b.adminEmail, b.adminKey);
+    if (!access.allowed) return res.status(403).json({ success: false, error: access.error });
+    const firstName = cleanName(b.firstName), lastName = cleanName(b.lastName);
+    if (!firstName || !lastName) return res.status(400).json({ success: false, error: 'Please enter the first and the last name.' });
+    const gender = ['Male', 'Female', 'Other'].includes(b.gender) ? b.gender : 'Male';
+    const country = cleanName(b.country) || 'Cambodia';
+    const birth = normalizeBirthdate(b.birthdate || '');
+    if (birth === undefined) return res.status(400).json({ success: false, error: 'Invalid date of birth.' });
+    let password = String(b.password || '');
+    const generated = !password;
+    if (generated) password = makeTempPassword();
+    if (password.length < 6 || password.length > 128) return res.status(400).json({ success: false, error: 'The password needs 6 to 128 characters.' });
+
+    let email, phoneE164 = null, login;
+    if (String(b.kind) === 'phone') {
+      phoneE164 = normalizePhone(b.phone, country);
+      if (!phoneE164) return res.status(400).json({ success: false, error: 'That phone number is not valid. For a number outside Cambodia choose its country or start with + and the country code.' });
+      if (await findAccountEmail(pool, phoneE164)) return res.status(409).json({ success: false, error: 'This phone number already has an account.' });
+      email = phoneEmail(phoneE164); login = phoneE164;
+    } else {
+      email = String(b.loginEmail || '').trim();
+      if (!EMAIL_RE.test(email) || email.length > 254 || isTelegramAddress(email)) return res.status(400).json({ success: false, error: 'Please enter a valid e-mail address (for example name@gmail.com).' });
+      const dup = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+      if (dup.rows.length) return res.status(409).json({ success: false, error: 'This e-mail already has an account.' });
+      login = email;
+    }
+    const hashed = await auth.hashPassword(password);
+    const ins = await pool.query(
+      `INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role, phone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'private', 'private', 'user', $8) RETURNING email`,
+      [email, hashed, firstName, lastName, birth, gender, country, phoneE164]);
+    if (phoneE164 === null) pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [ins.rows[0].email]).catch(() => {});
+    console.log('[admin] an admin created an account by hand (' + (phoneE164 ? 'phone' : 'e-mail') + ')');
+    audit(b.adminEmail, 'create-account', login, kind_for_audit(phoneE164));
+    res.status(201).json({ success: true, login, kind: phoneE164 ? 'phone' : 'email', name: `${firstName} ${lastName}`, tempPassword: generated ? password : undefined });
+  } catch (err) {
+    if (err && err.code === '23505') return res.status(409).json({ success: false, error: 'This login already has an account.' });
+    console.error('[admin] create-user error:', err.message);
+    res.status(500).json({ success: false, error: 'Something went wrong. Please try again.' });
+  }
+});
+
+app.post('/api/admin/reset-password', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const access = await verifyAdminAccess(b.adminEmail, b.adminKey);
+    if (!access.allowed) return res.status(403).json({ success: false, error: access.error });
+    const ident = String(b.identifier || '').trim();
+    if (!ident) return res.status(400).json({ success: false, error: 'Please enter the phone number or e-mail of the account.' });
+    let stored = null;
+    if (ident.includes('@')) {
+      const r0 = await pool.query('SELECT email FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [ident]);
+      stored = r0.rows[0] ? r0.rows[0].email : null;
+    } else {
+      const e164 = normalizePhone(ident, b.country);
+      stored = e164 ? await findAccountEmail(pool, e164) : null;
+    }
+    if (!stored) return res.status(404).json({ success: false, error: 'No account was found for that phone number / e-mail.' });
+    const t = await pool.query('SELECT email, role FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [stored]);
+    const target = t.rows[0];
+    // only a Super Admin may change the password of an admin
+    if ((target.role === 'admin' || target.role === 'super_admin' || SUPER_ADMIN_EMAILS.includes(String(target.email).toLowerCase())) && !access.isSuperAdmin) {
+      return res.status(403).json({ success: false, error: 'Only a Super Admin can reset the password of an admin.' });
+    }
+    let password = String(b.newPassword || '');
+    const generated = !password;
+    if (generated) password = makeTempPassword();
+    if (password.length < 6 || password.length > 128) return res.status(400).json({ success: false, error: 'The password needs 6 to 128 characters.' });
+    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [await auth.hashPassword(password), target.email]);
+    authCore.invalidate(target.email);
+    try { await authCore.revokeAll(target.email); } catch (e) { /* the old tokens carry the old password and stop working anyway */ }
+    console.log('[admin] an admin reset a password by hand');
+    audit(b.adminEmail, 'reset-password', target.email, generated ? 'temporary password' : 'password typed by admin');
+    res.json({ success: true, login: ident, tempPassword: generated ? password : undefined });
+  } catch (err) {
+    console.error('[admin] reset-password error:', err.message);
+    res.status(500).json({ success: false, error: 'Something went wrong. Please try again.' });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Admin tools: audit log, overview, user search / details / edit, content search, system check
+// ---------------------------------------------------------------------------
+function audit(adminEmail, action, target, details) {
+  pool.query('INSERT INTO admin_audit (admin_email, action, target, details) VALUES ($1, $2, $3, $4)',
+    [String(adminEmail || '').slice(0, 254), String(action).slice(0, 60), String(target === undefined || target === null ? '' : target).slice(0, 254), String(details || '').slice(0, 500)]).catch(() => {});
+}
+const kind_for_audit = (phoneE164) => (phoneE164 ? 'phone account' : 'e-mail account');
+async function adminGate(req, res) {
+  const b = req.body || {};
+  const access = await verifyAdminAccess(b.adminEmail, b.adminKey);
+  if (!access.allowed) { res.status(403).json({ success: false, error: access.error }); return null; }
+  return Object.assign({}, access, { adminEmail: String(b.adminEmail || '').trim() });
+}
+const clampInt = (v, d, lo, hi) => Math.min(Math.max(parseInt(v, 10) || d, lo), hi);
+const likeEsc = (v) => String(v || '').replace(/[\\%_]/g, '\\$&');
+const countOf = async (sql) => { try { const r = await pool.query(sql); return Number(r.rows[0] && Object.values(r.rows[0])[0]) || 0; } catch (e) { return null; } };
+const seriesOf = async (sql) => { try { return (await pool.query(sql)).rows.map((r) => ({ day: r.day, n: Number(r.n) || 0 })); } catch (e) { return []; } };
+const isAdminRole = (role, email) => role === 'admin' || role === 'super_admin' || SUPER_ADMIN_EMAILS.includes(String(email || '').toLowerCase());
+const loginKind = (email) => (isTelegramAddress(email) || /^\+?\d{8,15}$/.test(String(email)) ? 'phone' : 'email');
+const loginContact = (u) => {
+  const e = String(u.email || '');
+  if (isTelegramAddress(e)) return u.phone || ('+' + e.replace(/^ph/, '').split('@')[0].replace(/\D/g, ''));
+  return e;
+};
+const adminUserRow = (u) => ({
+  email: u.email, public_id: u.public_id || '', first_name: u.first_name || '', last_name: u.last_name || '', profile_pic: u.profile_pic || '', country: u.country || '',
+  role: u.role || 'user', is_banned: !!u.is_banned, login_kind: loginKind(u.email), contact: loginContact(u), created_at: u.created_at || null, last_active: u.last_active || null,
+  posts_count: Number(u.posts_count) || 0, followers_count: Number(u.followers_count) || 0
+});
+
+app.post('/api/admin/overview', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const [users, usersToday, users7, users30, activeNow, active24, banned, admins, posts, videos, images, posts24, comments, reactions, follows, messages, reportsPending, openChats] = await Promise.all([
+      countOf('SELECT COUNT(*) FROM users'), countOf("SELECT COUNT(*) FROM users WHERE created_at >= date_trunc('day', NOW())"),
+      countOf("SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '7 days'"), countOf("SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '30 days'"),
+      countOf("SELECT COUNT(*) FROM users WHERE last_active >= NOW() - INTERVAL '5 minutes'"), countOf("SELECT COUNT(*) FROM users WHERE last_active >= NOW() - INTERVAL '24 hours'"),
+      countOf('SELECT COUNT(*) FROM users WHERE COALESCE(is_banned, FALSE)'), countOf("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'super_admin')"),
+      countOf('SELECT COUNT(*) FROM posts'), countOf("SELECT COUNT(*) FROM posts WHERE media_type = 'video'"), countOf("SELECT COUNT(*) FROM posts WHERE media_type = 'image'"),
+      countOf("SELECT COUNT(*) FROM posts WHERE created_at >= NOW() - INTERVAL '24 hours'"), countOf('SELECT COUNT(*) FROM comments'), countOf('SELECT COUNT(*) FROM likes'),
+      countOf('SELECT COUNT(*) FROM follows'), countOf('SELECT COUNT(*) FROM messages'), countOf("SELECT COUNT(*) FROM reports WHERE status = 'pending'"), countOf('SELECT COUNT(*) FROM blocked_users')
+    ]);
+    const signups = await seriesOf(`SELECT to_char(g.d, 'YYYY-MM-DD') AS day, COUNT(u.email)::int AS n FROM generate_series((CURRENT_DATE - INTERVAL '13 days')::date, CURRENT_DATE, INTERVAL '1 day') AS g(d)
+      LEFT JOIN users u ON u.created_at::date = g.d::date GROUP BY g.d ORDER BY g.d`);
+    const postsSeries = await seriesOf(`SELECT to_char(g.d, 'YYYY-MM-DD') AS day, COUNT(p.id)::int AS n FROM generate_series((CURRENT_DATE - INTERVAL '13 days')::date, CURRENT_DATE, INTERVAL '1 day') AS g(d)
+      LEFT JOIN posts p ON p.created_at::date = g.d::date GROUP BY g.d ORDER BY g.d`);
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, totals: { users, usersToday, users7, users30, activeNow, active24, banned, admins, posts, videos, images, posts24, comments, reactions, follows, messages, reportsPending, blocks: openChats }, series: { signups, posts: postsSeries } });
+  } catch (err) { console.error('[admin] overview error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/users/search', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const q = String(b.query || '').trim().slice(0, 100);
+    const role = ['user', 'admin', 'super_admin'].includes(b.role) ? b.role : '';
+    const status = ['active', 'banned'].includes(b.status) ? b.status : '';
+    const limit = clampInt(b.limit, 25, 1, 50), offset = clampInt(b.offset, 0, 0, 100000);
+    const ids = [q.toLowerCase()]; const phones = [];
+    const e164 = q ? normalizePhone(q, b.country) : null;
+    if (e164) { for (const id of phoneIdentitiesOf(e164)) ids.push(id); const d = e164.slice(1); phones.push(d); if (d.startsWith('855')) phones.push('0' + d.slice(3)); }
+    const r = await pool.query(
+      `SELECT u.email, u.public_id, u.first_name, u.last_name, u.profile_pic, u.country, u.role, u.is_banned, u.phone, u.created_at, u.last_active,
+              (SELECT COUNT(*) FROM posts p WHERE p.user_email = u.email) AS posts_count, (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) AS followers_count
+       FROM users u
+       WHERE ($1 = '' OR u.first_name ILIKE $2 OR u.last_name ILIKE $2 OR (u.first_name || ' ' || u.last_name) ILIKE $2 OR LOWER(u.email) = ANY($3::text[]) OR u.public_id = $4
+              OR regexp_replace(COALESCE(u.phone, ''), '\\D', '', 'g') = ANY($5::text[]))
+         AND ($6 = '' OR u.role = $6) AND ($7 = '' OR ($7 = 'banned' AND COALESCE(u.is_banned, FALSE)) OR ($7 = 'active' AND NOT COALESCE(u.is_banned, FALSE)))
+       ORDER BY u.created_at DESC NULLS LAST, u.first_name ASC LIMIT $8 OFFSET $9`,
+      [q, `%${likeEsc(q)}%`, ids, /^\d{15}$/.test(q) ? q : '', phones, role, status, limit, offset]);
+    res.json({ success: true, users: r.rows.map(adminUserRow), hasMore: r.rows.length === limit });
+  } catch (err) { console.error('[admin] user search error:', err.message); res.status(500).json({ success: false, error: 'Could not search.' }); }
+});
+
+async function loadAdminTarget(b) {
+  const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [String(b.target || '')]);
+  return r.rows[0] || null;
+}
+const deniedForAdmin = (a, u) => isAdminRole(u.role, u.email) && !a.isSuperAdmin;
+
+app.post('/api/admin/users/detail', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const u = await loadAdminTarget(b); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    const one = async (sql) => { try { return Number((await pool.query(sql, [u.email])).rows[0].count) || 0; } catch (e) { return null; } };
+    const [posts, comments, reactionsGiven, followers, following, reportsAgainst, reportsMade, blockedBy] = await Promise.all([
+      one('SELECT COUNT(*) FROM posts WHERE user_email = $1'), one('SELECT COUNT(*) FROM comments WHERE user_email = $1'), one('SELECT COUNT(*) FROM likes WHERE user_email = $1'),
+      one('SELECT COUNT(*) FROM follows WHERE following_email = $1'), one('SELECT COUNT(*) FROM follows WHERE follower_email = $1'),
+      one('SELECT COUNT(*) FROM reports WHERE target_user_email = $1'), one('SELECT COUNT(*) FROM reports WHERE reporter_email = $1'), one('SELECT COUNT(*) FROM blocked_users WHERE blocked_email = $1')
+    ]);
+    let sessions = []; try { sessions = (await authCore.listSessions(u.email)).slice(0, 10); } catch (e) {}
+    let recentPosts = []; try { recentPosts = (await pool.query("SELECT id, content, media_type, privacy, created_at FROM posts WHERE user_email = $1 ORDER BY created_at DESC LIMIT 5", [u.email])).rows; } catch (e) {}
+    const profile = {};
+    for (const k of ['bio', 'gender', 'birthdate', 'location', 'work', 'relationship_status', 'phone', 'email_verified']) profile[k] = u[k] === undefined ? null : u[k];
+    res.json({ success: true, canManage: !deniedForAdmin(a, u), isSuperAdmin: a.isSuperAdmin,
+      user: Object.assign(adminUserRow(u), { profile, has_telegram: !!u.telegram_id, has_password: !!u.password, name_changed_at: u.name_changed_at || null }),
+      counts: { posts, comments, reactionsGiven, followers, following, reportsAgainst, reportsMade, blockedBy }, sessions, recentPosts });
+  } catch (err) { console.error('[admin] user detail error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/users/update', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const u = await loadAdminTarget(b); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    if (deniedForAdmin(a, u)) return res.status(403).json({ success: false, error: 'Only a Super Admin can edit an admin.' });
+    const f = b.fields && typeof b.fields === 'object' ? b.fields : {};
+    const LIMITS = { first_name: 60, last_name: 60, bio: 500, location: 150, work: 150, relationship_status: 100, country: 60, phone: 30 };
+    const sets = [], vals = [], changed = [];
+    for (const [k, max] of Object.entries(LIMITS)) {
+      if (!(k in f)) continue;
+      const v = String(f[k] === null ? '' : f[k]).replace(/\s+/g, ' ').trim().slice(0, max);
+      if ((k === 'first_name' || k === 'last_name') && !v) return res.status(400).json({ success: false, error: 'The name can not be empty.' });
+      vals.push(v); sets.push(`${k} = $${vals.length}`); changed.push(k);
+    }
+    if ('gender' in f) { if (!['Male', 'Female', 'Other'].includes(f.gender)) return res.status(400).json({ success: false, error: 'Invalid gender.' }); vals.push(f.gender); sets.push(`gender = $${vals.length}`); changed.push('gender'); }
+    if ('birthdate' in f) { const bd = normalizeBirthdate(f.birthdate || ''); if (bd === undefined) return res.status(400).json({ success: false, error: 'Invalid date of birth.' }); vals.push(bd); sets.push(`birthdate = $${vals.length}`); changed.push('birthdate'); }
+    if ('email_verified' in f) { vals.push(!!f.email_verified); sets.push(`email_verified = $${vals.length}`); changed.push('email_verified'); }
+    if (!sets.length) return res.status(400).json({ success: false, error: 'Nothing to change.' });
+    vals.push(u.email);
+    await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE email = $${vals.length}`, vals);
+    authCore.invalidate(u.email);
+    audit(a.adminEmail, 'edit-profile', u.email, changed.join(', '));
+    res.json({ success: true, changed });
+  } catch (err) { console.error('[admin] user update error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+app.post('/api/admin/users/logout-all', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const u = await loadAdminTarget(b); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    if (deniedForAdmin(a, u)) return res.status(403).json({ success: false, error: 'Only a Super Admin can do this to an admin.' });
+    await pool.query('UPDATE users SET sessions_epoch = COALESCE(sessions_epoch, 0) + 1 WHERE email = $1', [u.email]);    // also ends logins from before device tracking
+    authCore.invalidate(u.email);
+    let n = 0; try { n = await authCore.revokeAll(u.email); } catch (e) {}
+    audit(a.adminEmail, 'force-logout', u.email, n + ' device(s)');
+    res.json({ success: true, devices: n });
+  } catch (err) { console.error('[admin] force logout error:', err.message); res.status(500).json({ success: false, error: 'Could not do that.' }); }
+});
+
+app.post('/api/admin/posts/search', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const q = String(b.query || '').trim().slice(0, 100);
+    const type = ['text', 'image', 'video'].includes(b.type) ? b.type : '', privacy = ['public', 'private'].includes(b.privacy) ? b.privacy : '';
+    const limit = clampInt(b.limit, 25, 1, 50), offset = clampInt(b.offset, 0, 0, 100000);
+    const r = await pool.query(
+      `SELECT p.id, p.content, p.media_type, p.privacy, p.created_at, p.views_count, p.ai_category, p.user_email, u.first_name, u.last_name,
+              (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS likes_count, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comments_count
+       FROM posts p JOIN users u ON u.email = p.user_email
+       WHERE ($1 = '' OR p.content ILIKE $2 OR u.first_name ILIKE $2 OR u.last_name ILIKE $2) AND ($3 = '' OR p.media_type = $3) AND ($4 = '' OR p.privacy = $4)
+       ORDER BY p.created_at DESC, p.id DESC LIMIT $5 OFFSET $6`, [q, `%${likeEsc(q)}%`, type, privacy, limit, offset]);
+    res.json({ success: true, posts: r.rows, hasMore: r.rows.length === limit });
+  } catch (err) { console.error('[admin] post search error:', err.message); res.status(500).json({ success: false, error: 'Could not search.' }); }
+});
+
+app.post('/api/admin/comments/search', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const q = String(b.query || '').trim().slice(0, 100); const limit = clampInt(b.limit, 25, 1, 50), offset = clampInt(b.offset, 0, 0, 100000);
+    const r = await pool.query(
+      `SELECT c.id, c.post_id, c.content, c.created_at, c.reply_to_id, c.user_email, u.first_name, u.last_name
+       FROM comments c JOIN users u ON u.email = c.user_email WHERE ($1 = '' OR c.content ILIKE $2 OR u.first_name ILIKE $2 OR u.last_name ILIKE $2)
+       ORDER BY c.created_at DESC, c.id DESC LIMIT $3 OFFSET $4`, [q, `%${likeEsc(q)}%`, limit, offset]);
+    res.json({ success: true, comments: r.rows, hasMore: r.rows.length === limit });
+  } catch (err) { console.error('[admin] comment search error:', err.message); res.status(500).json({ success: false, error: 'Could not search.' }); }
+});
+
+app.post('/api/admin/comments/delete', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const id = parseInt(b.commentId, 10); if (!id) return res.status(400).json({ success: false, error: 'Invalid comment.' });
+    await pool.query('DELETE FROM comment_likes WHERE comment_id = $1 OR comment_id IN (SELECT id FROM comments WHERE reply_to_id = $1)', [id]);
+    const d = await pool.query('DELETE FROM comments WHERE id = $1 OR reply_to_id = $1 RETURNING id', [id]);
+    audit(a.adminEmail, 'delete-comment', id, d.rows.length + ' comment(s) incl. replies');
+    res.json({ success: d.rows.length > 0, removed: d.rows.length });
+  } catch (err) { console.error('[admin] comment delete error:', err.message); res.status(500).json({ success: false, error: 'Could not delete.' }); }
+});
+
+app.post('/api/admin/audit', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const limit = clampInt(b.limit, 50, 1, 200), offset = clampInt(b.offset, 0, 0, 100000);
+    const r = await pool.query('SELECT id, at, admin_email, action, target, details FROM admin_audit ORDER BY at DESC, id DESC LIMIT $1 OFFSET $2', [limit, offset]);
+    res.json({ success: true, entries: r.rows, hasMore: r.rows.length === limit });
+  } catch (err) { console.error('[admin] audit error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/system', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    let db = false, dbMs = null; const t0 = Date.now();
+    try { await pool.query('SELECT 1'); db = true; dbMs = Date.now() - t0; } catch (e) {}
+    const has = (k) => !!process.env[k];
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, checks: {
+      database: db, databaseMs: dbMs, jwtSecret: has('JWT_SECRET'), adminPin: !!ADMIN_MASTER_KEY, emailCodes: !!(mailer && mailer.isConfigured && mailer.isConfigured()), phoneCodes: gateway.isConfigured(),
+      telegramLogin: tgLogin.isConfigured(), turnstile: has('TURNSTILE_SECRET_KEY'), mediaStorage: has('R2_BUCKET_NAME') && has('R2_ACCESS_KEY_ID') && has('R2_SECRET_ACCESS_KEY'), aiCategories: has('GEMINI_API_KEY'),
+      supportTelegram: supportTelegramLink(), feedMode: process.env.FEED_MODE === 'latest' ? 'latest' : 'ranked', videoFeedMode: process.env.VIDEO_FEED_MODE === 'latest' ? 'latest' : 'ranked',
+      maskUserIds: process.env.MASK_USER_IDS !== 'false', debugErrors: process.env.DEBUG_ERRORS === 'true', cspEnforced: process.env.CSP_ENFORCE === 'true',
+      uptimeMinutes: Math.round(process.uptime() / 60), memoryMb: Math.round(process.memoryUsage().rss / 1048576), node: process.version } });
+  } catch (err) { console.error('[admin] system error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 
 app.delete('/api/admin/users/:targetEmail', async (req, res) => {
@@ -2214,6 +2531,7 @@ app.delete('/api/admin/users/:targetEmail', async (req, res) => {
     const target = await pool.query('SELECT email FROM users WHERE LOWER(email) = LOWER($1)', [targetEmail]);
     if (!target.rows[0]) return res.status(404).json({ success: false, error: 'User not found.' });
     await cleanup.deleteUserCompletely(target.rows[0].email); // everything the user created, chats and files included
+    audit(adminEmail, 'delete-account', targetEmail, '');
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2228,6 +2546,7 @@ app.delete('/api/admin/posts/:postId', async (req, res) => {
     if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
 
     await cleanup.deletePostCompletely(postId); // also marks its reports as resolved_deleted
+    audit(adminEmail, 'delete-post', postId, '');
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2242,6 +2561,7 @@ app.post('/api/admin/reports/:reportId/status', async (req, res) => {
     if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
 
     await pool.query('UPDATE reports SET status = $1 WHERE id = $2', [status || 'dismissed', reportId]);
+    audit(adminEmail, 'report-' + (status || 'dismissed'), reportId, '');
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
