@@ -27,7 +27,7 @@
 
         /* Dashboard Layout */
         .dashboard { max-width: 1100px; margin: 20px auto; padding: 0 14px; display: none; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .stat-card { background: #fff; padding: 18px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .stat-label { font-size: 13px; color: #65676b; font-weight: 600; }
         .stat-val { font-size: 28px; font-weight: 800; color: #050505; margin-top: 4px; }
@@ -72,7 +72,7 @@
         </div>
     </div>
 
-    <!-- 2-Layer Admin Security Lock Screen -->
+    <!-- Lock Screen -->
     <div class="lock-screen" id="lockScreen">
         <div class="lock-icon">🔐</div>
         <div class="lock-title">Admin Security Verification</div>
@@ -90,27 +90,44 @@
                 <div class="stat-val" id="statUsers">0</div>
             </div>
             <div class="stat-card">
+                <div class="stat-label">💰 Monetization Requests</div>
+                <div class="stat-val" id="statMonetize" style="color:#1877f2;">0</div>
+            </div>
+            <div class="stat-card">
                 <div class="stat-label">🚩 Pending Reports</div>
                 <div class="stat-val" id="statReports" style="color:#fa383e;">0</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">📝 Recent Posts & Videos</div>
-                <div class="stat-val" id="statPosts">0</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">👁️ Total Platform Views</div>
+                <div class="stat-label">👁️ Total Views</div>
                 <div class="stat-val" id="statViews">0</div>
             </div>
         </div>
 
         <div class="tabs-bar">
-            <button class="tab-btn active" id="tabBtn-reports" onclick="switchAdminTab('reports')">🚩 Reports Queue</button>
+            <button class="tab-btn active" id="tabBtn-monetization" onclick="switchAdminTab('monetization')">💰 Monetization Approvals</button>
+            <button class="tab-btn" id="tabBtn-reports" onclick="switchAdminTab('reports')">🚩 Reports Queue</button>
             <button class="tab-btn" id="tabBtn-users" onclick="switchAdminTab('users')">👥 All Users & Team Admins</button>
             <button class="tab-btn" id="tabBtn-posts" onclick="switchAdminTab('posts')">🎬 Posts & Videos</button>
         </div>
 
+        <!-- Tab 0: Monetization Approvals -->
+        <div class="panel" id="panel-monetization">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Creator</th>
+                        <th>Followers</th>
+                        <th>Total Views</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="monetizationTableBody"></tbody>
+            </table>
+        </div>
+
         <!-- Tab 1: Reports -->
-        <div class="panel" id="panel-reports">
+        <div class="panel" id="panel-reports" style="display:none;">
             <div id="reportsListContainer"></div>
         </div>
 
@@ -196,6 +213,7 @@
 
                 document.getElementById('lockScreen').style.display = 'none';
                 document.getElementById('adminDashboard').style.display = 'block';
+                loadMonetizationRequests();
                 renderDashboard();
             } catch (err) {
                 errEl.innerText = 'Server error: ' + err.message;
@@ -203,7 +221,7 @@
         }
 
         function switchAdminTab(tab) {
-            ['reports', 'users', 'posts'].forEach(t => {
+            ['monetization', 'reports', 'users', 'posts'].forEach(t => {
                 document.getElementById(`tabBtn-${t}`).classList.toggle('active', t === tab);
                 document.getElementById(`panel-${t}`).style.display = t === tab ? 'block' : 'none';
             });
@@ -213,12 +231,77 @@
             if (!dashboardData) return;
             document.getElementById('statUsers').innerText = dashboardData.stats.totalUsers;
             document.getElementById('statReports').innerText = dashboardData.stats.pendingReports;
-            document.getElementById('statPosts').innerText = dashboardData.stats.totalPosts;
             document.getElementById('statViews').innerText = dashboardData.stats.totalViews;
 
             renderReports(dashboardData.reports);
             renderUsers(dashboardData.users);
             renderPostsTable(dashboardData.posts);
+        }
+
+        async function loadMonetizationRequests() {
+            try {
+                const res = await fetch('/api/admin/monetization-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminEmail: currentUser.email, adminKey: savedAdminKey })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const requests = data.requests || [];
+                    document.getElementById('statMonetize').innerText = requests.filter(r => r.status === 'pending').length;
+                    
+                    const tbody = document.getElementById('monetizationTableBody');
+                    if (requests.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#65676b; padding:20px;">មិនមានសំណើស្នើសុំរកប្រាក់ទេ។</td></tr>`;
+                        return;
+                    }
+
+                    tbody.innerHTML = requests.map(r => `
+                        <tr>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <img src="${r.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                                    <div>
+                                        <div style="font-weight:700;">${r.first_name} ${r.last_name}</div>
+                                        <div style="font-size:12px; color:#65676b;">${r.user_email}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><b>${r.followers_count || 0}</b> / 1,000</td>
+                            <td><b>${r.total_views || 0}</b> / 10,000</td>
+                            <td><span class="badge ${r.status === 'pending' ? 'badge-pending' : (r.status === 'approved' ? 'badge-resolved' : 'badge-banned')}">${r.status}</span></td>
+                            <td>
+                                ${r.status === 'pending' ? `
+                                    <button class="btn-sm btn-green" onclick="updateMonetizationAction('${r.user_email}', 'approved')">Approve</button>
+                                    <button class="btn-sm btn-red" onclick="updateMonetizationAction('${r.user_email}', 'rejected')">Reject</button>
+                                ` : `
+                                    <button class="btn-sm btn-gray" onclick="updateMonetizationAction('${r.user_email}', 'pending')">Reset to Pending</button>
+                                `}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function updateMonetizationAction(targetEmail, status) {
+            try {
+                const res = await fetch('/api/admin/monetization-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminEmail: currentUser.email, adminKey: savedAdminKey, targetEmail, status })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadMonetizationRequests();
+                } else {
+                    alert(data.error || 'មិនអាចកែប្រែស្ថានភាពបានទេ');
+                }
+            } catch (err) {
+                alert('Server error');
+            }
         }
 
         function renderReports(reports) {
@@ -240,7 +323,6 @@
                     <div style="font-size:13.5px; margin-bottom:10px; color:#1c1e21;">
                         ${r.target_user_email ? `<div>Target User: <b>${r.target_first || ''} ${r.target_last || ''}</b> (${r.target_user_email})</div>` : ''}
                         ${r.target_post_id ? `<div>Post #${r.target_post_id}: "${r.post_content || '[Media Post]'}"</div>` : ''}
-                        ${r.post_media_url && !r.post_media_url.startsWith('[') ? `<div style="margin-top:6px;"><a href="${r.post_media_url}" target="_blank" style="color:#1877f2; font-weight:600;">🔗 Open Reported Media</a></div>` : ''}
                     </div>
                     <div>
                         ${r.target_post_id ? `<button class="btn-sm btn-red" onclick="adminDeletePost(${r.target_post_id})">🗑️ Delete Post/Video</button>` : ''}
