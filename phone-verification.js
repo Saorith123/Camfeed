@@ -43,6 +43,23 @@ function normalizePhone(raw, country) {
   return '+' + d;
 }
 
+// Every way an account can be identified by a phone number: the hidden identity of accounts made with the "Phone number" tab,
+// and OLD accounts that used the number itself as their login (0962829738 / 855962829738 / +855962829738).
+function phoneIdentities(e164) {
+  const digits = String(e164).replace(/\D/g, '');
+  const list = [`ph${digits}@${SYNTHETIC_DOMAIN}`];
+  if (digits.startsWith('855')) list.push('0' + digits.slice(3));
+  list.push(digits, '+' + digits);
+  return list;
+}
+// -> the stored login of that account, or null
+async function findAccountEmail(pool, e164) {
+  const ids = phoneIdentities(e164);
+  const r = await pool.query('SELECT email FROM users WHERE LOWER(email) = ANY($1::text[])', [ids]);
+  for (const id of ids) { const hit = r.rows.find((x) => String(x.email).toLowerCase() === id); if (hit) return hit.email; }
+  return null;
+}
+
 const phoneEmail = (e164) => `ph${String(e164).replace(/\D/g, '')}@${SYNTHETIC_DOMAIN}`;
 
 function maskPhone(e164) {
@@ -88,9 +105,9 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
       if (!phone) return fail(res, 400, 'Please enter a valid phone number. Choose your country, or start the number with + and your country code (for example +66 81 234 5678).', 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។ សូមជ្រើសរើសប្រទេសរបស់អ្នក ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។');
       if (sendLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many requests from this network. Please try again later.', 'សំណើច្រើនពេកពីបណ្តាញនេះ។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
 
-      const exists = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [phoneEmail(phone)]);
-      if (isReset && exists.rows.length === 0) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
-      if (!isReset && exists.rows.length > 0) return fail(res, 409, 'This phone number is already registered. Please log in.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
+      const foundEmail = await findAccountEmail(pool, phone);
+      if (isReset && !foundEmail) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
+      if (!isReset && foundEmail) return fail(res, 409, 'This phone number is already registered. Please log in.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
 
       const now = Date.now();
       const prev = (await pool.query('SELECT * FROM phone_verifications WHERE phone = $1', [phone])).rows[0];
@@ -178,7 +195,8 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
       await pool.query('DELETE FROM phone_verifications WHERE phone = $1', [phone]);
       const proof = { sub: phone, purpose: PURPOSE };
       if (isReset) {
-        const u = await pool.query('SELECT password FROM users WHERE LOWER(email) = $1 LIMIT 1', [phoneEmail(phone)]);
+        const accountEmail = await findAccountEmail(pool, phone);
+        const u = accountEmail ? await pool.query('SELECT password FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [accountEmail]) : { rows: [] };
         if (u.rows.length === 0) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
         proof.pv = auth.fingerprint(u.rows[0].password);
       }
@@ -199,4 +217,4 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
   return { sendCode, verifyCode, checkToken, ensureSchema };
 }
 
-module.exports = { createPhoneVerification, normalizePhone, phoneEmail, maskPhone, SYNTHETIC_DOMAIN, DIAL };
+module.exports = { createPhoneVerification, normalizePhone, phoneEmail, phoneIdentities, findAccountEmail, maskPhone, SYNTHETIC_DOMAIN, DIAL };

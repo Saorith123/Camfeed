@@ -17,7 +17,7 @@ const { createSignupVerification, createPasswordReset, EMAIL_RE } = require('./s
 const { createTelegramLogin, isTelegramAddress } = require('./telegram-login');
 const gateway = require('./telegram-gateway');
 const { createPublicIds } = require('./public-ids');
-const { createPhoneVerification, normalizePhone, phoneEmail } = require('./phone-verification');
+const { createPhoneVerification, normalizePhone, phoneEmail, findAccountEmail } = require('./phone-verification');
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
@@ -388,7 +388,7 @@ app.post('/api/password/verify-code', passwordReset.verifyCode);
 app.post('/api/password/reset', async (req, res) => {
   const phoneRaw = req.body && req.body.phone;
   const e164 = phoneRaw ? normalizePhone(phoneRaw) : null;
-  const email = phoneRaw ? (e164 ? phoneEmail(e164) : '') : String((req.body && req.body.email) || '').trim();
+  let email = phoneRaw ? '' : String((req.body && req.body.email) || '').trim();
   const token = phoneRaw ? (req.body && req.body.phoneToken) : (req.body && req.body.emailToken);
   const newPassword = String((req.body && req.body.newPassword) || '');
   try {
@@ -398,6 +398,7 @@ app.post('/api/password/reset', async (req, res) => {
     const needVerify = () => res.status(403).json({ success: false, needsEmailVerification: true, error: 'Please verify your email first.', errorKm: 'សូមផ្ទៀងផ្ទាត់អ៊ីមែលរបស់អ្នកជាមុនសិន។' });
     const proofOk = phoneRaw ? (!!e164 && phoneReset.checkToken(e164, token)) : passwordReset.checkEmailToken(email, token);
     if (!proofOk) return needVerify();
+    if (phoneRaw) email = (await findAccountEmail(pool, e164)) || '';
     const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
     const user = r.rows[0];
     if (!user) return res.status(404).json({ success: false, error: 'No account was found with this email.', errorKm: 'រកមិនឃើញគណនីដែលប្រើអ៊ីមែលនេះទេ។' });
@@ -406,12 +407,18 @@ app.post('/api/password/reset', async (req, res) => {
     if (!payload || payload.pv !== auth.fingerprint(user.password)) return needVerify();
 
     const newHash = await auth.hashPassword(newPassword);
-    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [newHash, user.email]);
+    const upd = await pool.query('UPDATE users SET password = $1 WHERE email = $2 RETURNING *', [newHash, user.email]);
+    const fresh = upd.rows[0] || Object.assign({}, user, { password: newHash });
     pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
-    authCore.invalidate(user.email);                       // every logged-in device must log in again
+    authCore.invalidate(user.email);                       // every other logged-in device must log in again
+    try { await authCore.revokeAll(user.email); } catch (e) { /* the old tokens stop working anyway: they carry the old password */ }
     auth.clearFailures(`${req.ip}|${email.toLowerCase()}`); // do not keep the person locked out after a reset
     if (phoneRaw) auth.clearFailures(`${req.ip}|${String(phoneRaw).trim().toLowerCase()}`);
-    res.json({ success: true, message: 'Password changed. Please log in with your new password.', messageKm: 'បានប្តូរពាក្យសម្ងាត់ហើយ។ សូមចូលគណនីដោយពាក្យសម្ងាត់ថ្មី។' });
+    // the person just proved they own the e-mail / phone number: log them in on THIS device and take them straight to the site
+    if (fresh.is_banned) return res.json({ success: true, message: 'Password changed. Please log in with your new password.', messageKm: 'បានប្តូរពាក្យសម្ងាត់ហើយ។ សូមចូលគណនីដោយពាក្យសម្ងាត់ថ្មី។' });
+    fresh.contact_mail = ownContact(fresh);
+    fresh.passwordless = false;
+    res.json({ success: true, message: 'Password changed.', messageKm: 'បានប្តូរពាក្យសម្ងាត់ហើយ។', user: fresh, token: authCore.issueToken(fresh, req) });
   } catch (err) {
     console.error('Password reset error:', err.message);
     res.status(500).json({ success: false, error: 'Something went wrong. Please try again.', errorKm: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។' });
@@ -499,8 +506,9 @@ app.post('/api/login', async (req, res) => {
     }
     let result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
     if (!result.rows[0] && !email.includes('@')) {
-      const e164 = normalizePhone(email);                     // typed a phone number: find the account made with that verified number
-      if (e164) result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1', [phoneEmail(e164)]);
+      const e164 = normalizePhone(email);                     // typed a phone number: find the account (made with the phone tab, or an old one that used the number as its login)
+      const found = e164 ? await findAccountEmail(pool, e164) : null;
+      if (found) result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [found]);
     }
     const user = result.rows[0];
     let check = { ok: false, needsRehash: false };

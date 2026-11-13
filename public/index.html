@@ -977,6 +977,16 @@
                     body: JSON.stringify(resetChannel === 'phone' ? { phone: resetEmailValue, phoneToken: resetEmailToken, newPassword: pw1 } : { email: resetEmailValue, emailToken: resetEmailToken, newPassword: pw1 })
                 });
                 const data = await res.json();
+                if (data.success && data.token && data.user) {
+                    // the code proved who they are: they are logged in now, so go straight to the website (no trip back to the login page)
+                    try {
+                        if (window.CamAuth && CamAuth.setToken) CamAuth.setToken(data.token, data.user.email);
+                        localStorage.setItem('camfeed_remembered_email', resetEmailValue);
+                        localStorage.setItem('camfeed_user', JSON.stringify(data.user));
+                    } catch (e) {}
+                    window.location.href = 'feed.html';
+                    return;
+                }
                 if (data.success) {
                     const email = resetEmailValue;
                     resetEmailToken = ''; resetEmailValue = '';
