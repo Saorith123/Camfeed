@@ -6,8 +6,10 @@ require('dotenv').config();
 
 const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
 const createVideoRouter = require('./videoRecommendationRoutes');
+const auth = require('./auth');
 
 const app = express();
+app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
@@ -32,7 +34,8 @@ const SUPER_ADMIN_EMAILS = (process.env.SUPER_ADMIN_EMAIL || '0962829738,rossaor
   .map(e => e.trim().toLowerCase())
   .filter(Boolean);
 
-const ADMIN_MASTER_KEY = process.env.ADMIN_SECRET_KEY || 'CAMFEED2026';
+const ADMIN_MASTER_KEY = process.env.ADMIN_SECRET_KEY || '';
+if (!ADMIN_MASTER_KEY) console.warn('[admin] ADMIN_SECRET_KEY is not set: the admin panel is disabled until you set it.');
 
 pool.connect(async (err, client, release) => {
   if (err) return console.error('Error connecting to Database:', err.stack);
@@ -137,8 +140,24 @@ pool.connect(async (err, client, release) => {
   } catch (e) {
     console.error('Schema check notice:', e.message);
   }
+  try {
+    // hashed passwords are ~130 chars; make sure the column can hold them
+    await client.query('ALTER TABLE users ALTER COLUMN password TYPE TEXT');
+  } catch (e) {
+    console.error('Password column notice:', e.message);
+  }
+  try {
+    await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS name_changed_at TIMESTAMP DEFAULT NULL');
+  } catch (e) {
+    console.error('name_changed_at notice:', e.message);
+  }
   release();
 });
+
+// ---- Authentication: every /api call (except login/register) needs a valid token.
+// The acting user's email is taken from the token, never from what the browser sends.
+const authCore = auth.createAuth(pool);
+app.use('/api', auth.sanitizeJson, authCore.authenticate, authCore.forceActor);
 
 // Global Real-Time Presence Tracker
 const lastGlobalPingMap = new Map();
@@ -177,7 +196,10 @@ async function verifyAdminAccess(email, secretKey) {
     return { allowed: false, error: 'Access Denied: You do not have Admin permission.' };
   }
 
-  if (secretKey !== ADMIN_MASTER_KEY) {
+  if (!ADMIN_MASTER_KEY) {
+    return { allowed: false, error: 'Admin PIN is not configured on the server (set ADMIN_SECRET_KEY).' };
+  }
+  if (!auth.safeEqual(secretKey, ADMIN_MASTER_KEY)) {
     return { allowed: false, error: 'Invalid Admin Security PIN / Key.' };
   }
 
@@ -241,49 +263,83 @@ Respond strictly in JSON format: {"category": "CategoryName", "tags": "tag1, tag
 
 // Register
 app.post('/api/register', async (req, res) => {
-  const { email, password, firstName, lastName, birthdate, gender, country } = req.body;
+  const { password, firstName, lastName, birthdate, gender, country } = req.body || {};
+  const email = String((req.body && req.body.email) || '').trim();
   try {
-    const isSuper = SUPER_ADMIN_EMAILS.includes((email || '').trim().toLowerCase());
+    if (!email || !email.includes('@') && email.length < 6) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid email or phone.' });
+    }
+    if (typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
+    }
+    const isSuper = SUPER_ADMIN_EMAILS.includes(email.toLowerCase());
     const initialRole = isSuper ? 'super_admin' : 'user';
+    const hashed = await auth.hashPassword(password);
     const query = `
       INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'public', 'public', $8) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, password, firstName, lastName, birthdate, gender, country, initialRole]);
-    res.status(201).json({ success: true, user: result.rows[0] });
+    const result = await pool.query(query, [email, hashed, firstName, lastName, birthdate, gender, country, initialRole]);
+    const user = result.rows[0];
+    // password is stripped from the response by auth.sanitizeJson
+    res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
+  } catch (err) {
+    if (err && err.code === '23505') {
+      return res.status(409).json({ success: false, error: 'This email is already registered.' });
+    }
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Login (passwords are hashed; old plaintext rows are upgraded automatically on first login)
+app.post('/api/login', async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim();
+  const password = String((req.body && req.body.password) || '');
+  const limitKey = `${req.ip}|${email.toLowerCase()}`;
+  try {
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Please enter email and password.' });
+    }
+    if (auth.isRateLimited(limitKey)) {
+      return res.status(429).json({ success: false, message: 'Too many failed attempts. Please wait 15 minutes and try again.' });
+    }
+    const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
+    const user = result.rows[0];
+    let check = { ok: false, needsRehash: false };
+    if (user) check = await auth.verifyPassword(password, user.password);
+    else await auth.dummyVerify();
+
+    if (!check.ok) {
+      auth.recordFailure(limitKey);
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+    auth.clearFailures(limitKey);
+
+    if (user.is_banned) {
+      return res.status(403).json({ success: false, message: 'គណនីរបស់អ្នកត្រូវបានផ្អាកដោយអ្នកគ្រប់គ្រងប្រព័ន្ធ (Account Suspended).' });
+    }
+    if (check.needsRehash) {
+      const newHash = await auth.hashPassword(password);
+      await pool.query('UPDATE users SET password = $1 WHERE email = $2', [newHash, user.email]);
+      user.password = newHash;
+      authCore.invalidate(user.email);
+    }
+    if (SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase()) && user.role !== 'super_admin') {
+      await pool.query("UPDATE users SET role = 'super_admin' WHERE email = $1", [user.email]);
+      user.role = 'super_admin';
+    }
+    // password is stripped from the response by auth.sanitizeJson
+    res.json({ success: true, user, token: authCore.issueToken(user) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Login
-app.post('/api/login', async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const query = 'SELECT * FROM users WHERE email = $1 AND password = $2';
-    const result = await pool.query(query, [email, password]);
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      if (user.is_banned) {
-        return res.status(403).json({ success: false, message: 'គណនីរបស់អ្នកត្រូវបានផ្អាកដោយអ្នកគ្រប់គ្រងប្រព័ន្ធ (Account Suspended).' });
-      }
-      if (SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase()) && user.role !== 'super_admin') {
-        await pool.query("UPDATE users SET role = 'super_admin' WHERE email = $1", [user.email]);
-        user.role = 'super_admin';
-      }
-      res.json({ success: true, user });
-    } else {
-      res.status(401).json({ success: false, message: 'Invalid email or password' });
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 // Create Post
-app.post('/api/posts', cloudinaryUpload.single('mediaFile'), async (req, res) => {
+app.post('/api/posts', cloudinaryUpload.single('mediaFile'), authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
   }
@@ -694,7 +750,7 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // Update Profile & Cover Pictures
-app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), async (req, res) => {
+app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), authCore.forceActor, async (req, res) => {
   const { email, bio, profilePicUrl, coverPicUrl } = req.body;
   try {
     let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
@@ -1378,7 +1434,7 @@ app.post('/api/messages', (req, res, next) => {
     });
   }
   next();
-}, async (req, res) => {
+}, authCore.forceActor, async (req, res) => {
   try {
     const sender = req.body.sender;
     const receiver = req.body.receiver;
@@ -1505,6 +1561,121 @@ app.post('/api/translate-text', async (req, res) => {
 });
 
 // =============================================================================
+// ACCOUNT SETTINGS (name / password / delete account)
+// =============================================================================
+const MIN_PASSWORD_LENGTH = 6;
+const NAME_CHANGE_COOLDOWN_DAYS = 15;
+
+app.put('/api/settings/name', async (req, res) => {
+  const email = req.authEmail;
+  const firstName = String((req.body && req.body.firstName) || '').trim();
+  const lastName = String((req.body && req.body.lastName) || '').trim();
+  try {
+    if (!firstName || !lastName) {
+      return res.status(400).json({ success: false, message: 'First and last name are required.' });
+    }
+    const cur = await pool.query('SELECT name_changed_at FROM users WHERE email = $1', [email]);
+    const last = cur.rows[0] && cur.rows[0].name_changed_at;
+    if (last) {
+      const daysSince = (Date.now() - new Date(last).getTime()) / 86400000;
+      if (daysSince < NAME_CHANGE_COOLDOWN_DAYS) {
+        const left = Math.ceil(NAME_CHANGE_COOLDOWN_DAYS - daysSince);
+        return res.status(400).json({ success: false, message: `You can change your name again in ${left} day(s).` });
+      }
+    }
+    const upd = await pool.query(
+      'UPDATE users SET first_name = $1, last_name = $2, name_changed_at = NOW() WHERE email = $3 RETURNING *',
+      [firstName, lastName, email]);
+    res.json({ success: true, user: upd.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put('/api/settings/password', async (req, res) => {
+  const email = req.authEmail;
+  const currentPassword = String((req.body && req.body.currentPassword) || '');
+  const newPassword = String((req.body && req.body.newPassword) || '');
+  try {
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ success: false, message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` });
+    }
+    const r = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = r.rows[0];
+    const check = user ? await auth.verifyPassword(currentPassword, user.password) : { ok: false };
+    if (!check.ok) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+    }
+    const newHash = await auth.hashPassword(newPassword);
+    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [newHash, email]);
+    authCore.invalidate(email); // every other logged-in device must log in again
+    user.password = newHash;
+    res.json({ success: true, message: 'Password updated successfully!', token: authCore.issueToken(user) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.delete('/api/settings/account', async (req, res) => {
+  const email = req.authEmail;
+  const password = String((req.body && req.body.password) || '');
+  let client;
+  try {
+    if (SUPER_ADMIN_EMAILS.includes(email.toLowerCase())) {
+      return res.status(400).json({ success: false, message: 'Super Admin account cannot be deleted here.' });
+    }
+    const r = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const check = r.rows[0] ? await auth.verifyPassword(password, r.rows[0].password) : { ok: false };
+    if (!check.ok) {
+      return res.status(400).json({ success: false, message: 'Password is incorrect.' });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const mediaToDelete = [];
+    const posts = await client.query('SELECT id, media_url, media_type FROM posts WHERE user_email = $1', [email]);
+    posts.rows.forEach(p => { if (p.media_url && p.media_type !== 'styled_text') mediaToDelete.push(p.media_url); });
+    const ids = posts.rows.map(p => p.id);
+    if (ids.length) {
+      await client.query('DELETE FROM likes WHERE post_id = ANY($1::int[])', [ids]);
+      await client.query('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ANY($1::int[]))', [ids]);
+      await client.query('DELETE FROM comments WHERE post_id = ANY($1::int[])', [ids]);
+      await client.query('DELETE FROM post_views WHERE post_id = ANY($1::int[])', [ids]);
+      await client.query('DELETE FROM notifications WHERE post_id = ANY($1::int[])', [ids]);
+      await client.query('DELETE FROM reports WHERE target_post_id = ANY($1::int[])', [ids]);
+      await client.query('DELETE FROM posts WHERE shared_post_id = ANY($1::int[])', [ids]);
+    }
+    await client.query('DELETE FROM posts WHERE user_email = $1', [email]);
+    await client.query('DELETE FROM comment_likes WHERE user_email = $1', [email]);
+    await client.query('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE user_email = $1)', [email]);
+    await client.query('DELETE FROM comments WHERE user_email = $1', [email]);
+    await client.query('DELETE FROM likes WHERE user_email = $1', [email]);
+    await client.query('DELETE FROM follows WHERE follower_email = $1 OR following_email = $1', [email]);
+    await client.query('DELETE FROM blocked_users WHERE blocker_email = $1 OR blocked_email = $1', [email]);
+    await client.query('DELETE FROM notifications WHERE recipient_email = $1 OR sender_email = $1', [email]);
+    await client.query('DELETE FROM post_views WHERE viewer_email = $1', [email]);
+    await client.query('DELETE FROM reports WHERE reporter_email = $1 OR target_user_email = $1', [email]);
+    const msgs = await client.query('SELECT media_url FROM messages WHERE sender_email = $1 AND media_url IS NOT NULL', [email]);
+    msgs.rows.forEach(m => mediaToDelete.push(m.media_url));
+    await client.query('DELETE FROM messages WHERE sender_email = $1 OR receiver_email = $1', [email]);
+    await client.query('DELETE FROM users WHERE email = $1', [email]);
+    await client.query('COMMIT');
+    authCore.invalidate(email);
+
+    if (videoRouter.deleteR2ObjectsFromMedia) {
+      mediaToDelete.forEach(m => videoRouter.deleteR2ObjectsFromMedia(m).catch(() => {}));
+    }
+    res.json({ success: true, message: 'Account deleted.' });
+  } catch (err) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    console.error('Delete account error:', err.message);
+    res.status(500).json({ success: false, message: 'Could not delete the account: ' + err.message });
+  } finally {
+    if (client) client.release();
+  }
+});
+
+// =============================================================================
 // ADMIN CONTROL CENTER ROUTES
 // =============================================================================
 
@@ -1594,6 +1765,7 @@ app.post('/api/admin/ban-user', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Cannot ban Super Admin.' });
     }
     await pool.query('UPDATE users SET is_banned = $1 WHERE email = $2', [!!ban, targetEmail]);
+    authCore.invalidate(targetEmail);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
