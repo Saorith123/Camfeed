@@ -2707,6 +2707,7 @@
             }
 
             posts.forEach((post, idx) => {
+                const isOwnPost = currentUser.email === post.user_email;
                 const count = parseInt(post.likes_count) || 0;
                 const viewsCount = parseInt(post.views_count) || 0;
                 const sharesCount = parseInt(post.shares_count) || 0;
@@ -2735,10 +2736,17 @@
 
                 div.innerHTML = `
                     <div class="post-header" style="padding: 0 14px;">
-                        <div class="post-header-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
-                            <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" class="avatar">
-                            <div>
-                                <div class="post-author notranslate" translate="no">${post.first_name} ${post.last_name}</div>
+                        <div class="post-header-left">
+                            <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" class="avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
+                            <div style="flex:1; min-width:0;">
+                                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                    <div class="post-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${post.first_name} ${post.last_name}</div>
+                                    ${!isOwnPost ? `
+                                        <button type="button" class="feed-follow-btn ${post.is_following ? 'is-following' : ''}" id="feedFollowBtn-${post.id}" onclick="toggleFeedFollow('${post.user_email}', ${post.id})" style="background:${post.is_following ? '#e4e6eb' : '#e7f3ff'}; color:${post.is_following ? '#050505' : '#1877f2'}; border:none; padding:3px 10px; border-radius:12px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                            ${post.is_following ? '✓ Following' : '＋ Follow'}
+                                        </button>
+                                    ` : ''}
+                                </div>
                                 <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
                             </div>
                         </div>
@@ -3825,6 +3833,34 @@
             });
             input.value = '';
             loadComments(postId);
+        }
+
+        
+        async function toggleFeedFollow(targetEmail, postId) {
+            const btn = document.getElementById(`feedFollowBtn-${postId}`);
+            if (!btn) return;
+            const isCurrentlyFollowing = btn.classList.contains('is-following');
+            const newAction = isCurrentlyFollowing ? 'unfollow' : 'follow';
+
+            // Optimistic UI update
+            btn.classList.toggle('is-following', !isCurrentlyFollowing);
+            btn.style.background = !isCurrentlyFollowing ? '#e4e6eb' : '#e7f3ff';
+            btn.style.color = !isCurrentlyFollowing ? '#050505' : '#1877f2';
+            btn.innerText = !isCurrentlyFollowing ? '✓ Following' : '＋ Follow';
+
+            try {
+                await fetch('/api/follow', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        followerEmail: currentUser.email,
+                        followingEmail: targetEmail,
+                        action: newAction
+                    })
+                });
+            } catch (err) {
+                console.error(err);
+            }
         }
 
         function logout() {
