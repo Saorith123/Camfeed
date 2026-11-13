@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -63,6 +70,14 @@
         
         .btn-create { width: 100%; padding: 12px; background: #42b72a; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center; display: block; text-decoration: none; box-sizing: border-box; }
         .btn-create:hover { background: #36a420; }
+        .id-tabs { display: flex; gap: 8px; margin: 0 0 10px; }
+        .id-tab { flex: 1; padding: 9px 6px; border: 1px solid #dddfe2; background: #f0f2f5; border-radius: 8px; font-size: 14px; font-weight: 700; color: #4b4f56; cursor: pointer; margin: 0; width: auto; }
+        .id-tab.active { background: #e7f3ff; border-color: #1877f2; color: #1877f2; }
+        .id-row { display: flex; gap: 6px; align-items: stretch; }
+        .id-row input { flex: 1; min-width: 0; margin: 0; }
+        .id-prefix { display: flex; align-items: center; padding: 0 12px; background: #f0f2f5; border: 1px solid #dddfe2; border-radius: 6px; font-weight: 800; color: #4b4f56; font-size: 15px; white-space: nowrap; }
+        .id-note { font-size: 12.5px; line-height: 1.45; margin: 6px 0 10px; color: #65676b; }
+        .id-note.warn { background: #fff8e1; border: 1px solid #ffe0b2; color: #8a5a00; border-radius: 8px; padding: 8px 10px; }
 
         .divider { border-bottom: 1px solid #dadde1; margin: 20px 0; }
         .msg { text-align: center; margin-top: 12px; font-size: 14px; font-weight: 500; }
@@ -119,6 +134,7 @@
             <div class="divider"></div>
             <button type="button" class="btn-create" onclick="showRegisterForm()" id="btnCreateText">Create new account</button>
             <div class="msg" id="loginMsg"></div>
+            <div id="legalLine" style="text-align: center; margin-top: 14px; font-size: 12px; color: #8a8d91; line-height: 1.5;"></div>
         </div>
 
         <!-- REGISTER STEP 1: BASIC INFO -->
@@ -138,7 +154,15 @@
                     <input type="text" id="firstName" placeholder="First name" required>
                     <input type="text" id="lastName" placeholder="Surname" required>
                 </div>
-                <input type="text" id="regEmail" name="email" autocomplete="email" inputmode="email" placeholder="Email (for example name@gmail.com)" required>
+                <div class="id-tabs">
+                    <button type="button" class="id-tab active" id="tabEmail" onclick="setIdentityMode('email')">📧 <span id="tabEmailText">Gmail / Email</span></button>
+                    <button type="button" class="id-tab" id="tabPhone" onclick="setIdentityMode('phone')">📱 <span id="tabPhoneText">Phone number</span></button>
+                </div>
+                <div class="id-row">
+                    <span id="regDialPrefix" class="id-prefix hidden">+855</span>
+                    <input type="text" id="regEmail" name="email" autocomplete="email" inputmode="email" placeholder="Email (for example name@gmail.com)" required>
+                </div>
+                <div id="regPhoneHint" class="id-note hidden"></div>
                 <div class="password-container">
                     <input type="password" id="regPassword" name="new-password" autocomplete="new-password" placeholder="New password" required>
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
@@ -170,7 +194,7 @@
                 </select>
 
                 <label id="lblCountry">Country</label>
-                <select id="country" required>
+                <select id="country" required onchange="updateDialPrefix()">
                     <option value="" disabled selected>Select Country</option>
                     <option value="Cambodia">Cambodia</option>
                     <option value="United States">United States</option>
@@ -193,6 +217,7 @@
                 <a href="#" onclick="showLoginForm()" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="haveAccText">Already have an account?</a>
             </div>
             <div class="msg" id="regMsg"></div>
+            <div id="legalLineReg" style="text-align: center; margin-top: 10px; font-size: 12px; color: #8a8d91; line-height: 1.5;"></div>
         </div>
 
         <!-- FORGOT PASSWORD: e-mail -> 6-digit code -> new password -->
@@ -206,7 +231,12 @@
             <p id="rDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;"></p>
 
             <form id="rStageEmail" onsubmit="event.preventDefault(); sendResetCode();">
+                <div class="id-tabs">
+                    <button type="button" class="id-tab active" id="rTabEmail" onclick="setResetMode('email')">📧 <span id="rTabEmailText">Gmail / Email</span></button>
+                    <button type="button" class="id-tab" id="rTabPhone" onclick="setResetMode('phone')">📱 <span id="rTabPhoneText">Phone number</span></button>
+                </div>
                 <input type="text" id="resetEmail" inputmode="email" autocomplete="email" placeholder="Email" required>
+                <div id="rPhoneNote" class="id-note hidden"></div>
                 <div id="resetTurnstileBox" style="margin-top: 16px; display: flex; justify-content: center;"></div>
                 <button type="submit" class="btn-primary" style="margin-top: 12px;" id="rSendBtn">Send code</button>
             </form>
@@ -419,6 +449,8 @@
             document.getElementById('btnBackToStep1').innerText = t.backBtn;
             applyVerifyTexts();
             applyResetTexts();
+            applyLegalTexts();
+            applyIdentityPlaceholders();
 
             document.getElementById('welcomeTitle').innerText = t.welcomeTitle;
             document.getElementById('welcomeDesc').innerText = t.welcomeDesc;
@@ -508,9 +540,39 @@
             const v = String(s || '').trim();
             return !v.includes('@') && /^[+\d(][\d\s\-().]{6,24}$/.test(v) && v.replace(/\D/g, '').length >= 8;
         }
+        let identityMode = 'email';   // which tab is selected on the sign-up form: 'email' or 'phone'
+        let resetMode = 'email';      // same on the forgot-password form
+        const DIAL_JS = { 'Cambodia': '855', 'United States': '1', 'Canada': '1', 'Thailand': '66', 'Vietnam': '84', 'China': '86',
+            'Japan': '81', 'South Korea': '82', 'France': '33', 'Australia': '61', 'United Kingdom': '44' };
         function identityPlaceholder(t) {
-            if (!authOptions.phone) return t.regEmail;
-            return (localStorage.getItem('camfeed_lang') || 'en') === 'km' ? 'Gmail ឬលេខទូរស័ព្ទ' : 'Gmail or phone number';
+            return identityMode === 'phone' ? '012 345 678' : t.regEmail;
+        }
+
+        function updateDialPrefix() {
+            const el = document.getElementById('regDialPrefix');
+            if (!el) return;
+            const code = DIAL_JS[document.getElementById('country').value];
+            el.innerText = code ? '+' + code : '+';
+            el.classList.toggle('hidden', identityMode !== 'phone');
+        }
+
+        function setIdentityMode(mode) {
+            if (mode !== 'email' && mode !== 'phone') return;
+            const input = document.getElementById('regEmail');
+            if (identityMode !== mode && input) input.value = '';   // a number is not an e-mail: start clean
+            identityMode = mode;
+            signupChannel = mode;
+            const msg = document.getElementById('regMsg'); if (msg) msg.innerText = '';
+            applyIdentityPlaceholders();
+        }
+
+        function setResetMode(mode) {
+            if (mode !== 'email' && mode !== 'phone') return;
+            const input = document.getElementById('resetEmail');
+            if (resetMode !== mode && input) input.value = '';
+            resetMode = mode;
+            const msg = document.getElementById('resetMsg'); if (msg) msg.innerText = '';
+            applyIdentityPlaceholders();
         }
 
         const verifyTexts = {
@@ -524,6 +586,11 @@
                 sending: 'Sending code...', checking: 'Checking...', sent: 'A new code was sent.',
                 network: 'Server connection error', failed: 'Something went wrong. Please try again.',
                 needEmailOrPhone: 'Please enter a valid Gmail / email or phone number.',
+                pickCountryFirst: 'Please choose your country below so we can read your phone number.',
+                tabEmail: 'Gmail / Email', tabPhone: 'Phone number', needPhone: 'Please enter a valid phone number.',
+                phoneSoon: 'Sign-up with a phone number (code sent to your Telegram) is coming soon. Please use your Gmail for now.',
+                phoneResetNote: 'Enter the phone number you registered. For a number outside Cambodia, start with + and your country code (for example +66 81 234 5678).',
+                phoneHint: 'Phone number: choose your country below, or start with + and your country code (for example +66 81 234 5678).',
                 descPhone: (m) => `We sent a 6-digit code to your Telegram (${m}). Open Telegram and enter the code below.`
             },
             km: {
@@ -536,6 +603,11 @@
                 sending: 'កំពុងផ្ញើលេខកូដ...', checking: 'កំពុងពិនិត្យ...', sent: 'បានផ្ញើលេខកូដថ្មី។',
                 network: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', failed: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។',
                 needEmailOrPhone: 'សូមបញ្ចូល Gmail / អ៊ីមែល ឬលេខទូរស័ព្ទត្រឹមត្រូវ។',
+                pickCountryFirst: 'សូមជ្រើសរើសប្រទេសរបស់អ្នកខាងក្រោម ដើម្បីឱ្យយើងអានលេខទូរស័ព្ទរបស់អ្នក។',
+                tabEmail: 'Gmail / អ៊ីមែល', tabPhone: 'លេខទូរស័ព្ទ', needPhone: 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។',
+                phoneSoon: 'ការចុះឈ្មោះដោយលេខទូរស័ព្ទ (លេខកូដផ្ញើទៅ Telegram) នឹងមកដល់ឆាប់ៗ។ សូមប្រើ Gmail របស់អ្នកសិនឥឡូវនេះ។',
+                phoneResetNote: 'បញ្ចូលលេខទូរស័ព្ទដែលអ្នកបានចុះឈ្មោះ។ បើលេខនៅក្រៅកម្ពុជា សូមចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។',
+                phoneHint: 'លេខទូរស័ព្ទ៖ ជ្រើសរើសប្រទេសខាងក្រោម ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។',
                 descPhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលលេខកូដខាងក្រោម។`
             }
         };
@@ -594,8 +666,12 @@
             const password = document.getElementById('regPassword').value;
             const t = vt();
 
-            const isPhone = authOptions.phone && looksLikePhone(email);   // a phone number gets its code inside Telegram
-            if (!isPhone && !EMAIL_PATTERN.test(email)) { msg.innerText = authOptions.phone ? t.needEmailOrPhone : t.needEmail; return; }
+            const isPhone = identityMode === 'phone';                     // the selected tab decides: a phone number gets its code inside Telegram
+            if (isPhone) {
+                if (!authOptions.phone) { msg.innerText = t.phoneSoon; return; }
+                if (!looksLikePhone(email)) { msg.innerText = t.needPhone; return; }
+                if (!document.getElementById('country').value) { msg.innerText = t.pickCountryFirst; return; }
+            } else if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
             if (password.length < 6) { msg.innerText = t.shortPw; return; }
             // user pressed Back from step 2 without changing the e-mail: it is already verified
             if (signupEmailToken && signupVerifiedEmail === email.toLowerCase()) { proceedToStep2(); return; }
@@ -609,7 +685,7 @@
                 const res = await fetch(isPhone ? '/api/phone/send-code' : '/api/register/send-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(isPhone ? { phone: email, purpose: 'signup', turnstileToken: getTurnstileToken() } : { email, turnstileToken: getTurnstileToken() })
+                    body: JSON.stringify(isPhone ? { phone: email, country: document.getElementById('country').value, purpose: 'signup', turnstileToken: getTurnstileToken() } : { email, turnstileToken: getTurnstileToken() })
                 });
                 const data = await res.json();
                 if (data.success && data.verificationRequired === false) { proceedToStep2(); return; }   // verification is not switched on yet
@@ -636,7 +712,7 @@
                 const res = await fetch(signupChannel === 'phone' ? '/api/phone/verify-code' : '/api/register/verify-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(signupChannel === 'phone' ? { phone: email, code, purpose: 'signup' } : { email, code })
+                    body: JSON.stringify(signupChannel === 'phone' ? { phone: email, country: document.getElementById('country').value, code, purpose: 'signup' } : { email, code })
                 });
                 const data = await res.json();
                 const proofToken = data.emailToken || data.phoneToken;
@@ -664,7 +740,7 @@
                 const res = await fetch(signupChannel === 'phone' ? '/api/phone/send-code' : '/api/register/send-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(signupChannel === 'phone' ? { phone: typed, purpose: 'signup', resend: true } : { email: typed, resend: true })
+                    body: JSON.stringify(signupChannel === 'phone' ? { phone: typed, country: document.getElementById('country').value, purpose: 'signup', resend: true } : { email: typed, resend: true })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -692,7 +768,7 @@
             en: {
                 title: 'Reset your password', back: 'Back', placeholderEmail: 'Email', send: 'Send code', verify: 'Verify',
                 descEmail: 'Enter the email of your account. We will send you a 6-digit code.',
-                descBoth: 'Enter the Gmail or phone number of your account. We will send you a 6-digit code.',
+                descPhone: 'Enter the phone number of your account. We will send a 6-digit code to your Telegram.',
                 descCodePhone: (m) => `We sent a 6-digit code to your Telegram (${m}). Open Telegram and enter it below.`,
                 descCode: (m) => `We sent a 6-digit code to ${m}. Check your inbox (and Spam), then enter it below.`,
                 descPassword: 'Choose a new password.',
@@ -703,7 +779,7 @@
             km: {
                 title: 'កំណត់ពាក្យសម្ងាត់ឡើងវិញ', back: 'ត្រឡប់ក្រោយ', placeholderEmail: 'អ៊ីមែល', send: 'ផ្ញើលេខកូដ', verify: 'ផ្ទៀងផ្ទាត់',
                 descEmail: 'បញ្ចូលអ៊ីមែលនៃគណនីរបស់អ្នក។ យើងនឹងផ្ញើលេខកូដ 6 ខ្ទង់ទៅអ៊ីមែលនោះ។',
-                descBoth: 'បញ្ចូល Gmail ឬលេខទូរស័ព្ទនៃគណនីរបស់អ្នក។ យើងនឹងផ្ញើលេខកូដ 6 ខ្ទង់។',
+                descPhone: 'បញ្ចូលលេខទូរស័ព្ទនៃគណនីរបស់អ្នក។ យើងនឹងផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក។',
                 descCodePhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលវាខាងក្រោម។`,
                 descCode: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ ${m}។ សូមពិនិត្យប្រអប់សំបុត្រ (និង Spam) រួចបញ្ចូលវាខាងក្រោម។`,
                 descPassword: 'សូមជ្រើសរើសពាក្យសម្ងាត់ថ្មី។',
@@ -736,7 +812,7 @@
             document.getElementById('rStageCode').classList.toggle('hidden', stage !== 'code');
             document.getElementById('rStagePassword').classList.toggle('hidden', stage !== 'password');
             const codeDesc = resetChannel === 'phone' ? t.descCodePhone : t.descCode;
-            document.getElementById('rDesc').innerText = stage === 'email' ? (authOptions.phone ? t.descBoth : t.descEmail) : (stage === 'code' ? codeDesc(maskedEmail || resetEmailValue) : t.descPassword);
+            document.getElementById('rDesc').innerText = stage === 'email' ? (resetMode === 'phone' ? t.descPhone : t.descEmail) : (stage === 'code' ? codeDesc(maskedEmail || resetEmailValue) : t.descPassword);
             document.getElementById('resetMsg').innerText = '';
         }
 
@@ -745,10 +821,10 @@
             const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
             const ph = (id, v) => { const el = document.getElementById(id); if (el) el.placeholder = v; };
             set('rTitle', t.title); set('rBackText', t.back); set('rSendBtn', t.send); set('rVerifyBtn', t.verify); set('rChangeBtn', t.change);
-            ph('resetEmail', authOptions.phone ? identityPlaceholder(t) : t.placeholderEmail); ph('resetNewPassword', t.newPw); ph('resetNewPassword2', t.newPw2);
+            ph('resetEmail', resetMode === 'phone' ? '012 345 678' : t.placeholderEmail); ph('resetNewPassword', t.newPw); ph('resetNewPassword2', t.newPw2);
             const d = document.getElementById('rDesc');
             const codeDesc = resetChannel === 'phone' ? t.descCodePhone : t.descCode;
-            if (d) d.innerText = resetStage === 'email' ? (authOptions.phone ? t.descBoth : t.descEmail) : (resetStage === 'code' ? codeDesc(resetEmailValue) : t.descPassword);
+            if (d) d.innerText = resetStage === 'email' ? (resetMode === 'phone' ? t.descPhone : t.descEmail) : (resetStage === 'code' ? codeDesc(resetEmailValue) : t.descPassword);
             if (resetCountdownLeft <= 0) set('rResendLink', vt().resend);
         }
 
@@ -774,10 +850,11 @@
             document.getElementById('resetCard').classList.remove('hidden');
             const typed = document.getElementById('loginEmail').value.trim();
             const box = document.getElementById('resetEmail');
-            if (!box.value && (typed.includes('@') || (authOptions.phone && looksLikePhone(typed)))) box.value = typed;
+            if (!box.value && typed.includes('@')) box.value = typed;
             resetEmailToken = ''; resetEmailValue = '';
+            resetMode = 'email';
             setResetStage('email');
-            applyResetTexts();
+            applyIdentityPlaceholders();
             renderResetTurnstile();
             history.pushState({ step: 'reset' }, '');
         }
@@ -794,8 +871,11 @@
             const t = vt();
             msg.style.color = 'red'; msg.innerText = '';
             const email = document.getElementById('resetEmail').value.trim();
-            const isPhone = authOptions.phone && looksLikePhone(email);
-            if (!isPhone && !EMAIL_PATTERN.test(email)) { msg.innerText = authOptions.phone ? t.needEmailOrPhone : t.needEmail; return; }
+            const isPhone = resetMode === 'phone';
+            if (isPhone) {
+                if (!authOptions.phone) { msg.innerText = t.phoneSoon; return; }
+                if (!looksLikePhone(email)) { msg.innerText = t.needPhone; return; }
+            } else if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
             if (turnstileEnabled() && !getResetTurnstileToken()) { msg.innerText = t.needHuman; return; }
             const old = btn.innerText;
             btn.disabled = true; btn.innerText = t.sending;
@@ -933,12 +1013,54 @@
             } catch (e) { /* the form simply stays Gmail-only */ }
         }
 
+        function applyLegalTexts() {
+            const km = (localStorage.getItem('camfeed_lang') || 'en') === 'km';
+            const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener" style="color: #1877f2; text-decoration: none;">${text}</a>`;
+            const a = document.getElementById('legalLine'), b = document.getElementById('legalLineReg');
+            if (a) a.innerHTML = km ? `${link('/terms.html', 'លក្ខខណ្ឌប្រើប្រាស់')} · ${link('/privacy.html', 'គោលការណ៍ឯកជនភាព')}`
+                                    : `${link('/terms.html', 'Terms of Use')} · ${link('/privacy.html', 'Privacy Policy')}`;
+            if (b) b.innerHTML = km ? `ដោយចុះឈ្មោះ អ្នកយល់ព្រមតាម ${link('/terms.html', 'លក្ខខណ្ឌប្រើប្រាស់')} និង ${link('/privacy.html', 'គោលការណ៍ឯកជនភាព')} របស់យើង។`
+                                    : `By signing up you agree to our ${link('/terms.html', 'Terms of Use')} and ${link('/privacy.html', 'Privacy Policy')}.`;
+        }
+
         function applyIdentityPlaceholders() {
             const lang = localStorage.getItem('camfeed_lang') || 'en';
             const t = texts[lang] || texts.en;
-            const reg = document.getElementById('regEmail'), rst = document.getElementById('resetEmail');
-            if (reg) { reg.placeholder = identityPlaceholder(t); reg.setAttribute('inputmode', authOptions.phone ? 'text' : 'email'); }
-            if (rst) { rst.setAttribute('inputmode', authOptions.phone ? 'text' : 'email'); }
+            const v = vt();
+            const setTab = (idOn, idOff) => { const on = document.getElementById(idOn), off = document.getElementById(idOff); if (on) on.classList.add('active'); if (off) off.classList.remove('active'); };
+            const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
+            // sign-up form
+            setTab(identityMode === 'phone' ? 'tabPhone' : 'tabEmail', identityMode === 'phone' ? 'tabEmail' : 'tabPhone');
+            setText('tabEmailText', v.tabEmail); setText('tabPhoneText', v.tabPhone);
+            const reg = document.getElementById('regEmail');
+            if (reg) {
+                reg.placeholder = identityPlaceholder(t);
+                reg.setAttribute('inputmode', identityMode === 'phone' ? 'tel' : 'email');
+                reg.setAttribute('autocomplete', identityMode === 'phone' ? 'tel' : 'email');
+            }
+            updateDialPrefix();
+            const hint = document.getElementById('regPhoneHint');
+            if (hint) {
+                const show = identityMode === 'phone';
+                hint.classList.toggle('hidden', !show);
+                hint.classList.toggle('warn', show && !authOptions.phone);
+                hint.innerText = show ? (authOptions.phone ? v.phoneHint : v.phoneSoon) : '';
+            }
+            // forgot-password form
+            setTab(resetMode === 'phone' ? 'rTabPhone' : 'rTabEmail', resetMode === 'phone' ? 'rTabEmail' : 'rTabPhone');
+            setText('rTabEmailText', v.tabEmail); setText('rTabPhoneText', v.tabPhone);
+            const rst = document.getElementById('resetEmail');
+            if (rst) {
+                rst.setAttribute('inputmode', resetMode === 'phone' ? 'tel' : 'email');
+                rst.setAttribute('autocomplete', resetMode === 'phone' ? 'tel' : 'email');
+            }
+            const rnote = document.getElementById('rPhoneNote');
+            if (rnote) {
+                const show = resetMode === 'phone';
+                rnote.classList.toggle('hidden', !show);
+                rnote.classList.toggle('warn', show && !authOptions.phone);
+                rnote.innerText = show ? (authOptions.phone ? v.phoneResetNote : v.phoneSoon) : '';
+            }
             applyResetTexts();
         }
 
@@ -1107,7 +1229,7 @@
                         }
                     }
 
-                    localStorage.setItem('camfeed_remembered_email', user.email);
+                    localStorage.setItem('camfeed_remembered_email', (signupChannel === 'phone' && user.phone) ? user.phone : user.email);
                     localStorage.setItem('camfeed_user', JSON.stringify(user));
                     window.location.href = 'feed.html';
                 } else {
