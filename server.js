@@ -4,7 +4,9 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
-const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
+// Cloudinary is no longer used: all media is uploaded straight to Cloudflare R2 (/api/videos/upload-*).
+// These routes now only accept plain text fields (JSON or multipart without files).
+const formFields = multer().none();
 const createVideoRouter = require('./videoRecommendationRoutes');
 const auth = require('./auth');
 
@@ -184,6 +186,13 @@ app.use((req, res, next) => {
 const videoRouter = createVideoRouter(pool);
 app.use('/api/videos', videoRouter);
 
+// Deletes database rows AND the files (R2 / Cloudinary) that belong to them, so storage never fills up.
+const { createCleanup, extractMediaUrls } = require('./cleanup');
+const cleanup = createCleanup({
+  pool,
+  deleteR2: (url) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(url) : Promise.resolve())
+});
+
 async function verifyAdminAccess(email, secretKey) {
   if (!email) return { allowed: false, error: 'Missing admin email' };
   const normalized = email.trim().toLowerCase();
@@ -276,10 +285,23 @@ function normalizeBirthdate(raw) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+// Sign-up abuse protection: a CAPTCHA (Cloudflare Turnstile) plus a per-IP cap as a backstop.
+// The cap is generous because many Cambodian mobile users share one carrier IP.
+const registerLimiter = auth.makeLimiter(parseInt(process.env.REGISTER_MAX_PER_HOUR || '10', 10), 60 * 60 * 1000);
+
 app.post('/api/register', async (req, res) => {
   const { password, firstName, lastName, birthdate, gender, country } = req.body || {};
   const email = String((req.body && req.body.email) || '').trim();
   try {
+    if (registerLimiter.isLimited(req.ip)) {
+      return res.status(429).json({ success: false, error: 'Too many accounts created from this network. Please try again later.' });
+    }
+    const human = await auth.verifyTurnstile(req.body && req.body.turnstileToken, req.ip);
+    if (!human.ok) {
+      return res.status(400).json({ success: false, error: human.unavailable
+        ? 'Verification service is unavailable. Please try again.'
+        : 'Human verification failed. Please try again.' });
+    }
     if (!email || !email.includes('@') && email.length < 6) {
       return res.status(400).json({ success: false, error: 'Please enter a valid email or phone.' });
     }
@@ -300,6 +322,7 @@ app.post('/api/register', async (req, res) => {
     `;
     const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole]);
     const user = result.rows[0];
+    registerLimiter.hit(req.ip);
     // password is stripped from the response by auth.sanitizeJson
     res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
   } catch (err) {
@@ -357,7 +380,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Create Post
-app.post('/api/posts', cloudinaryUpload.single('mediaFile'), authCore.forceActor, async (req, res) => {
+app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
   }
@@ -748,16 +771,9 @@ app.delete('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
   try {
-    const query = 'DELETE FROM posts WHERE id = $1 AND LOWER(user_email) = LOWER($2) RETURNING *';
-    const result = await pool.query(query, [id, (email || '').trim()]);
-    if (result.rows.length > 0) {
-      const deletedPost = result.rows[0];
-      if (deletedPost.media_url && deletedPost.media_type !== 'shared_profile' && deletedPost.media_type !== 'styled_text' && videoRouter.deleteR2ObjectsFromMedia) {
-        videoRouter.deleteR2ObjectsFromMedia(deletedPost.media_url).catch(() => {});
-      }
-      await pool.query('DELETE FROM posts WHERE shared_post_id = $1', [id]).catch(() => {});
-      await pool.query('DELETE FROM likes WHERE post_id = $1', [id]).catch(() => {});
-      await pool.query('DELETE FROM comments WHERE post_id = $1', [id]).catch(() => {});
+    const owned = await pool.query('SELECT id FROM posts WHERE id = $1 AND LOWER(user_email) = LOWER($2)', [id, (email || '').trim()]);
+    if (owned.rows.length > 0) {
+      await cleanup.deletePostCompletely(owned.rows[0].id); // post, shares, comments, likes + photos/videos in storage
       res.json({ success: true });
     } else {
       res.status(403).json({ success: false, error: 'Unauthorized or post not found' });
@@ -768,11 +784,12 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // Update Profile & Cover Pictures
-app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), authCore.forceActor, async (req, res) => {
+app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req, res) => {
   const { email, bio, profilePicUrl, coverPicUrl } = req.body;
   try {
     let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
     let coverUrl = coverPicUrl || (req.files && req.files['coverPic'] ? req.files['coverPic'][0].path : null);
+    const oldPics = await pool.query('SELECT profile_pic, cover_pic FROM users WHERE email = $1', [email]);
 
     let query = 'UPDATE users SET bio = $1';
     let params = [bio || ''];
@@ -790,7 +807,14 @@ app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePi
     params.push(email);
 
     const result = await pool.query(query, params);
+    const oldUrls = [];
+    const o = oldPics.rows[0];
+    if (o) {
+      if (profileUrl && o.profile_pic && o.profile_pic !== profileUrl) oldUrls.push(o.profile_pic);
+      if (coverUrl && o.cover_pic && o.cover_pic !== coverUrl) oldUrls.push(o.cover_pic);
+    }
     res.json({ success: true, user: result.rows[0] });
+    if (oldUrls.length) cleanup.purgeMediaUrls(oldUrls).catch(() => {}); // old picture no longer needed
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1066,7 +1090,7 @@ app.delete('/api/comments/:id', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Unauthorized to delete this comment' });
     }
 
-    await pool.query('DELETE FROM comments WHERE id = $1', [id]);
+    await cleanup.deleteCommentCompletely(id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1447,7 +1471,7 @@ app.post('/api/presence/offline', async (req, res) => {
 app.post('/api/messages', (req, res, next) => {
   const ct = req.headers['content-type'] || '';
   if (ct.includes('multipart/form-data')) {
-    return cloudinaryUpload.single('mediaFile')(req, res, (err) => {
+    return formFields(req, res, (err) => {
       if (err) {
         console.error("Media upload error:", err);
         return res.status(500).json({ success: false, error: err.message });
@@ -1549,15 +1573,13 @@ app.delete('/api/messages/:id', async (req, res) => {
     if (!sender) return res.status(400).json({ success: false, error: 'Missing sender' });
     const marker = tombstone || '__CAMFEED_MSG_DELETED__';
     const prevRes = await pool.query('SELECT media_url FROM messages WHERE id = $1 AND LOWER(sender_email) = LOWER($2)', [id, sender]);
-    if (prevRes.rows[0]?.media_url && videoRouter.deleteR2ObjectsFromMedia) {
-      videoRouter.deleteR2ObjectsFromMedia(prevRes.rows[0].media_url).catch(() => {});
-    }
     const result = await pool.query(
       "UPDATE messages SET message = $1, media_url = NULL, message_type = 'deleted' WHERE id = $2 AND LOWER(sender_email) = LOWER($3) RETURNING *",
       [marker, id, sender]
     );
     if (result.rows.length > 0) {
       res.json({ success: true, message: result.rows[0] });
+      if (prevRes.rows[0]?.media_url) cleanup.purgeMediaUrls(extractMediaUrls(prevRes.rows[0].media_url)).catch(() => {});
     } else {
       res.status(403).json({ success: false, error: 'Unauthorized or message not found' });
     }
@@ -1641,7 +1663,6 @@ app.put('/api/settings/password', async (req, res) => {
 app.delete('/api/settings/account', async (req, res) => {
   const email = req.authEmail;
   const password = String((req.body && req.body.password) || '');
-  let client;
   try {
     if (SUPER_ADMIN_EMAILS.includes(email.toLowerCase())) {
       return res.status(400).json({ success: false, message: 'Super Admin account cannot be deleted here.' });
@@ -1651,49 +1672,12 @@ app.delete('/api/settings/account', async (req, res) => {
     if (!check.ok) {
       return res.status(400).json({ success: false, message: 'Password is incorrect.' });
     }
-
-    client = await pool.connect();
-    await client.query('BEGIN');
-    const mediaToDelete = [];
-    const posts = await client.query('SELECT id, media_url, media_type FROM posts WHERE user_email = $1', [email]);
-    posts.rows.forEach(p => { if (p.media_url && p.media_type !== 'styled_text') mediaToDelete.push(p.media_url); });
-    const ids = posts.rows.map(p => p.id);
-    if (ids.length) {
-      await client.query('DELETE FROM likes WHERE post_id = ANY($1::int[])', [ids]);
-      await client.query('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ANY($1::int[]))', [ids]);
-      await client.query('DELETE FROM comments WHERE post_id = ANY($1::int[])', [ids]);
-      await client.query('DELETE FROM post_views WHERE post_id = ANY($1::int[])', [ids]);
-      await client.query('DELETE FROM notifications WHERE post_id = ANY($1::int[])', [ids]);
-      await client.query('DELETE FROM reports WHERE target_post_id = ANY($1::int[])', [ids]);
-      await client.query('DELETE FROM posts WHERE shared_post_id = ANY($1::int[])', [ids]);
-    }
-    await client.query('DELETE FROM posts WHERE user_email = $1', [email]);
-    await client.query('DELETE FROM comment_likes WHERE user_email = $1', [email]);
-    await client.query('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE user_email = $1)', [email]);
-    await client.query('DELETE FROM comments WHERE user_email = $1', [email]);
-    await client.query('DELETE FROM likes WHERE user_email = $1', [email]);
-    await client.query('DELETE FROM follows WHERE follower_email = $1 OR following_email = $1', [email]);
-    await client.query('DELETE FROM blocked_users WHERE blocker_email = $1 OR blocked_email = $1', [email]);
-    await client.query('DELETE FROM notifications WHERE recipient_email = $1 OR sender_email = $1', [email]);
-    await client.query('DELETE FROM post_views WHERE viewer_email = $1', [email]);
-    await client.query('DELETE FROM reports WHERE reporter_email = $1 OR target_user_email = $1', [email]);
-    const msgs = await client.query('SELECT media_url FROM messages WHERE sender_email = $1 AND media_url IS NOT NULL', [email]);
-    msgs.rows.forEach(m => mediaToDelete.push(m.media_url));
-    await client.query('DELETE FROM messages WHERE sender_email = $1 OR receiver_email = $1', [email]);
-    await client.query('DELETE FROM users WHERE email = $1', [email]);
-    await client.query('COMMIT');
+    await cleanup.deleteUserCompletely(email); // posts, videos, comments, likes, follows, chats, profile pictures + all files
     authCore.invalidate(email);
-
-    if (videoRouter.deleteR2ObjectsFromMedia) {
-      mediaToDelete.forEach(m => videoRouter.deleteR2ObjectsFromMedia(m).catch(() => {}));
-    }
     res.json({ success: true, message: 'Account deleted.' });
   } catch (err) {
-    if (client) await client.query('ROLLBACK').catch(() => {});
     console.error('Delete account error:', err.message);
     res.status(500).json({ success: false, message: 'Could not delete the account: ' + err.message });
-  } finally {
-    if (client) client.release();
   }
 });
 
@@ -1805,8 +1789,9 @@ app.delete('/api/admin/users/:targetEmail', async (req, res) => {
     if (SUPER_ADMIN_EMAILS.includes(targetEmail.toLowerCase())) {
       return res.status(400).json({ success: false, error: 'Cannot delete Super Admin.' });
     }
-    await pool.query('DELETE FROM posts WHERE user_email = $1', [targetEmail]);
-    await pool.query('DELETE FROM users WHERE email = $1', [targetEmail]);
+    const target = await pool.query('SELECT email FROM users WHERE LOWER(email) = LOWER($1)', [targetEmail]);
+    if (!target.rows[0]) return res.status(404).json({ success: false, error: 'User not found.' });
+    await cleanup.deleteUserCompletely(target.rows[0].email); // everything the user created, chats and files included
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1820,12 +1805,7 @@ app.delete('/api/admin/posts/:postId', async (req, res) => {
     const auth = await verifyAdminAccess(adminEmail, adminKey);
     if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
 
-    const delRes = await pool.query('DELETE FROM posts WHERE id = $1 RETURNING *', [postId]);
-    if (delRes.rows[0]?.media_url && delRes.rows[0].media_type !== 'styled_text' && videoRouter.deleteR2ObjectsFromMedia) {
-      videoRouter.deleteR2ObjectsFromMedia(delRes.rows[0].media_url).catch(() => {});
-    }
-    await pool.query('DELETE FROM posts WHERE shared_post_id = $1', [postId]).catch(() => {});
-    await pool.query("UPDATE reports SET status = 'resolved_deleted' WHERE target_post_id = $1", [postId]);
+    await cleanup.deletePostCompletely(postId); // also marks its reports as resolved_deleted
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
