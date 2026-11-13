@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Login</title>
@@ -235,6 +236,7 @@
                     </label>
                 </div>
 
+                <div id="turnstileBox" style="margin-top: 16px; display: flex; justify-content: center;"></div>
                 <button type="submit" class="btn-primary" style="margin-top: 20px;" id="btnFinishReg">Get Started & Finish</button>
             </form>
             <div class="msg" id="wizardMsg"></div>
@@ -404,6 +406,26 @@
 
         let tempUserData = null;
 
+        // ---- Human verification (Cloudflare Turnstile). Paste your PUBLIC site key below. ----
+        const TURNSTILE_SITE_KEY = '0x4AAAAAAF_Vz9tGebOZzgJ3';
+        let turnstileWidgetId = null;
+        let turnstileTries = 0;
+        function turnstileEnabled() { return !!TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY.indexOf('PASTE_') !== 0; }
+        function renderTurnstile() {
+            if (!turnstileEnabled() || turnstileWidgetId !== null) return;
+            const box = document.getElementById('turnstileBox');
+            if (!box) return;
+            if (!window.turnstile) { if (++turnstileTries < 50) setTimeout(renderTurnstile, 400); return; }
+            turnstileWidgetId = window.turnstile.render(box, { sitekey: TURNSTILE_SITE_KEY, theme: 'light' });
+        }
+        function getTurnstileToken() {
+            if (!turnstileEnabled() || turnstileWidgetId === null || !window.turnstile) return '';
+            return window.turnstile.getResponse(turnstileWidgetId) || '';
+        }
+        function resetTurnstile() {
+            if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
+        }
+
         function proceedToStep2() {
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
@@ -422,6 +444,7 @@
 
             document.getElementById('registerCard').classList.add('hidden');
             document.getElementById('welcomeWizardCard').classList.remove('hidden');
+            renderTurnstile();
             history.pushState({ step: 'register2' }, '');
         }
 
@@ -507,6 +530,11 @@
             const lang = localStorage.getItem('camfeed_lang') || 'en';
 
             msg.innerText = '';
+            if (turnstileEnabled() && !getTurnstileToken()) {
+                msg.style.color = 'red';
+                msg.innerText = lang === 'km' ? 'សូមបញ្ជាក់ថាអ្នកជាមនុស្សជាមុនសិន។' : 'Please complete the human verification first.';
+                return;
+            }
             finishBtn.disabled = true;
             finishBtn.innerText = lang === 'km' ? "កំពុងបង្កើតគណនី..." : "Creating account...";
 
@@ -519,7 +547,8 @@
                     password: document.getElementById('regPassword').value,
                     birthdate: `${document.getElementById('dobDay').value}-${document.getElementById('dobMonth').value}-${document.getElementById('dobYear').value}`,
                     gender: document.getElementById('gender').value,
-                    country: document.getElementById('country').value
+                    country: document.getElementById('country').value,
+                    turnstileToken: getTurnstileToken()
                 };
 
                 const res = await fetch('/api/register', {
@@ -564,12 +593,14 @@
                     localStorage.setItem('camfeed_user', JSON.stringify(user));
                     window.location.href = 'feed.html';
                 } else {
+                    resetTurnstile();
                     finishBtn.disabled = false;
                     finishBtn.innerText = texts[lang].btnFinishReg;
                     msg.style.color = 'red';
                     msg.innerText = data.error || 'Registration failed (Email may already exist)';
                 }
             } catch (err) {
+                resetTurnstile();
                 finishBtn.disabled = false;
                 finishBtn.innerText = texts[lang].btnFinishReg;
                 msg.style.color = 'red';
