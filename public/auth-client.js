@@ -3,8 +3,8 @@
 (function () {
   'use strict';
   var TOKEN_KEY = 'camfeed_token', USER_KEY = 'camfeed_user';
-  var TOKEN_PATHS = ['/api/login', '/api/register', '/api/settings/password'];
-  var NO_REDIRECT_PATHS = ['/api/login', '/api/register'];
+  var TOKEN_PATHS = ['/api/login', '/api/register', '/api/settings/password', '/api/telegram/exchange', '/api/telegram/complete'];
+  var NO_REDIRECT_PATHS = ['/api/login', '/api/register', '/api/telegram/exchange', '/api/telegram/complete'];
 
   function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
   function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
