@@ -2707,7 +2707,6 @@
             }
 
             posts.forEach((post, idx) => {
-                const isOwnPost = currentUser.email === post.user_email;
                 const count = parseInt(post.likes_count) || 0;
                 const viewsCount = parseInt(post.views_count) || 0;
                 const sharesCount = parseInt(post.shares_count) || 0;
