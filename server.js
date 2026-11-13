@@ -194,6 +194,7 @@ const passwordReset = createPasswordReset({ pool, auth, mailer }); // "Forgot pa
 const tgLogin = createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }); // "Continue with Telegram"
 const phoneSignup = createPhoneVerification({ pool, auth, gateway, mode: 'signup' }); // phone number + code inside Telegram
 const phoneReset = createPhoneVerification({ pool, auth, gateway, mode: 'reset' });
+console.log('[phone] Telegram Gateway key: ' + (gateway.isConfigured() ? 'FOUND - phone sign-up is ON' : 'NOT FOUND (set TELEGRAM_GATEWAY_TOKEN in Render) - the Phone tab shows "coming soon"'));
 const isTelegramOnlyAccount = (email) => /^tg\d+@telegram\.camfeedkh\.com$/i.test(String(email || '')); // made with Continue with Telegram: no password
 
 // Global Real-Time Presence Tracker
@@ -385,7 +386,7 @@ app.post('/api/register', async (req, res) => {
       return res.status(429).json({ success: false, error: 'Too many accounts created from this network. Please try again later.' });
     }
     if (viaPhone) {
-      phoneE164 = normalizePhone(req.body.phone);
+      phoneE164 = normalizePhone(req.body.phone, country);   // the country chosen in the form decides how a local number is read
       if (!phoneE164 || !phoneSignup.checkToken(phoneE164, req.body.phoneToken)) {
         return res.status(403).json({ success: false, needsEmailVerification: true, error: 'Please verify your phone number first.', errorKm: 'សូមផ្ទៀងផ្ទាត់លេខទូរស័ព្ទរបស់អ្នកជាមុនសិន។' });
       }
