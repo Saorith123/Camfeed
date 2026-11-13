@@ -1,162 +1,393 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="km">
 <head>
-    <script src="auth-client.js"></script>
-    <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#1877f2">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="CamFeed">
-    <script src="pwa.js" defer></script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camfeed - Settings & Privacy</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
-        .top-bar { display: flex; align-items: center; padding: 10px 15px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-weight: bold; font-size: 18px; color: #1877f2; cursor: pointer; }
-        .main-container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h3 { margin-top: 0; color: #050505; border-bottom: 1px solid #e4e6eb; padding-bottom: 10px; }
-        label { font-size: 13px; font-weight: bold; color: #65676b; display: block; margin-top: 10px; }
-        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #dddfe2; border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none; }
-        input:focus { border-color: #1877f2; }
-        .btn { padding: 10px 16px; background: #1877f2; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 15px; }
-        .btn:hover { background: #166fe5; }
-        .btn-danger { background: #fa383e; }
-        .btn-danger:hover { background: #e02428; }
-        .msg { font-size: 13px; margin-top: 8px; font-weight: bold; }
-    </style>
+<script src="auth-client.js"></script>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1877f2">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CamFeed">
+<script src="pwa.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>CamFeed - Settings</title>
+<link rel="icon" type="image/png" href="logo-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f0f2f5;--card:#fff;--text:#1c1e21;--muted:#65676b;--line:#e4e6eb;--primary:#1877f2;--primary-dark:#1464cc;--primary-soft:#e7f3ff;--danger:#e41e3f;--danger-soft:#fdecee;--warn-soft:#fff6e0;--warn:#8a5a00;--radius:14px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04)}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);line-height:1.5;font-family:'Plus Jakarta Sans','Noto Sans Khmer',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+button,input,select{font-family:inherit}button{cursor:pointer}a{color:var(--primary);text-decoration:none}.hidden{display:none!important}
+.topbar{position:sticky;top:0;z-index:30;background:var(--card);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:12px}
+.icon-btn{width:40px;height:40px;border-radius:50%;border:0;background:var(--bg);font-size:20px;color:var(--text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.icon-btn:hover{background:#e4e6eb}.topbar .title{flex:1;min-width:0}.topbar h1{margin:0;font-size:19px;line-height:1.25;font-weight:800}
+.topbar .sub{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lang-switch{display:inline-flex;background:var(--bg);border-radius:20px;padding:3px;flex-shrink:0}
+.lang-switch button{border:0;background:transparent;padding:6px 12px;border-radius:16px;font-weight:700;font-size:13px;color:var(--muted)}
+.lang-switch button.on{background:var(--card);color:var(--primary);box-shadow:var(--shadow)}
+.page{max-width:1060px;margin:18px auto 60px;padding:0 16px;display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+.side{position:sticky;top:78px}
+.profile-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;text-align:center;margin-bottom:14px}
+.avatar{width:76px;height:76px;border-radius:50%;margin:0 auto 10px;background:linear-gradient(135deg,#1877f2,#42a5ff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;overflow:hidden}
+.avatar img{width:100%;height:100%;object-fit:cover}.p-name{font-size:18px;font-weight:800;margin:0;word-break:break-word}
+.p-sub{font-size:13px;color:var(--muted);margin:2px 0 12px;word-break:break-all}.btn-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.menu{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px;display:flex;flex-direction:column;gap:2px}
+.menu button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 12px;border:0;background:transparent;border-radius:10px;font-size:15px;font-weight:600;color:var(--text)}
+.menu button .ic{width:34px;height:34px;border-radius:10px;background:var(--bg);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.menu button:hover{background:var(--bg)}.menu button.active{background:var(--primary-soft);color:var(--primary)}.menu button.active .ic{background:var(--primary)}
+.menu button.danger-item{color:var(--danger)}.menu .sep{height:1px;background:var(--line);margin:6px 8px}
+.content .tab{display:none}.content .tab.active{display:block;animation:fade .18s ease}@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card h2{margin:0 0 4px;font-size:17px;font-weight:800}.card .desc{margin:0 0 14px;font-size:13.5px;color:var(--muted)}
+.card.danger{border:1px solid #f5c2c9}.card.danger h2{color:var(--danger)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}label.field{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=password],input[type=date],select{width:100%;padding:11px 13px;border:1px solid #ccd0d5;border-radius:10px;font-size:15px;background:#fff;outline:none;color:var(--text)}
+input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(24,119,242,.15)}
+.pw-wrap{position:relative}.pw-wrap input{padding-right:46px}.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;background:transparent;font-size:17px;border-radius:8px}
+.field-gap{margin-bottom:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:10px;border:0;font-weight:700;font-size:14.5px;background:var(--primary);color:#fff}
+.btn:hover{background:var(--primary-dark)}.btn:disabled{opacity:.5;cursor:not-allowed}.btn.secondary{background:var(--bg);color:var(--text)}.btn.secondary:hover{background:#e4e6eb}
+.btn.outline{background:#fff;color:var(--primary);border:1px solid #b9d4fb}.btn.danger{background:var(--danger)}.btn.danger:hover{background:#c4162f}.btn.small{padding:7px 12px;font-size:13.5px;border-radius:8px}
+.note{font-size:13px;padding:10px 12px;border-radius:10px;background:var(--primary-soft);color:#0b4fb3;margin-bottom:14px}.note.warn{background:var(--warn-soft);color:var(--warn)}.note.red{background:var(--danger-soft);color:#9b1229}
+.strength{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0 2px}.strength i{display:block;height:100%;width:0;background:var(--danger);transition:width .2s,background .2s}.strength-label{font-size:12.5px;color:var(--muted);min-height:18px}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin:12px 0}.check input{margin-top:3px;width:18px;height:18px;flex-shrink:0}
+.row{display:flex;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}
+.row .r-ic{width:40px;height:40px;border-radius:12px;background:var(--bg);display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.row .r-main{flex:1;min-width:0}.row .r-title{font-weight:700;font-size:15px}.row .r-sub{font-size:13px;color:var(--muted);word-break:break-word}
+.row.link{cursor:pointer;color:inherit}.row.link:hover .r-title{color:var(--primary)}.chev{color:#b0b3b8;font-size:20px}
+.switch{position:relative;width:48px;height:28px;border-radius:14px;border:0;background:#c9ccd1;flex-shrink:0;transition:background .2s;padding:0}
+.switch::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.switch[aria-checked=true]{background:var(--primary)}.switch[aria-checked=true]::after{transform:translateX(20px)}.switch:disabled{opacity:.55;cursor:wait}
+.switch:focus-visible,.btn:focus-visible,.menu button:focus-visible,.icon-btn:focus-visible{outline:3px solid rgba(24,119,242,.4);outline-offset:2px}
+.person{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}.person:first-child{border-top:0}
+.person .avatar{width:44px;height:44px;font-size:17px;margin:0}.person .nm{flex:1;min-width:0;font-weight:700;word-break:break-word}
+.empty{text-align:center;color:var(--muted);padding:22px 8px;font-size:14px}.skeleton{color:var(--muted);padding:14px 0;font-size:14px}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;z-index:80;background:#242526;color:#fff;padding:12px 18px;border-radius:12px;font-size:14.5px;font-weight:600;max-width:min(92vw,460px);text-align:center;transition:.25s}
+#toast.show{opacity:1;transform:translate(-50%,0)}#toast.err{background:#b3122a}#toast.ok{background:#176f35}
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:90;display:flex;align-items:center;justify-content:center;padding:16px}
+.dialog{background:#fff;border-radius:16px;max-width:420px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.dialog h3{margin:0 0 8px;font-size:18px}.dialog p{margin:0 0 18px;color:var(--muted);font-size:14.5px}.dialog .actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.about{text-align:center;color:var(--muted);font-size:13px;padding:10px 0 0}.about img{width:56px;height:56px;border-radius:14px;display:block;margin:0 auto 8px}
+@media(max-width:860px){
+.page{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}.side,.content{min-width:0}.side{position:static}
+.profile-card{display:flex;align-items:center;gap:14px;text-align:left;padding:14px;margin-bottom:10px}.avatar{margin:0;width:60px;height:60px;font-size:24px;flex-shrink:0}
+.profile-card .p-info{flex:1;min-width:0}.p-sub{margin-bottom:8px}.btn-row{justify-content:flex-start}
+.menu{flex-direction:row;overflow-x:auto;padding:6px;gap:6px;scrollbar-width:none;position:sticky;top:calc(62px + env(safe-area-inset-top,0px));z-index:20}
+.menu::-webkit-scrollbar{display:none}.menu button{flex:0 0 auto;width:auto;padding:8px 14px;gap:8px;font-size:14px;white-space:nowrap}
+.menu button .ic{width:26px;height:26px;font-size:14px;border-radius:8px}.menu .sep,.menu .logout-item{display:none}
+.topbar .sub{display:none}.grid2{grid-template-columns:1fr}.card{padding:16px}}
+@media(min-width:861px){.logout-mobile{display:none}}
+</style>
 </head>
 <body>
+<header class="topbar">
+<button class="icon-btn" id="backBtn" type="button" aria-label="Back">←</button>
+<div class="title"><h1 data-i18n="title">ការកំណត់</h1><div class="sub" data-i18n="subtitle">គណនី · ឯកជនភាព · សុវត្ថិភាព</div></div>
+<div class="lang-switch" role="group" aria-label="Language"><button type="button" data-lang="km">ខ្មែរ</button><button type="button" data-lang="en">EN</button></div>
+</header>
+<div class="page">
+<aside class="side">
+<div class="profile-card"><div class="avatar" id="avatar">?</div><div class="p-info"><p class="p-name" id="pName">…</p><p class="p-sub" id="pSub"></p>
+<div class="btn-row"><a class="btn small outline" id="viewProfileBtn" href="profile.html" data-i18n="viewProfile">មើលប្រវត្តិរូប</a></div></div></div>
+<nav class="menu" id="menu" role="tablist" aria-orientation="vertical">
+<button type="button" role="tab" data-tab="account"><span class="ic">👤</span><span data-i18n="nav_account">គណនី</span></button>
+<button type="button" role="tab" data-tab="privacy"><span class="ic">🔒</span><span data-i18n="nav_privacy">ឯកជនភាព</span></button>
+<button type="button" role="tab" data-tab="security"><span class="ic">🛡️</span><span data-i18n="nav_security">សុវត្ថិភាព</span></button>
+<button type="button" role="tab" data-tab="notifications"><span class="ic">🔔</span><span data-i18n="nav_notifications">ការជូនដំណឹង</span></button>
+<button type="button" role="tab" data-tab="data"><span class="ic">📦</span><span data-i18n="nav_data">ទិន្នន័យរបស់ខ្ញុំ</span></button>
+<button type="button" role="tab" data-tab="help"><span class="ic">💬</span><span data-i18n="nav_help">ជំនួយ និងអំពី</span></button>
+<div class="sep"></div>
+<button type="button" class="danger-item logout-item" id="logoutBtn"><span class="ic">🚪</span><span data-i18n="logout">ចាកចេញ</span></button>
+</nav>
+</aside>
+<main class="content">
 
-    <div class="top-bar" onclick="window.location.href='feed.html'">
-        ⬅️ Back to Camfeed
-    </div>
+<section class="tab" id="tab-account" role="tabpanel">
+<div class="card"><h2 data-i18n="acc_name_t">ឈ្មោះរបស់អ្នក</h2><p class="desc" data-i18n="acc_name_d">ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។</p>
+<div class="note warn" data-i18n="acc_name_note">ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។</div>
+<div class="grid2 field-gap"><div><label class="field" for="firstName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="firstName" maxlength="60" autocomplete="given-name"></div>
+<div><label class="field" for="lastName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="lastName" maxlength="60" autocomplete="family-name"></div></div>
+<button type="button" class="btn" id="saveNameBtn" data-i18n="save" disabled>រក្សាទុក</button></div>
 
-    <div class="main-container">
-        <!-- 1. CHANGE NAME -->
-        <div class="card">
-            <h3>👤 Name Settings</h3>
-            <p style="font-size: 12px; color: #65676b;">Note: If you change your name on Camfeed, you can't change it again for 15 days.</p>
-            <label>First Name</label>
-            <input type="text" id="setFirstName">
-            <label>Last Name</label>
-            <input type="text" id="setLastName">
-            <button class="btn" onclick="updateName()">Save Changes</button>
-            <div id="nameMsg" class="msg"></div>
-        </div>
+<div class="card"><h2 data-i18n="det_t">ព័ត៌មានផ្ទាល់ខ្លួន</h2><p class="desc" data-i18n="det_d">ជ្រើសរើសអ្នកណាអាចឃើញពីផ្នែក «ឯកជនភាព»។</p>
+<div class="grid2 field-gap"><div><label class="field" for="dLocation" data-i18n="det_location">ទីតាំង</label><input type="text" id="dLocation" maxlength="150" autocomplete="address-level2"></div>
+<div><label class="field" for="dWork" data-i18n="det_work">ការងារ</label><input type="text" id="dWork" maxlength="150"></div></div>
+<div class="grid2 field-gap"><div><label class="field" for="dBirth" data-i18n="det_birth">ថ្ងៃកំណើត</label><input type="date" id="dBirth"></div>
+<div><label class="field" for="dGender" data-i18n="det_gender">ភេទ</label><select id="dGender"><option value="Male" data-i18n="g_male">ប្រុស</option><option value="Female" data-i18n="g_female">ស្រី</option><option value="Other" data-i18n="g_other">ផ្សេងៗ</option></select></div></div>
+<div class="grid2 field-gap"><div><label class="field" for="dRel" data-i18n="det_rel">ស្ថានភាពទំនាក់ទំនង</label><input type="text" id="dRel" maxlength="100" list="relList"><datalist id="relList"><option value="Single"><option value="In a relationship"><option value="Married"></datalist></div>
+<div><label class="field" for="dPhone" data-i18n="det_phone">លេខទូរស័ព្ទបង្ហាញលើប្រវត្តិរូប</label><input type="text" id="dPhone" maxlength="30" autocomplete="tel"></div></div>
+<button type="button" class="btn" id="saveDetailsBtn" data-i18n="save">រក្សាទុក</button></div>
 
-        <!-- 2. CHANGE PASSWORD -->
-        <div class="card" id="passwordCard">
-            <h3>🔒 Password & Security</h3>
-            <label>Current Password</label>
-            <input type="password" id="currentPassword" placeholder="••••••••">
-            <label>New Password</label>
-            <input type="password" id="newPassword" placeholder="••••••••">
-            <button class="btn" onclick="updatePassword()">Update Password</button>
-            <div id="passMsg" class="msg"></div>
-        </div>
+<div class="card"><h2 data-i18n="acc_contact_t">ព័ត៌មានចូលគណនី</h2><p class="desc" data-i18n="acc_contact_d">ព័ត៌មានដែលអ្នកប្រើដើម្បីចូលគណនី។</p>
+<div class="row"><span class="r-ic">✉️</span><div class="r-main"><div class="r-title" id="contactLabel" data-i18n="acc_login_with">អ៊ីមែល / លេខទូរស័ព្ទ</div><div class="r-sub" id="contactValue">…</div></div><span class="r-sub" data-i18n="acc_locked">🔒 មិនអាចកែនៅទីនេះ</span></div>
+<div class="row" id="idRow"><span class="r-ic">🔢</span><div class="r-main"><div class="r-title" data-i18n="acc_id">លេខសម្គាល់របស់អ្នក</div><div class="r-sub" id="idValue">…</div></div><button type="button" class="btn small secondary" id="copyIdBtn" data-i18n="copy">ចម្លង</button></div>
+<div class="row" id="linkRow"><span class="r-ic">🔗</span><div class="r-main"><div class="r-title" data-i18n="acc_link">តំណប្រវត្តិរូបរបស់អ្នក</div><div class="r-sub" data-i18n="acc_link_d">ចែករំលែកឱ្យមិត្តរកអ្នក</div></div><button type="button" class="btn small secondary" id="copyLinkBtn" data-i18n="copy">ចម្លង</button></div></div>
+<div class="card"><a class="row link" href="profile.html" style="text-decoration:none"><span class="r-ic">🖼️</span><div class="r-main"><div class="r-title" data-i18n="acc_more_t">រូបភាព និងការណែនាំខ្លួន</div><div class="r-sub" data-i18n="acc_more_d">ប្តូររូបប្រវត្តិរូប រូបគម្រប និងការណែនាំខ្លួន</div></div><span class="chev">›</span></a></div>
+</section>
 
-        <!-- 3. DELETE ACCOUNT -->
-        <div class="card">
-            <h3 style="color: #fa383e;">⚠️ Deactivate or Delete Account</h3>
-            <p style="font-size: 12px; color: #65676b;">Once you delete your account, there is no going back. Please be certain.</p>
-            <label id="deletePwLabel">Enter Password to Confirm</label>
-            <input type="password" id="deletePassword" placeholder="••••••••">
-            <button class="btn btn-danger" onclick="deleteAccount()">Permanently Delete Account</button>
-            <div id="deleteMsg" class="msg"></div>
-        </div>
-    </div>
+<section class="tab" id="tab-privacy" role="tabpanel">
+<div class="card"><h2 data-i18n="pr_t">អ្នកណាអាចឃើញព័ត៌មានរបស់អ្នក</h2><p class="desc" data-i18n="pr_d">បើបើក អ្នកដទៃអាចឃើញក្នុងប្រវត្តិរូបរបស់អ្នក។ បើបិទ មានតែអ្នកប៉ុណ្ណោះឃើញ។</p><div id="privacyList"><div class="skeleton" data-i18n="loading">កំពុងផ្ទុក…</div></div></div>
+<div class="card"><h2 data-i18n="bl_t">អ្នកដែលបានហាមឃាត់</h2><p class="desc" data-i18n="bl_d">អ្នកដែលអ្នកបានហាមឃាត់ មិនអាចឃើញអ្នក ឬផ្ញើសារមកអ្នកបានទេ។</p><div id="blockedList"><div class="skeleton" data-i18n="loading">កំពុងផ្ទុក…</div></div></div>
+</section>
 
-    <div style="text-align: center; font-size: 12.5px; margin: 6px 0 30px;">
-        <a href="/privacy.html" style="color: #1877f2; text-decoration: none;">គោលការណ៍ឯកជនភាព / Privacy Policy</a> ·
-        <a href="/terms.html" style="color: #1877f2; text-decoration: none;">លក្ខខណ្ឌ / Terms</a> ·
-        <a href="/delete-account.html" style="color: #1877f2; text-decoration: none;">លុបគណនី / Delete account</a>
-    </div>
+<section class="tab" id="tab-security" role="tabpanel">
+<div class="card" id="passwordCard"><h2 data-i18n="sec_pw_t">ប្តូរពាក្យសម្ងាត់</h2><p class="desc" data-i18n="sec_pw_d">ប្រើពាក្យសម្ងាត់វែង និងមិនធ្លាប់ប្រើនៅកន្លែងផ្សេង។</p>
+<div class="field-gap"><label class="field" for="curPw" data-i18n="sec_cur">ពាក្យសម្ងាត់បច្ចុប្បន្ន</label><div class="pw-wrap"><input type="password" id="curPw" autocomplete="current-password"><button type="button" class="pw-eye" data-eye="curPw" aria-label="Show">👁</button></div></div>
+<div class="field-gap"><label class="field" for="newPw" data-i18n="sec_new">ពាក្យសម្ងាត់ថ្មី</label><div class="pw-wrap"><input type="password" id="newPw" autocomplete="new-password"><button type="button" class="pw-eye" data-eye="newPw" aria-label="Show">👁</button></div><div class="strength"><i id="strengthBar"></i></div><div class="strength-label" id="strengthLabel"></div></div>
+<div class="field-gap"><label class="field" for="newPw2" data-i18n="sec_new2">បញ្ជាក់ពាក្យសម្ងាត់ថ្មី</label><div class="pw-wrap"><input type="password" id="newPw2" autocomplete="new-password"><button type="button" class="pw-eye" data-eye="newPw2" aria-label="Show">👁</button></div></div>
+<button type="button" class="btn" id="savePwBtn" data-i18n="sec_update">ប្តូរពាក្យសម្ងាត់</button></div>
+<div class="card hidden" id="noPasswordCard"><h2 data-i18n="sec_nopw_t">គណនីរបស់អ្នកចូលដោយ Telegram</h2><p class="desc" style="margin:0" data-i18n="sec_nopw_d">គណនីនេះមិនមានពាក្យសម្ងាត់ទេ ដូច្នេះមិនចាំបាច់ប្តូរទេ។</p></div>
+<div class="card"><h2 data-i18n="sec_dev_t">ឧបករណ៍ដែលបានចូលគណនី</h2><p class="desc" data-i18n="sec_dev_d">បើអ្នកគិតថាមានអ្នកផ្សេងប្រើគណនីអ្នក ឬភ្លេចចាកចេញនៅទូរស័ព្ទសាធារណៈ សូមចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់។</p><button type="button" class="btn outline" id="logoutAllBtn" data-i18n="sec_logout_all">ចាកចេញពីឧបករណ៍ទាំងអស់</button></div>
+<div class="card"><h2 data-i18n="tip_t">គន្លឹះសុវត្ថិភាព</h2><div class="row"><span class="r-ic">🔑</span><div class="r-main"><div class="r-sub" data-i18n="tip_1">កុំចែករំលែកលេខកូដផ្ទៀងផ្ទាត់ ឬពាក្យសម្ងាត់ជាមួយអ្នកណា សូម្បីអ្នកដែលអះអាងថាមកពី CamFeed។</div></div></div>
+<div class="row"><span class="r-ic">🔗</span><div class="r-main"><div class="r-sub" data-i18n="tip_2">កុំចុចតំណដែលមិនស្គាល់ ហើយប្រយ័ត្នគណនីក្លែងក្លាយ។ អ្នកអាចរាយការណ៍ និងហាមឃាត់នរណាក៏បាន។</div></div></div></div>
+</section>
 
-    <script>
-        let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        if (!currentUser) window.location.href = 'index.html';
+<section class="tab" id="tab-notifications" role="tabpanel">
+<div class="card"><h2 data-i18n="nt_t">ការជូនដំណឹងដែលអ្នកចង់បាន</h2><p class="desc" data-i18n="nt_d">ជ្រើសរើសប្រភេទដែលអ្នកចង់ឃើញក្នុងកណ្តឹងជូនដំណឹង។</p><div id="notifList"><div class="skeleton" data-i18n="loading">កំពុងផ្ទុក…</div></div></div>
+</section>
 
-        // Accounts created with Telegram have no password: hide the password card and confirm deletion by typing DELETE
-        if (currentUser.passwordless === true) {
-            document.getElementById('passwordCard').style.display = 'none';
-            document.getElementById('deletePwLabel').innerText = 'Type DELETE to confirm';
-            const dp = document.getElementById('deletePassword');
-            dp.type = 'text';
-            dp.placeholder = 'DELETE';
-        }
+<section class="tab" id="tab-data" role="tabpanel">
+<div class="card"><h2 data-i18n="dt_t">ទាញយកទិន្នន័យរបស់ខ្ញុំ</h2><p class="desc" data-i18n="dt_d">ទទួលបានឯកសារមួយដែលមានប្រវត្តិរូប ប្រកាស មតិ សារ និងការតាមដានរបស់អ្នក។ មិនមានពាក្យសម្ងាត់ក្នុងនោះទេ។</p><button type="button" class="btn" id="exportBtn" data-i18n="dt_btn">⬇ ទាញយក (JSON)</button></div>
+<div class="card danger"><h2 data-i18n="del_t">លុបគណនី</h2><p class="desc" data-i18n="del_d">សកម្មភាពនេះអចិន្ត្រៃយ៍ ហើយមិនអាចស្តារវិញបានទេ។</p>
+<div class="note red" data-i18n="del_what">នឹងត្រូវលុប៖ ប្រវត្តិរូប ប្រកាស វីដេអូ រូបភាព មតិ ប្រតិកម្ម អ្នកតាមដាន ការជូនដំណឹង និងសារឆាតទាំងអស់។</div>
+<div class="field-gap"><label class="field" for="delPw" id="delLabel" data-i18n="del_pw">បញ្ចូលពាក្យសម្ងាត់ដើម្បីបញ្ជាក់</label><div class="pw-wrap"><input type="password" id="delPw" autocomplete="current-password"><button type="button" class="pw-eye" data-eye="delPw" aria-label="Show">👁</button></div></div>
+<label class="check"><input type="checkbox" id="delSure"><span data-i18n="del_sure">ខ្ញុំយល់ថាការលុបនេះអចិន្ត្រៃយ៍</span></label>
+<button type="button" class="btn danger" id="deleteBtn" data-i18n="del_btn">លុបគណនីរបស់ខ្ញុំជារៀងរហូត</button></div>
+</section>
 
-        document.getElementById('setFirstName').value = currentUser.first_name || '';
-        document.getElementById('setLastName').value = currentUser.last_name || '';
+<section class="tab" id="tab-help" role="tabpanel">
+<div class="card"><h2 data-i18n="hp_t">ជំនួយ</h2>
+<a class="row link" href="mailto:support@camfeedkh.com" style="text-decoration:none"><span class="r-ic">📧</span><div class="r-main"><div class="r-title" data-i18n="hp_support">ទាក់ទងផ្នែកជំនួយ</div><div class="r-sub">support@camfeedkh.com</div></div><span class="chev">›</span></a>
+<a class="row link" href="/privacy.html" target="_blank" rel="noopener" style="text-decoration:none"><span class="r-ic">🛡️</span><div class="r-main"><div class="r-title" data-i18n="hp_privacy">គោលការណ៍ឯកជនភាព</div></div><span class="chev">›</span></a>
+<a class="row link" href="/terms.html" target="_blank" rel="noopener" style="text-decoration:none"><span class="r-ic">📄</span><div class="r-main"><div class="r-title" data-i18n="hp_terms">លក្ខខណ្ឌប្រើប្រាស់</div></div><span class="chev">›</span></a>
+<a class="row link" href="/delete-account.html" target="_blank" rel="noopener" style="text-decoration:none"><span class="r-ic">🗑️</span><div class="r-main"><div class="r-title" data-i18n="hp_delete">របៀបលុបគណនី និងទិន្នន័យ</div></div><span class="chev">›</span></a></div>
+<div class="card"><h2 data-i18n="app_t">កម្មវិធី CamFeed</h2><p class="desc" data-i18n="app_d">ដំឡើង CamFeed លើអេក្រង់ដើមដើម្បីបើកបានលឿន។</p><button type="button" class="btn" id="installBtn" data-i18n="app_install">📲 ដំឡើងកម្មវិធី</button><div class="note hidden" id="installNote"></div></div>
+<div class="card"><div class="about"><img src="icons/icon-192.png" alt="CamFeed"><strong>CamFeed</strong><br><span data-i18n="about_line">បណ្តាញសង្គមសម្រាប់ជនជាតិខ្មែរ</span><br>© 2026</div></div>
+<button type="button" class="btn danger logout-mobile" id="logoutBtn2" style="width:100%" data-i18n="logout">ចាកចេញ</button>
+</section>
+</main></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="backdrop hidden" id="backdrop" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><div class="dialog"><h3 id="dlgTitle"></h3><p id="dlgBody"></p><div class="actions"><button type="button" class="btn secondary" id="dlgCancel"></button><button type="button" class="btn" id="dlgOk"></button></div></div></div>
+<script>
+(function () {
+'use strict';
+let currentUser = null;
+try { currentUser = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
+if (!currentUser) { window.location.href = 'index.html'; return; }
+const ID_RE = /^1\d{14}$/;
 
-        async function updateName() {
-            const firstName = document.getElementById('setFirstName').value;
-            const lastName = document.getElementById('setLastName').value;
-            const msg = document.getElementById('nameMsg');
+const T = {
+km: {
+title:'ការកំណត់',subtitle:'គណនី · ឯកជនភាព · សុវត្ថិភាព',viewProfile:'មើលប្រវត្តិរូប',logout:'ចាកចេញ',loading:'កំពុងផ្ទុក…',
+nav_account:'គណនី',nav_privacy:'ឯកជនភាព',nav_security:'សុវត្ថិភាព',nav_notifications:'ការជូនដំណឹង',nav_data:'ទិន្នន័យរបស់ខ្ញុំ',nav_help:'ជំនួយ និងអំពី',
+save:'រក្សាទុក',copy:'ចម្លង',copied:'បានចម្លងហើយ',cancel:'បោះបង់',confirm:'បញ្ជាក់',retry:'ព្យាយាមម្តងទៀត',
+acc_name_t:'ឈ្មោះរបស់អ្នក',acc_name_d:'ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។',acc_name_note:'ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។',
+acc_first:'នាមខ្លួន',acc_last:'នាមត្រកូល',acc_contact_t:'ព័ត៌មានចូលគណនី',acc_contact_d:'ព័ត៌មានដែលអ្នកប្រើដើម្បីចូលគណនី។',
+acc_login_with:'អ៊ីមែល / លេខទូរស័ព្ទ',acc_email:'អ៊ីមែល',acc_phone:'លេខទូរស័ព្ទ',acc_locked:'🔒 មិនអាចកែនៅទីនេះ',acc_id:'លេខសម្គាល់របស់អ្នក',
+acc_link:'តំណប្រវត្តិរូបរបស់អ្នក',acc_link_d:'ចែករំលែកឱ្យមិត្តរកអ្នក',acc_more_t:'រូបភាព និងការណែនាំខ្លួន',acc_more_d:'ប្តូររូបប្រវត្តិរូប រូបគម្រប និងការណែនាំខ្លួន',
+det_t:'ព័ត៌មានផ្ទាល់ខ្លួន',det_d:'ជ្រើសរើសអ្នកណាអាចឃើញពីផ្នែក «ឯកជនភាព»។',det_location:'ទីតាំង',det_work:'ការងារ',det_birth:'ថ្ងៃកំណើត',det_gender:'ភេទ',det_rel:'ស្ថានភាពទំនាក់ទំនង',det_phone:'លេខទូរស័ព្ទបង្ហាញលើប្រវត្តិរូប',
+g_male:'ប្រុស',g_female:'ស្រី',g_other:'ផ្សេងៗ',det_saved:'បានរក្សាទុកព័ត៌មានហើយ',det_wait:'សូមរង់ចាំឱ្យការកំណត់ផ្ទុករួចសិន',
+name_saved:'បានរក្សាទុកឈ្មោះថ្មីហើយ',name_need:'សូមបញ្ចូលទាំងនាមខ្លួន និងនាមត្រកូល',name_wait:(n)=>`អ្នកអាចប្តូរឈ្មោះម្តងទៀតក្នុង ${n} ថ្ងៃ`,
+pr_t:'អ្នកណាអាចឃើញព័ត៌មានរបស់អ្នក',pr_d:'បើបើក អ្នកដទៃអាចឃើញក្នុងប្រវត្តិរូបរបស់អ្នក។ បើបិទ មានតែអ្នកប៉ុណ្ណោះឃើញ។',
+pr_email:'អាសយដ្ឋានអ៊ីមែល',pr_phone:'លេខទូរស័ព្ទ',pr_location:'ទីតាំង',pr_birthdate:'ថ្ងៃកំណើត',pr_relationship:'ស្ថានភាពទំនាក់ទំនង',pr_gender:'ភេទ',pr_work:'ការងារ',
+pr_on:'អ្នកដទៃអាចឃើញ',pr_off:'មានតែអ្នកឃើញ',pr_saved:'បានរក្សាទុក',pr_fail:'មិនអាចរក្សាទុកបានទេ សូមព្យាយាមម្តងទៀត',
+bl_t:'អ្នកដែលបានហាមឃាត់',bl_d:'អ្នកដែលអ្នកបានហាមឃាត់ មិនអាចឃើញអ្នក ឬផ្ញើសារមកអ្នកបានទេ។',bl_empty:'អ្នកមិនបានហាមឃាត់នរណាទេ',bl_unblock:'ឈប់ហាមឃាត់',bl_done:'បានឈប់ហាមឃាត់ហើយ',
+bl_conf_t:'ឈប់ហាមឃាត់អ្នកនេះ?',bl_conf_b:(n)=>`${n} នឹងអាចឃើញអ្នក និងផ្ញើសារមកអ្នកវិញ។`,bl_fail:'មិនអាចផ្ទុកបានទេ',
+sec_pw_t:'ប្តូរពាក្យសម្ងាត់',sec_pw_d:'ប្រើពាក្យសម្ងាត់វែង និងមិនធ្លាប់ប្រើនៅកន្លែងផ្សេង។',sec_cur:'ពាក្យសម្ងាត់បច្ចុប្បន្ន',sec_new:'ពាក្យសម្ងាត់ថ្មី',sec_new2:'បញ្ជាក់ពាក្យសម្ងាត់ថ្មី',
+sec_update:'ប្តូរពាក្យសម្ងាត់',sec_nopw_t:'គណនីរបស់អ្នកចូលដោយ Telegram',sec_nopw_d:'គណនីនេះមិនមានពាក្យសម្ងាត់ទេ ដូច្នេះមិនចាំបាច់ប្តូរទេ។',
+sec_dev_t:'ឧបករណ៍ដែលបានចូលគណនី',sec_dev_d:'បើអ្នកគិតថាមានអ្នកផ្សេងប្រើគណនីអ្នក ឬភ្លេចចាកចេញនៅទូរស័ព្ទសាធារណៈ សូមចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់។',sec_logout_all:'ចាកចេញពីឧបករណ៍ទាំងអស់',
+tip_t:'គន្លឹះសុវត្ថិភាព',tip_1:'កុំចែករំលែកលេខកូដផ្ទៀងផ្ទាត់ ឬពាក្យសម្ងាត់ជាមួយអ្នកណា សូម្បីអ្នកដែលអះអាងថាមកពី CamFeed។',tip_2:'កុំចុចតំណដែលមិនស្គាល់ ហើយប្រយ័ត្នគណនីក្លែងក្លាយ។ អ្នកអាចរាយការណ៍ និងហាមឃាត់នរណាក៏បាន។',
+pw_short:'ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងតិច 6 តួ',pw_mismatch:'ពាក្យសម្ងាត់ថ្មីទាំងពីរមិនដូចគ្នាទេ',pw_need_cur:'សូមបញ្ចូលពាក្យសម្ងាត់បច្ចុប្បន្ន',pw_same:'ពាក្យសម្ងាត់ថ្មីត្រូវខុសពីពាក្យសម្ងាត់ចាស់',
+pw_ok:'បានប្តូរពាក្យសម្ងាត់ហើយ',pw_bad_cur:'ពាក្យសម្ងាត់បច្ចុប្បន្នមិនត្រឹមត្រូវទេ',s_weak:'ខ្សោយ',s_ok:'មធ្យម',s_good:'ល្អ',s_strong:'ខ្លាំង',
+la_t:'ចាកចេញពីឧបករណ៍ទាំងអស់?',la_b:'ឧបករណ៍ផ្សេងទាំងអស់នឹងត្រូវចូលគណនីម្តងទៀត។ ឧបករណ៍នេះនៅតែចូលបាន។',la_ok:'ចាកចេញទាំងអស់',la_done:'បានចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់ហើយ',
+nt_t:'ការជូនដំណឹងដែលអ្នកចង់បាន',nt_d:'ជ្រើសរើសប្រភេទដែលអ្នកចង់ឃើញក្នុងកណ្តឹងជូនដំណឹង។',
+nt_reactions:'ប្រតិកម្ម',nt_reactions_d:'នរណាម្នាក់ចុចចូលចិត្តប្រកាស ឬមតិរបស់អ្នក',nt_comments:'មតិ និងការឆ្លើយតប',nt_comments_d:'នរណាម្នាក់បញ្ចេញមតិ ឬឆ្លើយតបមតិរបស់អ្នក',
+nt_follows:'អ្នកតាមដានថ្មី',nt_follows_d:'នរណាម្នាក់ចាប់ផ្តើមតាមដានអ្នក',nt_shares:'ការចែករំលែក',nt_shares_d:'នរណាម្នាក់ចែករំលែកប្រកាសរបស់អ្នក',
+dt_t:'ទាញយកទិន្នន័យរបស់ខ្ញុំ',dt_d:'ទទួលបានឯកសារមួយដែលមានប្រវត្តិរូប ប្រកាស មតិ សារ និងការតាមដានរបស់អ្នក។ មិនមានពាក្យសម្ងាត់ក្នុងនោះទេ។',dt_btn:'⬇ ទាញយក (JSON)',dt_wait:'កំពុងរៀបចំ…',dt_done:'បានទាញយកហើយ',dt_fail:'មិនអាចទាញយកបានទេ',
+del_t:'លុបគណនី',del_d:'សកម្មភាពនេះអចិន្ត្រៃយ៍ ហើយមិនអាចស្តារវិញបានទេ។',del_what:'នឹងត្រូវលុប៖ ប្រវត្តិរូប ប្រកាស វីដេអូ រូបភាព មតិ ប្រតិកម្ម អ្នកតាមដាន ការជូនដំណឹង និងសារឆាតទាំងអស់។',
+del_pw:'បញ្ចូលពាក្យសម្ងាត់ដើម្បីបញ្ជាក់',del_type:'វាយពាក្យ DELETE ដើម្បីបញ្ជាក់',del_sure:'ខ្ញុំយល់ថាការលុបនេះអចិន្ត្រៃយ៍',del_btn:'លុបគណនីរបស់ខ្ញុំជារៀងរហូត',
+del_need_pw:'សូមបញ្ចូលពាក្យសម្ងាត់របស់អ្នក',del_need_word:'សូមវាយពាក្យ DELETE',del_need_check:'សូមធីកប្រអប់ថាអ្នកយល់',del_conf_t:'លុបគណនីជារៀងរហូត?',del_conf_b:'ទិន្នន័យទាំងអស់របស់អ្នកនឹងត្រូវលុប ហើយមិនអាចស្តារវិញបានទេ។',del_conf_ok:'លុបជារៀងរហូត',del_done:'គណនីរបស់អ្នកត្រូវបានលុបហើយ',
+hp_t:'ជំនួយ',hp_support:'ទាក់ទងផ្នែកជំនួយ',hp_privacy:'គោលការណ៍ឯកជនភាព',hp_terms:'លក្ខខណ្ឌប្រើប្រាស់',hp_delete:'របៀបលុបគណនី និងទិន្នន័យ',
+app_t:'កម្មវិធី CamFeed',app_d:'ដំឡើង CamFeed លើអេក្រង់ដើមដើម្បីបើកបានលឿន។',app_install:'📲 ដំឡើងកម្មវិធី',app_installed:'✓ បានដំឡើងរួចហើយ',
+app_ios:'ក្នុង Safari ចុចប៊ូតុង «ចែករំលែក» (Share) រួចជ្រើស «បន្ថែមទៅអេក្រង់ដើម» (Add to Home Screen)',app_other:'ក្នុងម៉ឺនុយរបស់ browser សូមជ្រើស «ដំឡើងកម្មវិធី» ឬ «បន្ថែមទៅអេក្រង់ដើម»។',about_line:'បណ្តាញសង្គមសម្រាប់ជនជាតិខ្មែរ',
+err_net:'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server',err_generic:'មានបញ្ហា សូមព្យាយាមម្តងទៀត'},
+en: {
+title:'Settings',subtitle:'Account · Privacy · Security',viewProfile:'View profile',logout:'Log out',loading:'Loading…',
+nav_account:'Account',nav_privacy:'Privacy',nav_security:'Security',nav_notifications:'Notifications',nav_data:'My data',nav_help:'Help & about',
+save:'Save',copy:'Copy',copied:'Copied',cancel:'Cancel',confirm:'Confirm',retry:'Try again',
+acc_name_t:'Your name',acc_name_d:'This name is shown on your posts and profile.',acc_name_note:"After you change your name you can't change it again for 15 days.",
+acc_first:'First name',acc_last:'Last name',acc_contact_t:'Login details',acc_contact_d:'The details you use to log in.',
+acc_login_with:'Email / phone number',acc_email:'Email',acc_phone:'Phone number',acc_locked:'🔒 Can not be changed here',acc_id:'Your ID number',
+acc_link:'Your profile link',acc_link_d:'Share it so friends can find you',acc_more_t:'Photos and bio',acc_more_d:'Change your profile photo, cover photo and bio',
+det_t:'Personal details',det_d:'Choose who can see each one in the Privacy section.',det_location:'Location',det_work:'Work',det_birth:'Date of birth',det_gender:'Gender',det_rel:'Relationship status',det_phone:'Phone number shown on your profile',
+g_male:'Male',g_female:'Female',g_other:'Other',det_saved:'Your details are saved',det_wait:'Please wait until your settings have loaded',
+name_saved:'Your new name is saved',name_need:'Please enter both first and last name',name_wait:(n)=>`You can change your name again in ${n} day(s)`,
+pr_t:'Who can see your details',pr_d:'When on, other people can see it on your profile. When off, only you can.',
+pr_email:'Email address',pr_phone:'Phone number',pr_location:'Location',pr_birthdate:'Date of birth',pr_relationship:'Relationship status',pr_gender:'Gender',pr_work:'Work',
+pr_on:'Visible to others',pr_off:'Only you',pr_saved:'Saved',pr_fail:'Could not save. Please try again',
+bl_t:'Blocked people',bl_d:'People you block can not see you or message you.',bl_empty:"You haven't blocked anyone",bl_unblock:'Unblock',bl_done:'Unblocked',
+bl_conf_t:'Unblock this person?',bl_conf_b:(n)=>`${n} will be able to see you and message you again.`,bl_fail:'Could not load',
+sec_pw_t:'Change password',sec_pw_d:"Use a long password you don't use anywhere else.",sec_cur:'Current password',sec_new:'New password',sec_new2:'Confirm new password',
+sec_update:'Change password',sec_nopw_t:'Your account signs in with Telegram',sec_nopw_d:'This account has no password, so there is nothing to change.',
+sec_dev_t:'Devices signed in',sec_dev_d:'If you think someone else uses your account, or you forgot to log out on a shared phone, log out of all other devices.',sec_logout_all:'Log out of all devices',
+tip_t:'Safety tips',tip_1:'Never share verification codes or your password with anyone, even someone who says they are from CamFeed.',tip_2:'Do not tap unknown links and watch out for fake accounts. You can report and block anyone.',
+pw_short:'The new password needs at least 6 characters',pw_mismatch:"The two new passwords don't match",pw_need_cur:'Please enter your current password',pw_same:'The new password must be different from the old one',
+pw_ok:'Password changed',pw_bad_cur:'The current password is not correct',s_weak:'Weak',s_ok:'Fair',s_good:'Good',s_strong:'Strong',
+la_t:'Log out of all devices?',la_b:'Every other device will have to log in again. This device stays logged in.',la_ok:'Log out all',la_done:'Logged out of all other devices',
+nt_t:'Notifications you want',nt_d:'Choose the kinds you want to see in your notification bell.',
+nt_reactions:'Reactions',nt_reactions_d:'Someone reacts to your post or comment',nt_comments:'Comments & replies',nt_comments_d:'Someone comments on or replies to you',
+nt_follows:'New followers',nt_follows_d:'Someone starts following you',nt_shares:'Shares',nt_shares_d:'Someone shares your post',
+dt_t:'Download my data',dt_d:'Get a file with your profile, posts, comments, messages and follows. It does not contain your password.',dt_btn:'⬇ Download (JSON)',dt_wait:'Preparing…',dt_done:'Downloaded',dt_fail:'Could not download',
+del_t:'Delete account',del_d:'This is permanent and can not be undone.',del_what:'This deletes your profile, posts, videos, photos, comments, reactions, followers, notifications and all chats.',
+del_pw:'Enter your password to confirm',del_type:'Type DELETE to confirm',del_sure:'I understand this is permanent',del_btn:'Delete my account forever',
+del_need_pw:'Please enter your password',del_need_word:'Please type DELETE',del_need_check:'Please tick the box to confirm',del_conf_t:'Delete your account forever?',del_conf_b:'All your data will be deleted and can not be restored.',del_conf_ok:'Delete forever',del_done:'Your account has been deleted',
+hp_t:'Help',hp_support:'Contact support',hp_privacy:'Privacy Policy',hp_terms:'Terms of Use',hp_delete:'How to delete your account and data',
+app_t:'The CamFeed app',app_d:'Install CamFeed on your home screen to open it faster.',app_install:'📲 Install the app',app_installed:'✓ Already installed',
+app_ios:'In Safari tap the Share button, then choose "Add to Home Screen"',app_other:'In your browser menu choose "Install app" or "Add to Home screen".',about_line:'A social network for Cambodians',
+err_net:'Could not reach the server',err_generic:'Something went wrong. Please try again'}
+};
+let lang = (function(){const l=localStorage.getItem('camfeed_lang');return l==='en'?'en':(l&&l!=='km'?'en':'km');})();
+const t=(k,...a)=>{const v=(T[lang]&&T[lang][k]!==undefined)?T[lang][k]:T.en[k];return typeof v==='function'?v(...a):v;};
+const $=(id)=>document.getElementById(id);
+const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;};
+let toastTimer=null;
+function toast(msg,kind){const n=$('toast');n.textContent=msg;n.className='show '+(kind||'');clearTimeout(toastTimer);toastTimer=setTimeout(()=>{n.className='';},3200);}
+async function api(path,opts){try{const res=await fetch(path,opts);let data=null;try{data=await res.json();}catch(e){}return{ok:res.ok&&data&&data.success!==false,status:res.status,data:data||{}};}catch(e){return{ok:false,status:0,data:{message:t('err_net')}};}}
+const jsonOpts=(method,body)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+const msgOf=(r)=>(r.data&&(r.data.message||r.data.error))||(r.status===0?t('err_net'):t('err_generic'));
+function dialog({title,body,ok,danger}){return new Promise((resolve)=>{
+$('dlgTitle').textContent=title;$('dlgBody').textContent=body;$('dlgOk').textContent=ok||t('confirm');$('dlgOk').className='btn'+(danger?' danger':'');$('dlgCancel').textContent=t('cancel');
+const bd=$('backdrop');bd.classList.remove('hidden');
+const done=(v)=>{bd.classList.add('hidden');document.removeEventListener('keydown',onKey);$('dlgOk').onclick=$('dlgCancel').onclick=bd.onclick=null;resolve(v);};
+const onKey=(e)=>{if(e.key==='Escape')done(false);};document.addEventListener('keydown',onKey);
+$('dlgOk').onclick=()=>done(true);$('dlgCancel').onclick=()=>done(false);bd.onclick=(e)=>{if(e.target===bd)done(false);};$('dlgCancel').focus();});}
+function copyText(text){const fb=()=>{const ta=el('textarea');ta.value=text;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);};
+if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).catch(fb);else fb();toast(t('copied'),'ok');}
 
-            const res = await fetch('/api/settings/name', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: currentUser.email, firstName, lastName })
-            });
-            const data = await res.json();
-            if (data.success) {
-                msg.style.color = 'green';
-                msg.innerText = 'Name updated successfully!';
-                currentUser.first_name = data.user.first_name;
-                currentUser.last_name = data.user.last_name;
-                localStorage.setItem('camfeed_user', JSON.stringify(currentUser));
-            } else {
-                msg.style.color = 'red';
-                msg.innerText = data.message || data.error;
-            }
-        }
+function applyLang(){document.documentElement.lang=lang;
+document.querySelectorAll('[data-i18n]').forEach((n)=>{const v=t(n.getAttribute('data-i18n'));if(typeof v==='string')n.textContent=v;});
+document.querySelectorAll('.lang-switch button').forEach((b)=>b.classList.toggle('on',b.dataset.lang===lang));
+applyDeleteMode();renderContact();renderPrivacy();renderNotifications();renderBlocked();renderInstall();updateStrength();}
+document.querySelectorAll('.lang-switch button').forEach((b)=>b.addEventListener('click',()=>{lang=b.dataset.lang;try{localStorage.setItem('camfeed_lang',lang);}catch(e){}applyLang();}));
 
-        async function updatePassword() {
-            const currentPassword = document.getElementById('currentPassword').value;
-            const newPassword = document.getElementById('newPassword').value;
-            const msg = document.getElementById('passMsg');
+const TABS=['account','privacy','security','notifications','data','help'];
+function showTab(name,push){if(TABS.indexOf(name)===-1)name='account';
+document.querySelectorAll('.tab').forEach((s)=>s.classList.toggle('active',s.id==='tab-'+name));
+document.querySelectorAll('#menu [data-tab]').forEach((b)=>{const on=b.dataset.tab===name;b.classList.toggle('active',on);b.setAttribute('aria-selected',on);});
+if(push!==false){try{history.replaceState(null,'','#'+name);}catch(e){}}
+window.scrollTo({top:0});if(name==='privacy')loadBlocked();if(name==='notifications')loadNotifications();}
+document.querySelectorAll('#menu [data-tab]').forEach((b)=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+window.addEventListener('hashchange',()=>showTab(location.hash.replace('#',''),false));
+$('backBtn').addEventListener('click',()=>{if(document.referrer&&document.referrer.indexOf(location.origin)===0&&history.length>1)history.back();else location.href='feed.html';});
 
-            const res = await fetch('/api/settings/password', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: currentUser.email, currentPassword, newPassword })
-            });
-            const data = await res.json();
-            if (data.success) {
-                msg.style.color = 'green';
-                msg.innerText = data.message;
-                document.getElementById('currentPassword').value = '';
-                document.getElementById('newPassword').value = '';
-            } else {
-                msg.style.color = 'red';
-                msg.innerText = data.message;
-            }
-        }
+let me=Object.assign({},currentUser);
+const initial=(u)=>((u.first_name||'').trim()[0]||'?').toUpperCase();
+function fillAvatar(node,u){node.textContent='';if(u.profile_pic){const img=el('img');img.alt='';img.src=u.profile_pic;img.onerror=()=>{node.textContent=initial(u);};node.appendChild(img);}else node.textContent=initial(u);}
+const isPhoneContact=(v)=>/^\+?\d[\d\s]{6,}$/.test(String(v||''));
+function renderContact(){const full=`${me.first_name||''} ${me.last_name||''}`.trim()||'CamFeed';$('pName').textContent=full;fillAvatar($('avatar'),me);
+const contact=me.contact_mail||'';$('pSub').textContent=contact;$('contactValue').textContent=contact||'—';
+$('contactLabel').textContent=!contact?t('acc_login_with'):(isPhoneContact(contact)?t('acc_phone'):t('acc_email'));
+const hasId=ID_RE.test(String(me.email||''));$('idRow').classList.toggle('hidden',!hasId);$('linkRow').classList.toggle('hidden',!hasId);if(hasId)$('idValue').textContent=me.email;
+$('viewProfileBtn').href='profile.html?email='+encodeURIComponent(me.email);}
+$('copyIdBtn').addEventListener('click',()=>copyText(String(me.email)));
+$('copyLinkBtn').addEventListener('click',()=>copyText(location.origin+'/profile.html?email='+encodeURIComponent(me.email)));
 
-        async function deleteAccount() {
-            const password = document.getElementById('deletePassword').value;
-            const msg = document.getElementById('deleteMsg');
-            if (!confirm('Are you sure you want to permanently delete your account?')) return;
+const nameChanged=()=>$('firstName').value.trim()!==(me.first_name||'')||$('lastName').value.trim()!==(me.last_name||'');
+['firstName','lastName'].forEach((id)=>$(id).addEventListener('input',()=>{$('saveNameBtn').disabled=!nameChanged();}));
+$('saveNameBtn').addEventListener('click',async()=>{const firstName=$('firstName').value.trim(),lastName=$('lastName').value.trim();
+if(!firstName||!lastName)return toast(t('name_need'),'err');$('saveNameBtn').disabled=true;
+const r=await api('/api/settings/name',jsonOpts('PUT',{firstName,lastName}));
+if(r.ok&&r.data.user){me.first_name=r.data.user.first_name;me.last_name=r.data.user.last_name;currentUser.first_name=me.first_name;currentUser.last_name=me.last_name;
+try{localStorage.setItem('camfeed_user',JSON.stringify(currentUser));}catch(e){}renderContact();toast(t('name_saved'),'ok');}
+else{const m=/(\d+)\s*day/i.exec(msgOf(r));toast(m?t('name_wait',m[1]):msgOf(r),'err');$('saveNameBtn').disabled=!nameChanged();}});
 
-            const res = await fetch('/api/settings/account', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: currentUser.email, password })
-            });
-            const data = await res.json();
-            if (data.success) {
-                localStorage.removeItem('camfeed_user');
-                localStorage.removeItem('camfeed_remembered_email');
-                alert('Your account has been deleted.');
-                window.location.href = 'index.html';
-            } else {
-                msg.style.color = 'red';
-                msg.innerText = data.message;
-            }
-        }
-    </script>
+// ---- personal details (location, work, birthday, gender, relationship, phone) ----
+const PRIVACY=[{key:'email_privacy',icon:'✉️',label:'pr_email'},{key:'phone_privacy',icon:'📞',label:'pr_phone'},{key:'location_privacy',icon:'📍',label:'pr_location'},
+{key:'birthdate_privacy',icon:'🎂',label:'pr_birthdate'},{key:'relationship_privacy',icon:'💕',label:'pr_relationship'},{key:'gender_privacy',icon:'⚧️',label:'pr_gender'},{key:'work_privacy',icon:'💼',label:'pr_work'}];
+const privacy={};let privacyReady=false;
+function fillDetails(u){$('dLocation').value=u.location||'';$('dWork').value=u.work||'';$('dRel').value=u.relationship_status||'';$('dPhone').value=u.phone||'';
+const g=u.gender==='Female'||u.gender==='Other'?u.gender:'Male';$('dGender').value=g;const b=String(u.birthdate||'');$('dBirth').value=/^\d{4}-\d{2}-\d{2}/.test(b)?b.slice(0,10):'';}
+$('saveDetailsBtn').addEventListener('click',async()=>{if(!privacyReady)return toast(t('det_wait'),'err');
+const b=$('dBirth').value;const birth=b?`${b.slice(8,10)}-${b.slice(5,7)}-${b.slice(0,4)}`:'';
+const body={email:me.email,location:$('dLocation').value.trim(),work:$('dWork').value.trim(),relationship_status:$('dRel').value.trim(),gender:$('dGender').value,phone:$('dPhone').value.trim(),birthdate:birth};
+PRIVACY.forEach((p)=>{body[p.key]=privacy[p.key]==='private'?'private':'public';});
+$('saveDetailsBtn').disabled=true;const r=await api('/api/update-profile-details',jsonOpts('POST',body));$('saveDetailsBtn').disabled=false;
+if(r.ok){me=Object.assign({},me,{location:body.location,work:body.work,relationship_status:body.relationship_status,gender:body.gender,phone:body.phone});toast(t('det_saved'),'ok');}else toast(msgOf(r),'err');});
+
+function makeSwitch(checked,onChange,label){const b=el('button','switch');b.type='button';b.setAttribute('role','switch');b.setAttribute('aria-checked',String(!!checked));if(label)b.setAttribute('aria-label',label);
+b.addEventListener('click',async()=>{const next=b.getAttribute('aria-checked')!=='true';b.setAttribute('aria-checked',String(next));b.disabled=true;const ok=await onChange(next);if(!ok)b.setAttribute('aria-checked',String(!next));b.disabled=false;});return b;}
+function renderPrivacy(){const box=$('privacyList');if(!privacyReady)return;box.textContent='';
+PRIVACY.forEach((p)=>{const row=el('div','row');row.appendChild(el('span','r-ic',p.icon));const main=el('div','r-main');main.appendChild(el('div','r-title',t(p.label)));
+const sub=el('div','r-sub',privacy[p.key]==='private'?t('pr_off'):t('pr_on'));main.appendChild(sub);row.appendChild(main);
+row.appendChild(makeSwitch(privacy[p.key]!=='private',async(on)=>{const r=await api('/api/settings/privacy',jsonOpts('PUT',{[p.key]:on?'public':'private'}));
+if(r.ok){privacy[p.key]=on?'public':'private';sub.textContent=on?t('pr_on'):t('pr_off');toast(t('pr_saved'),'ok');return true;}toast(t('pr_fail'),'err');return false;},t(p.label)));box.appendChild(row);});}
+
+let blocked=null,blockedFailed=false;
+async function loadBlocked(){if(blocked!==null&&!blockedFailed)return;const r=await api('/api/blocked-users');blockedFailed=!r.ok;blocked=r.ok?(r.data.users||[]):null;renderBlocked();}
+function retryBox(msg,fn){const e=el('div','empty',msg);const b=el('button','btn small secondary',t('retry'));b.type='button';b.style.marginTop='10px';b.onclick=fn;e.appendChild(el('br'));e.appendChild(b);return e;}
+function renderBlocked(){const box=$('blockedList');if(!box)return;box.textContent='';
+if(blockedFailed){box.appendChild(retryBox(t('bl_fail'),()=>{blocked=null;loadBlocked();}));return;}
+if(blocked===null){box.appendChild(el('div','skeleton',t('loading')));return;}
+if(!blocked.length){box.appendChild(el('div','empty',t('bl_empty')));return;}
+blocked.forEach((u)=>{const name=`${u.first_name||''} ${u.last_name||''}`.trim()||'CamFeed';const row=el('div','person');const av=el('div','avatar');fillAvatar(av,u);row.appendChild(av);row.appendChild(el('div','nm',name));
+const btn=el('button','btn small secondary',t('bl_unblock'));btn.type='button';
+btn.onclick=async()=>{if(!(await dialog({title:t('bl_conf_t'),body:t('bl_conf_b',name),ok:t('bl_unblock')})))return;btn.disabled=true;
+const r=await api('/api/unblock',jsonOpts('POST',{blockerEmail:me.email,blockedEmail:u.email}));
+if(r.ok){blocked=blocked.filter((x)=>x.email!==u.email);renderBlocked();toast(t('bl_done'),'ok');}else{btn.disabled=false;toast(msgOf(r),'err');}};
+row.appendChild(btn);box.appendChild(row);});}
+
+const NOTIFS=[{key:'reactions',icon:'👍',t:'nt_reactions',d:'nt_reactions_d'},{key:'comments',icon:'💬',t:'nt_comments',d:'nt_comments_d'},{key:'follows',icon:'👥',t:'nt_follows',d:'nt_follows_d'},{key:'shares',icon:'↗️',t:'nt_shares',d:'nt_shares_d'}];
+let notifPrefs=null,notifFailed=false;
+async function loadNotifications(){if(notifPrefs&&!notifFailed)return;const r=await api('/api/settings/notifications');notifFailed=!r.ok;notifPrefs=r.ok?r.data.prefs:null;renderNotifications();}
+function renderNotifications(){const box=$('notifList');if(!box)return;box.textContent='';
+if(notifFailed){box.appendChild(retryBox(t('bl_fail'),()=>{notifPrefs=null;loadNotifications();}));return;}
+if(!notifPrefs){box.appendChild(el('div','skeleton',t('loading')));return;}
+NOTIFS.forEach((n)=>{const row=el('div','row');row.appendChild(el('span','r-ic',n.icon));const main=el('div','r-main');main.appendChild(el('div','r-title',t(n.t)));main.appendChild(el('div','r-sub',t(n.d)));row.appendChild(main);
+row.appendChild(makeSwitch(notifPrefs[n.key]!==false,async(on)=>{const r=await api('/api/settings/notifications',jsonOpts('PUT',{[n.key]:on}));
+if(r.ok){notifPrefs=r.data.prefs;toast(t('pr_saved'),'ok');return true;}toast(t('pr_fail'),'err');return false;},t(n.t)));box.appendChild(row);});}
+
+document.querySelectorAll('[data-eye]').forEach((b)=>b.addEventListener('click',()=>{const i=$(b.dataset.eye);i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁':'🙈';}));
+function strengthOf(pw){let s=0;if(pw.length>=6)s++;if(pw.length>=10)s++;if(/[a-z]/.test(pw)&&/[A-Z]/.test(pw))s++;if(/\d/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;return pw?Math.max(1,Math.min(4,s-(pw.length<6?1:0))):0;}
+function updateStrength(){const lv=strengthOf($('newPw').value),bar=$('strengthBar');bar.style.width=(lv*25)+'%';bar.style.background=['#ccd0d5','#e41e3f','#f0a30a','#7cb518','#1f9d46'][lv];$('strengthLabel').textContent=lv?t(['','s_weak','s_ok','s_good','s_strong'][lv]):'';}
+$('newPw').addEventListener('input',updateStrength);
+$('savePwBtn').addEventListener('click',async()=>{const cur=$('curPw').value,nw=$('newPw').value,nw2=$('newPw2').value;
+if(!cur)return toast(t('pw_need_cur'),'err');if(nw.length<6)return toast(t('pw_short'),'err');if(nw!==nw2)return toast(t('pw_mismatch'),'err');if(nw===cur)return toast(t('pw_same'),'err');
+$('savePwBtn').disabled=true;const r=await api('/api/settings/password',jsonOpts('PUT',{currentPassword:cur,newPassword:nw}));$('savePwBtn').disabled=false;
+if(r.ok){['curPw','newPw','newPw2'].forEach((i)=>{$(i).value='';});updateStrength();toast(t('pw_ok'),'ok');}else toast(/incorrect/i.test(msgOf(r))?t('pw_bad_cur'):msgOf(r),'err');});
+$('logoutAllBtn').addEventListener('click',async()=>{if(!(await dialog({title:t('la_t'),body:t('la_b'),ok:t('la_ok')})))return;const r=await api('/api/settings/logout-all',jsonOpts('POST',{}));toast(r.ok?t('la_done'):msgOf(r),r.ok?'ok':'err');});
+
+$('exportBtn').addEventListener('click',async()=>{const b=$('exportBtn');b.disabled=true;b.textContent=t('dt_wait');const r=await api('/api/settings/export');b.disabled=false;b.textContent=t('dt_btn');
+if(!r.ok||!r.data.data)return toast(r.status===429?msgOf(r):t('dt_fail'),'err');
+const blob=new Blob([JSON.stringify(r.data.data,null,2)],{type:'application/json'});const a=el('a');a.href=URL.createObjectURL(blob);a.download='camfeed-my-data-'+new Date().toISOString().slice(0,10)+'.json';
+document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);toast(t('dt_done'),'ok');});
+const passwordless=currentUser.passwordless===true;
+function applyDeleteMode(){$('delLabel').textContent=passwordless?t('del_type'):t('del_pw');$('passwordCard').classList.toggle('hidden',passwordless);$('noPasswordCard').classList.toggle('hidden',!passwordless);
+const i=$('delPw');i.type=passwordless?'text':(i.dataset.shown?'text':'password');i.placeholder=passwordless?'DELETE':'';const eye=document.querySelector('[data-eye="delPw"]');if(eye)eye.classList.toggle('hidden',passwordless);}
+$('deleteBtn').addEventListener('click',async()=>{const v=$('delPw').value;
+if(passwordless?v.trim().toUpperCase()!=='DELETE':!v)return toast(passwordless?t('del_need_word'):t('del_need_pw'),'err');if(!$('delSure').checked)return toast(t('del_need_check'),'err');
+if(!(await dialog({title:t('del_conf_t'),body:t('del_conf_b'),ok:t('del_conf_ok'),danger:true})))return;
+$('deleteBtn').disabled=true;const r=await api('/api/settings/account',jsonOpts('DELETE',{password:v}));
+if(r.ok){try{['camfeed_user','camfeed_token','camfeed_remembered_email'].forEach((k)=>localStorage.removeItem(k));if(window.CamAuth&&CamAuth.forgetAccount)CamAuth.forgetAccount(me.email);
+const saved=JSON.parse(localStorage.getItem('camfeed_saved_accounts_v1')||'[]');localStorage.setItem('camfeed_saved_accounts_v1',JSON.stringify(saved.filter((s)=>s.email!==me.email)));}catch(e){}
+alert(t('del_done'));location.href='index.html';}else{$('deleteBtn').disabled=false;toast(/incorrect/i.test(msgOf(r))?t('pw_bad_cur'):msgOf(r),'err');}});
+
+function renderInstall(){const ci=window.CamInstall||{},btn=$('installBtn'),note=$('installNote');btn.classList.remove('hidden');note.classList.add('hidden');
+if(ci.installed){btn.textContent=t('app_installed');btn.disabled=true;return;}btn.disabled=false;btn.textContent=t('app_install');
+if(ci.canPrompt&&ci.canPrompt())return;btn.classList.add('hidden');note.classList.remove('hidden');note.textContent=ci.isIOS?t('app_ios'):t('app_other');}
+$('installBtn').addEventListener('click',async()=>{if(window.CamInstall&&CamInstall.canPrompt()){await CamInstall.prompt();renderInstall();}});
+window.addEventListener('camfeed-install-available',renderInstall);window.addEventListener('appinstalled',renderInstall);
+const doLogout=()=>{if(window.CamAuth&&CamAuth.logout)CamAuth.logout();else{localStorage.removeItem('camfeed_user');localStorage.removeItem('camfeed_token');location.href='index.html';}};
+$('logoutBtn').addEventListener('click',doLogout);$('logoutBtn2').addEventListener('click',doLogout);
+
+$('firstName').value=me.first_name||'';$('lastName').value=me.last_name||'';
+applyLang();showTab(location.hash.replace('#','')||'account',false);
+(async function loadMe(){const r=await api('/api/user-profile?email='+encodeURIComponent(currentUser.email)+'&viewerEmail='+encodeURIComponent(currentUser.email));
+if(r.ok&&r.data.user){const u=r.data.user;me=Object.assign({},me,u);if(u.contact_mail)currentUser.contact_mail=u.contact_mail;
+PRIVACY.forEach((p)=>{privacy[p.key]=u[p.key]==='private'?'private':'public';});privacyReady=true;
+$('firstName').value=me.first_name||'';$('lastName').value=me.last_name||'';$('saveNameBtn').disabled=true;fillDetails(u);renderContact();renderPrivacy();}
+else if(r.status===0){toast(t('err_net'),'err');}else{PRIVACY.forEach((p)=>{privacy[p.key]='public';});privacyReady=true;renderPrivacy();}})();
+})();
+</script>
 </body>
 </html>
