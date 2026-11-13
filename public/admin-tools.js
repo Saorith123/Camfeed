@@ -157,6 +157,14 @@
         var to = u.role === 'admin' ? 'user' : 'admin'; if (!confirm('Change the role of ' + nm(u) + ' to ' + to + '?')) return;
         adm('/api/admin/set-role', { targetEmail: u.email, newRole: to }).then(function (r) { if (r.success) { searchUsers(true); openUser(u.email); } else msg(out, false, '❌ ' + (r.error || 'Failed')); });
       }, sup && u.role !== 'super_admin' && !self);
+      act('⭐ Make Creator', 'btn-green', function () {
+        if (!confirm('Put ' + nm(u) + ' in the Creator Program (no need to meet the requirements)?')) return;
+        adm('/api/admin/monetization-action', { targetEmail: u.email, status: 'approved', note: 'Invited by an admin' }).then(function (r) { msg(out, r.success, r.success ? '✅ ' + nm(u) + ' is now a Creator' : '❌ ' + (r.error || 'Failed')); });
+      }, !self);
+      act('💵 Wallet bonus', 'btn-gray', function () {
+        var a = prompt('Amount in $ to add to the wallet of ' + nm(u) + ' (negative = take back):', '5'); if (a === null || a === '') return; var why = prompt('Reason (the creator sees it):', 'Bonus'); if (!why) return;
+        adm('/api/admin/wallet/credit', { targetEmail: u.email, amount: a, note: why, kind: 'bonus' }).then(function (r) { msg(out, r.success, r.success ? '✅ New balance: ' + money(r.balance) : '❌ ' + (r.error || 'Failed')); });
+      }, sup);
       act('🗑 Delete account', 'btn-red', function () {
         var t = prompt('This deletes the account and ALL its posts, comments, photos and videos for ever.\nType DELETE to confirm:'); if (t !== 'DELETE') return;
         adm('/api/admin/users/' + encodeURIComponent(u.email), {}, 'DELETE').then(function (r) { if (r.success) { closeModal(); searchUsers(true); } else msg(out, false, '❌ ' + (r.error || 'Failed')); });
@@ -245,9 +253,95 @@
     });
   }
 
+
+  // ---------- Monetization (Creator Program, wallets, withdrawals) ----------
+  var mon = { view: 'apps' };
+  function money(n) { return '$' + Number(n || 0).toFixed(2); }
+  function statusBadge(s) { return el('span', { class: 'badge ' + (s === 'approved' || s === 'paid' ? 'badge-resolved' : s === 'pending' ? 'badge-pending' : 'badge-banned'), text: s }); }
+  function loadMonetizationAdmin() {
+    var p = document.getElementById('panel-monetization'); if (!p) return;
+    p.textContent = '';
+    var bar = el('div', { class: 'at-row' }, [['apps', '⭐ Applications'], ['ref', '🎁 Invitations'], ['wd', '💵 Withdrawals'], ['wallet', '👛 Wallet bonus']].map(function (v) {
+      return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
+    }));
+    p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
+    if (mon.view === 'apps') monApps(body); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else monWallet(body);
+  }
+  function monApps(body) {
+    body.appendChild(empty('Loading…'));
+    adm('/api/admin/monetization-requests').then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      d.requests = d.requests || []; var pending = d.requests.filter(function (r) { return r.status === 'pending'; }).length; var sm = document.getElementById('statMonetize'); if (sm) sm.textContent = String(pending);
+      var c = d.criteria || { followers: 0, views: 0, posts: 0, ageDays: 0 };
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Requirements: ' + c.followers + ' followers · ' + c.views + ' views · ' + c.posts + ' posts · ' + c.ageDays + ' days old (set with CREATOR_MIN_* in Render). You may approve anyone: open Users → Manage → "Make Creator".' }));
+      if (!d.requests.length) { body.appendChild(empty('No application yet.')); return; }
+      body.appendChild(table(['Creator', 'Followers', 'Views', 'Posts', 'Age', 'Wallet', 'Status', 'Decision', ''], d.requests.map(function (r) {
+        function decide(status, askNote) {
+          var note = ''; if (askNote) { note = prompt('Reason (shown to the creator):', '') || ''; } else if (!confirm((status === 'approved' ? 'Approve ' : 'Reset ') + nm(r) + '?')) return;
+          adm('/api/admin/monetization-action', { targetEmail: r.user_email, status: status, note: note }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+        }
+        var acts = el('td', {}, r.status === 'pending' ? [el('button', { class: 'btn-sm btn-green', text: 'Approve', onclick: function () { decide('approved', false); } }), el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { decide('rejected', true); } })]
+          : [el('button', { class: 'btn-sm btn-gray', text: 'Reset to pending', onclick: function () { decide('pending', false); } })]);
+        function stat(have, need) { return el('td', { text: Number(have).toLocaleString() + ' / ' + Number(need).toLocaleString(), style: have >= need ? 'color:#176f35;font-weight:700' : '' }); }
+        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(r) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: r.public_id || '' })]), stat(r.followers_count, c.followers), stat(r.total_views, c.views), stat(r.posts_count, c.posts), stat(r.age_days, c.ageDays), el('td', { text: money(r.balance) }),
+          el('td', {}, [statusBadge(r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: (r.decided_by ? 'by ' + r.decided_by + ' · ' : '') + (r.note || '') }), acts]);
+      })));
+    });
+  }
+  function monReferrals(body) {
+    body.appendChild(empty('Loading…'));
+    adm('/api/admin/referrals').then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      d.referrals = d.referrals || []; var rl = d.rules || { rewardCents: 20, days: 3, posts: 3, windowDays: 14 };
+      var waiting = d.referrals.filter(function (r) { return r.status === 'review'; }).length;
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Reward ' + money(rl.rewardCents / 100) + ' per friend after ' + rl.days + ' days of use and ' + rl.posts + ' public photos/videos within ' + rl.windowDays + ' days. Paid automatically, except when several invited accounts share one network or the monthly limit is reached: those wait here for a Super Admin (' + waiting + ' waiting).' }));
+      if (!d.referrals.length) { body.appendChild(empty('No invitation yet.')); return; }
+      body.appendChild(table(['Inviter', 'Invited friend', 'Days', 'Posts', 'Status', 'Note', ''], d.referrals.map(function (r) {
+        function decide(status) {
+          var note = prompt(status === 'rewarded' ? 'Note (optional):' : 'Reason (optional):', ''); if (note === null) return;
+          if (!confirm((status === 'rewarded' ? 'Pay ' + money(rl.rewardCents / 100) + ' to ' : 'Do NOT pay ') + (r.inviter_first || '') + ' ' + (r.inviter_last || '') + '?')) return;
+          adm('/api/admin/referrals/decide', { referredEmail: r.referred_email, status: status, note: note }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+        }
+        var acts = el('td', {}, r.status === 'review' && d.isSuperAdmin ? [el('button', { class: 'btn-sm btn-green', text: 'Pay', onclick: function () { decide('rewarded'); } }), el('button', { class: 'btn-sm btn-red', text: 'Do not pay', onclick: function () { decide('rejected'); } })] : []);
+        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: ((r.inviter_first || '') + ' ' + (r.inviter_last || '')).trim() }), el('div', { style: 'font-size:11.5px;color:#65676b', text: r.inviter_id || '' })]), el('td', { text: ((r.friend_first || '') + ' ' + (r.friend_last || '')).trim() }),
+          el('td', { text: r.days_done + ' / ' + rl.days }), el('td', { text: r.posts_done + ' / ' + rl.posts }), el('td', {}, [statusBadge(r.status === 'rewarded' ? 'paid' : r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: r.note || '' }), acts]);
+      })));
+    });
+  }
+  function monWithdrawals(body) {
+    body.appendChild(empty('Loading…'));
+    adm('/api/admin/withdrawals').then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: d.isSuperAdmin ? 'Pay the person yourself (ABA / Wing / KHQR), then press "Mark paid". "Reject" gives the money back to their wallet.' : 'Only a Super Admin can pay or refuse a withdrawal.' }));
+      d.withdrawals = d.withdrawals || []; if (!d.withdrawals.length) { body.appendChild(empty('No withdrawal request yet.')); return; }
+      body.appendChild(table(['Creator', 'Amount', 'Pay with', 'Account name', 'Account number', 'Asked', 'Status', ''], d.withdrawals.map(function (w) {
+        function decide(status) {
+          var note = prompt(status === 'paid' ? 'Bank reference / note (optional):' : 'Reason for refusing (shown to the creator):', '') ; if (note === null) return;
+          if (!confirm((status === 'paid' ? 'Mark ' + money(w.amount) + ' as PAID to ' : 'Refuse and refund ' + money(w.amount) + ' to ') + nm(w) + '?')) return;
+          adm('/api/admin/withdrawals/decide', { id: w.id, status: status, note: note }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+        }
+        var acts = el('td', {}, w.status === 'pending' && d.isSuperAdmin ? [el('button', { class: 'btn-sm btn-green', text: 'Mark paid', onclick: function () { decide('paid'); } }), el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { decide('rejected'); } })] : [el('span', { style: 'font-size:12px;color:#65676b', text: w.note || '' })]);
+        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(w) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: w.public_id || '' })]), el('td', { style: 'font-weight:800', text: money(w.amount) }), el('td', { text: w.method }), el('td', { text: w.account_name || '' }), el('td', { text: w.account_number || '' }), el('td', { text: fmt(w.created_at) }), el('td', {}, [statusBadge(w.status)]), acts]);
+      })));
+    });
+  }
+  function monWallet(body) {
+    var out = el('div', { id: 'monOut', style: 'display:none' });
+    var who = el('input', { class: 'at-in', id: 'mwWho', placeholder: 'Phone number, Gmail or 15-digit ID of the creator' });
+    var amount = el('input', { class: 'at-in', id: 'mwAmount', type: 'number', step: '0.01', placeholder: 'Amount in $ (negative = take back)' });
+    var kind = el('select', { class: 'at-in', id: 'mwKind' }, [el('option', { value: 'bonus', text: 'Bonus / prize' }), el('option', { value: 'adjustment', text: 'Correction' })]);
+    var note = el('input', { class: 'at-in', id: 'mwNote', placeholder: 'Reason (the creator sees it), e.g. "Launch contest winner"' });
+    var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px', text: 'Add to wallet', onclick: function () {
+      if (!confirm('Change the wallet of ' + who.value + ' by ' + amount.value + ' $ ?')) return; btn.disabled = true;
+      adm('/api/admin/wallet/credit', { identifier: who.value, amount: amount.value, kind: kind.value, note: note.value }).then(function (d) { btn.disabled = false; msg(out, d.success, d.success ? '✅ ' + (d.name || 'The creator') + ' now has ' + money(d.balance) : '❌ ' + (d.error || 'Failed')); if (d.success) { amount.value = ''; note.value = ''; } });
+    } });
+    body.appendChild(el('div', { style: 'max-width:520px' }, [el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Only a Super Admin can change a wallet. Use it for prizes and contest rewards. Every change is written to the Activity Log.' }), el('div', { class: 'at-lbl', text: 'Creator' }), who, el('div', { class: 'at-lbl', text: 'Amount' }), amount, el('div', { class: 'at-lbl', text: 'Type' }), kind, el('div', { class: 'at-lbl', text: 'Reason' }), note, el('div', { style: 'margin-top:12px' }, [btn]), out]));
+  }
+  window.loadMonetizationAdmin = loadMonetizationAdmin;
+
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem();
+    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin();
   };
   window.onAdminUnlocked = function () { switchAdminTab('overview'); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();

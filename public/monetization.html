@@ -59,6 +59,15 @@
         .status-approved { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
         .status-rejected { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
     </style>
+<style>
+.mz-note{font-size:13px;line-height:1.5;color:#0b4fb3;background:#e7f3ff;border-radius:10px;padding:11px 13px;margin-bottom:14px}
+.mz-row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #f0f2f5;font-size:13.5px}.mz-row:first-child{border-top:0}.mz-row small{display:block;color:#65676b}
+.mz-plus{color:#1e8e3e;font-weight:800}.mz-minus{color:#d93025;font-weight:800}.mz-empty{color:#65676b;font-size:13px;padding:8px 0}
+.mz-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}.mz-box{background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px}
+.mz-box h3{margin:0 0 12px;font-size:18px}.mz-lbl{font-size:12.5px;font-weight:700;color:#65676b;margin:10px 0 4px}.mz-in{width:100%;padding:10px 12px;border:1px solid #ccd0d5;border-radius:8px;font-size:15px}
+.mz-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.mz-btn{border:0;border-radius:8px;padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer;background:#e4e6eb;color:#050505}.mz-btn.p{background:#1877f2;color:#fff}
+#mzMsg{display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;font-size:14px}
+</style>
 </head>
 <body>
 
@@ -69,137 +78,136 @@
     </div>
 
     <div class="container">
-        <!-- Wallet & Earnings -->
-        <div class="wallet-box">
-            <div>
-                <div style="font-size: 13px; font-weight: 700; opacity: 0.9;">សមតុល្យប្រាក់ចំណូលសរុប (Total Earnings)</div>
-                <div class="wallet-amount" id="walletBalance">$0.00</div>
-            </div>
-            <button class="withdraw-btn" onclick="requestWithdrawal()">ស្នើសុំដកប្រាក់</button>
-        </div>
+<div id="mzMsg"></div>
+<!-- Wallet -->
+<div class="wallet-box">
+<div><div style="font-size:13px;font-weight:700;opacity:.9" id="tWalletLbl"></div><div class="wallet-amount" id="walletBalance">$0.00</div></div>
+<button class="withdraw-btn" id="withdrawBtn" type="button"></button>
+</div>
+<div class="mz-note" id="tNote"></div>
 
-        <!-- Referral Program Card -->
-        <div class="card">
-            <div class="card-title">🤝 ប្រព័ន្ធណែនាំមិត្តភក្តិ (Referral Program)</div>
-            <p style="font-size: 13px; color: #65676b; line-height: 1.4;">ចែករំលែកតំណភ្ជាប់របស់អ្នកទៅកាន់មិត្តភក្តិ ទទួលបានប្រាក់រង្វាន់ពេលពួកគាត់ចុះឈ្មោះ និងប្រើប្រាស់ CamFeed!</p>
-            <div class="ref-input-row">
-                <input type="text" id="refLinkInput" class="ref-input" readonly value="កំពុងបង្កើត...">
-                <button class="copy-btn" onclick="copyReferralLink()">ចម្លងតំណ (Copy)</button>
-            </div>
-            <div style="font-size: 12px; font-weight: 700; color: #1877f2;">ចំនួនមិត្តភក្តិបានណែនាំ៖ <span id="referralCount">0</span> នាក់</div>
-        </div>
+<!-- Referral -->
+<div class="card">
+<div class="card-title" id="tRefTitle"></div>
+<p style="font-size:13px;color:#65676b;line-height:1.4" id="tRefText"></p>
+<div class="ref-input-row"><input type="text" id="refLinkInput" class="ref-input" readonly><button class="copy-btn" id="copyBtn" type="button"></button></div>
+<div style="font-size:12px;font-weight:700;color:#1877f2"><span id="tRefCount"></span> <span id="referralCount">0</span></div>
+<div class="mz-note" id="tRefRules" style="margin-top:12px;margin-bottom:0"></div>
+<div id="friendsBox" style="margin-top:12px"></div>
+</div>
 
-        <!-- Monetization Eligibility Status -->
-        <div class="card" id="monetizationCard">
-            <div class="card-title">💰 ស្នើសុំបើកមុខងាររកប្រាក់ (Apply for Monetization)</div>
-            <div id="monetizationStatusContainer">
-                <div class="criteria-list">
-                    <div class="criteria-item">
-                        <span>👤 ចំនួនអ្នកតាមដាន (Followers >= 1,000)</span>
-                        <span class="criteria-badge badge-pending" id="critFollowers">0 / 1,000</span>
-                    </div>
-                    <div class="criteria-item">
-                        <span>🎬 ចំនួន Views សរុប (Total Views >= 10,000)</span>
-                        <span class="criteria-badge badge-pending" id="critViews">0 / 10,000</span>
-                    </div>
-                    <div class="criteria-item">
-                        <span>⏳ អាយុកាលគណនី (Account Age >= 30 ថ្ងៃ)</span>
-                        <span class="criteria-badge badge-pending" id="critAge">ពិនិត្យ...</span>
-                    </div>
-                </div>
+<!-- Creator Program -->
+<div class="card" id="monetizationCard">
+<div class="card-title" id="tProgTitle"></div>
+<div id="monetizationStatusContainer"></div>
+</div>
 
-                <div id="applyActionArea" style="margin-top: 14px;">
-                    <button type="button" id="applyMonetizeBtn" class="btn-primary" onclick="submitMonetizationApplication()" disabled>ដាក់ពាក្យស្នើសុំរកប្រាក់</button>
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- History -->
+<div class="card">
+<div class="card-title" id="tHistTitle"></div>
+<div id="historyBox"></div>
+</div>
+</div>
 
-    <script>
-        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        if (!currentUser) window.location.href = 'index.html';
+<script>
+(function () {
+'use strict';
+var currentUser = null; try { currentUser = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
+if (!currentUser) { location.href = 'index.html'; return; }
+var T = {
+ km: { friendsTitle: 'មិត្តដែលអ្នកបានអញ្ជើញ', noFriends: 'មិនទាន់មានមិត្តទេ។ ចែករំលែកតំណខាងលើ!', pDays: 'ថ្ងៃ', pPosts: 'ប្រកាស', rs_progress: 'កំពុងធ្វើ', rs_rewarded: 'បានទទួលរង្វាន់', rs_review: 'កំពុងត្រួតពិនិត្យ', rs_rejected: 'មិនរាប់', rs_expired: 'ហួសកំណត់', soon: '🎬 មុខងាររកលុយតាមវីដេអូនឹងមកដល់ឆាប់ៗនេះ។ នៅពេលមានអ្នកប្រើប្រាស់កម្មវិធីនេះច្រើន អ្នកនឹងអាចបង្កើតប្រាក់ចំណូលតាមរយៈវីដេអូរបស់អ្នក។', kReferral: 'រង្វាន់អញ្ជើញមិត្ត', earnedRef: 'រង្វាន់អញ្ជើញដែលបានទទួលសរុប៖', wallet: 'ប្រាក់ក្នុងកាបូប (Total Earnings)', withdraw: 'ដកប្រាក់', note: 'ប្រាក់ក្នុងកាបូបបច្ចុប្បន្នមកពីរង្វាន់ពិសេស និងការប្រកួតរបស់ CamFeed។ ពេល CamFeed មានចំណូលពីការផ្សាយពាណិជ្ជកម្មក្នុងស្រុក ផ្នែកមួយនៃចំណូលនឹងត្រូវបានចែកដល់សមាជិកកម្មវិធី Creator តាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់មិនត្រូវបានធានាទេ។',
+   refTitle: '🎁 កម្មវិធីអញ្ជើញមិត្ត (Referral)', refText: 'ចែករំលែកតំណនេះឱ្យមិត្តភក្តិ។ ពេលគេបង្កើតគណនី អ្នកនឹងបានរាប់ជាអ្នកអញ្ជើញ។', copy: 'ចម្លង (Copy)', copied: 'បានចម្លងតំណអញ្ជើញ!', refCount: 'មិត្តដែលអ្នកបានអញ្ជើញ៖', people: 'នាក់',
+   progTitle: '💰 កម្មវិធី Creator (Apply for Monetization)', cFollowers: 'អ្នកតាមដាន (Followers)', cViews: 'ចំនួន Views សរុប', cPosts: 'ចំនួនប្រកាស', cAge: 'អាយុគណនី (ថ្ងៃ)', apply: 'ដាក់ពាក្យចូលរួម', applying: 'កំពុងផ្ញើ…',
+   approved: '🎉 អបអរសាទរ! អ្នកជាសមាជិកកម្មវិធី Creator ហើយ។', pending: '⏳ ពាក្យសុំរបស់អ្នកកំពុងរង់ចាំការពិនិត្យពី Admin។', rejected: '❌ ពាក្យសុំរបស់អ្នកមិនត្រូវបានអនុម័តទេ។', reason: 'មូលហេតុ៖', again: 'អ្នកអាចដាក់ពាក្យម្តងទៀតក្រោយ 7 ថ្ងៃ។',
+   histTitle: '🧾 ប្រវត្តិកាបូប', none: 'មិនទាន់មានប្រវត្តិ', wdTitle: 'ដកប្រាក់', amount: 'ចំនួន ($)', method: 'វិធីទទួលប្រាក់', accName: 'ឈ្មោះគណនី', accNum: 'លេខគណនី', send: 'ផ្ញើសំណើ', cancel: 'បោះបង់', min: 'ដកអប្បបរមា $', paidBy: 'យើងនឹងផ្ទេរប្រាក់ដោយដៃ ក្នុងរយៈពេលពីរបីថ្ងៃ។',
+   wdSent: 'បានផ្ញើសំណើដកប្រាក់ហើយ។ យើងនឹងផ្ទេរប្រាក់ទៅគណនីរបស់អ្នក។', onlyCreators: 'មានតែសមាជិក Creator ទេដែលអាចដកប្រាក់បាន។', needMore: 'សមតុល្យមិនទាន់ដល់ចំនួនអប្បបរមា $', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', sent: 'បានផ្ញើពាក្យសុំហើយ! Admin នឹងពិនិត្យ។', kBonus: 'រង្វាន់', kAdjustment: 'កែតម្រូវ', kWithdrawal: 'សំណើដកប្រាក់', kRefund: 'សងប្រាក់វិញ', kRev: 'ចំណែកចំណូល', st_pending: 'រង់ចាំ', st_paid: 'បានបង់', st_rejected: 'បដិសេធ' },
+ en: { friendsTitle: 'Friends you invited', noFriends: 'No friend yet. Share the link above!', pDays: 'days', pPosts: 'posts', rs_progress: 'In progress', rs_rewarded: 'Rewarded', rs_review: 'Being checked', rs_rejected: 'Not counted', rs_expired: 'Expired', soon: '🎬 Earning money from videos is coming soon. When many people use CamFeed, you will be able to earn from your videos.', kReferral: 'Invitation reward', earnedRef: 'Invitation rewards earned in total:', wallet: 'Wallet balance (Total Earnings)', withdraw: 'Withdraw', note: 'Wallet money currently comes from special bonuses and contests run by CamFeed. When CamFeed earns from local advertising, part of that income will be shared with members of the Creator Program, at CamFeed\'s discretion. Amounts are not guaranteed.',
+   refTitle: '🎁 Invite friends (Referral)', refText: 'Share this link with your friends. When they create an account you are counted as their inviter.', copy: 'Copy', copied: 'Invitation link copied!', refCount: 'Friends you invited:', people: '',
+   progTitle: '💰 Creator Program (Apply for Monetization)', cFollowers: 'Followers', cViews: 'Total views', cPosts: 'Posts', cAge: 'Account age (days)', apply: 'Apply to join', applying: 'Sending…',
+   approved: '🎉 Congratulations! You are a member of the Creator Program.', pending: '⏳ Your application is waiting for an admin to review it.', rejected: '❌ Your application was not approved.', reason: 'Reason:', again: 'You can apply again after 7 days.',
+   histTitle: '🧾 Wallet history', none: 'Nothing yet', wdTitle: 'Withdraw', amount: 'Amount ($)', method: 'Get paid with', accName: 'Account name', accNum: 'Account number', send: 'Send request', cancel: 'Cancel', min: 'Smallest withdrawal $', paidBy: 'We pay by hand, usually within a few days.',
+   wdSent: 'Your withdrawal request was sent. We will pay your account.', onlyCreators: 'Only Creator Program members can withdraw.', needMore: 'Your balance has not reached the smallest withdrawal $', net: 'Could not reach the server', sent: 'Application sent! An admin will review it.', kBonus: 'Bonus', kAdjustment: 'Adjustment', kWithdrawal: 'Withdrawal request', kRefund: 'Refund', kRev: 'Revenue share', st_pending: 'Waiting', st_paid: 'Paid', st_rejected: 'Refused' } };
+T.km.note = 'ប្រាក់ក្នុងកាបូបមកពីរង្វាន់អញ្ជើញមិត្ត និងរង្វាន់ពិសេសរបស់ CamFeed។ ប្រាក់ចំណូលពីវីដេអូនឹងមកដល់ឆាប់ៗនេះ ហើយនៅពេលនោះ ផ្នែកមួយនៃចំណូលពាណិជ្ជកម្មនឹងត្រូវបានចែកតាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់ពីវីដេអូមិនត្រូវបានធានាទេ។';
+T.en.note = 'Wallet money comes from invitation rewards and special bonuses from CamFeed. Earning from videos is coming soon; when it starts, part of the advertising income will be shared at CamFeed\'s discretion. Amounts from videos are not guaranteed.';
+var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
+var t = function (k) { return T[lang][k] !== undefined ? T[lang][k] : T.en[k]; };
+var $ = function (id) { return document.getElementById(id); };
+function el(tag, props, text) { var e = document.createElement(tag); if (props) Object.keys(props).forEach(function (k) { if (k === 'class') e.className = props[k]; else if (k === 'style') e.style.cssText = props[k]; else e.setAttribute(k, props[k]); }); if (text !== undefined) e.textContent = text; return e; }
+function msg(ok, text) { var b = $('mzMsg'); b.textContent = text; b.style.display = text ? 'block' : 'none'; b.style.background = ok ? '#e6f4ea' : '#fdecee'; b.style.color = ok ? '#176f35' : '#9b1229'; if (text) window.scrollTo({ top: 0, behavior: 'smooth' }); }
+var data = null;
+function usd(n) { return '$' + Number(n || 0).toFixed(2); }
+function fmtDate(d) { var x = new Date(d); return isNaN(x) ? '' : x.toLocaleDateString(); }
 
-        async function loadMonetizationData() {
-            try {
-                const res = await fetch(`/api/monetization/status?email=${encodeURIComponent(currentUser.email)}`);
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('walletBalance').innerText = `$${(data.walletBalance || 0).toFixed(2)}`;
-                    document.getElementById('referralCount').innerText = data.referralCount || 0;
-
-                    const refUrl = `${window.location.origin}/index.html?ref=${currentUser.email}`;
-                    document.getElementById('refLinkInput').value = refUrl;
-
-                    const statusContainer = document.getElementById('monetizationStatusContainer');
-                    if (data.applicationStatus === 'approved') {
-                        statusContainer.innerHTML = `<div class="status-banner status-approved">🎉 អបអរសាទរ! គណនីរបស់អ្នកត្រូវបានអនុម័តឱ្យរកប្រាក់ចំណូលបានហើយ។</div>`;
-                    } else if (data.applicationStatus === 'pending') {
-                        statusContainer.innerHTML = `<div class="status-banner status-pending">⏳ ពាក្យស្នើសុំរបស់អ្នកកំពុងស្ថិតក្នុងការពិនិត្យរបស់ Admin (រង់ចាំ 3-5 ថ្ងៃការងារ)។</div>`;
-                    } else if (data.applicationStatus === 'rejected') {
-                        statusContainer.innerHTML = `
-                            <div class="status-banner status-rejected" style="margin-bottom:12px;">❌ ពាក្យស្នើសុំត្រូវបានปฏิសេធ សូមកែតម្រូវហើយស្នើសុំម្តងទៀត។</div>
-                            <button type="button" class="btn-primary" onclick="window.location.reload()">ស្នើសុំម្តងទៀត</button>
-                        `;
-                    } else {
-                        // Check criteria
-                        const fCount = data.followersCount || 0;
-                        const vCount = data.totalViews || 0;
-                        const isEligible = fCount >= 1000 && vCount >= 10000;
-
-                        document.getElementById('critFollowers').innerText = `${fCount} / 1,000`;
-                        document.getElementById('critFollowers').className = `criteria-badge ${fCount >= 1000 ? 'badge-pass' : 'badge-pending'}`;
-
-                        document.getElementById('critViews').innerText = `${vCount} / 10,000`;
-                        document.getElementById('critViews').className = `criteria-badge ${vCount >= 10000 ? 'badge-pass' : 'badge-pending'}`;
-
-                        document.getElementById('critAge').innerText = 'គ្រប់គ្រាន់';
-                        document.getElementById('critAge').className = 'criteria-badge badge-pass';
-
-                        const btn = document.getElementById('applyMonetizeBtn');
-                        if (isEligible) {
-                            btn.disabled = false;
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        function copyReferralLink() {
-            const input = document.getElementById('refLinkInput');
-            input.select();
-            navigator.clipboard.writeText(input.value);
-            alert('✓ បានចម្លងតំណណែនាំ (Referral Link) ជោគជ័យ!');
-        }
-
-        async function submitMonetizationApplication() {
-            if (!confirm('តើអ្នកពិតជាចង់ផ្ញើពាក្យស្នើសុំរកប្រាក់មែនទេ?')) return;
-            try {
-                const res = await fetch('/api/monetization/apply', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: currentUser.email })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert('ពាក្យស្នើសុំរបស់អ្នកត្រូវបានបញ្ជូនជោគជ័យ!');
-                    loadMonetizationData();
-                } else {
-                    alert(data.error || 'មិនអាចស្នើសុំបានទេ');
-                }
-            } catch (err) {
-                alert('មានបញ្ហាក្នុងការភ្ជាប់ទៅកាន់ Server');
-            }
-        }
-
-        function requestWithdrawal() {
-            const amt = prompt('បញ្ចូលចំនួនប្រាក់ដែលចង់ដក ($):');
-            if (!amt || isNaN(amt) || parseFloat(amt) <= 0) return;
-            alert(`ស្នើសុំដកប្រាក់ចំនួន $${amt} បានជោគជ័យ! ប្រាក់នឹងត្រូវបញ្ចូលទៅក្នុងគណនីធនាគាររបស់អ្នកក្នុងរយៈពេល ២៤ម៉ោង។`);
-        }
-
-        loadMonetizationData();
-    </script>
+function applyTexts() {
+  document.documentElement.lang = lang;
+  $('tWalletLbl').textContent = t('wallet'); $('withdrawBtn').textContent = t('withdraw'); $('tNote').textContent = t('note'); $('tRefTitle').textContent = t('refTitle'); $('tRefText').textContent = t('refText'); $('copyBtn').textContent = t('copy'); $('tRefCount').textContent = t('refCount');
+  $('tProgTitle').textContent = t('progTitle'); $('tHistTitle').textContent = t('histTitle');
+}
+function renderReferrals(d) {
+  var rr = d.referralRules || { reward: 0.2, days: 3, posts: 3, windowDays: 14 };
+  $('tRefRules').textContent = lang === 'km'
+    ? 'រង្វាន់ ' + usd(rr.reward) + ' ក្នុងមួយមិត្ត៖ ពេលមិត្តដែលអ្នកអញ្ជើញ ប្រើ CamFeed ' + rr.days + ' ថ្ងៃខុសគ្នា ហើយបង្ហោះរូបភាព ឬវីដេអូ (សាធារណៈ) ' + rr.posts + ' ក្នុងរយៈពេល ' + rr.windowDays + ' ថ្ងៃ។ ប្រាក់ចូលកាបូបពេលគ្រប់លក្ខខណ្ឌទាំងអស់។'
+    : 'Reward ' + usd(rr.reward) + ' per friend: when a friend you invite uses CamFeed on ' + rr.days + ' different days and posts ' + rr.posts + ' public photos or videos within ' + rr.windowDays + ' days. The money is added to your wallet when everything is done.';
+  var box = $('friendsBox'); box.textContent = '';
+  box.appendChild(el('div', { style: 'font-weight:800;font-size:14px;margin-bottom:6px' }, t('friendsTitle') + (d.referralEarned ? ' · ' + t('earnedRef') + ' ' + usd(d.referralEarned) : '')));
+  var list = d.referrals || [];
+  if (!list.length) { box.appendChild(el('div', { class: 'mz-empty' }, t('noFriends'))); return; }
+  list.forEach(function (f) {
+    var row = el('div', { class: 'mz-row' }); var left = el('div'); left.appendChild(el('div', { style: 'font-weight:700' }, f.name || '—'));
+    left.appendChild(el('small', {}, f.daysDone + '/' + rr.days + ' ' + t('pDays') + ' · ' + f.postsDone + '/' + rr.posts + ' ' + t('pPosts') + ' · ' + t('rs_' + f.status)));
+    var bar = el('div', { style: 'height:6px;background:#e4e6eb;border-radius:4px;margin-top:5px;overflow:hidden;max-width:180px' }); var steps = rr.days + rr.posts; bar.appendChild(el('div', { style: 'height:100%;background:' + (f.status === 'rewarded' ? '#1e8e3e' : '#1877f2') + ';width:' + Math.round(100 * Math.min(steps, f.daysDone + f.postsDone) / steps) + '%' })); left.appendChild(bar);
+    row.appendChild(left);
+    row.appendChild(el('div', { class: f.status === 'rewarded' ? 'mz-plus' : '', style: f.status === 'rewarded' ? '' : 'color:#65676b;font-weight:700' }, f.status === 'rewarded' ? '+' + usd(f.reward) : (f.status === 'progress' ? usd(f.progress) + ' / ' + usd(f.reward) : '—')));
+    box.appendChild(row);
+  });
+}
+function render() {
+  var d = data; $('walletBalance').textContent = usd(d.walletBalance); $('referralCount').textContent = String(d.referralCount || 0) + (t('people') ? ' ' + t('people') : '');
+  $('refLinkInput').value = d.referralCode ? location.origin + '/index.html?ref=' + d.referralCode : '';
+  renderReferrals(d);
+  var box = $('monetizationStatusContainer'); box.textContent = '';
+  if (!d.creatorProgramOpen) box.appendChild(el('div', { class: 'status-banner status-pending' }, t('soon')));
+  else if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));
+  else if (d.applicationStatus === 'pending') box.appendChild(el('div', { class: 'status-banner status-pending' }, t('pending')));
+  else {
+    if (d.applicationStatus === 'rejected') { var rb = el('div', { class: 'status-banner status-rejected', style: 'margin-bottom:12px' }, t('rejected') + (d.applicationNote ? ' ' + t('reason') + ' ' + d.applicationNote : '') + ' ' + t('again')); box.appendChild(rb); }
+    var list = el('div', { class: 'criteria-list' }), c = d.criteria;
+    [['cFollowers', d.followersCount, c.followers], ['cViews', d.totalViews, c.views], ['cPosts', d.postsCount, c.posts], ['cAge', d.accountAgeDays, c.ageDays]].forEach(function (x) {
+      var ok = x[1] >= x[2]; var row = el('div', { class: 'criteria-item' }); row.appendChild(el('span', {}, t(x[0]) + ' ≥ ' + Number(x[2]).toLocaleString())); row.appendChild(el('span', { class: 'criteria-badge ' + (ok ? 'badge-pass' : 'badge-pending') }, Number(x[1]).toLocaleString() + ' / ' + Number(x[2]).toLocaleString())); list.appendChild(row);
+    });
+    box.appendChild(list); var area = el('div', { style: 'margin-top:14px' }); var btn = el('button', { type: 'button', class: 'btn-primary', id: 'applyMonetizeBtn' }, t('apply')); btn.disabled = !d.eligible || d.applicationStatus === 'rejected' && false; btn.addEventListener('click', apply); area.appendChild(btn); box.appendChild(area);
+  }
+  var h = $('historyBox'); h.textContent = '';
+  var rows = [];
+  (d.withdrawals || []).forEach(function (w) { rows.push({ date: w.created_at, title: t('kWithdrawal') + ' · ' + w.method, sub: t('st_' + w.status) + (w.note ? ' · ' + w.note : ''), amount: -w.amount, skip: false }); });
+  (d.ledger || []).forEach(function (l) { var k = { bonus: 'kBonus', adjustment: 'kAdjustment', withdrawal: 'kWithdrawal', withdrawal_refund: 'kRefund', revenue_share: 'kRev', referral: 'kReferral' }[l.kind] || 'kBonus'; rows.push({ date: l.created_at, title: t(k), sub: l.note, amount: l.amount, ledger: true }); });
+  var shown = rows.filter(function (r) { return r.ledger; });                // the ledger already contains every money movement
+  if (!shown.length) h.appendChild(el('div', { class: 'mz-empty' }, t('none')));
+  shown.forEach(function (r) { var row = el('div', { class: 'mz-row' }); var left = el('div'); left.appendChild(el('div', {}, r.title)); if (r.sub) left.appendChild(el('small', {}, r.sub)); row.appendChild(left); row.appendChild(el('div', { class: r.amount >= 0 ? 'mz-plus' : 'mz-minus' }, (r.amount >= 0 ? '+' : '−') + usd(Math.abs(r.amount)))); h.appendChild(row); });
+  var open = (d.withdrawals || []).filter(function (w) { return w.status === 'pending'; })[0];
+  if (open) { var o = el('div', { class: 'mz-note', style: 'margin-top:12px' }, t('kWithdrawal') + ' ' + usd(open.amount) + ' · ' + t('st_pending') + ' · ' + t('paidBy')); h.appendChild(o); }
+}
+async function api(path, body) {
+  try { var res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined); return await res.json(); } catch (e) { return { success: false, error: t('net') }; }
+}
+async function load() { var d = await api('/api/monetization/status?email=' + encodeURIComponent(currentUser.email)); if (d.success) { data = d; render(); } else msg(false, d.error || t('net')); }
+async function apply() { if (!confirm(t('apply') + '?')) return; var b = $('applyMonetizeBtn'); b.disabled = true; b.textContent = t('applying'); var d = await api('/api/monetization/apply', {}); if (d.success) { msg(true, t('sent')); } else msg(false, d.error || t('net')); load(); }
+$('copyBtn').addEventListener('click', function () { var i = $('refLinkInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copied')); });
+$('withdrawBtn').addEventListener('click', function () {
+  if (!data) return;
+  if (data.walletBalance < data.minWithdraw) return msg(false, t('needMore') + Number(data.minWithdraw).toFixed(2));
+  var modal = el('div', { class: 'mz-modal' }), box = el('div', { class: 'mz-box' }); modal.appendChild(box); box.appendChild(el('h3', {}, t('wdTitle')));
+  function field(label, id, type, value) { box.appendChild(el('div', { class: 'mz-lbl' }, label)); var i = el('input', { class: 'mz-in', id: id, type: type || 'text' }); if (value !== undefined) i.value = value; box.appendChild(i); return i; }
+  field(t('amount') + ' (' + t('min') + Number(data.minWithdraw).toFixed(2) + ')', 'wdAmount', 'number', Math.min(data.walletBalance, Math.max(data.minWithdraw, 10)).toFixed(2));
+  box.appendChild(el('div', { class: 'mz-lbl' }, t('method'))); var sel = el('select', { class: 'mz-in', id: 'wdMethod' }); ['ABA', 'Wing', 'KHQR', 'Other'].forEach(function (m) { sel.appendChild(el('option', { value: m }, m)); }); box.appendChild(sel);
+  field(t('accName'), 'wdName'); field(t('accNum'), 'wdNumber'); box.appendChild(el('div', { class: 'mz-lbl', style: 'font-weight:400' }, t('paidBy')));
+  var btns = el('div', { class: 'mz-btns' }); var cancel = el('button', { type: 'button', class: 'mz-btn' }, t('cancel')), send = el('button', { type: 'button', class: 'mz-btn p' }, t('send')); btns.appendChild(cancel); btns.appendChild(send); box.appendChild(btns);
+  cancel.addEventListener('click', function () { modal.remove(); });
+  send.addEventListener('click', async function () { send.disabled = true; var d = await api('/api/monetization/withdraw', { amount: $('wdAmount').value, method: $('wdMethod').value, accountName: $('wdName').value, accountNumber: $('wdNumber').value }); send.disabled = false; if (d.success) { modal.remove(); msg(true, t('wdSent')); load(); } else { msg(false, d.error || t('net')); } });
+  document.body.appendChild(modal);
+});
+applyTexts(); load();
+})();
+</script>
 </body>
 </html>

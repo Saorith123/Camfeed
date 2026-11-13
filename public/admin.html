@@ -105,7 +105,7 @@
         </div>
 
         <div class="tabs-bar">
-            <button class="tab-btn active" id="tabBtn-monetization" onclick="switchAdminTab('monetization')">💰 Monetization Approvals</button>
+            <button class="tab-btn active" id="tabBtn-monetization" onclick="switchAdminTab('monetization')">💰 Monetization</button>
             <button class="tab-btn" id="tabBtn-reports" onclick="switchAdminTab('reports')">🚩 Reports Queue</button>
             <button class="tab-btn" id="tabBtn-users" onclick="switchAdminTab('users')">👥 All Users & Team Admins</button>
             <button class="tab-btn" id="tabBtn-posts" onclick="switchAdminTab('posts')">🎬 Posts & Videos</button>
@@ -335,53 +335,7 @@
             renderPostsTable(dashboardData.posts);
         }
 
-        async function loadMonetizationRequests() {
-            try {
-                const res = await fetch('/api/admin/monetization-requests', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminEmail: currentUser.email, adminKey: savedAdminKey })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const requests = data.requests || [];
-                    document.getElementById('statMonetize').innerText = requests.filter(r => r.status === 'pending').length;
-                    
-                    const tbody = document.getElementById('monetizationTableBody');
-                    if (requests.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#65676b; padding:20px;">មិនមានសំណើស្នើសុំរកប្រាក់ទេ។</td></tr>`;
-                        return;
-                    }
-
-                    tbody.innerHTML = requests.map(r => `
-                        <tr>
-                            <td>
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <img src="${r.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
-                                    <div>
-                                        <div style="font-weight:700;">${esc(r.first_name)} ${esc(r.last_name)}</div>
-                                        <div style="font-size:12px; color:#65676b;">${esc(r.user_email)}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td><b>${r.followers_count || 0}</b> / 1,000</td>
-                            <td><b>${r.total_views || 0}</b> / 10,000</td>
-                            <td><span class="badge ${r.status === 'pending' ? 'badge-pending' : (r.status === 'approved' ? 'badge-resolved' : 'badge-banned')}">${esc(r.status)}</span></td>
-                            <td>
-                                ${r.status === 'pending' ? `
-                                    <button class="btn-sm btn-green" onclick="updateMonetizationAction(decodeURIComponent('${ea(r.user_email)}'), 'approved')">Approve</button>
-                                    <button class="btn-sm btn-red" onclick="updateMonetizationAction(decodeURIComponent('${ea(r.user_email)}'), 'rejected')">Reject</button>
-                                ` : `
-                                    <button class="btn-sm btn-gray" onclick="updateMonetizationAction(decodeURIComponent('${ea(r.user_email)}'), 'pending')">Reset to Pending</button>
-                                `}
-                            </td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }
+        function loadMonetizationRequests() { if (window.loadMonetizationAdmin) window.loadMonetizationAdmin(); }
 
         async function updateMonetizationAction(targetEmail, status) {
             try {
@@ -445,7 +399,7 @@
                     <tr class="user-search-row" data-search="${esc((u.first_name + ' ' + u.last_name + ' ' + u.email).toLowerCase())}">
                         <td>
                             <div style="display:flex; align-items:center; gap:10px;">
-                                <img src="${u.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                                <img src="${esc(u.profile_pic || 'https://via.placeholder.com/36')}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:700;">${esc(u.first_name)} ${esc(u.last_name)}</div>
                                     <div style="font-size:12px; color:#65676b;">${esc(u.email)}</div>

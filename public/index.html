@@ -1208,7 +1208,8 @@
                     gender: document.getElementById('gender').value,
                     country: document.getElementById('country').value,
                     turnstileToken: getTurnstileToken(),
-                    emailToken: signupEmailToken
+                    emailToken: signupEmailToken,
+                    ref: (function () { try { return localStorage.getItem('camfeed_ref') || undefined; } catch (e) { return undefined; } })()
                 };
                 if (signupChannel === 'phone') {     // phone sign-up: the verified number is the identity, no e-mail
                     latestUserData.phone = latestUserData.email;
@@ -1225,6 +1226,7 @@
                 const data = await res.json();
 
                 if (data.success) {
+                try { localStorage.removeItem('camfeed_ref'); } catch (e) {}
                     let user = data.user;
 
                     if (profileFile || coverFile) {
@@ -1307,6 +1309,10 @@
                 msg.innerText = 'Server connection error';
             }
         }
+    </script>
+    <script>
+    // an invitation link (…/index.html?ref=<15-digit code>) is remembered until the new account is created
+    (function () { try { var r = new URLSearchParams(location.search).get('ref'); if (/^\d{15}$/.test(r || '')) localStorage.setItem('camfeed_ref', r); } catch (e) {} })();
     </script>
 </body>
 </html>

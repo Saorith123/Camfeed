@@ -142,8 +142,14 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
         requestId = await gateway.checkSendAbility(phone);
         await gateway.sendCode(phone, requestId);
       } catch (e) {
-        console.error('[phone] gateway error:', e.gwCode || e.message);
         const code = String(e.gwCode || '');
+        // say in plain words what to fix (this is what you read in the Render logs)
+        const HINT = /BALANCE/.test(code) ? 'The Telegram Gateway balance is empty. Add credits at gateway.telegram.org (Account > Budget). Sending to your own number is free, any other number costs credits.'
+          : /ACCESS_TOKEN/.test(code) ? 'TELEGRAM_GATEWAY_TOKEN in Render is wrong, was revoked, or the IP restriction in the Gateway account is not empty.'
+          : /TIMEOUT|NETWORK/.test(code) ? 'Render could not reach gateway.telegram.org (temporary). Try again in a minute.'
+          : /BAD_RESPONSE/.test(code) ? 'Telegram Gateway answered with something unreadable (temporary).'
+          : /PHONE_NUMBER|NOT_FOUND/.test(code) ? 'This number is not on Telegram.' : '';
+        console.error('[phone] gateway error:', code || e.message, HINT ? '-> ' + HINT : '');
         if (/BALANCE|ACCESS_TOKEN|TIMEOUT|NETWORK|BAD_RESPONSE/.test(code)) {
           return fail(res, 503, 'Phone codes are temporarily unavailable. Please use your Gmail.', 'លេខកូដតាមទូរស័ព្ទមិនអាចប្រើបានបណ្តោះអាសន្នទេ។ សូមប្រើ Gmail។');
         }

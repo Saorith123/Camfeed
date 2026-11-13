@@ -190,7 +190,25 @@ pool.connect(async (err, client, release) => {
     await pool.query(`CREATE TABLE IF NOT EXISTS admin_audit (
       id SERIAL PRIMARY KEY, at TIMESTAMPTZ NOT NULL DEFAULT NOW(), admin_email TEXT, action VARCHAR(60), target TEXT, details TEXT)`);
     await pool.query("DELETE FROM admin_audit WHERE at < NOW() - INTERVAL '180 days'");
-    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()');   // joined date (accounts that existed before this get the day of the update)
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()');
+    // accounts that existed before the joined date was recorded: use the day of their first post (never later than what is stored)
+    await pool.query('UPDATE users u SET created_at = p.first_post FROM (SELECT user_email, MIN(created_at) AS first_post FROM posts GROUP BY user_email) p WHERE p.user_email = u.email AND p.first_post < u.created_at').catch(() => {});
+    await pool.query(`CREATE TABLE IF NOT EXISTS creator_applications (
+      user_email TEXT PRIMARY KEY, status VARCHAR(20) NOT NULL DEFAULT 'pending', requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS wallet_ledger (
+      id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, kind VARCHAR(30) NOT NULL, note TEXT, ref_id INTEGER, created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_wallet_ledger_user ON wallet_ledger (user_email)');
+    await pool.query(`CREATE TABLE IF NOT EXISTS withdrawal_requests (
+      id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, method VARCHAR(20) NOT NULL, account_name VARCHAR(80), account_number VARCHAR(40),
+      status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
+    await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS ux_withdraw_pending ON withdrawal_requests (user_email) WHERE status = 'pending'");   // one open request at a time
+    await pool.query('CREATE TABLE IF NOT EXISTS referrals (referred_email TEXT PRIMARY KEY, referrer_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_email)');
+    for (const col of ["status VARCHAR(20) NOT NULL DEFAULT 'progress'", 'days_done INTEGER NOT NULL DEFAULT 0', 'posts_done INTEGER NOT NULL DEFAULT 0', 'ip_hash VARCHAR(64)', 'completed_at TIMESTAMPTZ', 'rewarded_at TIMESTAMPTZ', 'note TEXT']) {
+      await pool.query(`ALTER TABLE referrals ADD COLUMN IF NOT EXISTS ${col}`);
+    }
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_referrals_status ON referrals (status)');
+    await pool.query('CREATE TABLE IF NOT EXISTS user_active_days (user_email TEXT NOT NULL, day DATE NOT NULL, PRIMARY KEY (user_email, day))');   // joined date (accounts that existed before this get the day of the update)
     await pool.query("DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL '90 days'");
   } catch (e) {
     console.error('email verification schema notice:', e.message);
@@ -224,6 +242,7 @@ app.use('/api', publicIds.inbound, publicIds.outbound);
 app.use('/api', auth.sanitizeJson, authCore.authenticate, authCore.forceActor);
 app.use('/api', rateLimits.person);                // per person: creating things / chatting / everything
 app.use('/api', security.inputGuard);              // clean text, only our own https links, only real ids and choices
+app.use('/api', markActive);                       // remembers the days a person used CamFeed (for the invitation reward)
 ['id', 'postId', 'commentId', 'reportId'].forEach((name) => app.param(name, security.idParam));   // one call per name (works on every Express version)
 const visibility = security.createVisibility(pool);
 // the browser reports what its strict policy would have blocked (shown in the Render logs)
@@ -488,6 +507,7 @@ app.post('/api/register', async (req, res) => {
     const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole, 'private', viaPhone ? phoneE164 : null]);
     const user = result.rows[0];
     registerLimiter.hit(req.ip);
+    recordReferral(user.email, req.body && req.body.ref, req.ip);
     if (!viaPhone && signup.isRequired()) pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
     // password is stripped from the response by auth.sanitizeJson
     user.contact_mail = ownContact(user);
@@ -2382,6 +2402,15 @@ app.post('/api/admin/users/search', async (req, res) => {
   } catch (err) { console.error('[admin] user search error:', err.message); res.status(500).json({ success: false, error: 'Could not search.' }); }
 });
 
+// an admin may type a phone number (any way of writing it), a Gmail, a 15-digit ID or the stored login
+async function resolveIdentifier(raw) {
+  const ident = String(raw || '').trim(); if (!ident) return null;
+  let r;
+  if (/^\d{15}$/.test(ident)) r = await pool.query('SELECT * FROM users WHERE public_id = $1 LIMIT 1', [ident]);
+  else if (ident.includes('@')) r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [ident]);
+  else { const e164 = normalizePhone(ident); const stored = e164 ? await findAccountEmail(pool, e164) : null; r = stored ? await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [stored]) : { rows: [] }; }
+  return r.rows[0] || null;
+}
 async function loadAdminTarget(b) {
   const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [String(b.target || '')]);
   return r.rows[0] || null;
@@ -2515,6 +2544,265 @@ app.post('/api/admin/system', async (req, res) => {
       maskUserIds: process.env.MASK_USER_IDS !== 'false', debugErrors: process.env.DEBUG_ERRORS === 'true', cspEnforced: process.env.CSP_ENFORCE === 'true',
       uptimeMinutes: Math.round(process.uptime() / 60), memoryMb: Math.round(process.memoryUsage().rss / 1048576), node: process.version } });
   } catch (err) { console.error('[admin] system error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+
+// ---------------------------------------------------------------------------
+// Monetization (Creator Program): rules, wallet (a ledger of cents), withdrawals paid BY HAND, referrals.
+// No money moves automatically: bonuses are added by a Super Admin and withdrawals are paid by the owner (ABA / Wing / KHQR).
+// ---------------------------------------------------------------------------
+const creatorRules = () => {
+  const n = (k, d) => { const raw = process.env[k]; const v = Number(raw); return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d; };
+  return { followers: n('CREATOR_MIN_FOLLOWERS', 1000), views: n('CREATOR_MIN_VIEWS', 10000), ageDays: n('CREATOR_MIN_ACCOUNT_DAYS', 30), posts: n('CREATOR_MIN_POSTS', 5), minWithdrawCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 5)) * 100) };
+};
+async function creatorStats(email) {
+  const r = await pool.query(
+    `SELECT (SELECT COUNT(*) FROM follows WHERE following_email = $1) AS followers,
+            (SELECT COALESCE(SUM(views_count), 0) FROM posts WHERE user_email = $1) AS views,
+            (SELECT COUNT(*) FROM posts WHERE user_email = $1 AND shared_post_id IS NULL) AS posts,
+            (SELECT COALESCE(GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400)), 0) FROM users WHERE email = $1) AS age_days`, [email]);
+  const x = r.rows[0] || {};
+  return { followers: Number(x.followers) || 0, views: Number(x.views) || 0, posts: Number(x.posts) || 0, ageDays: Number(x.age_days) || 0 };
+}
+const meetsRules = (st, rules) => st.followers >= rules.followers && st.views >= rules.views && st.posts >= rules.posts && st.ageDays >= rules.ageDays;
+async function walletCents(email) {
+  const r = await pool.query('SELECT COALESCE(SUM(amount_cents), 0) AS cents FROM wallet_ledger WHERE user_email = $1', [email]);
+  return Number(r.rows[0] && r.rows[0].cents) || 0;
+}
+// ---- Invitation reward: $0.20 for the person who invited a friend, paid when the friend has used CamFeed on 3 different days AND posted 3 public photos / videos.
+//      (6 steps; the progress is shown step by step, the money is added to the wallet only when all steps are done)
+const referralRules = () => {
+  const n = (k, d) => { const raw = process.env[k]; const v = Number(raw); return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d; };
+  return { rewardCents: Math.round(n('REFERRAL_REWARD_USD', 0.2) * 100), days: n('REFERRAL_ACTIVE_DAYS', 3), posts: n('REFERRAL_POSTS', 3), windowDays: n('REFERRAL_WINDOW_DAYS', 14), maxPerMonth: n('REFERRAL_MAX_PER_MONTH', 50) };
+};
+const phnomPenhDay = (ms) => new Date((ms === undefined ? Date.now() : ms) + 7 * 3600 * 1000).toISOString().slice(0, 10);   // the day in Cambodia (UTC+7)
+const activeDayCache = new Map(), referralCheckAt = new Map();
+function markActive(req, res, next) {
+  try {
+    const email = req.authEmail;
+    if (email) {
+      const day = phnomPenhDay();
+      if (activeDayCache.get(email) !== day) {
+        activeDayCache.set(email, day);
+        pool.query('INSERT INTO user_active_days (user_email, day) VALUES ($1, $2) ON CONFLICT DO NOTHING', [email, day]).then(() => evaluateReferral(email)).catch(() => {});
+      } else if (Date.now() - (referralCheckAt.get(email) || 0) > 10 * 60 * 1000) {
+        referralCheckAt.set(email, Date.now());
+        evaluateReferral(email).catch(() => {});
+      }
+      if (activeDayCache.size > 50000) activeDayCache.clear();
+    }
+  } catch (e) { /* never block a request */ }
+  next();
+}
+function recordReferral(newEmail, ref, ip) {
+  const code = String(ref || '').trim();
+  if (!/^\d{15}$/.test(code)) return;
+  const ipHash = require('crypto').createHash('sha256').update(String(ip || '') + '|' + (process.env.JWT_SECRET || '')).digest('hex').slice(0, 32);   // only a hash is kept: to notice many "friends" from one network
+  pool.query('INSERT INTO referrals (referred_email, referrer_email, ip_hash) SELECT $1, email, $3 FROM users WHERE public_id = $2 AND email <> $1 ON CONFLICT (referred_email) DO NOTHING', [newEmail, code, ipHash]).catch(() => {});
+}
+async function creditReferral(referrer, cents) {
+  await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'referral', $3, 'system')", [referrer, cents, 'A friend you invited finished the challenge']);
+}
+async function evaluateReferral(referredEmail) {
+  const r = (await pool.query("SELECT referrer_email, created_at, ip_hash FROM referrals WHERE referred_email = $1 AND status = 'progress'", [referredEmail])).rows[0];
+  if (!r) return null;
+  const rules = referralRules(), created = new Date(r.created_at).getTime();
+  const startDay = phnomPenhDay(created), endDay = phnomPenhDay(created + rules.windowDays * 86400000);
+  const [d, p] = await Promise.all([
+    pool.query('SELECT COUNT(DISTINCT day) AS n FROM user_active_days WHERE user_email = $1 AND day >= $2 AND day <= $3', [referredEmail, startDay, endDay]),
+    pool.query("SELECT COUNT(*) AS n FROM posts WHERE user_email = $1 AND shared_post_id IS NULL AND media_type IN ('image', 'video') AND COALESCE(privacy, 'public') = 'public' AND created_at >= $2", [referredEmail, r.created_at])
+  ]);
+  const days = Math.min(Number(d.rows[0] && d.rows[0].n) || 0, rules.days), posts = Math.min(Number(p.rows[0] && p.rows[0].n) || 0, rules.posts);
+  const done = days >= rules.days && posts >= rules.posts;
+  if (!done && Date.now() <= created + rules.windowDays * 86400000) {
+    await pool.query("UPDATE referrals SET days_done = $2, posts_done = $3 WHERE referred_email = $1 AND status = 'progress'", [referredEmail, days, posts]);
+    return 'progress';
+  }
+  if (!done) {
+    await pool.query("UPDATE referrals SET status = 'expired', days_done = $2, posts_done = $3, completed_at = NOW() WHERE referred_email = $1 AND status = 'progress'", [referredEmail, days, posts]);
+    return 'expired';
+  }
+  // finished: pay at once, or let a person look first when something looks odd
+  let verdict = 'rewarded', why = '';
+  const inviter = (await pool.query('SELECT COALESCE(is_banned, FALSE) AS banned FROM users WHERE email = $1', [r.referrer_email])).rows[0];
+  const friend = (await pool.query('SELECT COALESCE(is_banned, FALSE) AS banned FROM users WHERE email = $1', [referredEmail])).rows[0];
+  if (!inviter || inviter.banned || !friend || friend.banned) { verdict = 'rejected'; why = 'an account is suspended'; }
+  else {
+    const same = r.ip_hash ? Number((await pool.query('SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1 AND ip_hash = $2 AND referred_email <> $3', [r.referrer_email, r.ip_hash, referredEmail])).rows[0].n) : 0;
+    const month = Number((await pool.query("SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1 AND status = 'rewarded' AND rewarded_at >= date_trunc('month', NOW())", [r.referrer_email])).rows[0].n);
+    if (same > 0) { verdict = 'review'; why = 'several invited accounts share one network'; } else if (month >= rules.maxPerMonth) { verdict = 'review'; why = 'monthly limit reached'; }
+  }
+  const upd = await pool.query("UPDATE referrals SET status = $2, days_done = $3, posts_done = $4, completed_at = NOW(), rewarded_at = CASE WHEN $6::boolean THEN NOW() ELSE NULL END, note = $5 WHERE referred_email = $1 AND status = 'progress' RETURNING referrer_email",
+    [referredEmail, verdict, days, posts, why, verdict === 'rewarded']);
+  if (upd.rows.length && verdict === 'rewarded') await creditReferral(r.referrer_email, rules.rewardCents);
+  return verdict;
+}
+
+app.get('/api/monetization/status', async (req, res) => {
+  try {
+    const email = req.authEmail, rules = creatorRules();
+    try { const open = (await pool.query("SELECT referred_email FROM referrals WHERE referrer_email = $1 AND status = 'progress' ORDER BY created_at DESC LIMIT 20", [email])).rows; await Promise.all(open.map((x) => evaluateReferral(x.referred_email).catch(() => {}))); } catch (e) { /* the page still opens */ }
+    const [st, cents, app_, refs, me, wd, led] = await Promise.all([
+      creatorStats(email), walletCents(email),
+      pool.query('SELECT status, decided_at, note FROM creator_applications WHERE user_email = $1', [email]),
+      pool.query('SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1', [email]),
+      pool.query('SELECT public_id FROM users WHERE email = $1', [email]),
+      pool.query('SELECT id, amount_cents, method, status, created_at, note FROM withdrawal_requests WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 5', [email]),
+      pool.query('SELECT amount_cents, kind, note, created_at FROM wallet_ledger WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 10', [email])
+    ]);
+    const a = app_.rows[0] || null;
+    const rr = referralRules(), steps = rr.days + rr.posts;
+    const invited = (await pool.query(
+      `SELECT r.status, r.days_done, r.posts_done, r.created_at, r.completed_at, r.note, u.first_name, u.last_name FROM referrals r JOIN users u ON u.email = r.referred_email
+       WHERE r.referrer_email = $1 ORDER BY r.created_at DESC LIMIT 50`, [email])).rows;
+    const earned = Number((await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE user_email = $1 AND kind = 'referral'", [email])).rows[0].n) || 0;
+    res.json({ success: true, creatorProgramOpen: process.env.CREATOR_PROGRAM_OPEN === 'true', walletBalance: cents / 100, referralCount: Number(refs.rows[0] && refs.rows[0].n) || 0, referralCode: (me.rows[0] && me.rows[0].public_id) || '',
+      referralRules: { reward: rr.rewardCents / 100, days: rr.days, posts: rr.posts, windowDays: rr.windowDays }, referralEarned: earned / 100,
+      referrals: invited.map((x) => { const done = Math.min(steps, (x.days_done || 0) + (x.posts_done || 0)); return { name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), status: x.status, daysDone: x.days_done || 0, postsDone: x.posts_done || 0, joined: x.created_at, note: x.status === 'review' || x.status === 'rejected' ? '' : '', progress: x.status === 'rewarded' ? rr.rewardCents / 100 : (x.status === 'progress' ? Math.round(rr.rewardCents * done / steps) / 100 : 0), reward: rr.rewardCents / 100 }; }),
+      followersCount: st.followers, totalViews: st.views, postsCount: st.posts, accountAgeDays: st.ageDays,
+      applicationStatus: a ? a.status : null, applicationNote: a && a.status === 'rejected' ? (a.note || '') : '', eligible: meetsRules(st, rules),
+      criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100,
+      withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, status: w.status, created_at: w.created_at, note: w.note || '' })),
+      ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at })) });
+  } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/monetization/apply', async (req, res) => {
+  try {
+    if (process.env.CREATOR_PROGRAM_OPEN !== 'true') return res.status(403).json({ success: false, comingSoon: true, error: 'Earning money from videos is coming soon.' });
+    const email = req.authEmail, rules = creatorRules();
+    const cur = (await pool.query('SELECT status, decided_at FROM creator_applications WHERE user_email = $1', [email])).rows[0];
+    if (cur && cur.status === 'approved') return res.status(409).json({ success: false, error: 'You are already in the Creator Program.' });
+    if (cur && cur.status === 'pending') return res.status(409).json({ success: false, error: 'Your application is already waiting for review.' });
+    if (cur && cur.status === 'rejected' && cur.decided_at && Date.now() - new Date(cur.decided_at).getTime() < 7 * 86400000) return res.status(429).json({ success: false, error: 'Please wait 7 days after a refusal before applying again.' });
+    const st = await creatorStats(email);
+    if (!meetsRules(st, rules)) return res.status(400).json({ success: false, error: 'You do not meet the requirements yet.', stats: st, criteria: rules });
+    await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note) VALUES ($1, 'pending', NOW(), NULL, NULL, NULL)
+      ON CONFLICT (user_email) DO UPDATE SET status = 'pending', requested_at = NOW(), decided_at = NULL, decided_by = NULL, note = NULL`, [email]);
+    res.json({ success: true });
+  } catch (err) { console.error('[monetization] apply error:', err.message); res.status(500).json({ success: false, error: 'Could not send your application.' }); }
+});
+
+app.post('/api/monetization/withdraw', async (req, res) => {
+  try {
+    const email = req.authEmail, rules = creatorRules(), b = req.body || {};
+    const cents = Math.round(Number(b.amount) * 100);
+    if (!Number.isFinite(cents) || cents <= 0) return res.status(400).json({ success: false, error: 'Please enter an amount.' });
+    if (cents < rules.minWithdrawCents) return res.status(400).json({ success: false, error: `The smallest withdrawal is $${(rules.minWithdrawCents / 100).toFixed(2)}.` });
+    const method = ['ABA', 'Wing', 'KHQR', 'Other'].includes(b.method) ? b.method : '';
+    const accountName = String(b.accountName || '').replace(/\s+/g, ' ').trim().slice(0, 80), accountNumber = String(b.accountNumber || '').replace(/[^\d+\- ]/g, '').trim().slice(0, 40);
+    if (!method || !accountName || accountNumber.replace(/\D/g, '').length < 4) return res.status(400).json({ success: false, error: 'Please choose how to be paid and enter the account name and number.' });
+    if (cents > (await walletCents(email))) return res.status(400).json({ success: false, error: 'Your balance is not enough.' });
+    let id;
+    try {
+      const ins = await pool.query('INSERT INTO withdrawal_requests (user_email, amount_cents, method, account_name, account_number) VALUES ($1, $2, $3, $4, $5) RETURNING id', [email, cents, method, accountName, accountNumber]);
+      id = ins.rows[0].id;
+    } catch (e) { if (e && e.code === '23505') return res.status(409).json({ success: false, error: 'You already have a withdrawal waiting to be paid.' }); throw e; }
+    await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal', $3, $4, $1)", [email, -cents, 'Withdrawal request #' + id, id]);   // the money is set aside at once
+    res.json({ success: true, id });
+  } catch (err) { console.error('[monetization] withdraw error:', err.message); res.status(500).json({ success: false, error: 'Could not send your request.' }); }
+});
+
+// ---- admin side ----
+app.post('/api/admin/monetization-requests', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query(
+      `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, u.first_name, u.last_name, u.profile_pic, u.public_id,
+              (SELECT COUNT(*) FROM follows f WHERE f.following_email = ca.user_email) AS followers_count,
+              (SELECT COALESCE(SUM(views_count), 0) FROM posts p WHERE p.user_email = ca.user_email) AS total_views,
+              (SELECT COUNT(*) FROM posts p WHERE p.user_email = ca.user_email AND p.shared_post_id IS NULL) AS posts_count,
+              COALESCE(GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (NOW() - u.created_at)) / 86400)), 0) AS age_days,
+              (SELECT COALESCE(SUM(amount_cents), 0) FROM wallet_ledger w WHERE w.user_email = ca.user_email) AS balance_cents
+       FROM creator_applications ca JOIN users u ON u.email = ca.user_email
+       ORDER BY CASE WHEN ca.status = 'pending' THEN 0 ELSE 1 END, ca.requested_at DESC LIMIT 200`);
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, criteria: creatorRules(), requests: r.rows.map((x) => Object.assign({}, x, { followers_count: Number(x.followers_count), total_views: Number(x.total_views), posts_count: Number(x.posts_count), age_days: Number(x.age_days), balance: Number(x.balance_cents) / 100 })) });
+  } catch (err) { console.error('[admin] monetization list error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/monetization-action', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const status = ['approved', 'rejected', 'pending'].includes(b.status) ? b.status : '';
+    if (!status) return res.status(400).json({ success: false, error: 'Invalid status.' });
+    const u = await resolveIdentifier(b.identifier || b.targetEmail); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    const note = String(b.note || '').slice(0, 300);
+    await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note) VALUES ($1, $2, NOW(), $3, $4, $5)
+      ON CONFLICT (user_email) DO UPDATE SET status = $2, decided_at = $3, decided_by = $4, note = $5`, [u.email, status, status === 'pending' ? null : new Date(), a.adminEmail, note]);
+    audit(a.adminEmail, 'creator-' + status, u.email, note);
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] monetization action error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+app.post('/api/admin/wallet/credit', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change a wallet.' });
+    const cents = Math.round(Number(b.amount) * 100);
+    if (!Number.isFinite(cents) || cents === 0 || Math.abs(cents) > 100000) return res.status(400).json({ success: false, error: 'The amount must be between -$1,000 and $1,000 (not 0).' });
+    const note = String(b.note || '').replace(/\s+/g, ' ').trim().slice(0, 200); if (!note) return res.status(400).json({ success: false, error: 'Please write a reason.' });
+    const kind = b.kind === 'adjustment' ? 'adjustment' : 'bonus';
+    const u = await resolveIdentifier(b.identifier || b.targetEmail); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    if (cents < 0 && -cents > (await walletCents(u.email))) return res.status(400).json({ success: false, error: 'That would make the wallet negative.' });
+    await pool.query('INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, $3, $4, $5)', [u.email, cents, kind, note, a.adminEmail]);
+    audit(a.adminEmail, 'wallet-' + kind, u.email, (cents / 100).toFixed(2) + ' USD: ' + note);
+    res.json({ success: true, name: `${u.first_name || ''} ${u.last_name || ''}`.trim(), balance: (await walletCents(u.email)) / 100 });
+  } catch (err) { console.error('[admin] wallet error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+app.post('/api/admin/withdrawals', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query(
+      `SELECT w.id, w.user_email, w.amount_cents, w.method, w.account_name, w.account_number, w.status, w.created_at, w.decided_at, w.decided_by, w.note, u.first_name, u.last_name, u.public_id
+       FROM withdrawal_requests w JOIN users u ON u.email = w.user_email ORDER BY CASE WHEN w.status = 'pending' THEN 0 ELSE 1 END, w.created_at DESC LIMIT 100`);
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, withdrawals: r.rows.map((x) => Object.assign({}, x, { amount: x.amount_cents / 100 })) });
+  } catch (err) { console.error('[admin] withdrawals error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/withdrawals/decide', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can decide a withdrawal.' });
+    const status = ['paid', 'rejected'].includes(b.status) ? b.status : ''; const id = parseInt(b.id, 10);
+    if (!status || !id) return res.status(400).json({ success: false, error: 'Invalid request.' });
+    const note = String(b.note || '').slice(0, 300);
+    const upd = await pool.query("UPDATE withdrawal_requests SET status = $1, decided_at = NOW(), decided_by = $2, note = $3 WHERE id = $4 AND status = 'pending' RETURNING user_email, amount_cents", [status, a.adminEmail, note, id]);
+    if (!upd.rows.length) return res.status(409).json({ success: false, error: 'This request was already decided.' });
+    if (status === 'rejected') await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal_refund', $3, $4, $5)", [upd.rows[0].user_email, upd.rows[0].amount_cents, 'Withdrawal #' + id + ' was refused' + (note ? ': ' + note : ''), id, a.adminEmail]);
+    audit(a.adminEmail, 'withdrawal-' + status, upd.rows[0].user_email, '#' + id + ' ' + (upd.rows[0].amount_cents / 100).toFixed(2) + ' USD');
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] withdrawal decide error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+
+app.post('/api/admin/referrals', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query(
+      `SELECT r.referred_email, r.referrer_email, r.status, r.days_done, r.posts_done, r.created_at, r.completed_at, r.note,
+              f.first_name AS friend_first, f.last_name AS friend_last, i.first_name AS inviter_first, i.last_name AS inviter_last, i.public_id AS inviter_id
+       FROM referrals r JOIN users f ON f.email = r.referred_email JOIN users i ON i.email = r.referrer_email
+       ORDER BY CASE WHEN r.status = 'review' THEN 0 WHEN r.status = 'progress' THEN 1 ELSE 2 END, r.created_at DESC LIMIT 200`);
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, rules: referralRules(), referrals: r.rows });
+  } catch (err) { console.error('[admin] referrals error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+app.post('/api/admin/referrals/decide', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can decide an invitation reward.' });
+    const status = ['rewarded', 'rejected'].includes(b.status) ? b.status : ''; const friend = String(b.referredEmail || '');
+    if (!status || !friend) return res.status(400).json({ success: false, error: 'Invalid request.' });
+    const upd = await pool.query("UPDATE referrals SET status = $2, rewarded_at = CASE WHEN $4::boolean THEN NOW() ELSE NULL END, note = $3 WHERE referred_email = $1 AND status = 'review' RETURNING referrer_email", [friend, status, String(b.note || '').slice(0, 300), status === 'rewarded']);
+    if (!upd.rows.length) return res.status(409).json({ success: false, error: 'This invitation is not waiting for a decision.' });
+    if (status === 'rewarded') await creditReferral(upd.rows[0].referrer_email, referralRules().rewardCents);
+    audit(a.adminEmail, 'referral-' + status, upd.rows[0].referrer_email, friend);
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] referral decide error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
 app.delete('/api/admin/users/:targetEmail', async (req, res) => {

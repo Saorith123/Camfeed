@@ -573,19 +573,17 @@
 
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
 
-        /* YouTube-Style Sleek Modern Video Player Controls (Preserves CamFeed Autoplay, Aspect Ratio & iOS Compatibility) */
+        /* Custom Video Player Controls (Pre-Sized Portrait/Landscape Aspect Ratio + First-Frame Poster + Zero iOS Dynamic Island Interference) */
         .feed-video-wrap {
             position: relative;
             width: 100%;
-            background: #000;
+            background: #e4e6eb;
             margin: 0 0 8px 0;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
             max-height: 78vh;
-            user-select: none;
-            -webkit-user-select: none;
         }
         .feed-video-wrap .post-media,
         .feed-video-wrap video {
@@ -595,161 +593,51 @@
             object-fit: cover;
             margin: 0;
             display: block;
-            cursor: pointer;
         }
         .feed-video-center-play {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%) scale(0.85);
+            transform: translate(-50%, -50%);
             z-index: 18;
-            width: 60px;
-            height: 60px;
+            width: 54px;
+            height: 54px;
             border-radius: 50%;
-            border: 1.5px solid rgba(255,255,255,0.25);
-            background: rgba(15, 23, 42, 0.65);
+            border: none;
+            background: rgba(0, 0, 0, 0.58);
             color: #fff;
-            display: flex;
+            font-size: 22px;
+            display: none;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+            backdrop-filter: blur(4px);
         }
         .feed-video-wrap.is-paused .feed-video-center-play {
-            opacity: 1;
-            pointer-events: auto;
-            transform: translate(-50%, -50%) scale(1);
+            display: flex;
         }
-        .feed-video-center-play:active {
-            transform: translate(-50%, -50%) scale(0.92);
-        }
-
-        /* Bottom Overlay Wrapper (Auto-hides while playing, reveals on tap/hover/pause) */
         .feed-video-controls-bar {
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
             z-index: 22;
-            background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.48) 55%, transparent 100%);
-            padding: 26px 12px 9px 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            color: #fff;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.28s ease;
-        }
-        .feed-video-wrap.is-paused .feed-video-controls-bar,
-        .feed-video-wrap.controls-visible .feed-video-controls-bar,
-        .feed-video-wrap:hover .feed-video-controls-bar {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        /* YouTube-Style Progress Timeline with Buffer & Scrubbing Thumb */
-        .yt-progress-area {
-            position: relative;
-            width: 100%;
-            height: 14px;
+            background: linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 70%, transparent 100%);
+            padding: 16px 10px 8px 10px;
             display: flex;
             align-items: center;
-            cursor: pointer;
-            touch-action: none;
-        }
-        .yt-progress-track {
-            position: relative;
-            width: 100%;
-            height: 3.5px;
-            background: rgba(255, 255, 255, 0.28);
-            border-radius: 4px;
-            transition: height 0.15s ease;
-        }
-        .yt-progress-area:hover .yt-progress-track,
-        .yt-progress-area.scrubbing .yt-progress-track {
-            height: 6px;
-        }
-        .yt-buffer-fill {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 0%;
-            background: rgba(255, 255, 255, 0.42);
-            border-radius: 4px;
-            pointer-events: none;
-        }
-        .yt-play-fill {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 0%;
-            background: #1877f2;
-            border-radius: 4px;
-            pointer-events: none;
-        }
-        .yt-play-thumb {
-            position: absolute;
-            right: -6px;
-            top: 50%;
-            transform: translateY(-50%) scale(0.85);
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #1877f2;
-            border: 2px solid #fff;
-            box-shadow: 0 0 6px rgba(0,0,0,0.6);
-            transition: transform 0.15s ease;
-        }
-        .yt-progress-area:hover .yt-play-thumb,
-        .yt-progress-area.scrubbing .yt-play-thumb {
-            transform: translateY(-50%) scale(1.2);
-        }
-        .yt-hover-time-tip {
-            position: absolute;
-            bottom: 16px;
-            transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.9);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 6px;
-            border-radius: 4px;
-            pointer-events: none;
-            display: none;
-            white-space: nowrap;
-        }
-        .yt-progress-area:hover .yt-hover-time-tip,
-        .yt-progress-area.scrubbing .yt-hover-time-tip {
-            display: block;
-        }
-
-        /* Bottom Action Buttons Row */
-        .yt-controls-bottom-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             gap: 8px;
-        }
-        .yt-controls-left,
-        .yt-controls-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            color: #fff;
+            user-select: none;
+            -webkit-user-select: none;
         }
         .fvc-btn {
             background: none;
             border: none;
             color: #fff;
-            width: 30px;
-            height: 30px;
+            font-size: 16px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -757,40 +645,45 @@
             cursor: pointer;
             flex-shrink: 0;
             padding: 0;
-            transition: background 0.15s, transform 0.1s;
         }
-        .fvc-btn:hover {
-            background: rgba(255, 255, 255, 0.16);
-        }
-        .fvc-btn:active {
-            transform: scale(0.9);
-        }
-        .fvc-btn svg {
-            width: 20px;
-            height: 20px;
-            fill: currentColor;
-        }
+        .fvc-btn:active { transform: scale(0.9); }
         .fvc-time {
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 11.5px;
+            font-weight: 700;
             font-variant-numeric: tabular-nums;
-            color: rgba(255, 255, 255, 0.95);
             white-space: nowrap;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+            flex-shrink: 0;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
-        .yt-speed-pill {
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 800;
-            padding: 3px 7px;
-            border-radius: 6px;
+        .fvc-seek {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255,255,255,0.35);
+            border-radius: 4px;
+            outline: none;
+            margin: 0;
+            padding: 0;
             cursor: pointer;
-            line-height: 1.2;
         }
-        .yt-speed-pill:hover {
-            background: rgba(255, 255, 255, 0.28);
+        .fvc-seek::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #1877f2;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+        .fvc-seek::-moz-range-thumb {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #1877f2;
+            border: 2px solid #fff;
+            cursor: pointer;
         }
 
         /* Edge-to-Edge Full-Width Media (Portrait Videos Fill 100% Width Without Side Bars or Clipping) */
@@ -2424,100 +2317,32 @@
             updateFeedVideoClock(uid);
         }
 
-        const YT_SVG = {
-            play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
-            pause: '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>',
-            volOn: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
-            volOff: '<svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
-            full: '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>'
-        };
-
-        const videoHideTimers = new Map();
-
-        function revealFeedVideoControls(uid) {
-            const wrap = document.getElementById(`vwrap-${uid}`);
-            if (!wrap) return;
-            wrap.classList.add('controls-visible');
-            if (videoHideTimers.has(uid)) clearTimeout(videoHideTimers.get(uid));
-            const vid = document.getElementById(`vid-${uid}`);
-            if (vid && !vid.paused) {
-                const t = setTimeout(() => {
-                    wrap.classList.remove('controls-visible');
-                    videoHideTimers.delete(uid);
-                }, 2600);
-                videoHideTimers.set(uid, t);
-            }
-        }
-
-        function handleFeedVideoSurfaceTap(uid, event) {
-            if (event) event.stopPropagation();
-            const wrap = document.getElementById(`vwrap-${uid}`);
-            const vid = document.getElementById(`vid-${uid}`);
-            if (!wrap || !vid) return;
-
-            // On touch screens, first tap while playing reveals sleek YouTube controls cleanly; second tap toggles play/pause
-            if (!vid.paused && !wrap.classList.contains('controls-visible') && window.matchMedia('(pointer: coarse)').matches) {
-                revealFeedVideoControls(uid);
-                return;
-            }
-            toggleFeedVideoPlayPause(uid, event);
-            revealFeedVideoControls(uid);
-        }
-
         function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video', mediaAspect = '', isPriority = false) {
             const uid = `${postId}-${Math.random().toString(36).slice(2, 7)}`;
+            // Default to vertical 9/16 frame if aspect isn't explicitly wide so vertical videos render cleanly without layout jump!
             const initialAspect = mediaAspect && mediaAspect.trim() ? mediaAspect.trim() : '9 / 16';
+            const preloadMode = isPriority ? 'auto' : 'metadata';
             const frameUrl = normalizeVideoFrameUrl(videoUrl);
             return `
-                <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};"
-                     onmousemove="revealFeedVideoControls('${uid}')"
-                     onclick="handleFeedVideoSurfaceTap('${uid}', event)">
+                <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};" onclick="toggleFeedVideoPlayPause('${uid}', event)">
                     <video id="vid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
                         onloadedmetadata="adjustVideoContainerAspect('${uid}')"
-                        onloadeddata="this.classList.add('vid-ready'); updateFeedVideoClock('${uid}')"
-                        onprogress="updateFeedVideoBuffer('${uid}')"
-                        oncanplay="fvHideLoading('${uid}')"
-                        onwaiting="fvShowLoading('${uid}')"
-                        onplaying="this.classList.add('vid-ready'); fvHideLoading('${uid}')"
-                        onerror="fvHideLoading('${uid}')"
+                        onloadeddata="this.classList.add('vid-ready'); updateFeedVideoClock('${uid}')" oncanplay="fvHideLoading('${uid}')" onwaiting="fvShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); fvHideLoading('${uid}')" onerror="fvHideLoading('${uid}')"
                         ontimeupdate="updateFeedVideoClock('${uid}')"
-                        onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerHTML=YT_SVG.pause; revealFeedVideoControls('${uid}'); clearIosMediaSessionWidget();"
-                        onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerHTML=YT_SVG.play;"></video>
+                        onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='⏸'; clearIosMediaSessionWidget();"
+                        onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='▶';"></video>
 
                     <div class="feed-video-spinner"></div>
 
-                    <button type="button" class="feed-video-center-play" onclick="toggleFeedVideoPlayPause('${uid}', event)" aria-label="Play">
-                        <svg viewBox="0 0 24 24" style="width:28px; height:28px; fill:#fff; margin-left:3px;"><path d="M8 5v14l11-7z"/></svg>
-                    </button>
+                    <button type="button" class="feed-video-center-play" onclick="toggleFeedVideoPlayPause('${uid}', event)">▶</button>
 
-                    <div class="feed-video-controls-bar" onclick="event.stopPropagation(); revealFeedVideoControls('${uid}')">
-                        <!-- YouTube-Style Interactive Scrubbing Timeline -->
-                        <div class="yt-progress-area" id="vprog-${uid}"
-                             onpointerdown="startScrubFeedVideo('${uid}', event)"
-                             onpointermove="moveScrubFeedVideo('${uid}', event)"
-                             onpointerup="endScrubFeedVideo('${uid}', event)"
-                             onpointercancel="endScrubFeedVideo('${uid}', event)">
-                            <div class="yt-hover-time-tip" id="vtip-${uid}">0:00</div>
-                            <div class="yt-progress-track">
-                                <div class="yt-buffer-fill" id="vbuf-${uid}"></div>
-                                <div class="yt-play-fill" id="vfill-${uid}">
-                                    <div class="yt-play-thumb"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Bottom Controls Row -->
-                        <div class="yt-controls-bottom-row">
-                            <div class="yt-controls-left">
-                                <button type="button" class="fvc-btn" id="vplay-${uid}" onclick="toggleFeedVideoPlayPause('${uid}', event)" title="Play / Pause">${YT_SVG.pause}</button>
-                                <button type="button" class="fvc-btn feed-mute-btn" onclick="toggleSingleFeedVideoMute(event)" title="Mute / Unmute">${globalVideoUnmuted ? YT_SVG.volOn : YT_SVG.volOff}</button>
-                                <span class="fvc-time"><span id="vcur-${uid}">0:00</span> / <span id="vdur-${uid}">0:00</span></span>
-                            </div>
-                            <div class="yt-controls-right">
-                                <button type="button" class="yt-speed-pill" id="vspd-${uid}" onclick="cycleFeedVideoSpeed('${uid}', event)" title="Playback Speed">1x</button>
-                                <button type="button" class="fvc-btn" onclick="fullscreenFeedVideo('${uid}', event)" title="Fullscreen">${YT_SVG.full}</button>
-                            </div>
-                        </div>
+                    <div class="feed-video-controls-bar" onclick="event.stopPropagation()">
+                        <button type="button" class="fvc-btn" id="vplay-${uid}" onclick="toggleFeedVideoPlayPause('${uid}', event)" title="Play/Pause">⏸</button>
+                        <span class="fvc-time" id="vcur-${uid}">0:00</span>
+                        <input type="range" class="fvc-seek" id="vseek-${uid}" min="0" max="100" value="0" step="0.1" oninput="seekFeedVideo('${uid}', this.value)">
+                        <span class="fvc-time" id="vdur-${uid}">0:00</span>
+                        <button type="button" class="fvc-btn feed-mute-btn" onclick="toggleSingleFeedVideoMute(event)" title="Mute / Unmute">${globalVideoUnmuted ? '🔊' : '🔇'}</button>
+                        <button type="button" class="fvc-btn" onclick="fullscreenFeedVideo('${uid}', event)" title="Fullscreen">⛶</button>
                     </div>
                 </div>
             `;
@@ -2535,6 +2360,7 @@
         function fvShowLoading(uid) {
             const w = document.getElementById(`vwrap-${uid}`);
             if (!w || w.classList.contains('is-loading') || w._loadTimer) return;
+            // only show the spinner if the video is still not ready after a short delay (no flicker)
             w._loadTimer = setTimeout(() => { w._loadTimer = null; w.classList.add('is-loading'); }, 350);
         }
 
@@ -2561,7 +2387,7 @@
                 v.classList.remove('vid-ready');
                 fvHideLoading(fvUidOf(v));
                 v.removeAttribute('src');
-                v.load();
+                v.load(); // aborts the network download for videos far away from the screen
             } catch (e) {}
         }
 
@@ -2589,102 +2415,26 @@
             }
         }
 
-        function updateFeedVideoBuffer(uid) {
-            const vid = document.getElementById(`vid-${uid}`);
-            const bufEl = document.getElementById(`vbuf-${uid}`);
-            if (!vid || !bufEl || !isFinite(vid.duration) || vid.duration <= 0) return;
-            if (vid.buffered.length > 0) {
-                const end = vid.buffered.end(vid.buffered.length - 1);
-                bufEl.style.width = `${Math.min(100, (end / vid.duration) * 100).toFixed(1)}%`;
-            }
-        }
-
         function updateFeedVideoClock(uid) {
             const vid = document.getElementById(`vid-${uid}`);
             const curEl = document.getElementById(`vcur-${uid}`);
             const durEl = document.getElementById(`vdur-${uid}`);
-            const fillEl = document.getElementById(`vfill-${uid}`);
+            const seekEl = document.getElementById(`vseek-${uid}`);
             if (!vid) return;
             const cur = vid.currentTime || 0;
             const dur = isFinite(vid.duration) ? vid.duration : 0;
             if (curEl) curEl.innerText = formatVideoClock(cur);
             if (durEl) durEl.innerText = formatVideoClock(dur);
-            if (fillEl && dur > 0 && !vid.dataset.isScrubbing) {
-                fillEl.style.width = `${Math.min(100, (cur / dur) * 100).toFixed(2)}%`;
+            if (seekEl && dur > 0) {
+                seekEl.value = ((cur / dur) * 100).toFixed(1);
             }
         }
 
-        function computeTimelinePercent(uid, clientX) {
-            const area = document.getElementById(`vprog-${uid}`);
-            if (!area) return 0;
-            const rect = area.getBoundingClientRect();
-            return Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
-        }
-
-        function startScrubFeedVideo(uid, event) {
-            event.stopPropagation();
-            const area = document.getElementById(`vprog-${uid}`);
+        function seekFeedVideo(uid, pct) {
             const vid = document.getElementById(`vid-${uid}`);
-            if (!area || !vid) return;
-            area.classList.add('scrubbing');
-            vid.dataset.isScrubbing = 'true';
-            try { area.setPointerCapture(event.pointerId); } catch (e) {}
-            applyScrubPosition(uid, event.clientX);
-        }
-
-        function moveScrubFeedVideo(uid, event) {
-            const area = document.getElementById(`vprog-${uid}`);
-            const vid = document.getElementById(`vid-${uid}`);
-            const tip = document.getElementById(`vtip-${uid}`);
-            if (!area || !vid) return;
-            const pct = computeTimelinePercent(uid, event.clientX);
-            if (tip && isFinite(vid.duration) && vid.duration > 0) {
-                tip.style.left = `${(pct * 100).toFixed(1)}%`;
-                tip.innerText = formatVideoClock(pct * vid.duration);
-            }
-            if (vid.dataset.isScrubbing === 'true') {
-                applyScrubPosition(uid, event.clientX);
-            }
-        }
-
-        function endScrubFeedVideo(uid, event) {
-            const area = document.getElementById(`vprog-${uid}`);
-            const vid = document.getElementById(`vid-${uid}`);
-            if (!area || !vid) return;
-            if (vid.dataset.isScrubbing === 'true') {
-                applyScrubPosition(uid, event.clientX);
-                delete vid.dataset.isScrubbing;
-                area.classList.remove('scrubbing');
-                try { area.releasePointerCapture(event.pointerId); } catch (e) {}
-                revealFeedVideoControls(uid);
-            }
-        }
-
-        function applyScrubPosition(uid, clientX) {
-            const vid = document.getElementById(`vid-${uid}`);
-            const fillEl = document.getElementById(`vfill-${uid}`);
-            const curEl = document.getElementById(`vcur-${uid}`);
-            if (!vid) return;
-            const pct = computeTimelinePercent(uid, clientX);
-            if (fillEl) fillEl.style.width = `${(pct * 100).toFixed(2)}%`;
-            if (isFinite(vid.duration) && vid.duration > 0) {
-                const newTime = pct * vid.duration;
-                vid.currentTime = newTime;
-                if (curEl) curEl.innerText = formatVideoClock(newTime);
-            }
-        }
-
-        function cycleFeedVideoSpeed(uid, event) {
-            if (event) event.stopPropagation();
-            const vid = document.getElementById(`vid-${uid}`);
-            const btn = document.getElementById(`vspd-${uid}`);
-            if (!vid || !btn) return;
-            const speeds = [1, 1.25, 1.5, 2, 0.5];
-            const curIdx = speeds.indexOf(vid.playbackRate);
-            const nextSpeed = speeds[(curIdx + 1) % speeds.length];
-            vid.playbackRate = nextSpeed;
-            btn.innerText = `${nextSpeed}x`;
-            revealFeedVideoControls(uid);
+            if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
+            vid.currentTime = (parseFloat(pct) / 100) * vid.duration;
+            updateFeedVideoClock(uid);
         }
 
         function fullscreenFeedVideo(uid, event) {
@@ -3539,7 +3289,7 @@
                 }
             });
             document.querySelectorAll('.feed-mute-btn').forEach(btn => {
-                btn.innerHTML = unmute ? YT_SVG.volOn : YT_SVG.volOff;
+                btn.innerText = unmute ? '🔊' : '🔇';
             });
             clearIosMediaSessionWidget();
             evaluateCenterFeedVideo();
@@ -3688,7 +3438,7 @@
                 video.muted = true;
             }
             document.querySelectorAll('.feed-mute-btn').forEach(btn => {
-                btn.innerHTML = globalVideoUnmuted ? YT_SVG.volOn : YT_SVG.volOff;
+                btn.innerText = globalVideoUnmuted ? '🔊' : '🔇';
             });
             clearIosMediaSessionWidget();
         }

@@ -4,7 +4,7 @@
   'use strict';
   var TOKEN_KEY = 'camfeed_token', USER_KEY = 'camfeed_user', TOKENS_KEY = 'camfeed_tokens_v1', SAVED_KEY = 'camfeed_saved_accounts_v1';
   var ID_RE = /^1\d{14}$/;   // people are known by a random 15-digit id, not by e-mail
-  var TOKEN_PATHS = ['/api/login', '/api/register', '/api/settings/password', '/api/settings/logout-all', '/api/telegram/exchange', '/api/telegram/complete'];
+  var TOKEN_PATHS = ['/api/login', '/api/register', '/api/settings/password', '/api/settings/logout-all', '/api/password/reset', '/api/telegram/exchange', '/api/telegram/complete'];
   var NO_REDIRECT_PATHS = ['/api/login', '/api/register', '/api/telegram/exchange', '/api/telegram/complete'];
 
   function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
