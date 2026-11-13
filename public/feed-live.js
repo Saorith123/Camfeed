@@ -1,6 +1,5 @@
 /* CamFeed feed freshness + sound (feed.html):
    - clicking Home loads the newest posts (not only scrolls up)
-   - while you read, a small "New posts" button appears when somebody posted something new
    - coming back to the page after a while (or from the browser's back button) refreshes it
    - sound: the first tap on the page turns the sound on for every video; it stays on for the next videos and pages until you mute it yourself.
      (A web page can not hear the phone's volume buttons; this one tap is the closest a browser allows.) */
@@ -28,24 +27,12 @@
     if (typeof loadPosts === 'function') loadPosts(false);
   };
 
-  // is there something newer than what is on the screen?
-  function checkNew() {
-    var u = me(); if (!u || checking || document.visibilityState !== 'visible') return; checking = true;
-    fetch('/api/posts?email=' + encodeURIComponent(u.email) + '&limit=1&offset=0').then(function (r) { return r.json(); }).then(function (d) {
-      checking = false;
-      if (!d || !d.success || !d.posts || !d.posts.length || typeof loadedFeedPostIds === 'undefined') return;
-      var newest = Number(d.posts[0].id), top = 0;
-      loadedFeedPostIds.forEach(function (id) { if (Number(id) > top) top = Number(id); });
-      if (top && newest > top) { if (atTop()) window.refreshFeedNow(); else showPill(); }
-    }).catch(function () { checking = false; });
-  }
-  window.checkNewFeedPosts = checkNew;
-  setInterval(checkNew, 60000);
+  // coming back to the page after a while (or with the browser's back button): a fresh, re-ranked feed
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
-    if (hiddenAt && Date.now() - hiddenAt > 90000) { hiddenAt = 0; if (atTop()) window.refreshFeedNow(); else checkNew(); }
+    if (hiddenAt && Date.now() - hiddenAt > 90000) { hiddenAt = 0; if (atTop()) window.refreshFeedNow(); }
   });
-  window.addEventListener('pageshow', function (e) { if (e.persisted) { if (atTop()) window.refreshFeedNow(); else checkNew(); } });
+  window.addEventListener('pageshow', function (e) { if (e.persisted && atTop()) window.refreshFeedNow(); });
 
   // first tap = sound on (unless the person muted on purpose)
   var gestureDone = false;

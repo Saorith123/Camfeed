@@ -184,6 +184,9 @@ pool.connect(async (err, client, release) => {
       sid VARCHAR(40) PRIMARY KEY, email TEXT NOT NULL, browser VARCHAR(40), os VARCHAR(40), ip_masked VARCHAR(60), country VARCHAR(60), city VARCHAR(60),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(), revoked BOOLEAN NOT NULL DEFAULT FALSE)`);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_user_sessions_email ON user_sessions (email)');
+    await pool.query(`CREATE TABLE IF NOT EXISTS user_interest_scores (
+      user_email TEXT NOT NULL, category TEXT NOT NULL, score DOUBLE PRECISION NOT NULL DEFAULT 0, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (user_email, category))`);
     await pool.query("DELETE FROM user_sessions WHERE last_seen < NOW() - INTERVAL '90 days'");
   } catch (e) {
     console.error('email verification schema notice:', e.message);
@@ -579,6 +582,7 @@ app.post('/api/posts/share', async (req, res) => {
   try {
     if (!postId) return res.status(400).json({ success: false, error: 'Missing post.' });
     if (!(await visibility.guardPost(req, res, postId))) return;
+    bumpInterest(req.authEmail, postId, 8);
     const orig = await pool.query(
       'SELECT p.*, u.first_name, u.last_name FROM posts p JOIN users u ON p.user_email = u.email WHERE p.id = $1',
       [postId]
@@ -649,6 +653,7 @@ app.post('/api/posts/:id/view', async (req, res) => {
   const { email } = req.body;
   try {
     if (!(await visibility.guardPost(req, res, id))) return;
+    bumpInterest(req.authEmail, id, 1);
     let viewerCountry = req.headers['cf-ipcountry'] || 'Unknown';
     if (email) {
       const uRes = await pool.query('SELECT country FROM users WHERE email = $1', [email]);
@@ -833,10 +838,10 @@ app.get('/api/posts', async (req, res) => {
       ? ` AND NOT (p.id = ANY($4::int[]))`
       : '';
 
-    // The first page (and Home) shows the NEWEST posts first. Scrolling down is a mixed, never-ending stream
-    // (what you have not seen yet, ranked), not the old posts in date order. FEED_MODE=latest / ranked forces one way.
-    const isFirstPage = excludeIds.length === 0 && parsedOffset === 0 && req.query.shuffle !== '1';
-    const useLatest = process.env.FEED_MODE === 'latest' || (process.env.FEED_MODE !== 'ranked' && isFirstPage);
+    // Like Facebook: the feed is RANKED, not sorted by posting time. Popular posts (likes, comments, shares, views) are pushed to more
+    // people, and what you are interested in right now (the kinds of posts you watch / react to) comes first. Every refresh mixes it again.
+    // FEED_MODE=latest switches back to "newest first".
+    const useLatest = process.env.FEED_MODE === 'latest';
     const feedOrder = useLatest ? 'p.created_at DESC, p.id DESC' : 'feed_rank_score DESC, p.created_at DESC';
     const feedQuery = `
       ${cteAndJoins},
@@ -850,12 +855,15 @@ app.get('/api/posts', async (req, res) => {
         + (COALESCE(cs.comments_count, 0) * 4.5)
         + (COALESCE(ss.shares_count, 0) * 6.0)
         + (COALESCE(p.views_count, 0) * 0.15)
+        + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 4.0)
+        + (COALESCE(uis.score, 0) * 2.5)
         + (CASE WHEN pv.post_id IS NOT NULL THEN -25 ELSE 18 END)
         + (25.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
         + (RANDOM() * 18.0)
       ) AS feed_rank_score
       ${baseFrom}
       LEFT JOIN follows f ON f.follower_email = $1 AND f.following_email = p.user_email
+      LEFT JOIN user_interest_scores uis ON uis.user_email = $1 AND uis.category = p.ai_category
       LEFT JOIN (SELECT DISTINCT post_id FROM post_views WHERE viewer_email = $1) pv ON pv.post_id = p.id
       WHERE (p.privacy = 'public' OR p.user_email = $1 OR f.following_email IS NOT NULL)
         ${videoOnlyCondition}
@@ -1059,6 +1067,7 @@ app.post('/api/reaction', async (req, res) => {
     } else {
       await pool.query('INSERT INTO likes (post_id, user_email, reaction_type) VALUES ($1, $2, $3)', [postId, email, reactionType || '👍']);
       reacted = true;
+      bumpInterest(req.authEmail, postId, 5);
 
       if (ownerEmail && ownerEmail !== email) {
         const targetLabel = isVideoPost(postRow) ? 'វីដេអូរបស់អ្នក' : 'ការបង្ហោះរបស់អ្នក';
@@ -1184,6 +1193,7 @@ app.post('/api/comments', async (req, res) => {
   try {
     if (!postId || !content || !String(content).trim()) return res.status(400).json({ success: false, error: 'A comment needs a post and some text.' });
     if (!(await visibility.guardPost(req, res, postId))) return;
+    bumpInterest(req.authEmail, postId, 4);
     const query = 'INSERT INTO comments (post_id, user_email, content, reply_to_id) VALUES ($1, $2, $3, $4) RETURNING *';
     const result = await pool.query(query, [postId, email, content, replyToCommentId || null]);
     const newComment = result.rows[0];
@@ -1876,6 +1886,16 @@ app.delete('/api/settings/account', async (req, res) => {
 });
 
 // Remove someone from "People you may know" (stays removed after refresh; search still finds them)
+// What a person watches / reacts to / comments on / shares raises the score of that kind of post (its AI category) for THEM only.
+function bumpInterest(email, postId, delta) {
+  if (!email || !postId) return;
+  pool.query(
+    `INSERT INTO user_interest_scores (user_email, category, score, updated_at)
+     SELECT $1, ai_category, $3, NOW() FROM posts WHERE id = $2 AND ai_category IS NOT NULL AND ai_category <> ''
+     ON CONFLICT (user_email, category) DO UPDATE SET score = GREATEST(0, user_interest_scores.score + $3), updated_at = NOW()`,
+    [email, postId, delta]).catch(() => {});
+}
+
 // ---------------------------------------------------------------------------
 // Settings page: privacy switches, blocked people, notification choices, log out everywhere, download my data
 // ---------------------------------------------------------------------------
