@@ -133,12 +133,12 @@
             <h3 id="regTitle" style="margin-top: 0; color: #1c1e21; text-align: center; margin-bottom: 4px;">Sign Up</h3>
             <p id="regSubtitle" style="font-size: 14px; color: #606770; text-align: center; margin-bottom: 15px;">It's quick and easy.</p>
             
-            <form onsubmit="event.preventDefault(); proceedToStep2();">
+            <form onsubmit="event.preventDefault(); startEmailVerification();">
                 <div class="row">
                     <input type="text" id="firstName" placeholder="First name" required>
                     <input type="text" id="lastName" placeholder="Surname" required>
                 </div>
-                <input type="text" id="regEmail" name="email" autocomplete="email" placeholder="Mobile number or email" required>
+                <input type="text" id="regEmail" name="email" autocomplete="email" inputmode="email" placeholder="Email (for example name@gmail.com)" required>
                 <div class="password-container">
                     <input type="password" id="regPassword" name="new-password" autocomplete="new-password" placeholder="New password" required>
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
@@ -186,12 +186,33 @@
                     <option value="Other">Other Country Worldwide</option>
                 </select>
 
+                <div id="turnstileBox" style="margin-top: 16px; display: flex; justify-content: center;"></div>
                 <button type="submit" class="btn-create" style="margin-top: 15px;" id="btnNextStep">Next</button>
             </form>
             <div style="text-align: center; margin-top: 15px;">
                 <a href="#" onclick="showLoginForm()" style="color: #1877f2; font-size: 14px; text-decoration: none;" id="haveAccText">Already have an account?</a>
             </div>
             <div class="msg" id="regMsg"></div>
+        </div>
+
+        <!-- VERIFY EMAIL: a 6-digit code is sent to the e-mail before the account is created -->
+        <div class="card hidden" id="verifyEmailCard">
+            <div class="wizard-top-bar">
+                <button type="button" class="wizard-back-btn" onclick="backToStep1FromVerify()">
+                    <span>←</span> <span id="vBackText">Back</span>
+                </button>
+            </div>
+            <h3 id="vTitle" style="margin-top: 4px; color: #1877f2; text-align: center;">Verify your email</h3>
+            <p id="vDesc" style="font-size: 13px; color: #606770; text-align: center; line-height: 1.4;"></p>
+            <form onsubmit="event.preventDefault(); verifyEmailCode();">
+                <input type="text" id="verifyCodeInput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"
+                       style="font-size: 26px; letter-spacing: 8px; text-align: center; font-weight: 700;" required>
+                <button type="submit" class="btn-primary" style="margin-top: 12px;" id="vVerifyBtn">Verify</button>
+            </form>
+            <div style="text-align: center; margin-top: 14px;">
+                <a href="#" id="vResendLink" onclick="resendEmailCode(); return false;" style="color: #1877f2; font-size: 14px; text-decoration: none;">Resend code</a>
+            </div>
+            <div class="msg" id="verifyMsg"></div>
         </div>
 
         <!-- REGISTER STEP 2: WELCOME & PROFILE WIZARD -->
@@ -236,7 +257,6 @@
                     </label>
                 </div>
 
-                <div id="turnstileBox" style="margin-top: 16px; display: flex; justify-content: center;"></div>
                 <button type="submit" class="btn-primary" style="margin-top: 20px;" id="btnFinishReg">Get Started & Finish</button>
             </form>
             <div class="msg" id="wizardMsg"></div>
@@ -286,8 +306,10 @@
                 document.getElementById('welcomeWizardCard').classList.add('hidden');
                 document.getElementById('loginCard').classList.add('hidden');
                 document.getElementById('registerCard').classList.remove('hidden');
+                document.getElementById('verifyEmailCard').classList.add('hidden');
                 document.getElementById('wizardMsg').innerText = '';
             } else {
+                document.getElementById('verifyEmailCard').classList.add('hidden');
                 document.getElementById('registerCard').classList.add('hidden');
                 document.getElementById('welcomeWizardCard').classList.add('hidden');
                 document.getElementById('loginCard').classList.remove('hidden');
@@ -300,7 +322,7 @@
                 loginEmail: "Mobile number or email", password: "Password", btnLoginText: "Log In",
                 forgotText: "Forgot password?", btnCreateText: "Create new account", regTitle: "Sign Up",
                 regSubtitle: "It's quick and easy.", firstName: "First name", lastName: "Surname",
-                regEmail: "Mobile number or email", regPassword: "New password", lblDob: "Date of birth",
+                regEmail: "Email (for example name@gmail.com)", regPassword: "New password", lblDob: "Date of birth",
                 lblGender: "Gender", optGenderDefault: "Select gender", optMale: "Male", optFemale: "Female",
                 optCustom: "Custom", lblCountry: "Country", btnNextStep: "Next", haveAccText: "Already have an account?",
                 welcomeTitle: "Welcome to CamFeed!",
@@ -314,7 +336,7 @@
                 loginEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", password: "ពាក្យសម្ងាត់", btnLoginText: "ចូលគណនី",
                 forgotText: "ភ្លេចពាក្យសម្ងាត់?", btnCreateText: "បង្កើតគណនីថ្មី", regTitle: "ចុះឈ្មោះ",
                 regSubtitle: "រហ័ស និងងាយស្រួល។", firstName: "នាមខ្លួន", lastName: "នាមត្រកូល",
-                regEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
+                regEmail: "អ៊ីមែល (ឧ. name@gmail.com)", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
                 lblGender: "ភេទ", optGenderDefault: "ជ្រើសរើសភេទ", optMale: "ប្រុស", optFemale: "ស្រី",
                 optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnNextStep: "បន្ទាប់", haveAccText: "មានគណនីរួចហើយ?",
                 welcomeTitle: "សូមស្វាគមន៍មកកាន់ CamFeed!",
@@ -353,6 +375,7 @@
             document.getElementById('haveAccText').innerText = t.haveAccText;
             document.getElementById('btnBackToLogin').innerText = t.backBtn;
             document.getElementById('btnBackToStep1').innerText = t.backBtn;
+            applyVerifyTexts();
 
             document.getElementById('welcomeTitle').innerText = t.welcomeTitle;
             document.getElementById('welcomeDesc').innerText = t.welcomeDesc;
@@ -384,6 +407,8 @@
             document.getElementById('loginCard').classList.add('hidden');
             document.getElementById('welcomeWizardCard').classList.add('hidden');
             document.getElementById('registerCard').classList.remove('hidden');
+            document.getElementById('verifyEmailCard').classList.add('hidden');
+            renderTurnstile();
             history.pushState({ step: 'register1' }, '');
         }
 
@@ -426,6 +451,171 @@
             if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
         }
 
+        // ---- E-mail verification: a 6-digit code is sent to the e-mail BEFORE the account is created ----
+        let signupEmailToken = '';       // signed proof from the server that this e-mail was verified
+        let signupVerifiedEmail = '';    // which e-mail the proof belongs to
+        let verifyCountdownTimer = null;
+        let verifyCountdownLeft = 0;
+        const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+        const verifyTexts = {
+            en: {
+                title: 'Verify your email',
+                desc: (m) => `We sent a 6-digit code to ${m}. Check your inbox (and Spam), then enter it below.`,
+                verify: 'Verify', resend: 'Resend code', resendIn: (n) => `Resend code in ${n}s`, back: 'Back',
+                needEmail: 'Please enter a valid email address (for example name@gmail.com).',
+                shortPw: 'Password must be at least 6 characters.',
+                needHuman: 'Please complete the human verification first.',
+                sending: 'Sending code...', checking: 'Checking...', sent: 'A new code was sent.',
+                network: 'Server connection error', failed: 'Something went wrong. Please try again.'
+            },
+            km: {
+                title: 'ផ្ទៀងផ្ទាត់អ៊ីមែលរបស់អ្នក',
+                desc: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ ${m}។ សូមពិនិត្យប្រអប់សំបុត្រ (និង Spam) រួចបញ្ចូលវាខាងក្រោម។`,
+                verify: 'ផ្ទៀងផ្ទាត់', resend: 'ផ្ញើលេខកូដម្តងទៀត', resendIn: (n) => `ផ្ញើម្តងទៀតក្នុង ${n} វិនាទី`, back: 'ត្រឡប់ក្រោយ',
+                needEmail: 'សូមបញ្ចូលអ៊ីមែលត្រឹមត្រូវ (ឧ. name@gmail.com)។',
+                shortPw: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច 6 តួអក្សរ។',
+                needHuman: 'សូមបញ្ជាក់ថាអ្នកជាមនុស្សជាមុនសិន។',
+                sending: 'កំពុងផ្ញើលេខកូដ...', checking: 'កំពុងពិនិត្យ...', sent: 'បានផ្ញើលេខកូដថ្មី។',
+                network: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', failed: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'
+            }
+        };
+        function vt() { return verifyTexts[localStorage.getItem('camfeed_lang') || 'en'] || verifyTexts.en; }
+        function serverMsg(data, fallback) {
+            const km = (localStorage.getItem('camfeed_lang') || 'en') === 'km';
+            return (km && data && data.errorKm) || (data && data.error) || fallback;
+        }
+
+        function applyVerifyTexts() {
+            const t = vt();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
+            set('vTitle', t.title); set('vVerifyBtn', t.verify); set('vBackText', t.back);
+            if (verifyCountdownLeft <= 0) set('vResendLink', t.resend);
+        }
+
+        function startResendCountdown(seconds) {
+            clearInterval(verifyCountdownTimer);
+            verifyCountdownLeft = seconds;
+            const link = document.getElementById('vResendLink');
+            const tick = () => {
+                if (verifyCountdownLeft <= 0) {
+                    clearInterval(verifyCountdownTimer);
+                    link.innerText = vt().resend; link.style.opacity = '1'; link.style.pointerEvents = 'auto';
+                    return;
+                }
+                link.innerText = vt().resendIn(verifyCountdownLeft); link.style.opacity = '0.55'; link.style.pointerEvents = 'none';
+                verifyCountdownLeft--;
+            };
+            tick();
+            verifyCountdownTimer = setInterval(tick, 1000);
+        }
+
+        function openVerifyCard(maskedEmail, resendAfterSec) {
+            document.getElementById('registerCard').classList.add('hidden');
+            document.getElementById('verifyEmailCard').classList.remove('hidden');
+            document.getElementById('vDesc').innerText = vt().desc(maskedEmail);
+            document.getElementById('verifyMsg').innerText = '';
+            const input = document.getElementById('verifyCodeInput');
+            input.value = '';
+            applyVerifyTexts();
+            startResendCountdown(resendAfterSec || 60);
+            history.pushState({ step: 'register-verify' }, '');
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function backToStep1FromVerify() {
+            document.getElementById('verifyEmailCard').classList.add('hidden');
+            document.getElementById('registerCard').classList.remove('hidden');
+        }
+
+        async function startEmailVerification() {
+            const msg = document.getElementById('regMsg');
+            msg.style.color = 'red'; msg.innerText = '';
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const t = vt();
+
+            if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
+            if (password.length < 6) { msg.innerText = t.shortPw; return; }
+            // user pressed Back from step 2 without changing the e-mail: it is already verified
+            if (signupEmailToken && signupVerifiedEmail === email.toLowerCase()) { proceedToStep2(); return; }
+            if (turnstileEnabled() && !getTurnstileToken()) { msg.innerText = t.needHuman; return; }
+
+            const btn = document.getElementById('btnNextStep');
+            const oldText = btn.innerText;
+            btn.disabled = true; btn.innerText = t.sending;
+            try {
+                const res = await fetch('/api/register/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, turnstileToken: getTurnstileToken() })
+                });
+                const data = await res.json();
+                if (data.success && data.verificationRequired === false) { proceedToStep2(); return; }   // verification is not switched on yet
+                resetTurnstile();                                                                        // the CAPTCHA token is single use
+                if (data.success) { openVerifyCard(data.maskedEmail || email, data.resendAfterSec); return; }
+                msg.innerText = serverMsg(data, t.failed);
+            } catch (e) {
+                msg.innerText = t.network;
+            } finally {
+                btn.disabled = false; btn.innerText = oldText;
+            }
+        }
+
+        async function verifyEmailCode() {
+            const msg = document.getElementById('verifyMsg');
+            const btn = document.getElementById('vVerifyBtn');
+            const t = vt();
+            msg.style.color = 'red'; msg.innerText = '';
+            const code = document.getElementById('verifyCodeInput').value.replace(/\s/g, '');
+            const email = document.getElementById('regEmail').value.trim();
+            if (!/^\d{6}$/.test(code)) { msg.innerText = serverMsg({ error: 'Please enter the 6-digit code.', errorKm: 'សូមបញ្ចូលលេខកូដ 6 ខ្ទង់។' }); return; }
+            btn.disabled = true; btn.innerText = t.checking;
+            try {
+                const res = await fetch('/api/register/verify-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
+                const data = await res.json();
+                if (data.success && data.emailToken) {
+                    signupEmailToken = data.emailToken;
+                    signupVerifiedEmail = email.toLowerCase();
+                    proceedToStep2();
+                    return;
+                }
+                msg.innerText = serverMsg(data, t.failed);
+            } catch (e) {
+                msg.innerText = t.network;
+            } finally {
+                btn.disabled = false; btn.innerText = vt().verify;
+            }
+        }
+
+        async function resendEmailCode() {
+            if (verifyCountdownLeft > 0) return;
+            const msg = document.getElementById('verifyMsg');
+            const t = vt();
+            msg.style.color = 'red'; msg.innerText = '';
+            try {
+                const res = await fetch('/api/register/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: document.getElementById('regEmail').value.trim(), resend: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    msg.style.color = '#2e7d32'; msg.innerText = t.sent;
+                    startResendCountdown(data.resendAfterSec || 60);
+                } else {
+                    msg.innerText = serverMsg(data, t.failed);
+                    if (data.retryAfterSec) startResendCountdown(data.retryAfterSec);
+                }
+            } catch (e) {
+                msg.innerText = t.network;
+            }
+        }
+
         function proceedToStep2() {
             const firstName = document.getElementById('firstName').value.trim();
             const lastName = document.getElementById('lastName').value.trim();
@@ -443,8 +633,8 @@
             tempUserData = { firstName, lastName, email, password, birthdate, gender, country };
 
             document.getElementById('registerCard').classList.add('hidden');
+            document.getElementById('verifyEmailCard').classList.add('hidden');
             document.getElementById('welcomeWizardCard').classList.remove('hidden');
-            renderTurnstile();
             history.pushState({ step: 'register2' }, '');
         }
 
@@ -530,11 +720,6 @@
             const lang = localStorage.getItem('camfeed_lang') || 'en';
 
             msg.innerText = '';
-            if (turnstileEnabled() && !getTurnstileToken()) {
-                msg.style.color = 'red';
-                msg.innerText = lang === 'km' ? 'សូមបញ្ជាក់ថាអ្នកជាមនុស្សជាមុនសិន។' : 'Please complete the human verification first.';
-                return;
-            }
             finishBtn.disabled = true;
             finishBtn.innerText = lang === 'km' ? "កំពុងបង្កើតគណនី..." : "Creating account...";
 
@@ -548,7 +733,8 @@
                     birthdate: `${document.getElementById('dobDay').value}-${document.getElementById('dobMonth').value}-${document.getElementById('dobYear').value}`,
                     gender: document.getElementById('gender').value,
                     country: document.getElementById('country').value,
-                    turnstileToken: getTurnstileToken()
+                    turnstileToken: getTurnstileToken(),
+                    emailToken: signupEmailToken
                 };
 
                 const res = await fetch('/api/register', {
@@ -596,8 +782,16 @@
                     resetTurnstile();
                     finishBtn.disabled = false;
                     finishBtn.innerText = texts[lang].btnFinishReg;
+                    if (data.needsEmailVerification) {
+                        // the verification expired or the e-mail was changed: go back and verify again
+                        signupEmailToken = ''; signupVerifiedEmail = '';
+                        backToStep1();
+                        const rm = document.getElementById('regMsg');
+                        rm.style.color = 'red'; rm.innerText = serverMsg(data, 'Please verify your email first.');
+                        return;
+                    }
                     msg.style.color = 'red';
-                    msg.innerText = data.error || 'Registration failed (Email may already exist)';
+                    msg.innerText = serverMsg(data, 'Registration failed (Email may already exist)');
                 }
             } catch (err) {
                 resetTurnstile();

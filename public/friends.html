@@ -412,7 +412,7 @@
                                 <div class="user-info-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
                                     <img src="${u.profile_pic || 'https://via.placeholder.com/70'}" class="avatar">
                                     <div>
-                                        <div class="user-name">${u.first_name} ${u.last_name}</div>
+                                        <div class="user-name notranslate" translate="no">${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}</div>
                                         <div style="font-size: 12px; color: #65676b;">👤 People on CamFeed</div>
                                     </div>
                                 </div>
@@ -455,7 +455,7 @@
                                 <div class="search-media-header">
                                     <img src="${p.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                     <div>
-                                        <div style="font-weight:700; font-size:14px;">${p.first_name} ${p.last_name}</div>
+                                        <div class="notranslate" translate="no" style="font-weight:700; font-size:14px;">${escapeHtml(p.first_name)} ${escapeHtml(p.last_name)}</div>
                                         <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (mediaSrc ? '🖼️ Photo' : '📝 Post')} · ${new Date(p.created_at).toLocaleDateString()}</div>
                                     </div>
                                 </div>
@@ -491,9 +491,46 @@
             } catch (err) { console.error(err); }
         }
 
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // "Remove" under People you may know: saved on the server so the person does not come back after refresh
+        async function dismissSuggestion(targetEmail, btn) {
+            if (!btn || btn.disabled) return;
+            const card = btn.closest('.user-card');
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/suggestions/dismiss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, targetEmail })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Could not remove');
+                if (card) {
+                    card.style.transition = 'opacity .2s ease, transform .2s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'scale(0.98)';
+                    setTimeout(() => {
+                        card.remove();
+                        const container = document.getElementById('friendsContainer');
+                        if (container && !container.querySelector('.user-card')) {
+                            container.innerHTML = '<p style="color: #65676b; text-align: center; padding: 20px;">No new users to follow.</p>';
+                        }
+                    }, 200);
+                }
+            } catch (err) {
+                console.error('Error removing suggestion:', err);
+                btn.disabled = false; // nothing was saved: the person stays, try again
+            }
+        }
+
         async function loadUsers() {
             try {
-                const res = await fetch(`/api/users?email=${encodeURIComponent(currentUser.email)}`);
+                const res = await fetch(`/api/users?email=${encodeURIComponent(currentUser.email)}&suggestions=1`);
                 const data = await res.json();
                 const container = document.getElementById('friendsContainer');
                 container.innerHTML = '';
@@ -516,13 +553,13 @@
                             <div class="user-info-left" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
                                 <img src="${u.profile_pic || 'https://via.placeholder.com/70'}" class="avatar">
                                 <div>
-                                    <div class="user-name">${u.first_name} ${u.last_name}</div>
+                                    <div class="user-name notranslate" translate="no">${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}</div>
                                     <div style="font-size: 12px; color: #65676b;">Suggested for you</div>
                                 </div>
                             </div>
                             <div class="user-actions">
                                 <button class="btn-follow ${btnClass}" onclick="toggleFollow('${u.email}')">${btnText}</button>
-                                <button class="btn-remove" onclick="this.closest('.user-card').remove()">Remove</button>
+                                <button class="btn-remove" onclick="dismissSuggestion('${u.email}', this)">Remove</button>
                             </div>
                         `;
                         container.appendChild(div);

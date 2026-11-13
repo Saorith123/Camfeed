@@ -4,9 +4,13 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
-const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
+// Cloudinary is no longer used: all media is uploaded straight to Cloudflare R2 (/api/videos/upload-*).
+// These routes now only accept plain text fields (JSON or multipart without files).
+const formFields = multer().none();
 const createVideoRouter = require('./videoRecommendationRoutes');
 const auth = require('./auth');
+const mailer = require('./mailer');
+const { createSignupVerification, EMAIL_RE } = require('./signup-verification');
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
@@ -151,6 +155,25 @@ pool.connect(async (err, client, release) => {
   } catch (e) {
     console.error('name_changed_at notice:', e.message);
   }
+  try {
+    await signup.ensureSchema();
+  } catch (e) {
+    console.error('email verification schema notice:', e.message);
+  }
+  try {
+    // people a user removed from "People you may know" (so they do not come back after refresh)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dismissed_suggestions (
+        id SERIAL PRIMARY KEY,
+        user_email VARCHAR(255) NOT NULL,
+        dismissed_email VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_email, dismissed_email)
+      )
+    `);
+  } catch (e) {
+    console.error('dismissed_suggestions notice:', e.message);
+  }
   release();
 });
 
@@ -158,6 +181,9 @@ pool.connect(async (err, client, release) => {
 // The acting user's email is taken from the token, never from what the browser sends.
 const authCore = auth.createAuth(pool);
 app.use('/api', auth.sanitizeJson, authCore.authenticate, authCore.forceActor);
+
+// E-mail verification before an account can be created (needs EMAIL_PROVIDER + API key + EMAIL_FROM, see README)
+const signup = createSignupVerification({ pool, auth, mailer });
 
 // Global Real-Time Presence Tracker
 const lastGlobalPingMap = new Map();
@@ -188,7 +214,6 @@ app.use('/api/videos', videoRouter);
 const { createCleanup, extractMediaUrls } = require('./cleanup');
 const cleanup = createCleanup({
   pool,
-  cloudinary,
   deleteR2: (url) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(url) : Promise.resolve())
 });
 
@@ -288,6 +313,9 @@ function normalizeBirthdate(raw) {
 // The cap is generous because many Cambodian mobile users share one carrier IP.
 const registerLimiter = auth.makeLimiter(parseInt(process.env.REGISTER_MAX_PER_HOUR || '10', 10), 60 * 60 * 1000);
 
+app.post('/api/register/send-code', signup.sendCode);
+app.post('/api/register/verify-code', signup.verifyCode);
+
 app.post('/api/register', async (req, res) => {
   const { password, firstName, lastName, birthdate, gender, country } = req.body || {};
   const email = String((req.body && req.body.email) || '').trim();
@@ -295,14 +323,23 @@ app.post('/api/register', async (req, res) => {
     if (registerLimiter.isLimited(req.ip)) {
       return res.status(429).json({ success: false, error: 'Too many accounts created from this network. Please try again later.' });
     }
-    const human = await auth.verifyTurnstile(req.body && req.body.turnstileToken, req.ip);
-    if (!human.ok) {
-      return res.status(400).json({ success: false, error: human.unavailable
-        ? 'Verification service is unavailable. Please try again.'
-        : 'Human verification failed. Please try again.' });
+    // new accounts need a real e-mail address (a verification code is sent to it)
+    if (!EMAIL_RE.test(email) || email.length > 254) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid email address (for example name@gmail.com).', errorKm: 'សូមបញ្ចូលអ៊ីមែលត្រឹមត្រូវ (ឧ. name@gmail.com)។' });
     }
-    if (!email || !email.includes('@') && email.length < 6) {
-      return res.status(400).json({ success: false, error: 'Please enter a valid email or phone.' });
+    if (signup.isRequired()) {
+      // e-mail verification is ON: the signed proof from /verify-code must match this e-mail
+      if (!signup.checkEmailToken(email, req.body && req.body.emailToken)) {
+        return res.status(403).json({ success: false, needsEmailVerification: true, error: 'Please verify your email first.', errorKm: 'សូមផ្ទៀងផ្ទាត់អ៊ីមែលរបស់អ្នកជាមុនសិន។' });
+      }
+    } else {
+      // not configured yet: keep the CAPTCHA as the only protection
+      const human = await auth.verifyTurnstile(req.body && req.body.turnstileToken, req.ip);
+      if (!human.ok) {
+        return res.status(400).json({ success: false, error: human.unavailable
+          ? 'Verification service is unavailable. Please try again.'
+          : 'Human verification failed. Please try again.' });
+      }
     }
     if (typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
@@ -322,6 +359,7 @@ app.post('/api/register', async (req, res) => {
     const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole]);
     const user = result.rows[0];
     registerLimiter.hit(req.ip);
+    if (signup.isRequired()) pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [user.email]).catch(() => {});
     // password is stripped from the response by auth.sanitizeJson
     res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
   } catch (err) {
@@ -379,7 +417,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Create Post
-app.post('/api/posts', cloudinaryUpload.single('mediaFile'), authCore.forceActor, async (req, res) => {
+app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
   }
@@ -783,7 +821,7 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // Update Profile & Cover Pictures
-app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), authCore.forceActor, async (req, res) => {
+app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req, res) => {
   const { email, bio, profilePicUrl, coverPicUrl } = req.body;
   try {
     let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
@@ -1196,9 +1234,10 @@ app.get('/api/user-profile', async (req, res) => {
 });
 
 app.get('/api/users', async (req, res) => {
-  const { email } = req.query;
+  const { email, suggestions } = req.query;
+  const hideDismissed = suggestions === '1' || suggestions === 'true';
   try {
-    const query = `
+    const buildQuery = (withDismissed) => `
       SELECT email, first_name, last_name, profile_pic, cover_pic, bio, birthdate, location, phone_privacy, email_privacy
       FROM users 
       WHERE email != $1
@@ -1208,9 +1247,16 @@ app.get('/api/users', async (req, res) => {
           UNION
           SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
         )
+        ${withDismissed ? 'AND email NOT IN (SELECT dismissed_email FROM dismissed_suggestions WHERE user_email = $1)' : ''}
       ORDER BY first_name ASC
     `;
-    const result = await pool.query(query, [email]);
+    let result;
+    try {
+      result = await pool.query(buildQuery(hideDismissed), [email]);
+    } catch (e) {
+      if (hideDismissed && e.code === '42P01') result = await pool.query(buildQuery(false), [email]); // table not created yet
+      else throw e;
+    }
     
     const usersWithFriendship = await Promise.all(result.rows.map(async (u) => {
       let is_following = false;
@@ -1470,7 +1516,7 @@ app.post('/api/presence/offline', async (req, res) => {
 app.post('/api/messages', (req, res, next) => {
   const ct = req.headers['content-type'] || '';
   if (ct.includes('multipart/form-data')) {
-    return cloudinaryUpload.single('mediaFile')(req, res, (err) => {
+    return formFields(req, res, (err) => {
       if (err) {
         console.error("Media upload error:", err);
         return res.status(500).json({ success: false, error: err.message });
@@ -1677,6 +1723,23 @@ app.delete('/api/settings/account', async (req, res) => {
   } catch (err) {
     console.error('Delete account error:', err.message);
     res.status(500).json({ success: false, message: 'Could not delete the account: ' + err.message });
+  }
+});
+
+// Remove someone from "People you may know" (stays removed after refresh; search still finds them)
+app.post('/api/suggestions/dismiss', async (req, res) => {
+  const email = req.authEmail;
+  const targetEmail = String((req.body && req.body.targetEmail) || '').trim();
+  try {
+    if (!targetEmail || targetEmail.toLowerCase() === email.toLowerCase()) {
+      return res.status(400).json({ success: false, error: 'Invalid user.' });
+    }
+    await pool.query(
+      'INSERT INTO dismissed_suggestions (user_email, dismissed_email) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [email, targetEmail]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
