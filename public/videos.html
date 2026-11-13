@@ -72,6 +72,18 @@
             transform: translateZ(0);
         }
 
+        /* Dark Skeleton Shimmer Loader for Reels */
+        @keyframes reelShimmerWave {
+            0% { background-position: -450px 0; }
+            100% { background-position: 450px 0; }
+        }
+        .reel-skel-bone {
+            background: #1e293b;
+            background-image: linear-gradient(90deg, #1e293b 0px, #334155 90px, #1e293b 180px);
+            background-size: 450px 100%;
+            animation: reelShimmerWave 1.25s infinite linear;
+        }
+
         /* Center Play Indicator when Paused */
         .reel-center-play {
             position: absolute;
@@ -109,7 +121,7 @@
             text-shadow: 0 1px 4px rgba(0,0,0,0.85);
         }
 
-        /* Bottom Interactive Video Control Bar (Play/Pause, Time, Seek Bar, Speed, Mute/Unmute) */
+        /* Bottom Interactive Video Control Bar */
         .reel-controls-bar {
             position: absolute;
             bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -202,7 +214,7 @@
         .reel-category-badge { display: inline-block; background: rgba(24, 119, 242, 0.9); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 12px; margin-bottom: 7px; }
         .reel-views-text { font-size: 12.5px; color: #e4e6eb; font-weight: 600; }
 
-        /* Right Side Action Buttons (Safe above mobile bottom navigation bar) */
+        /* Right Side Action Buttons */
         .reel-actions {
             position: absolute;
             bottom: calc(64px + env(safe-area-inset-bottom, 0px));
@@ -310,7 +322,17 @@
     </div>
 
     <div class="reels-container" id="reelsFeedContainer">
-        <div style="color: #fff; text-align: center; margin-top: 50vh; transform: translateY(-50%);">Loading Videos...</div>
+        <!-- Dark Skeleton Loader while first videos fetch -->
+        <div class="reel-item" id="initialReelSkeleton">
+            <div style="position:absolute; bottom:80px; left:16px; right:80px; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div class="reel-skel-bone" style="width:42px; height:42px; border-radius:50%;"></div>
+                    <div class="reel-skel-bone" style="width:130px; height:13px; border-radius:6px;"></div>
+                </div>
+                <div class="reel-skel-bone" style="width:85%; height:11px; border-radius:6px;"></div>
+                <div class="reel-skel-bone" style="width:60%; height:11px; border-radius:6px;"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Comments Modal Popup -->
@@ -328,7 +350,7 @@
         </div>
     </div>
 
-    <!-- Share Video Modal (Matches Feed 100%) -->
+    <!-- Share Video Modal -->
     <div id="shareModal" class="modal-overlay" onclick="closeShareModal()">
         <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -418,90 +440,89 @@
         let isLongPressTriggered = false;
         const trackedVideoViews = new Set();
         const videoReactionState = {};
+        const loadedReelVideoIds = new Set();
+        let isLoadingMoreReels = false;
 
         if (!currentUser) {
             window.location.href = 'index.html';
         } else {
-            loadVideosFeed();
+            loadVideosFeed(false);
         }
 
         const REEL_SPEEDS = [1, 1.25, 1.5, 2, 0.75];
 
+        // បំបែកនាទីលើស ៦០ ទៅជា ម៉ោង:នាទី:វិនាទី (H:MM:SS)
         function formatReelClock(sec) {
             if (!sec || !isFinite(sec) || sec < 0) return '0:00';
-            const m = Math.floor(sec / 60);
-            const s = Math.floor(sec % 60);
+            const totalSec = Math.floor(sec);
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            if (h > 0) {
+                return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+            }
             return `${m}:${s < 10 ? '0' : ''}${s}`;
         }
 
-        function handleReelMetadata(postId) {
-            const vid = document.getElementById(`rvid-${postId}`);
+        function handleReelMetadata(uid) {
+            const vid = document.getElementById(`rvid-${uid}`);
             if (!vid) return;
             if (vid.videoWidth > 0 && vid.videoHeight > 0 && vid.videoWidth > vid.videoHeight) {
                 vid.classList.add('landscape-video');
             }
-            updateReelProgress(postId);
+            updateReelProgress(uid);
         }
 
-        function updateReelProgress(postId) {
-            const vid = document.getElementById(`rvid-${postId}`);
-            const timeEl = document.getElementById(`rtime-${postId}`);
-            const seekEl = document.getElementById(`rseek-${postId}`);
+        function updateReelProgress(uid) {
+            const vid = document.getElementById(`rvid-${uid}`);
+            const curEl = document.getElementById(`rcur-${uid}`);
+            const durEl = document.getElementById(`rdur-${uid}`);
+            const seekEl = document.getElementById(`rseek-${uid}`);
             if (!vid) return;
             const cur = vid.currentTime || 0;
             const dur = isFinite(vid.duration) ? vid.duration : 0;
-            if (timeEl) {
-                timeEl.innerText = `${formatReelClock(cur)} / ${formatReelClock(dur)}`;
-            }
+            if (curEl) curEl.innerText = formatReelClock(cur);
+            if (durEl) durEl.innerText = formatReelClock(dur);
             if (seekEl && dur > 0) {
                 seekEl.value = ((cur / dur) * 100).toFixed(1);
             }
         }
 
-        function seekReelVideo(postId, pct) {
-            const vid = document.getElementById(`rvid-${postId}`);
+        function seekReelVideo(uid, pct) {
+            const vid = document.getElementById(`rvid-${uid}`);
             if (!vid || !isFinite(vid.duration) || vid.duration <= 0) return;
             vid.currentTime = (parseFloat(pct) / 100) * vid.duration;
-            updateReelProgress(postId);
+            updateReelProgress(uid);
         }
 
-        function toggleReelPlayPause(postId, event) {
+        function toggleReelPlayPause(uid, event) {
             if (event) event.stopPropagation();
-            const vid = document.getElementById(`rvid-${postId}`);
+            const vid = document.getElementById(`rvid-${uid}`);
             if (!vid) return;
+            const realSrc = vid.dataset.videoSrc;
+            if (realSrc && vid.getAttribute('src') !== realSrc) {
+                vid.setAttribute('src', realSrc);
+                try { vid.load(); } catch (e) {}
+            }
             if (vid.paused) {
+                vid.dataset.userPaused = 'false';
                 vid.play().catch(() => {});
             } else {
+                vid.dataset.userPaused = 'true';
                 vid.pause();
             }
         }
 
-        function cycleReelSpeed(postId, event) {
+        function cycleReelSpeed(uid, event) {
             if (event) event.stopPropagation();
-            const vid = document.getElementById(`rvid-${postId}`);
-            const btn = document.getElementById(`rspeed-${postId}`);
+            const vid = document.getElementById(`rvid-${uid}`);
+            const btn = document.getElementById(`rspeed-${uid}`);
             if (!vid) return;
             const curRate = vid.playbackRate || 1;
             const idx = REEL_SPEEDS.indexOf(curRate);
             const nextRate = REEL_SPEEDS[(idx + 1) % REEL_SPEEDS.length];
             vid.playbackRate = nextRate;
             if (btn) btn.innerText = `${nextRate}x`;
-        }
-
-        function toggleGlobalReelMute(event) {
-            if (event) event.stopPropagation();
-            audioUnlocked = true;
-            globalMuted = !globalMuted;
-            document.querySelectorAll('.reel-video').forEach(v => {
-                v.muted = globalMuted;
-                if (!globalMuted) {
-                    v.removeAttribute('muted');
-                    if (v.volume === 0) v.volume = 1.0;
-                }
-            });
-            document.querySelectorAll('.reel-mute-btn').forEach(b => {
-                b.innerText = globalMuted ? '🔇' : '🔊';
-            });
         }
 
         function formatCompactNumber(num) {
@@ -511,7 +532,6 @@
             return n.toString();
         }
 
-        // Seamless iOS & Android audio unlock on first user interaction without showing iOS floating speaker badge
         let audioUnlocked = false;
         function unlockReelsAudio() {
             if (audioUnlocked) return;
@@ -544,10 +564,15 @@
             return null;
         }
 
-        async function loadVideosFeed() {
+        async function loadVideosFeed(appendReels = false) {
+            if (isLoadingMoreReels) return;
+            isLoadingMoreReels = true;
             const container = document.getElementById('reelsFeedContainer');
             try {
-                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos`);
+                const excludeParam = (appendReels && loadedReelVideoIds.size > 0)
+                    ? `&excludeIds=${Array.from(loadedReelVideoIds).join(',')}`
+                    : '';
+                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos&limit=10&offset=0${excludeParam}`);
                 const data = await res.json();
 
                 let videoItems = [];
@@ -561,11 +586,9 @@
                             const isSharedWrapper = !!(p.shared_post_id && p.orig_id);
                             const targetId = isSharedWrapper ? p.orig_id : p.id;
 
-                            // Deduplicate so shared copies don't duplicate the original video
                             if (seenOriginalIds.has(String(targetId))) return null;
                             seenOriginalIds.add(String(targetId));
 
-                            // Always credit the ORIGINAL uploader of the video, NEVER the person who shared it!
                             const creatorEmail = isSharedWrapper ? (p.orig_author_email || p.user_email) : p.user_email;
                             const creatorFirst = isSharedWrapper ? (p.orig_first_name || '') : (p.first_name || '');
                             const creatorLast = isSharedWrapper ? (p.orig_last_name || '') : (p.last_name || '');
@@ -574,7 +597,7 @@
 
                             return {
                                 id: targetId,
-                                renderKey: targetId,
+                                wrapperPostId: p.id,
                                 user_email: creatorEmail,
                                 author_name: `${creatorFirst} ${creatorLast}`.trim() || 'User',
                                 profile_pic: creatorPic,
@@ -591,49 +614,66 @@
                         .filter(Boolean);
                 }
 
-                // If opened from Notification (?v=ID), ensure that video is placed first
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetVideoId = urlParams.get('v') || urlParams.get('post');
-                if (targetVideoId) {
-                    const idx = videoItems.findIndex(v => String(v.id) === String(targetVideoId) || String(v.renderKey) === String(targetVideoId));
+                if (!appendReels && targetVideoId) {
+                    const idx = videoItems.findIndex(v => String(v.id) === String(targetVideoId) || String(v.wrapperPostId) === String(targetVideoId));
                     if (idx > 0) {
                         const [targetVid] = videoItems.splice(idx, 1);
                         videoItems.unshift(targetVid);
                     }
                 }
 
-                container.innerHTML = '';
-                if (videoItems.length === 0) {
-                    container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
-                    return;
+                if (!appendReels) {
+                    loadedReelVideoIds.clear();
+                    container.innerHTML = '';
+                    if (videoItems.length === 0) {
+                        isLoadingMoreReels = false;
+                        container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh; transform: translateY(-50%);">No videos available.</div>';
+                        return;
+                    }
+                } else {
+                    videoItems = videoItems.filter(v => !loadedReelVideoIds.has(String(v.id)) && !loadedReelVideoIds.has(String(v.wrapperPostId)));
+                    if (videoItems.length === 0 && loadedReelVideoIds.size > 0) {
+                        loadedReelVideoIds.clear();
+                        isLoadingMoreReels = false;
+                        return loadVideosFeed(true);
+                    }
                 }
 
-                container.innerHTML = videoItems.map(video => {
+                videoItems.forEach(v => {
+                    loadedReelVideoIds.add(String(v.id));
+                    loadedReelVideoIds.add(String(v.wrapperPostId));
+                });
+
+                const newReelsHtml = videoItems.map(video => {
+                    const uid = `${video.id}-${Math.random().toString(36).slice(2, 6)}`;
                     videoAuthorMap[video.id] = video.user_email;
                     videoReactionState[video.id] = {
                         count: video.likes_count,
                         userReaction: video.user_reaction
                     };
                     const isOwn = currentUser.email === video.user_email;
+                    const cleanVideoSrc = video.media_url.split('#')[0];
 
-                    const videoSrcWithFrame = video.media_url.includes('#') ? video.media_url : `${video.media_url}#t=0.001`;
                     return `
-                        <div class="reel-item" id="reel-${video.id}" data-post-id="${video.id}" onclick="toggleReelPlayPause(${video.id}, event)">
-                            <video id="rvid-${video.id}" src="${videoSrcWithFrame}" data-video-src="${videoSrcWithFrame}" class="reel-video" autoplay loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
-                                onloadedmetadata="handleReelMetadata(${video.id})"
-                                ontimeupdate="updateReelProgress(${video.id})"
-                                onplay="document.getElementById('reel-${video.id}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${video.id}'); if(b) b.innerText='⏸';"
-                                onpause="document.getElementById('reel-${video.id}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${video.id}'); if(b) b.innerText='▶';"></video>
+                        <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
+                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
+                                onloadedmetadata="handleReelMetadata('${uid}')"
+                                ontimeupdate="updateReelProgress('${uid}')"
+                                onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='⏸';"
+                                onpause="document.getElementById('reel-${uid}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='▶';"></video>
 
-                            <button type="button" class="reel-center-play" onclick="toggleReelPlayPause(${video.id}, event)">▶</button>
+                            <button type="button" class="reel-center-play" onclick="toggleReelPlayPause('${uid}', event)">▶</button>
                             <div class="reel-gradient"></div>
 
-                            <!-- Bottom Interactive Video Controls (Play/Pause, Time, Seek Bar, Speed - Auto Sound Enabled) -->
+                            <!-- Bottom Interactive Video Controls (Current Time on Left, Total Duration on Right) -->
                             <div class="reel-controls-bar" onclick="event.stopPropagation()">
-                                <button type="button" class="rc-btn" id="rplay-${video.id}" onclick="toggleReelPlayPause(${video.id}, event)" title="Play / Pause">⏸</button>
-                                <span class="rc-time" id="rtime-${video.id}">0:00 / 0:00</span>
-                                <input type="range" class="rc-seek" id="rseek-${video.id}" min="0" max="100" value="0" step="0.1" oninput="seekReelVideo(${video.id}, this.value)">
-                                <button type="button" class="rc-speed-btn" id="rspeed-${video.id}" onclick="cycleReelSpeed(${video.id}, event)" title="Playback Speed">1x</button>
+                                <button type="button" class="rc-btn" id="rplay-${uid}" onclick="toggleReelPlayPause('${uid}', event)" title="Play / Pause">⏸</button>
+                                <span class="rc-time" id="rcur-${uid}">0:00</span>
+                                <input type="range" class="rc-seek" id="rseek-${uid}" min="0" max="100" value="0" step="0.1" oninput="seekReelVideo('${uid}', this.value)">
+                                <span class="rc-time" id="rdur-${uid}">0:00</span>
+                                <button type="button" class="rc-speed-btn" id="rspeed-${uid}" onclick="cycleReelSpeed('${uid}', event)" title="Playback Speed">1x</button>
                             </div>
 
                             <div class="reel-overlay">
@@ -647,46 +687,42 @@
                             </div>
 
                             <div class="reel-actions">
-                                <!-- Reaction Button (Tap = Like, Hold 1s = 7 Emojis, Tap Count = Reactors List) -->
                                 <div class="action-slot">
-                                    <div id="picker-${video.id}" class="reaction-picker" onclick="event.stopPropagation()">
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '👍')">👍</span>
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '❤️')">❤️</span>
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '🥰')">🥰</span>
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😆')">😆</span>
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😮')">😮</span>
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😢')">😢</span>
-                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '😡')">😡</span>
+                                    <div id="picker-${uid}" class="reaction-picker" onclick="event.stopPropagation()">
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '👍')">👍</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '❤️')">❤️</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '🥰')">🥰</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😆')">😆</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😮')">😮</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😢')">😢</span>
+                                        <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '😡')">😡</span>
                                     </div>
                                     <button class="action-icon-btn ${video.user_reaction ? 'reacted' : ''}"
-                                            id="likeBtn-${video.id}"
+                                            id="likeBtn-${uid}"
                                             style="touch-action: manipulation;"
-                                            onpointerdown="startHoldReaction(event, ${video.id})"
-                                            onpointerup="endHoldReaction(event, ${video.id})"
+                                            onpointerdown="startHoldReaction(event, ${video.id}, '${uid}')"
+                                            onpointerup="endHoldReaction(event, ${video.id}, '${uid}')"
                                             onpointercancel="cancelHoldTimer()"
                                             oncontextmenu="event.preventDefault(); return false;">
                                         ${video.user_reaction || '👍'}
                                     </button>
-                                    <div class="action-count" id="likeCount-${video.id}" onclick="openReactionsList(${video.id})">${formatCompactNumber(video.likes_count)}</div>
+                                    <div class="action-count" id="likeCount-${uid}" onclick="openReactionsList(${video.id})">${formatCompactNumber(video.likes_count)}</div>
                                 </div>
 
-                                <!-- Comments Button -->
                                 <div class="action-slot">
                                     <button class="action-icon-btn" onclick="openCommentsModal(${video.id})">💬</button>
                                     <div class="action-count" id="commentCount-${video.id}" onclick="openCommentsModal(${video.id})">${formatCompactNumber(video.comments_count)}</div>
                                 </div>
 
-                                <!-- Share Button & Sharers List -->
                                 <div class="action-slot">
                                     <button class="action-icon-btn" onclick="openShareModal(${video.id}, '${encodeURIComponent(video.caption)}')">↗️</button>
                                     <div class="action-count" id="shareCount-${video.id}" onclick="openSharersList(${video.id})">${formatCompactNumber(video.shares_count)}</div>
                                 </div>
 
-                                <!-- 3-Dot Menu (Report Video / Delete Own Video) -->
                                 <div class="action-slot">
-                                    <button class="action-icon-btn" style="width:40px; height:40px; font-size:18px;" onclick="toggleVideoOptions(event, ${video.id})">⋮</button>
-                                    <div class="video-options-dropdown" id="videoOptions-${video.id}" onclick="event.stopPropagation()">
-                                        ${isOwn ? `<button onclick="deleteOwnVideo(${video.id})" style="color:#fa383e;">🗑️ លុបវីដេអូនេះ</button>` : ''}
+                                    <button class="action-icon-btn" style="width:40px; height:40px; font-size:18px;" onclick="toggleVideoOptions(event, '${uid}')">⋮</button>
+                                    <div class="video-options-dropdown" id="videoOptions-${uid}" onclick="event.stopPropagation()">
+                                        ${isOwn ? `<button onclick="deleteOwnVideo(${video.id}, '${uid}')" style="color:#fa383e;">🗑️ លុបវីដេអូនេះ</button>` : ''}
                                         <button onclick="openReportModal(${video.id})" style="color:#d93025;">🚩 រាយការណ៍វីដេអូ</button>
                                     </div>
                                 </div>
@@ -695,29 +731,18 @@
                     `;
                 }).join('');
 
+                if (appendReels) {
+                    container.insertAdjacentHTML('beforeend', newReelsHtml);
+                } else {
+                    container.innerHTML = newReelsHtml;
+                }
+
                 initReelsAutoplayAndViews();
             } catch (err) {
                 console.error(err);
-                container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh;">Error loading videos.</div>';
-            }
-        }
-
-        // Smooth Autoplay with Sound + Next-Video Pre-Buffering + 3-Second View Counter
-        function playVideoWithAutoSound(video) {
-            if (!video) return;
-            video.muted = false;
-            video.removeAttribute('muted');
-            video.volume = 1.0;
-            const p = video.play();
-            if (p && typeof p.then === 'function') {
-                p.then(() => {
-                    audioUnlocked = true;
-                    globalMuted = false;
-                }).catch(() => {
-                    // Browser strict autoplay fallback: start muted and immediately unmute on first tap/swipe
-                    video.muted = true;
-                    video.play().catch(() => {});
-                });
+                if (!appendReels) container.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 50vh;">Error loading videos.</div>';
+            } finally {
+                isLoadingMoreReels = false;
             }
         }
 
@@ -769,8 +794,8 @@
 
             const nextVid = (bestIdx >= 0 && bestIdx + 1 < reels.length) ? reels[bestIdx + 1] : null;
 
-            // Immediately abort network downloading & release decoder for any reel scrolled past above (`idx < bestIdx`) or > 1 below (`idx > bestIdx + 1`)
-            reels.forEach((v, idx) => {
+            // ផ្ដោត Bandwidth លើវីដេអូកំពុងមើល + វីដេអូទី ២ បន្ទាប់នៅខាងក្រោម ហើយផ្ដាច់ការទាញទិន្នន័យរបស់វីដេអូផ្សេងៗទាំងអស់
+            reels.forEach(v => {
                 if (v !== bestVideo) {
                     if (v === nextVid) {
                         if (!v.paused) v.pause();
@@ -837,6 +862,10 @@
         }
 
         function onReelsScrollEvaluate() {
+            const c = document.getElementById('reelsFeedContainer');
+            if (c && !isLoadingMoreReels && (c.scrollTop + c.clientHeight >= c.scrollHeight - (window.innerHeight * 2.2))) {
+                loadVideosFeed(true);
+            }
             if (reelScrollRaf) return;
             reelScrollRaf = requestAnimationFrame(() => {
                 reelScrollRaf = null;
@@ -847,12 +876,11 @@
         document.getElementById('reelsFeedContainer').addEventListener('scroll', onReelsScrollEvaluate, { passive: true });
         window.addEventListener('resize', onReelsScrollEvaluate, { passive: true });
 
-        // IntersectionObserver for 3-second view counting
         function initReelsAutoplayAndViews() {
             evaluateCenterReelVideo();
             setTimeout(evaluateCenterReelVideo, 200);
 
-            const reelItems = Array.from(document.querySelectorAll('.reel-item'));
+            const reelItems = Array.from(document.querySelectorAll('.reel-item[data-post-id]'));
             const viewObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
@@ -881,8 +909,7 @@
             reelItems.forEach(item => viewObserver.observe(item));
         }
 
-        // Reactions (Tap = Like, Hold ~0.7s = 7 Emojis: 👍 ❤️ 🥰 😆 😮 😢 😡)
-        function startHoldReaction(event, postId) {
+        function startHoldReaction(event, postId, uid) {
             if (event.button && event.button !== 0) return;
             event.stopPropagation();
             isLongPressTriggered = false;
@@ -892,21 +919,21 @@
                 if (navigator.vibrate) navigator.vibrate(30);
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
                 document.querySelectorAll('.v-comment-emoji-bar').forEach(b => b.style.display = 'none');
-                const picker = document.getElementById(`picker-${postId}`);
+                const picker = document.getElementById(`picker-${uid}`);
                 if (picker) picker.classList.add('show');
             }, 650);
         }
 
-        function endHoldReaction(event, postId) {
+        function endHoldReaction(event, postId, uid) {
             cancelHoldTimer();
             if (!isLongPressTriggered) {
-                const picker = document.getElementById(`picker-${postId}`);
+                const picker = document.getElementById(`picker-${uid}`);
                 if (picker && picker.classList.contains('show')) {
                     picker.classList.remove('show');
                     return;
                 }
                 const state = videoReactionState[postId] || { count: 0, userReaction: null };
-                applyReaction(postId, state.userReaction || '👍');
+                applyReaction(postId, uid, state.userReaction || '👍');
             }
         }
 
@@ -917,17 +944,17 @@
             }
         }
 
-        function selectReaction(event, postId, emoji) {
+        function selectReaction(event, postId, uid, emoji) {
             event.stopPropagation();
-            const picker = document.getElementById(`picker-${postId}`);
+            const picker = document.getElementById(`picker-${uid}`);
             if (picker) picker.classList.remove('show');
-            applyReaction(postId, emoji);
+            applyReaction(postId, uid, emoji);
         }
 
-        async function applyReaction(postId, emoji) {
+        async function applyReaction(postId, uid, emoji) {
             const state = videoReactionState[postId] || { count: 0, userReaction: null };
-            const btn = document.getElementById(`likeBtn-${postId}`);
-            const countEl = document.getElementById(`likeCount-${postId}`);
+            const btn = document.getElementById(`likeBtn-${uid}`);
+            const countEl = document.getElementById(`likeCount-${uid}`);
 
             if (state.userReaction === emoji) {
                 state.userReaction = null;
@@ -963,7 +990,6 @@
             } catch (err) { console.error(err); }
         }
 
-        // Share Video Modal (Share to Profile, Social Media, Copy Link)
         function openShareModal(postId, encodedCaption) {
             activePostIdForShare = postId;
             activeCaptionForShare = decodeURIComponent(encodedCaption || '');
@@ -1029,7 +1055,6 @@
             setTimeout(() => closeShareModal(), 900);
         }
 
-        // Reactors & Sharers List Modals
         async function openReactionsList(postId) {
             const modal = document.getElementById('reactionsModal');
             const listContainer = document.getElementById('reactionsModalList');
@@ -1108,17 +1133,16 @@
             else openSharersList(postId);
         }
 
-        // Video 3-Dot Menu & Report
-        function toggleVideoOptions(event, postId) {
+        function toggleVideoOptions(event, uid) {
             event.stopPropagation();
             document.querySelectorAll('.video-options-dropdown').forEach(m => {
-                if (m.id !== `videoOptions-${postId}`) m.style.display = 'none';
+                if (m.id !== `videoOptions-${uid}`) m.style.display = 'none';
             });
-            const menu = document.getElementById(`videoOptions-${postId}`);
+            const menu = document.getElementById(`videoOptions-${uid}`);
             if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
 
-        async function deleteOwnVideo(postId) {
+        async function deleteOwnVideo(postId, uid) {
             if (!confirm('តើអ្នកពិតជាចង់លុបវីដេអូនេះមែនទេ?')) return;
             try {
                 const res = await fetch(`/api/posts/${postId}`, {
@@ -1128,7 +1152,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    const el = document.getElementById(`reel-${postId}`);
+                    const el = document.getElementById(`reel-${uid}`);
                     if (el) el.remove();
                 }
             } catch (err) { console.error(err); }
@@ -1181,7 +1205,6 @@
             }
         }
 
-        // Comments Modal with Reactions (👍 ❤️ 😆 😮 😢 😡), Edit Comment & Post-Owner Delete
         const videoAuthorMap = {};
         let activeReplyToCommentId = null;
 

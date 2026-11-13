@@ -1030,12 +1030,14 @@
                         return finish(file);
                     }
 
+                    // រំលងការកំហាប់លើទូរសព្ទសម្រាប់វីដេអូវែងលើស ១៥ នាទី ដើម្បីកុំឱ្យរង់ចាំយូរ
+                    if (duration > 900) {
+                        return finish(file);
+                    }
+                    // ប្រើតែទម្រង់ MP4 (H.264/AAC) ស្តង់ដារ ដើម្បីកុំឱ្យជាប់អេក្រង់ខ្មៅ 0:00 លើ iOS និង Appilix WebView
                     const mimeCandidates = [
                         'video/mp4;codecs=avc1,mp4a.40.2',
-                        'video/mp4',
-                        'video/webm;codecs=vp9,opus',
-                        'video/webm;codecs=vp8,opus',
-                        'video/webm'
+                        'video/mp4'
                     ];
                     const supportedMime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || '';
                     if (!supportedMime) {
