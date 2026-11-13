@@ -73,6 +73,17 @@
             transform: translateZ(0);
         }
 
+        /* Smooth start: video fades in when its first frame is ready; spinner only if it really stalls */
+        .reel-video { opacity: 0; transition: opacity .22s ease; }
+        .reel-video.vid-ready { opacity: 1; }
+        .reel-spinner {
+            position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
+            border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff;
+            animation: reelspin .8s linear infinite; z-index: 11; display: none; pointer-events: none;
+        }
+        .reel-item.is-loading .reel-spinner { display: block; }
+        @keyframes reelspin { to { transform: rotate(360deg); } }
+
         /* Dark Skeleton Shimmer Loader for Reels */
         @keyframes reelShimmerWave {
             0% { background-position: -450px 0; }
@@ -655,16 +666,17 @@
                         userReaction: video.user_reaction
                     };
                     const isOwn = currentUser.email === video.user_email;
-                    const cleanVideoSrc = video.media_url.split('#')[0];
+                    const cleanVideoSrc = video.media_url.split('#')[0] + '#t=0.001'; // shows the first frame while loading
 
                     return `
                         <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
                             <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
-                                onloadedmetadata="handleReelMetadata('${uid}')"
+                                onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="this.classList.add('vid-ready')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
                                 ontimeupdate="updateReelProgress('${uid}')"
                                 onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='⏸';"
                                 onpause="document.getElementById('reel-${uid}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerText='▶';"></video>
 
+                            <div class="reel-spinner"></div>
                             <button type="button" class="reel-center-play" onclick="toggleReelPlayPause('${uid}', event)">▶</button>
                             <div class="reel-gradient"></div>
 
@@ -762,71 +774,102 @@
             }
         }
 
+        // Neighbours stay ready: the reel you just left (swipe back is instant) and the next two (first frame already visible).
+        const REEL_KEEP_BEHIND = 1;
+        const REEL_PRELOAD_AHEAD = 2;
+        let lastActiveReelIdx = -1;
+
+        function reelUidOf(v) { return v && v.id ? v.id.replace(/^rvid-/, '') : ''; }
+
+        function reelShowLoading(uid) {
+            const item = document.getElementById(`reel-${uid}`);
+            if (!item || item.classList.contains('is-loading') || item._loadTimer) return;
+            // spinner only if still not ready after a short delay (no flicker)
+            item._loadTimer = setTimeout(() => { item._loadTimer = null; item.classList.add('is-loading'); }, 350);
+        }
+
+        function reelHideLoading(uid) {
+            const item = document.getElementById(`reel-${uid}`);
+            if (!item) return;
+            if (item._loadTimer) { clearTimeout(item._loadTimer); item._loadTimer = null; }
+            item.classList.remove('is-loading');
+        }
+
+        function hydrateReel(v) {
+            const realSrc = v.dataset.videoSrc;
+            if (realSrc && v.getAttribute('src') !== realSrc) {
+                v.setAttribute('src', realSrc);
+                try { v.load(); } catch (e) {}
+            }
+        }
+
+        function releaseReel(v) {
+            if (!v.hasAttribute('src')) return;
+            try {
+                if (!v.paused) v.pause();
+                v.muted = true;
+                v.autoplay = false;
+                v.removeAttribute('autoplay');
+                v.preload = 'none';
+                v.dataset.deepPreload = '';
+                v.classList.remove('vid-ready');
+                reelHideLoading(reelUidOf(v));
+                v.removeAttribute('src');
+                v.load(); // stops the download of reels far away from the screen
+            } catch (e) {}
+        }
+
+        function pickCenterReel(reels, from, to, vh) {
+            const screenMidY = vh * 0.5;
+            let best = null, bestIdx = -1, bestDist = Infinity;
+            for (let idx = from; idx <= to; idx++) {
+                const rect = reels[idx].getBoundingClientRect();
+                if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) continue;
+                const visibleHeight = Math.max(0, Math.min(vh, rect.bottom) - Math.max(0, rect.top));
+                const visibleRatio = visibleHeight / rect.height;
+                const crossesScreenCenter = (rect.top <= screenMidY && rect.bottom >= screenMidY);
+                if (crossesScreenCenter || visibleRatio >= 0.55) {
+                    const dist = Math.abs(rect.top + rect.height * 0.5 - screenMidY);
+                    if (dist < bestDist) { bestDist = dist; best = reels[idx]; bestIdx = idx; }
+                }
+            }
+            return { best, bestIdx };
+        }
+
         function evaluateCenterReelVideo() {
             const reels = Array.from(document.querySelectorAll('.reel-video'));
             if (reels.length === 0) return;
 
             const vh = window.innerHeight || document.documentElement.clientHeight || 800;
-            const screenMidY = vh * 0.5;
-            let bestVideo = null;
-            let bestIdx = -1;
-            let bestDist = Infinity;
 
-            reels.forEach((v, idx) => {
-                const rect = v.getBoundingClientRect();
-                if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) return;
+            // measure only the reels around the last active one; scan everything after a big jump
+            let picked = { best: null, bestIdx: -1 };
+            if (lastActiveReelIdx >= 0 && lastActiveReelIdx < reels.length) {
+                picked = pickCenterReel(reels, Math.max(0, lastActiveReelIdx - 3), Math.min(reels.length - 1, lastActiveReelIdx + 3), vh);
+            }
+            if (!picked.best) picked = pickCenterReel(reels, 0, reels.length - 1, vh);
 
-                const visibleTop = Math.max(0, rect.top);
-                const visibleBottom = Math.min(vh, rect.bottom);
-                const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-                const visibleRatio = visibleHeight / rect.height;
-                const crossesScreenCenter = (rect.top <= screenMidY && rect.bottom >= screenMidY);
-
-                if (crossesScreenCenter || visibleRatio >= 0.55) {
-                    const videoMidY = rect.top + (rect.height * 0.5);
-                    const dist = Math.abs(videoMidY - screenMidY);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        bestVideo = v;
-                        bestIdx = idx;
-                    }
-                }
-            });
-
+            const bestVideo = picked.best;
+            const bestIdx = picked.bestIdx;
+            lastActiveReelIdx = bestIdx;
             const nextVid = (bestIdx >= 0 && bestIdx + 1 < reels.length) ? reels[bestIdx + 1] : null;
 
-            // ផ្ដោត Bandwidth លើវីដេអូកំពុងមើល + វីដេអូទី ២ បន្ទាប់នៅខាងក្រោម ហើយផ្ដាច់ការទាញទិន្នន័យរបស់វីដេអូផ្សេងៗទាំងអស់
-            reels.forEach(v => {
-                if (v !== bestVideo) {
-                    if (v === nextVid) {
-                        if (!v.paused) v.pause();
-                        v.muted = true;
-                        const realSrc = v.dataset.videoSrc;
-                        if (realSrc && v.getAttribute('src') !== realSrc) {
-                            v.setAttribute('src', realSrc);
-                        }
-                    } else {
-                        try {
-                            if (!v.paused) v.pause();
-                            v.muted = true;
-                            v.autoplay = false;
-                            v.removeAttribute('autoplay');
-                            v.preload = 'none';
-                            if (v.hasAttribute('src') || v.currentSrc) {
-                                v.removeAttribute('src');
-                                v.load();
-                            }
-                        } catch (e) {}
-                    }
+            reels.forEach((v, idx) => {
+                if (v === bestVideo) return;
+                const d = bestIdx < 0 ? Infinity : idx - bestIdx;
+                if (d >= -REEL_KEEP_BEHIND && d <= REEL_PRELOAD_AHEAD) {
+                    if (!v.paused) v.pause();
+                    v.muted = true;
+                    hydrateReel(v);
+                    if (v.preload === 'none') v.preload = 'metadata';
+                } else {
+                    releaseReel(v);
                 }
             });
 
             if (bestVideo) {
-                const activeSrc = bestVideo.dataset.videoSrc;
-                if (activeSrc && bestVideo.getAttribute('src') !== activeSrc) {
-                    bestVideo.setAttribute('src', activeSrc);
-                    try { bestVideo.load(); } catch (e) {}
-                }
+                hydrateReel(bestVideo);
+                if (bestVideo.readyState < 3) reelShowLoading(reelUidOf(bestVideo));
                 activeCenterReelVideo = bestVideo;
                 bestVideo.preload = 'auto';
                 clearIosMediaSessionWidget();
@@ -837,16 +880,17 @@
                     bestVideo.removeAttribute('muted');
                     bestVideo.volume = 1.0;
                 }
+                // buffer the NEXT reel deeply once, only after this one can play (never starves the one being watched)
                 const queueNextAfterSmooth = () => {
-                    if (activeCenterReelVideo !== bestVideo || !nextVid) return;
-                    if (nextVid.preload !== 'auto') {
-                        nextVid.preload = 'auto';
-                        if (nextVid.readyState === 0) {
-                            try { nextVid.load(); } catch (e) {}
-                        }
+                    if (activeCenterReelVideo !== bestVideo || !nextVid || nextVid.dataset.deepPreload === '1') return;
+                    hydrateReel(nextVid);
+                    nextVid.dataset.deepPreload = '1';
+                    nextVid.preload = 'auto';
+                    if (nextVid.readyState === 0) {
+                        try { nextVid.load(); } catch (e) {}
                     }
                 };
-                if (bestVideo.readyState >= 3 && !bestVideo.paused) {
+                if (bestVideo.readyState >= 3) {
                     queueNextAfterSmooth();
                 } else {
                     bestVideo.addEventListener('canplay', queueNextAfterSmooth, { once: true });

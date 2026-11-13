@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="mp4-faststart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - News Feed</title>
@@ -567,7 +568,7 @@
         .feed-video-wrap {
             position: relative;
             width: 100%;
-            background: #0b0e14;
+            background: #e4e6eb;
             margin: 0 0 8px 0;
             overflow: hidden;
             display: flex;
@@ -684,10 +685,20 @@
             border-radius: 0;
             margin: 0 0 8px 0;
             object-fit: cover;
-            background: #000;
+            background: #e4e6eb;
             cursor: pointer;
             display: block;
         }
+        /* Smooth video start: light placeholder (never black), fade in once the first frame is ready, spinner only if it really stalls */
+        .feed-video-wrap video { opacity: 0; transition: opacity .22s ease; }
+        .feed-video-wrap video.vid-ready { opacity: 1; }
+        .feed-video-spinner {
+            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px;
+            border-radius: 50%; border: 3px solid rgba(0,0,0,.15); border-top-color: #1877f2;
+            animation: fvspin .8s linear infinite; z-index: 17; display: none; pointer-events: none;
+        }
+        .feed-video-wrap.is-loading .feed-video-spinner { display: block; }
+        @keyframes fvspin { to { transform: rotate(360deg); } }
         .see-translation-btn {
             background: none;
             border: none;
@@ -2272,7 +2283,7 @@
 
         function normalizeVideoFrameUrl(url) {
             if (!url) return '';
-            return url.split('#')[0];
+            return url.split('#')[0] + '#t=0.001'; // makes the browser show the first frame instead of a black box
         }
 
         function adjustVideoContainerAspect(uid) {
@@ -2297,10 +2308,12 @@
                 <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};" onclick="toggleFeedVideoPlayPause('${uid}', event)">
                     <video id="vid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
                         onloadedmetadata="adjustVideoContainerAspect('${uid}')"
-                        onloadeddata="updateFeedVideoClock('${uid}')"
+                        onloadeddata="this.classList.add('vid-ready'); updateFeedVideoClock('${uid}')" oncanplay="fvHideLoading('${uid}')" onwaiting="fvShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); fvHideLoading('${uid}')" onerror="fvHideLoading('${uid}')"
                         ontimeupdate="updateFeedVideoClock('${uid}')"
                         onplay="document.getElementById('vwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='⏸'; clearIosMediaSessionWidget();"
                         onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerText='▶';"></video>
+
+                    <div class="feed-video-spinner"></div>
 
                     <button type="button" class="feed-video-center-play" onclick="toggleFeedVideoPlayPause('${uid}', event)">▶</button>
 
@@ -2325,18 +2338,37 @@
             }
         }
 
+        function fvShowLoading(uid) {
+            const w = document.getElementById(`vwrap-${uid}`);
+            if (!w || w.classList.contains('is-loading') || w._loadTimer) return;
+            // only show the spinner if the video is still not ready after a short delay (no flicker)
+            w._loadTimer = setTimeout(() => { w._loadTimer = null; w.classList.add('is-loading'); }, 350);
+        }
+
+        function fvHideLoading(uid) {
+            const w = document.getElementById(`vwrap-${uid}`);
+            if (!w) return;
+            if (w._loadTimer) { clearTimeout(w._loadTimer); w._loadTimer = null; }
+            w.classList.remove('is-loading');
+        }
+
+        function fvUidOf(video) {
+            return video && video.id ? video.id.replace(/^vid-/, '') : '';
+        }
+
         function releaseFarVideoDecoder(v) {
-            if (!v) return;
+            if (!v || !v.hasAttribute('src')) return;
             try {
                 if (!v.paused) v.pause();
                 v.muted = true;
                 v.autoplay = false;
                 v.removeAttribute('autoplay');
                 v.preload = 'none';
-                if (v.hasAttribute('src') || v.currentSrc) {
-                    v.removeAttribute('src');
-                    v.load(); // Forces browser to immediately abort active HTTP network download for scrolled-past videos
-                }
+                v.dataset.deepPreload = '';
+                v.classList.remove('vid-ready');
+                fvHideLoading(fvUidOf(v));
+                v.removeAttribute('src');
+                v.load(); // aborts the network download for videos far away from the screen
             } catch (e) {}
         }
 
@@ -3393,18 +3425,17 @@
         }
 
         function preloadNextVideoOnlyAfterActiveSmooth(activeVid, nextVid) {
-            if (!activeVid || !nextVid) return;
+            if (!activeVid || !nextVid || nextVid.dataset.deepPreload === '1') return;
             const triggerNext = () => {
-                if (activeCenterFeedVideo !== activeVid) return;
+                if (activeCenterFeedVideo !== activeVid || nextVid.dataset.deepPreload === '1') return;
                 hydrateVideoSource(nextVid);
-                if (nextVid.preload !== 'auto') {
-                    nextVid.preload = 'auto';
-                    if (nextVid.readyState === 0) {
-                        try { nextVid.load(); } catch (e) {}
-                    }
+                nextVid.dataset.deepPreload = '1';
+                nextVid.preload = 'auto';
+                if (nextVid.readyState === 0) {
+                    try { nextVid.load(); } catch (e) {}
                 }
             };
-            if (activeVid.readyState >= 3 && !activeVid.paused) {
+            if (activeVid.readyState >= 3) {
                 triggerNext();
             } else {
                 activeVid.addEventListener('canplay', triggerNext, { once: true });
@@ -3414,6 +3445,7 @@
         function startSingleCenterVideo(video, nextVideo) {
             if (!video) return;
             hydrateVideoSource(video);
+            if (video.readyState < 3) fvShowLoading(fvUidOf(video));
             if (video.preload !== 'auto') {
                 video.preload = 'auto';
             }
@@ -3454,69 +3486,64 @@
             }
         }
 
+        // How many neighbours stay ready: scrolling back up is instant, the next ones already show their first frame.
+        const FEED_KEEP_BEHIND = 2;
+        const FEED_PRELOAD_AHEAD = 3;
+        let lastActiveVideoIdx = -1;
+
+        function pickCenterVideo(videos, from, to, vh) {
+            const screenMidY = vh * 0.5;
+            let best = null, bestIdx = -1, bestDist = Infinity;
+            for (let idx = from; idx <= to; idx++) {
+                const v = videos[idx];
+                const wrap = v.closest('.feed-video-wrap') || v;
+                const rect = wrap.getBoundingClientRect();
+                if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) continue;
+                const visibleHeight = Math.max(0, Math.min(vh, rect.bottom) - Math.max(0, rect.top));
+                const visibleRatio = visibleHeight / rect.height;
+                const crossesScreenCenter = (rect.top <= screenMidY && rect.bottom >= screenMidY);
+                if (crossesScreenCenter || visibleRatio >= 0.65) {
+                    const dist = Math.abs(rect.top + rect.height * 0.5 - screenMidY);
+                    if (dist < bestDist) { bestDist = dist; best = v; bestIdx = idx; }
+                }
+            }
+            if (!best) {
+                for (let idx = from; idx <= to; idx++) {
+                    const rect = (videos[idx].closest('.feed-video-wrap') || videos[idx]).getBoundingClientRect();
+                    if (rect.height > 0 && rect.bottom > 60 && rect.top < vh - 60) { best = videos[idx]; bestIdx = idx; break; }
+                }
+            }
+            return { best, bestIdx };
+        }
+
         function evaluateCenterFeedVideo() {
             const videos = Array.from(document.querySelectorAll('.autoplay-video'));
             if (videos.length === 0) return;
-
             const vh = window.innerHeight || document.documentElement.clientHeight || 800;
-            const screenMidY = vh * 0.5;
-            let bestVideo = null;
-            let bestIdx = -1;
-            let bestDist = Infinity;
 
-            videos.forEach((v, idx) => {
-                const wrap = v.closest('.feed-video-wrap') || v;
-                const rect = wrap.getBoundingClientRect();
-                if (rect.height <= 0 || rect.bottom <= 0 || rect.top >= vh) return;
-
-                const visibleTop = Math.max(0, rect.top);
-                const visibleBottom = Math.min(vh, rect.bottom);
-                const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-                const visibleRatio = visibleHeight / rect.height;
-                const crossesScreenCenter = (rect.top <= screenMidY && rect.bottom >= screenMidY);
-
-                if (crossesScreenCenter || visibleRatio >= 0.65) {
-                    const videoMidY = rect.top + (rect.height * 0.5);
-                    const dist = Math.abs(videoMidY - screenMidY);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        bestVideo = v;
-                        bestIdx = idx;
-                    }
-                }
-            });
-
-            // Fallback to first visible video near top if none strictly crosses 50% yet
-            if (!bestVideo) {
-                videos.forEach((v, idx) => {
-                    const wrap = v.closest('.feed-video-wrap') || v;
-                    const rect = wrap.getBoundingClientRect();
-                    if (rect.height > 0 && rect.bottom > 60 && rect.top < vh - 60 && !bestVideo) {
-                        bestVideo = v;
-                        bestIdx = idx;
-                    }
-                });
+            // Only measure the videos around the last active one (cheap while scrolling); scan everything after a big jump.
+            let picked = { best: null, bestIdx: -1 };
+            if (lastActiveVideoIdx >= 0 && lastActiveVideoIdx < videos.length) {
+                picked = pickCenterVideo(videos, Math.max(0, lastActiveVideoIdx - 4), Math.min(videos.length - 1, lastActiveVideoIdx + 4), vh);
             }
+            if (!picked.best) picked = pickCenterVideo(videos, 0, videos.length - 1, vh);
 
+            const bestVideo = picked.best;
+            const bestIdx = picked.bestIdx;
+            lastActiveVideoIdx = bestIdx;
             const nextVideo = (bestIdx >= 0 && bestIdx + 1 < videos.length) ? videos[bestIdx + 1] : null;
 
-            // Strict 2-Video Bandwidth & Decoder Isolation:
-            // - `bestIdx` (currently watched on screen): 100% network priority
-            // - `bestIdx + 1` (next video below): hydrated & preloaded ONLY after `bestIdx` starts smoothly
-            // - ALL scrolled-past videos above (`idx < bestIdx`) and far below (`idx > bestIdx + 1`):
-            //   IMMEDIATELY stopped + `removeAttribute('src')` + `v.load()` to abort background downloading so new videos never get blocked!
+            // Neighbours (2 above, 3 below) stay hydrated so their first frame is already visible; everything farther is released.
             videos.forEach((v, idx) => {
-                if (v !== bestVideo) {
-                    if (v === nextVideo) {
-                        if (!v.paused) v.pause();
-                        v.muted = true;
-                        hydrateVideoSource(v);
-                        if (v.preload === 'auto' && (!bestVideo || bestVideo.readyState < 3)) {
-                            v.preload = 'metadata';
-                        }
-                    } else {
-                        releaseFarVideoDecoder(v);
-                    }
+                if (v === bestVideo) return;
+                const d = bestIdx < 0 ? Infinity : idx - bestIdx;
+                if (d >= -FEED_KEEP_BEHIND && d <= FEED_PRELOAD_AHEAD) {
+                    if (!v.paused) v.pause();
+                    v.muted = true;
+                    hydrateVideoSource(v);
+                    if (v.preload === 'none') v.preload = 'metadata';
+                } else {
+                    releaseFarVideoDecoder(v);
                 }
             });
 
@@ -4155,11 +4182,27 @@
             });
         }
 
+        // Moves the video index (moov) to the front of the file so it starts instantly when streamed. No re-encoding, falls back to the original on any problem.
+        async function fastStartIfPossible(file) {
+            try {
+                return (window.CamFaststart && file) ? await window.CamFaststart.ensureFastStart(file) : file;
+            } catch (e) {
+                return file;
+            }
+        }
+
+        // ---- Video size settings (same as upload.html) ----
+        const SKIP_COMPRESS_BELOW_MB = 8;
+        const VIDEO_KBPS_UP_TO_1_MIN = 1600;
+        const VIDEO_KBPS_1_TO_5_MIN = 1200;
+        const VIDEO_KBPS_OVER_5_MIN = 900;
+        const AUDIO_KBPS = 96;
+
         // Smart Adaptive Video Compressor (Estimates Duration & Size -> Scales to 720p HD with Adaptive Bitrate so video stays crisp & compact!)
         function smartCompressVideoFile(file, onProgress) {
             return new Promise((resolve) => {
                 // Skip re-encoding if file is already compact (< 12MB) so existing small videos upload at 100% original clarity
-                if (file.size <= 12 * 1024 * 1024) {
+                if (file.size <= SKIP_COMPRESS_BELOW_MB * 1024 * 1024) {
                     if (onProgress) onProgress(100);
                     return resolve(file);
                 }
@@ -4196,11 +4239,11 @@
                     const targetH = Math.round((origH * scale) / 2) * 2;
 
                     // Adaptive bitrate based on video duration (minutes) so long videos stay compact while short clips look crisp!
-                    let targetVideoBps = 2400000; // <= 1 min: 2.4 Mbps HD
-                    if (duration > 300) targetVideoBps = 1350000; // > 5 min: 1.35 Mbps
-                    else if (duration > 60) targetVideoBps = 1800000; // 1-5 min: 1.8 Mbps
+                    let targetVideoBps = VIDEO_KBPS_UP_TO_1_MIN * 1000;
+                    if (duration > 300) targetVideoBps = VIDEO_KBPS_OVER_5_MIN * 1000;
+                    else if (duration > 60) targetVideoBps = VIDEO_KBPS_1_TO_5_MIN * 1000;
 
-                    const estimatedCompressedBytes = ((targetVideoBps + 128000) / 8) * duration;
+                    const estimatedCompressedBytes = ((targetVideoBps + AUDIO_KBPS * 1000) / 8) * duration;
                     if (estimatedCompressedBytes >= file.size * 0.92) {
                         return finish(file);
                     }
@@ -4242,7 +4285,7 @@
                         const recorder = new MediaRecorder(stream, {
                             mimeType: supportedMime,
                             videoBitsPerSecond: targetVideoBps,
-                            audioBitsPerSecond: 128000
+                            audioBitsPerSecond: AUDIO_KBPS * 1000
                         });
                         const chunks = [];
                         recorder.ondataavailable = (e) => {
@@ -4466,7 +4509,7 @@
                                 const overall = ((i + (subPct / 100)) / filesToProcess.length) * 100;
                                 updateFloatingWidgetUI({ compressPct: overall });
                             });
-                            compressedFiles.push(compVid);
+                            compressedFiles.push(await fastStartIfPossible(compVid));
                         } else {
                             const compImg = await smartCompressImageFile(rawFile);
                             compressedFiles.push(compImg);

@@ -4,9 +4,7 @@ const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
-// Cloudinary is no longer used: all media is uploaded straight to Cloudflare R2 (/api/videos/upload-*).
-// These routes now only accept plain text fields (JSON or multipart without files).
-const formFields = multer().none();
+const { cloudinary, upload: cloudinaryUpload } = require('./cloudinary');
 const createVideoRouter = require('./videoRecommendationRoutes');
 const auth = require('./auth');
 
@@ -190,6 +188,7 @@ app.use('/api/videos', videoRouter);
 const { createCleanup, extractMediaUrls } = require('./cleanup');
 const cleanup = createCleanup({
   pool,
+  cloudinary,
   deleteR2: (url) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(url) : Promise.resolve())
 });
 
@@ -380,7 +379,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Create Post
-app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
+app.post('/api/posts', cloudinaryUpload.single('mediaFile'), authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
   }
@@ -784,7 +783,7 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // Update Profile & Cover Pictures
-app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req, res) => {
+app.post('/api/update-profile-pics', cloudinaryUpload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'coverPic', maxCount: 1 }]), authCore.forceActor, async (req, res) => {
   const { email, bio, profilePicUrl, coverPicUrl } = req.body;
   try {
     let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
@@ -1471,7 +1470,7 @@ app.post('/api/presence/offline', async (req, res) => {
 app.post('/api/messages', (req, res, next) => {
   const ct = req.headers['content-type'] || '';
   if (ct.includes('multipart/form-data')) {
-    return formFields(req, res, (err) => {
+    return cloudinaryUpload.single('mediaFile')(req, res, (err) => {
       if (err) {
         console.error("Media upload error:", err);
         return res.status(500).json({ success: false, error: err.message });

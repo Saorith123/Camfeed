@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="mp4-faststart.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CamFeed - Create Post</title>
@@ -972,11 +973,27 @@
             }
         }
 
+        // Moves the video index (moov) to the front of the file so it starts instantly when streamed. No re-encoding, falls back to the original on any problem.
+        async function fastStartIfPossible(file) {
+            try {
+                return (window.CamFaststart && file) ? await window.CamFaststart.ensureFastStart(file) : file;
+            } catch (e) {
+                return file;
+            }
+        }
+
+        // ---- Video size settings (change here to trade storage for quality) ----
+        const SKIP_COMPRESS_BELOW_MB = 8;        // smaller clips are uploaded as-is
+        const VIDEO_KBPS_UP_TO_1_MIN = 1600;     // 720p, about 12 MB per minute
+        const VIDEO_KBPS_1_TO_5_MIN = 1200;      // about 9 MB per minute
+        const VIDEO_KBPS_OVER_5_MIN = 900;       // about 7 MB per minute
+        const AUDIO_KBPS = 96;
+
         // Smart Adaptive Video Compressor (Estimates duration & size -> 720p HD with adaptive bitrate so video stays crisp & compact!)
         function smartCompressVideoFile(file, onProgress) {
             return new Promise((resolve) => {
                 // Skip re-encoding if file is already compact (<= 12MB) so small clips upload immediately at 100% original clarity
-                if (file.size <= 12 * 1024 * 1024) {
+                if (file.size <= SKIP_COMPRESS_BELOW_MB * 1024 * 1024) {
                     if (onProgress) onProgress(100);
                     return resolve(file);
                 }
@@ -1013,11 +1030,11 @@
                     const targetH = Math.round((origH * scale) / 2) * 2;
 
                     // Adaptive bitrate based on video duration (minutes)
-                    let targetVideoBps = 2400000; // <= 1 min: 2.4 Mbps HD
-                    if (duration > 300) targetVideoBps = 1350000; // > 5 min: 1.35 Mbps
-                    else if (duration > 60) targetVideoBps = 1800000; // 1-5 min: 1.8 Mbps
+                    let targetVideoBps = VIDEO_KBPS_UP_TO_1_MIN * 1000;
+                    if (duration > 300) targetVideoBps = VIDEO_KBPS_OVER_5_MIN * 1000;
+                    else if (duration > 60) targetVideoBps = VIDEO_KBPS_1_TO_5_MIN * 1000;
 
-                    const estimatedCompressedBytes = ((targetVideoBps + 128000) / 8) * duration;
+                    const estimatedCompressedBytes = ((targetVideoBps + AUDIO_KBPS * 1000) / 8) * duration;
                     if (estimatedCompressedBytes >= file.size * 0.92) {
                         return finish(file);
                     }
@@ -1057,7 +1074,7 @@
                         const recorder = new MediaRecorder(stream, {
                             mimeType: supportedMime,
                             videoBitsPerSecond: targetVideoBps,
-                            audioBitsPerSecond: 128000
+                            audioBitsPerSecond: AUDIO_KBPS * 1000
                         });
                         const chunks = [];
                         recorder.ondataavailable = (e) => {
@@ -1245,7 +1262,7 @@
                                 const overall = ((i + (subPct / 100)) / selectedFiles.length) * 100;
                                 updateDualProgressUI({ compressPct: overall });
                             });
-                            compressedFiles.push(compVid);
+                            compressedFiles.push(await fastStartIfPossible(compVid));
                         } else {
                             const compImg = await compressImageOnClient(rawFile);
                             compressedFiles.push(compImg);
