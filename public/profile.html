@@ -427,7 +427,7 @@
                             <option value="private">🔒 Only me</option>
                         </select>
                     </div>
-                    <input type="text" id="input-birthdate" placeholder="e.g. July 16, 2000">
+                    <input type="text" id="input-birthdate" placeholder="DD-MM-YYYY (e.g. 19-01-2009)">
                 </div>
 
                 <div class="edit-field-group">
@@ -660,10 +660,9 @@
         function formatCleanBirthdate(rawDate) {
             if (!rawDate) return '';
             const str = String(rawDate).trim();
-            if (str.includes('T') && !isNaN(Date.parse(str))) {
-                const d = new Date(str);
-                return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-            }
+            // database dates look like 2009-01-19 or 2009-01-19T00:00:00.000Z -> show 19-01-2009 (day-month-year)
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str);
+            if (m) return `${m[3]}-${m[2]}-${m[1]}`;
             return str;
         }
 

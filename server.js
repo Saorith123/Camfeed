@@ -262,6 +262,20 @@ Respond strictly in JSON format: {"category": "CategoryName", "tags": "tag1, tag
 }
 
 // Register
+// The sign-up form sends DD-MM-YYYY, but PostgreSQL reads dates as MM-DD-YYYY (so "19-01-2009" fails).
+// Convert to ISO YYYY-MM-DD. Returns null for an empty value, or undefined for an impossible date.
+function normalizeBirthdate(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  let y, mo, d, m;
+  if ((m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s))) { d = +m[1]; mo = +m[2]; y = +m[3]; }
+  else if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+  else return s; // other free text (e.g. "July 16, 2000") is passed through unchanged
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return undefined;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 app.post('/api/register', async (req, res) => {
   const { password, firstName, lastName, birthdate, gender, country } = req.body || {};
   const email = String((req.body && req.body.email) || '').trim();
@@ -272,6 +286,10 @@ app.post('/api/register', async (req, res) => {
     if (typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
     }
+    const birth = normalizeBirthdate(birthdate);
+    if (birth === undefined) {
+      return res.status(400).json({ success: false, error: 'Invalid date of birth.' });
+    }
     const isSuper = SUPER_ADMIN_EMAILS.includes(email.toLowerCase());
     const initialRole = isSuper ? 'super_admin' : 'user';
     const hashed = await auth.hashPassword(password);
@@ -280,7 +298,7 @@ app.post('/api/register', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'public', 'public', $8) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, hashed, firstName, lastName, birthdate, gender, country, initialRole]);
+    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole]);
     const user = result.rows[0];
     // password is stripped from the response by auth.sanitizeJson
     res.status(201).json({ success: true, user, token: authCore.issueToken(user) });
@@ -792,6 +810,10 @@ app.post('/api/update-profile-details', async (req, res) => {
   } = req.body;
 
   try {
+    const normalizedBirthdate = normalizeBirthdate(birthdate);
+    if (normalizedBirthdate === undefined) {
+      return res.status(400).json({ success: false, error: 'Invalid date of birth (use DD-MM-YYYY).' });
+    }
     const query = `
       UPDATE users 
       SET location = $1, location_privacy = $2,
@@ -806,7 +828,7 @@ app.post('/api/update-profile-details', async (req, res) => {
     `;
     const result = await pool.query(query, [
       location || '', location_privacy || 'public',
-      birthdate || '', birthdate_privacy || 'public',
+      normalizedBirthdate, birthdate_privacy || 'public',
       relationship_status || '', relationship_privacy || 'public',
       gender || 'Male', gender_privacy || 'public',
       work || '', work_privacy || 'public',
