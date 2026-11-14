@@ -1950,7 +1950,7 @@
             if (isAlreadyOnFeed) {
                 // Home = go to the top AND load the newest posts (like Facebook)
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                if (typeof window.refreshFeedNow === 'function') window.refreshFeedNow(); else loadPosts();
+                if (typeof window.refreshFeedNow === 'function') window.refreshFeedNow(); else loadPosts(false, true);
                 lastHomeClickTime = new Date().getTime();
             } else {
                 window.location.href = 'feed.html';
@@ -2868,14 +2868,14 @@
             if (el) el.classList.toggle('hidden', !visible);
         }
 
-        async function loadPosts(append = false) {
+        async function loadPosts(append = false, skipCache = false) {
             const cacheKey = `camfeed_feed_cache_${currentUser.email}`;
             if (!append) {
                 feedOffset = 0;
                 feedHasMore = true;
                 loadedFeedPostIds.clear();
-                // 0ms Instant Render from local cache while fresh data loads in background!
-                try {
+                // 0ms Instant Render from local cache while fresh data loads in background! (not when the person tapped Home: they want NEW posts)
+                if (!skipCache) try {
                     const cachedRaw = localStorage.getItem(cacheKey);
                     if (cachedRaw) {
                         const cachedPosts = JSON.parse(cachedRaw);
@@ -3297,8 +3297,26 @@
         }
 
         // Standard 3-Second Video View Counter (Video Posts Only)
+        // every post that was really on the screen (60%, 1 second) is reported, so the feed can show other posts next time
+        const seenQueue = new Set(), seenDwell = new Map(), seenSent = new Set();
+        function flushSeen() {
+            if (!seenQueue.size) return;
+            const ids = Array.from(seenQueue).slice(0, 40); ids.forEach(i => seenQueue.delete(i));
+            try { fetch('/api/feed/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }), keepalive: true }).catch(() => {}); } catch (e) {}
+        }
+        setInterval(flushSeen, 5000);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSeen(); });
+        window.addEventListener('pagehide', flushSeen);
+        const seenObserver = ('IntersectionObserver' in window) ? new IntersectionObserver((entries) => {
+            entries.forEach(en => {
+                const id = en.target.getAttribute('data-post-id'); if (!id || seenSent.has(id)) return;
+                if (en.isIntersecting) { if (!seenDwell.has(id)) seenDwell.set(id, setTimeout(() => { seenDwell.delete(id); seenSent.add(id); seenQueue.add(id); seenObserver.unobserve(en.target); }, 1000)); }
+                else if (seenDwell.has(id)) { clearTimeout(seenDwell.get(id)); seenDwell.delete(id); }
+            });
+        }, { threshold: 0.6 }) : null;
         function initPostViewsObserver() {
             const postCards = document.querySelectorAll('.post-item');
+            if (seenObserver) postCards.forEach(c => { if (!c.dataset.seenObs) { c.dataset.seenObs = '1'; seenObserver.observe(c); } });
             const viewObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const postId = entry.target.getAttribute('data-post-id');
@@ -3477,7 +3495,7 @@
 
         async function shareToSocialMedia() {
             if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            const shareUrl = `${window.location.origin}/p/${activePostIdForShare}`;
             if (navigator.share) {
                 try {
                     await navigator.share({
@@ -3495,7 +3513,7 @@
 
         function copyCurrentShareLink() {
             if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/feed.html?post=${activePostIdForShare}`;
+            const shareUrl = `${window.location.origin}/p/${activePostIdForShare}`;
             navigator.clipboard.writeText(shareUrl);
             const currentLang = localStorage.getItem('camfeed_lang') || 'en';
             document.getElementById('copyLinkLabel').innerText = currentLang === 'km' ? '✓ បានចម្លងតំណភ្ជាប់!' : '✓ Link Copied!';

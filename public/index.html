@@ -106,9 +106,11 @@
 <body>
 
     <script>
+        // after login go back to the shared post (/p/123) if the person came from one; only this exact shape is allowed (no open redirect)
+        const NEXT_URL = (function () { try { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/p\/\d{1,10}$/.test(n) ? n : 'feed.html'; } catch (e) { return 'feed.html'; } })();
         const existingUser = localStorage.getItem('camfeed_user');
         if (existingUser) {
-            window.location.href = 'feed.html';
+            window.location.href = NEXT_URL;
         }
     </script>
 
@@ -988,7 +990,7 @@
                         localStorage.setItem('camfeed_remembered_email', resetEmailValue);
                         localStorage.setItem('camfeed_user', JSON.stringify(data.user));
                     } catch (e) {}
-                    window.location.href = 'feed.html';
+                    window.location.href = NEXT_URL;
                     return;
                 }
                 if (data.success) {
@@ -1259,7 +1261,7 @@
 
                     localStorage.setItem('camfeed_remembered_email', (signupChannel === 'phone' && user.phone) ? user.phone : user.email);
                     localStorage.setItem('camfeed_user', JSON.stringify(user));
-                    window.location.href = 'feed.html';
+                    window.location.href = NEXT_URL;
                 } else {
                     resetTurnstile();
                     finishBtn.disabled = false;
@@ -1299,7 +1301,7 @@
                 if (data.success) {
                     localStorage.setItem('camfeed_remembered_email', email);
                     localStorage.setItem('camfeed_user', JSON.stringify(data.user));
-                    window.location.href = 'feed.html';
+                    window.location.href = NEXT_URL;
                 } else {
                     msg.style.color = 'red';
                     msg.innerText = data.message || 'Invalid email or password';

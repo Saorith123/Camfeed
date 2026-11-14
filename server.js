@@ -38,6 +38,100 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ---------------------------------------------------------------------------
+// Public post page /p/:id  (like Facebook: anyone can SEE a public post without logging in, and chat apps show a picture + title
+// when the link is shared). Only PUBLIC posts of people who are not banned are shown. Everything is escaped. No scripts needed to read it.
+// ---------------------------------------------------------------------------
+const pubEsc = (v) => String(v == null ? '' : v).replace(/[&<>"'`]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
+const pubCut = (v, n) => { const a = Array.from(String(v || '').replace(/\s+/g, ' ').trim()); return a.length > n ? a.slice(0, n - 1).join('') + '…' : a.join(''); };
+const pubHits = new Map();
+function pubLimited(ip) {                                                    // 90 page views / minute / IP (stops bots that copy everything)
+  const now = Date.now(), e = pubHits.get(ip) || { n: 0, t: now };
+  if (now - e.t > 60000) { e.n = 0; e.t = now; }
+  e.n++; pubHits.set(ip, e);
+  if (pubHits.size > 5000) for (const [k, v] of pubHits) if (now - v.t > 60000) pubHits.delete(k);
+  return e.n > 90;
+}
+function pubMedia(row) {                                                     // -> { images: [url], video: url|null }
+  const out = { images: [], video: null }, raw = String(row.media_url || '').trim();
+  if (!raw) return out;
+  const isVid = (u, t) => t === 'video' || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u || '');
+  let items = [];
+  if (raw[0] === '[' || raw[0] === '{') { try { const j = JSON.parse(raw); items = Array.isArray(j) ? j : [j]; } catch (e) { items = []; } }
+  else items = [{ url: raw, type: row.media_type }];
+  for (const it of items) {
+    const url = security.safeUrl(typeof it === 'string' ? it : (it && it.url));
+    if (!url) continue;
+    const type = typeof it === 'string' ? row.media_type : (it.type || row.media_type);
+    if (isVid(url, type)) { if (!out.video) out.video = url; } else if (out.images.length < 4) out.images.push(url);
+  }
+  return out;
+}
+app.get('/p/:id', async (req, res) => {
+  const base = (process.env.PUBLIC_BASE_URL || (req.protocol + '://' + req.get('host'))).replace(/\/+$/, '');
+  const id = /^\d{1,10}$/.test(String(req.params.id)) ? parseInt(req.params.id, 10) : NaN;
+  const page = (status, title, desc, image, body, extraMeta) => {
+    res.status(status).set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': status === 200 ? 'public, max-age=60' : 'no-store' });
+    res.send(`<!DOCTYPE html><html lang="km"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${pubEsc(title)}</title><meta name="description" content="${pubEsc(desc)}">${extraMeta || ''}
+<meta property="og:site_name" content="CamFeed"><meta property="og:title" content="${pubEsc(title)}"><meta property="og:description" content="${pubEsc(desc)}">
+${image ? `<meta property="og:image" content="${pubEsc(image)}"><meta name="twitter:image" content="${pubEsc(image)}">` : ''}
+<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}"><meta name="twitter:title" content="${pubEsc(title)}"><meta name="twitter:description" content="${pubEsc(desc)}">
+<link rel="icon" type="image/png" href="/icons/favicon-48.png"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box}body{margin:0;background:#f0f2f5;color:#050505;font-family:'Noto Sans Khmer',system-ui,sans-serif}
+.top{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:5}
+.brand{font-size:24px;font-weight:700;color:#1877f2;text-decoration:none}.btns{display:flex;gap:8px}
+.b{display:inline-block;padding:9px 16px;border-radius:20px;font-weight:700;font-size:14px;text-decoration:none;border:0;cursor:pointer}.b1{background:#1877f2;color:#fff}.b2{background:#e7f3ff;color:#1877f2}
+.wrap{max-width:640px;margin:14px auto;padding:0 10px}.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);overflow:hidden;margin-bottom:12px}
+.hd{display:flex;gap:10px;align-items:center;padding:12px 14px}.av{width:44px;height:44px;border-radius:50%;background:#dbe3ee;object-fit:cover;display:flex;align-items:center;justify-content:center;font-weight:700;color:#456}
+.nm{font-weight:700}.dt{font-size:12.5px;color:#65676b}.tx{padding:2px 14px 12px;white-space:pre-wrap;word-break:break-word;font-size:16px;line-height:1.5}
+.md img,.md video{display:block;width:100%;max-height:80vh;object-fit:contain;background:#000}.md img+img{margin-top:2px}
+.st{padding:10px 14px;color:#65676b;font-size:14px;border-top:1px solid #eee;display:flex;gap:16px}
+.cta{padding:18px 14px;text-align:center}.cta h2{margin:0 0 6px;font-size:18px}.cta p{margin:0 0 12px;color:#65676b;font-size:14px}.ft{text-align:center;color:#8a8d91;font-size:12.5px;padding:6px 0 24px}.ft a{color:#65676b}</style></head><body>
+<div class="top"><a class="brand" href="/">CamFeed</a><div class="btns"><a class="b b2" href="/index.html?next=${pubEsc('/p/' + (Number.isInteger(id) ? id : 0))}">ចូល (Log in)</a><a class="b b1" href="/index.html?next=${pubEsc('/p/' + (Number.isInteger(id) ? id : 0))}">ចុះឈ្មោះ</a></div></div>
+<div class="wrap">${body}<div class="ft"><a href="/terms.html">Terms</a> · <a href="/privacy.html">Privacy</a> · <a href="/community.html">Community</a><br>© CamFeed</div></div></body></html>`);
+  };
+  try {
+    if (pubLimited(req.ip || 'x')) return page(429, 'CamFeed', 'Too many requests', null, '<div class="card cta"><h2>សូមរង់ចាំបន្តិច</h2></div>', '<meta name="robots" content="noindex">');
+    const notFound = () => page(404, 'CamFeed', 'ប្រកាសនេះមិនមាន ឬមិនមែនសាធារណៈ', `${base}/icons/icon-512.png`,
+      `<div class="card cta"><h2>ប្រកាសនេះមិនមាន ឬជាឯកជន</h2><p>This post is not available or is private.</p><a class="b b1" href="/index.html">ចូលទៅ CamFeed</a></div>`, '<meta name="robots" content="noindex">');
+    if (!Number.isInteger(id) || id < 1 || id > 2147483647) return notFound();
+    const sel = `SELECT p.id, p.content, p.media_type, p.media_url, p.privacy, p.created_at, p.shared_post_id, u.first_name, u.last_name, u.profile_pic, COALESCE(u.is_banned, FALSE) AS banned,
+      (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)::int AS likes, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id)::int AS comments,
+      (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id)::int AS shares FROM posts p JOIN users u ON u.email = p.user_email WHERE p.id = $1`;
+    let post = (await pool.query(sel, [id])).rows[0];
+    if (!post || post.banned || String(post.privacy || 'public') !== 'public') return notFound();
+    let shownBy = null;
+    if (post.shared_post_id) {                                                // a share: show the original post when it is public too
+      const orig = (await pool.query(sel, [post.shared_post_id])).rows[0];
+      if (orig && !orig.banned && String(orig.privacy || 'public') === 'public') { shownBy = post; post = orig; }
+    }
+    const name = (String(post.first_name || '') + ' ' + String(post.last_name || '')).trim() || 'CamFeed';
+    const media = pubMedia(post), text = String(post.content || '').slice(0, 5000);
+    const ogImage = media.images[0] || `${base}/icons/icon-512.png`;
+    const title = pubCut(text, 70) ? pubCut(text, 70) + ' · ' + name : name + ' ក្នុង CamFeed';
+    const desc = pubCut(text, 180) || (media.video ? 'មើលវីដេអូនេះនៅ CamFeed' : media.images.length ? 'មើលរូបភាពនេះនៅ CamFeed' : 'ចូលរួម CamFeed ដើម្បីមើល ចែករំលែក និងនិយាយជាមួយមិត្តភក្តិ');
+    const url = `${base}/p/${id}`;
+    const avatar = security.safeUrl(post.profile_pic || '');
+    const meta = `<link rel="canonical" href="${pubEsc(url)}"><meta property="og:url" content="${pubEsc(url)}"><meta property="og:type" content="${media.video ? 'video.other' : 'article'}">` +
+      (media.video ? `<meta property="og:video" content="${pubEsc(media.video)}"><meta property="og:video:secure_url" content="${pubEsc(media.video)}"><meta property="og:video:type" content="video/mp4">` : '');
+    const when = post.created_at ? new Date(post.created_at).toISOString().slice(0, 10) : '';
+    const body = `<div class="card">
+      ${shownBy ? `<div class="dt" style="padding:10px 14px 0">🔁 ចែករំលែកដោយ ${pubEsc(((shownBy.first_name || '') + ' ' + (shownBy.last_name || '')).trim())}</div>` : ''}
+      <div class="hd">${avatar ? `<img class="av" src="${pubEsc(avatar)}" alt="">` : `<div class="av">${pubEsc(Array.from(name)[0] || 'C')}</div>`}<div><div class="nm notranslate" translate="no">${pubEsc(name)}</div><div class="dt">${pubEsc(when)} · 🌐 Public</div></div></div>
+      ${text ? `<div class="tx notranslate" translate="no">${pubEsc(text)}</div>` : ''}
+      ${(media.video || media.images.length) ? `<div class="md">${media.video ? `<video src="${pubEsc(media.video)}" controls playsinline preload="metadata"></video>` : ''}${media.images.map((u) => `<img src="${pubEsc(u)}" alt="" loading="lazy">`).join('')}</div>` : ''}
+      <div class="st"><span>👍 ${Number(post.likes) || 0}</span><span>💬 ${Number(post.comments) || 0}</span><span>↗️ ${Number(post.shares) || 0}</span></div></div>
+    <div class="card cta"><h2>ចូលរួម CamFeed</h2><p>ចុះឈ្មោះ ឬចូល ដើម្បី Like, Comment, ចែករំលែក និងតាមដាន ${pubEsc(name)}។<br>Log in to like, comment and share.</p>
+      <a class="b b1" href="/index.html?next=${pubEsc('/p/' + id)}">ចូល / ចុះឈ្មោះ</a></div>
+    <script>try{if(localStorage.getItem('camfeed_user'))location.replace('/feed.html?post=${id}');}catch(e){}</script>`;
+    page(200, title, desc, ogImage, body, meta);
+  } catch (err) {
+    console.error('[public post]', err.message);
+    page(500, 'CamFeed', 'Error', null, '<div class="card cta"><h2>មានបញ្ហា សូមព្យាយាមម្តងទៀត</h2></div>', '<meta name="robots" content="noindex">');
+  }
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
@@ -78,6 +172,8 @@ pool.connect(async (err, client, release) => {
       CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);
       CREATE INDEX IF NOT EXISTS idx_follows_pair ON follows(follower_email, following_email);
       CREATE INDEX IF NOT EXISTS idx_post_views_pair ON post_views(post_id, viewer_email);
+      CREATE TABLE IF NOT EXISTS feed_seen (viewer_email TEXT NOT NULL, post_id INTEGER NOT NULL, seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), times INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (viewer_email, post_id));
+      CREATE INDEX IF NOT EXISTS idx_feed_seen_time ON feed_seen(viewer_email, seen_at DESC);
       CREATE INDEX IF NOT EXISTS idx_messages_pair_time ON messages(sender_email, receiver_email, created_at DESC);
     `);
 
@@ -716,6 +812,18 @@ app.get('/api/shares/:postId', async (req, res) => {
   }
 });
 
+// The feed remembers what you have already SEEN (pictures and text too, not only videos) so it does not show the same posts again and again.
+app.post('/api/feed/seen', async (req, res) => {
+  try {
+    const me = req.authEmail; if (!me) return res.json({ success: true });
+    const ids = (Array.isArray(req.body && req.body.ids) ? req.body.ids : []).map((x) => parseInt(x, 10)).filter((n) => Number.isInteger(n) && n > 0).slice(0, 40);
+    if (!ids.length) return res.json({ success: true });
+    await pool.query(`INSERT INTO feed_seen (viewer_email, post_id) SELECT $1, UNNEST($2::int[])
+      ON CONFLICT (viewer_email, post_id) DO UPDATE SET seen_at = NOW(), times = feed_seen.times + 1`, [me, ids]);
+    res.json({ success: true });
+  } catch (err) { res.json({ success: true }); }
+});
+
 // Track Post / Video View & Country Metadata
 app.post('/api/posts/:id/view', async (req, res) => {
   const { id } = req.params;
@@ -915,25 +1023,29 @@ app.get('/api/posts', async (req, res) => {
     const feedQuery = `
       ${cteAndJoins},
       (
-        CASE 
-          WHEN p.user_email = $1 THEN 85
-          WHEN f.following_email IS NOT NULL THEN 90
+        CASE
+          WHEN p.user_email = $1 THEN 25
+          WHEN f.following_email IS NOT NULL THEN 65
           ELSE 12
         END
-        + (COALESCE(ls.likes_count, 0) * 3.0)
-        + (COALESCE(cs.comments_count, 0) * 4.5)
-        + (COALESCE(ss.shares_count, 0) * 6.0)
-        + (COALESCE(p.views_count, 0) * 0.15)
-        + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 4.0)
+        + LEAST(COALESCE(ls.likes_count, 0) * 3.0, 30)
+        + LEAST(COALESCE(cs.comments_count, 0) * 4.5, 30)
+        + LEAST(COALESCE(ss.shares_count, 0) * 6.0, 30)
+        + LEAST(COALESCE(p.views_count, 0) * 0.15, 20)
+        + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 3.0)
         + (COALESCE(uis.score, 0) * 2.5)
-        + (CASE WHEN pv.post_id IS NOT NULL THEN -25 ELSE 18 END)
-        + (25.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
-        + (RANDOM() * 18.0)
+        + (CASE WHEN fs.post_id IS NOT NULL AND fs.seen_at > NOW() - INTERVAL '24 hours' THEN -90
+                WHEN fs.post_id IS NOT NULL THEN -35
+                WHEN pv.post_id IS NOT NULL THEN -25
+                ELSE 18 END)
+        + (60.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
+        + (RANDOM() * 35.0)
       ) AS feed_rank_score
       ${baseFrom}
       LEFT JOIN follows f ON f.follower_email = $1 AND f.following_email = p.user_email
       LEFT JOIN user_interest_scores uis ON uis.user_email = $1 AND uis.category = p.ai_category
       LEFT JOIN (SELECT DISTINCT post_id FROM post_views WHERE viewer_email = $1) pv ON pv.post_id = p.id
+      LEFT JOIN feed_seen fs ON fs.viewer_email = $1 AND fs.post_id = p.id
       WHERE (p.privacy = 'public' OR p.user_email = $1 OR f.following_email IS NOT NULL)
         ${videoOnlyCondition}
         ${excludeCondition}
@@ -948,7 +1060,16 @@ app.get('/api/posts', async (req, res) => {
       : [safeViewer, parsedLimit, parsedOffset];
 
     const result = await pool.query(feedQuery, queryParams);
-    res.json({ success: true, posts: result.rows, hasMore: result.rows.length === parsedLimit });
+    // Mix: popular + new + random. At least every 3rd post of a page is a NEW one (under 24 h) when there is one in the page.
+    let rows = result.rows;
+    if (!useLatest && rows.length > 3) {
+      const isNew = (r) => Date.now() - new Date(r.created_at).getTime() < 24 * 3600 * 1000;
+      const fresh = rows.filter(isNew), old = rows.filter((r) => !isNew(r)), out = [];
+      const takeFresh = () => fresh.shift(), takeOld = () => (old.length ? old.shift() : fresh.shift());
+      while (out.length < rows.length) { const slot = out.length; out.push((slot % 3 === 2 && fresh.length) ? takeFresh() : takeOld()); }
+      rows = out;
+    }
+    res.json({ success: true, posts: rows, hasMore: rows.length === parsedLimit });
   } catch (err) {
     console.error('Error loading posts:', err);
     res.status(500).json({ success: false, error: err.message });

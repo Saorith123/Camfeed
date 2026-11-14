@@ -1196,6 +1196,7 @@
                         const postId = item.getAttribute('data-post-id');
                         if (postId && !trackedVideoViews.has(postId)) {
                             trackedVideoViews.add(postId);
+                            fetch('/api/feed/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [postId] }), keepalive: true }).catch(() => {});   // so the same reel is not shown again and again
                             fetch(`/api/posts/${postId}/view`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -1339,7 +1340,7 @@
 
         async function shareToSocialMedia() {
             if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/videos.html?v=${activePostIdForShare}`;
+            const shareUrl = `${window.location.origin}/p/${activePostIdForShare}`;
             if (navigator.share) {
                 try {
                     await navigator.share({
@@ -1357,7 +1358,7 @@
 
         function copyVideoLink() {
             if (!activePostIdForShare) return;
-            const shareUrl = `${window.location.origin}/videos.html?v=${activePostIdForShare}`;
+            const shareUrl = `${window.location.origin}/p/${activePostIdForShare}`;
             navigator.clipboard.writeText(shareUrl);
             document.getElementById('copyLinkLabel').innerText = '✓ បានចម្លងតំណភ្ជាប់!';
             setTimeout(() => closeShareModal(), 900);

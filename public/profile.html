@@ -2027,7 +2027,7 @@
         async function shareToSocialMedia() {
             const shareUrl = shareContext.mode === 'profile'
                 ? `${window.location.origin}/profile.html?email=${encodeURIComponent(profileEmail)}`
-                : `${window.location.origin}/feed.html?post=${shareContext.postId}`;
+                : `${window.location.origin}/p/${shareContext.postId}`;
             if (navigator.share) {
                 try {
                     await navigator.share({ title: 'CamFeed', url: shareUrl });
@@ -2041,7 +2041,7 @@
         function copyShareLink() {
             const shareUrl = shareContext.mode === 'profile'
                 ? `${window.location.origin}/profile.html?email=${encodeURIComponent(profileEmail)}`
-                : `${window.location.origin}/feed.html?post=${shareContext.postId}`;
+                : `${window.location.origin}/p/${shareContext.postId}`;
             navigator.clipboard.writeText(shareUrl);
             document.getElementById('copyLinkLabel').innerText = '✓ Link Copied!';
             setTimeout(() => closeShareModal(), 900);

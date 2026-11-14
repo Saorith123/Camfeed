@@ -562,3 +562,21 @@ Files changed: server.js, public/advertise.html, public/feed.html, public/videos
 - Billing is per 1000 real views. Optional env: AD_CPM_FEED_USD (0.5), AD_CPM_VIDEO_USD (0.8), AD_MIN_BUDGET_USD (2), AD_PAYMENT_TEXT, AD_PAYMENT_QR_URL.
 - Max 3 views per person per ad per day; daily pace limit; the ad stops when the budget is spent.
 - Payment is manual (ABA): admin approves -> advertiser pays and enters a reference -> Super Admin confirms money and starts the ad.
+
+## Feed mix (popular + new + random)
+Files changed: server.js, public/feed.html.
+- New table feed_seen and route POST /api/feed/seen: every post really seen (60% on screen for 1 s, pictures and text too) is remembered; a post seen in the last 24 h drops far down the feed.
+- Popularity is capped so one popular post cannot stay on top; random part raised (0-35); new posts get a bigger boost; at least every 3rd post of a page is new (< 24 h) when available.
+- Tapping Home no longer shows the old cached list first.
+- People you follow get a big share of Feed AND Videos (about 60% of a page in the test when they are 22% of posts). Videos page also reports seen reels to /api/feed/seen.
+- FEED_MODE=latest still switches to "newest first".
+
+## Public post page /p/ID (share links)
+Files changed: server.js, public/index.html, public/feed.html, public/videos.html, public/profile.html.
+- /p/ID shows a PUBLIC post without login (author, text, pictures/video, counts) with Log in / Sign up buttons. Private posts and banned authors return 404 (noindex).
+- It carries Open Graph / Twitter tags (title, text, first picture, video) so Telegram, Messenger, WhatsApp... show a preview card when the link is shared.
+- Share / Copy Link buttons in Feed, Videos and Profile now use /p/ID. Old links (/feed.html?post=ID, /videos.html?v=ID) still work.
+- After login or sign-up the person returns to the post (index.html?next=/p/ID; only that exact shape is allowed).
+- A logged-in person who opens /p/ID is sent into the app (feed.html?post=ID).
+- 90 page views / minute / IP. Optional env PUBLIC_BASE_URL (e.g. https://camfeedkh.com) if the site is behind a proxy.
+- Videos use og:video; a picture-thumbnail for videos is not stored yet, so the preview card shows the CamFeed icon for video posts.
