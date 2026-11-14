@@ -169,6 +169,7 @@
                     <input type="password" id="regPassword" name="new-password" autocomplete="new-password" placeholder="New password" required>
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
                 </div>
+                <input type="text" id="regRef" inputmode="numeric" maxlength="15" autocomplete="off" placeholder="Referral number (optional)">
 
                 <label id="lblDob">Date of birth</label>
                 <div class="row">
@@ -396,7 +397,7 @@
                 loginEmail: "Mobile number or email", password: "Password", btnLoginText: "Log In",
                 forgotText: "Forgot password?", btnCreateText: "Create new account", regTitle: "Sign Up",
                 regSubtitle: "It's quick and easy.", firstName: "First name", lastName: "Surname",
-                regEmail: "Email (for example name@gmail.com)", regPassword: "New password", lblDob: "Date of birth",
+                regEmail: "Email (for example name@gmail.com)", regPassword: "New password", regRef: "Referral number (optional)", lblDob: "Date of birth",
                 lblGender: "Gender", optGenderDefault: "Select gender", optMale: "Male", optFemale: "Female",
                 optCustom: "Custom", lblCountry: "Country", btnNextStep: "Next", haveAccText: "Already have an account?",
                 welcomeTitle: "Welcome to CamFeed!",
@@ -410,7 +411,7 @@
                 loginEmail: "លេខទូរស័ព្ទ ឬ អ៊ីមែល", password: "ពាក្យសម្ងាត់", btnLoginText: "ចូលគណនី",
                 forgotText: "ភ្លេចពាក្យសម្ងាត់?", btnCreateText: "បង្កើតគណនីថ្មី", regTitle: "ចុះឈ្មោះ",
                 regSubtitle: "រហ័ស និងងាយស្រួល។", firstName: "នាមខ្លួន", lastName: "នាមត្រកូល",
-                regEmail: "អ៊ីមែល (ឧ. name@gmail.com)", regPassword: "ពាក្យសម្ងាត់ថ្មី", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
+                regEmail: "អ៊ីមែល (ឧ. name@gmail.com)", regPassword: "ពាក្យសម្ងាត់ថ្មី", regRef: "លេខណែនាំ (មិនដាក់ក៏បាន)", lblDob: "ថ្ងៃខែឆ្នាំកំណើត",
                 lblGender: "ភេទ", optGenderDefault: "ជ្រើសរើសភេទ", optMale: "ប្រុស", optFemale: "ស្រី",
                 optCustom: "ផ្សេងៗ", lblCountry: "ប្រទេស", btnNextStep: "បន្ទាប់", haveAccText: "មានគណនីរួចហើយ?",
                 welcomeTitle: "សូមស្វាគមន៍មកកាន់ CamFeed!",
@@ -438,6 +439,7 @@
             document.getElementById('lastName').placeholder = t.lastName;
             document.getElementById('regEmail').placeholder = identityPlaceholder(t);
             document.getElementById('regPassword').placeholder = t.regPassword;
+            { const rr = document.getElementById('regRef'); if (rr) rr.placeholder = t.regRef; }
             document.getElementById('lblDob').innerText = t.lblDob;
             document.getElementById('lblGender').innerText = t.lblGender;
             document.getElementById('optGenderDefault').innerText = t.optGenderDefault;
@@ -535,7 +537,7 @@
         let verifyCountdownTimer = null;
         let verifyCountdownLeft = 0;
         const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-        let authOptions = { telegram: false, phone: false };   // filled from /api/auth-options: which sign-in methods the server has switched on
+        let authOptions = { telegram: false, phone: false, telegramContact: 'https://t.me/Camfeed' };   // filled from /api/auth-options: which sign-in methods the server has switched on
         let signupChannel = 'email';                            // 'email' (code in the inbox) or 'phone' (code inside Telegram)
         let resetChannel = 'email';
         function looksLikePhone(s) {
@@ -590,9 +592,10 @@
                 needEmailOrPhone: 'Please enter a valid Gmail / email or phone number.',
                 pickCountryFirst: 'Please choose your country below so we can read your phone number.',
                 tabEmail: 'Gmail / Email', tabPhone: 'Phone number', needPhone: 'Please enter a valid phone number.',
-                phoneSoon: 'Sign-up with a phone number is paused for now. Please use your Gmail, or message us on Telegram and we will create your account for you.',
-            phoneResetPaused: 'Password reset by phone number is paused for now. Please message us on Telegram and we will help you.',
-            contactTg: '💬 Message us on Telegram',
+                badRef: 'The referral number must be 15 digits (or leave it empty).',
+                phoneSoon: 'Sign-up with a phone number will be available soon. If you want to use a phone number, please contact the admin directly on Telegram @Camfeed, or use Gmail for now.',
+            phoneResetPaused: 'Password reset by phone number will be available soon. Please contact the admin directly on Telegram @Camfeed.',
+            contactTg: '💬 Contact admin on Telegram @Camfeed',
                 phoneResetNote: 'Enter the phone number you registered. For a number outside Cambodia, start with + and your country code (for example +66 81 234 5678).',
                 phoneHint: 'Phone number: choose your country below, or start with + and your country code (for example +66 81 234 5678).',
                 descPhone: (m) => `We sent a 6-digit code to your Telegram (${m}). Open Telegram and enter the code below.`
@@ -609,9 +612,10 @@
                 needEmailOrPhone: 'សូមបញ្ចូល Gmail / អ៊ីមែល ឬលេខទូរស័ព្ទត្រឹមត្រូវ។',
                 pickCountryFirst: 'សូមជ្រើសរើសប្រទេសរបស់អ្នកខាងក្រោម ដើម្បីឱ្យយើងអានលេខទូរស័ព្ទរបស់អ្នក។',
                 tabEmail: 'Gmail / អ៊ីមែល', tabPhone: 'លេខទូរស័ព្ទ', needPhone: 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។',
-                phoneSoon: 'ការចុះឈ្មោះដោយលេខទូរស័ព្ទកំពុងផ្អាកបណ្តោះអាសន្ន។ សូមប្រើ Gmail ឬទាក់ទងយើងតាម Telegram ដើម្បីឱ្យយើងបង្កើតគណនីឱ្យអ្នក។',
-            phoneResetPaused: 'ការកំណត់ពាក្យសម្ងាត់ដោយលេខទូរស័ព្ទកំពុងផ្អាកបណ្តោះអាសន្ន។ សូមទាក់ទងយើងតាម Telegram ហើយយើងនឹងជួយអ្នក។',
-            contactTg: '💬 ទាក់ទងយើងតាម Telegram',
+                badRef: 'លេខណែនាំត្រូវមាន 15 ខ្ទង់ (ឬទុកឱ្យទទេក៏បាន)។',
+                phoneSoon: 'ការចុះឈ្មោះដោយលេខទូរស័ព្ទ នឹងបើកឱ្យដំណើរការនៅពេលឆាប់ៗនេះ។ បងប្អូនចង់ប្រើដោយលេខទូរស័ព្ទ សូមទាក់ទង admin ផ្ទាល់តាម Telegram @Camfeed ឬប្រើ Gmail សិន។',
+            phoneResetPaused: 'ការកំណត់ពាក្យសម្ងាត់ដោយលេខទូរស័ព្ទ នឹងបើកឱ្យដំណើរការនៅពេលឆាប់ៗនេះ។ សូមទាក់ទង admin ផ្ទាល់តាម Telegram @Camfeed។',
+            contactTg: '💬 ទាក់ទង admin តាម Telegram @Camfeed',
                 phoneResetNote: 'បញ្ចូលលេខទូរស័ព្ទដែលអ្នកបានចុះឈ្មោះ។ បើលេខនៅក្រៅកម្ពុជា សូមចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។',
                 phoneHint: 'លេខទូរស័ព្ទ៖ ជ្រើសរើសប្រទេសខាងក្រោម ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។',
                 descPhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលលេខកូដខាងក្រោម។`
@@ -671,6 +675,7 @@
             const email = document.getElementById('regEmail').value.trim();
             const password = document.getElementById('regPassword').value;
             const t = vt();
+            { const rv = (document.getElementById('regRef') || {}).value; if (rv && rv.trim() && !/^\d{15}$/.test(rv.trim())) { msg.innerText = t.badRef; return; } }
 
             const isPhone = identityMode === 'phone';                     // the selected tab decides: a phone number gets its code inside Telegram
             if (isPhone) {
@@ -1033,8 +1038,8 @@
             try {
                 const res = await fetch('/api/auth-options');
                 const data = await res.json();
-                authOptions.phone = !!(data && data.phone);
-                authOptions.telegramContact = String((data && data.telegramContact) || '');
+                authOptions.phone = !!(data && data.phone);   // phone sign-up is paused unless the server says otherwise
+                authOptions.telegramContact = 'https://t.me/Camfeed';
                 applyIdentityPlaceholders();
             } catch (e) { /* the form simply stays Gmail-only */ }
         }
@@ -1211,7 +1216,7 @@
                     country: document.getElementById('country').value,
                     turnstileToken: getTurnstileToken(),
                     emailToken: signupEmailToken,
-                    ref: (function () { try { return localStorage.getItem('camfeed_ref') || undefined; } catch (e) { return undefined; } })()
+                    ref: (function () { try { var typed = ((document.getElementById('regRef') || {}).value || '').trim(); return (/^\d{15}$/.test(typed) ? typed : '') || localStorage.getItem('camfeed_ref') || undefined; } catch (e) { return undefined; } })()
                 };
                 if (signupChannel === 'phone') {     // phone sign-up: the verified number is the identity, no e-mail
                     latestUserData.phone = latestUserData.email;
@@ -1314,7 +1319,7 @@
     </script>
     <script>
     // an invitation link (…/index.html?ref=<15-digit code>) is remembered until the new account is created
-    (function () { try { var r = new URLSearchParams(location.search).get('ref'); if (/^\d{15}$/.test(r || '')) localStorage.setItem('camfeed_ref', r); } catch (e) {} })();
+    (function () { try { var r = new URLSearchParams(location.search).get('ref'); if (/^\d{15}$/.test(r || '')) { localStorage.setItem('camfeed_ref', r); var ri = document.getElementById('regRef'); if (ri) ri.value = r; } } catch (e) {} })();
     </script>
 </body>
 </html>

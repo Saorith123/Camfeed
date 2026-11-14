@@ -525,9 +525,12 @@ function supportTelegramLink() {
   const m = /^(?:https?:\/\/)?(?:t\.me\/|telegram\.me\/)?@?([A-Za-z][A-Za-z0-9_]{4,31})$/.exec(v);
   return m ? 'https://t.me/' + m[1] : '';
 }
-app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: gateway.isConfigured(), telegramContact: supportTelegramLink() }));
+app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: PHONE_AUTH_ON && gateway.isConfigured(), telegramContact: supportTelegramLink() }));
 
 // Phone number + a code that arrives inside the person's Telegram (Telegram Gateway)
+const PHONE_AUTH_ON = process.env.PHONE_AUTH_ENABLED === '1';   // phone sign-up / reset is paused until this is set to 1 in Render
+const phonePaused = (req, res, next) => PHONE_AUTH_ON ? next() : res.status(503).json({ success: false, error: 'Phone number sign-up is coming soon. Please contact the admin on Telegram @Camfeed.' });
+app.use(['/api/phone/send-code', '/api/phone/verify-code'], phonePaused);
 const phoneFlow = (req) => (req.body && req.body.purpose === 'reset' ? phoneReset : phoneSignup);
 app.post('/api/phone/send-code', (req, res) => phoneFlow(req).sendCode(req, res));
 app.post('/api/phone/verify-code', (req, res) => phoneFlow(req).verifyCode(req, res));
@@ -3043,7 +3046,7 @@ async function walletCents(email) {
 //      (6 steps; the progress is shown step by step, the money is added to the wallet only when all steps are done)
 const referralRules = () => {
   const n = (k, d) => { const raw = process.env[k]; const v = Number(raw); return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d; };
-  return { rewardCents: Math.round(n('REFERRAL_REWARD_USD', 0.2) * 100), days: n('REFERRAL_ACTIVE_DAYS', 3), posts: n('REFERRAL_POSTS', 3), windowDays: n('REFERRAL_WINDOW_DAYS', 14), maxPerMonth: n('REFERRAL_MAX_PER_MONTH', 50) };
+  return { rewardCents: Math.round(n('REFERRAL_REWARD_USD', 0.2) * 100), days: n('REFERRAL_ACTIVE_DAYS', 3), posts: n('REFERRAL_POSTS', 3), windowDays: n('REFERRAL_WINDOW_DAYS', 3), maxPerMonth: n('REFERRAL_MAX_PER_MONTH', 50) };
 };
 const phnomPenhDay = (ms) => new Date((ms === undefined ? Date.now() : ms) + 7 * 3600 * 1000).toISOString().slice(0, 10);   // the day in Cambodia (UTC+7)
 const activeDayCache = new Map(), referralCheckAt = new Map();

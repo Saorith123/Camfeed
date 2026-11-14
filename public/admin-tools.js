@@ -292,7 +292,7 @@
     body.appendChild(empty('Loading…'));
     adm('/api/admin/referrals').then(function (d) {
       body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
-      d.referrals = d.referrals || []; var rl = d.rules || { rewardCents: 20, days: 3, posts: 3, windowDays: 14 };
+      d.referrals = d.referrals || []; var rl = d.rules || { rewardCents: 20, days: 3, posts: 3, windowDays: 3 };
       var waiting = d.referrals.filter(function (r) { return r.status === 'review'; }).length;
       body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Reward ' + money(rl.rewardCents / 100) + ' per friend after ' + rl.days + ' days of use and ' + rl.posts + ' public photos/videos within ' + rl.windowDays + ' days. Paid automatically, except when several invited accounts share one network or the monthly limit is reached: those wait here for a Super Admin (' + waiting + ' waiting).' }));
       if (!d.referrals.length) { body.appendChild(empty('No invitation yet.')); return; }

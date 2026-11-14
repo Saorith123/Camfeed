@@ -91,7 +91,9 @@
 <div class="card-title" id="tRefTitle"></div>
 <p style="font-size:13px;color:#65676b;line-height:1.4" id="tRefText"></p>
 <div class="ref-input-row"><input type="text" id="refLinkInput" class="ref-input" readonly><button class="copy-btn" id="copyBtn" type="button"></button></div>
-<div style="font-size:12px;font-weight:700;color:#1877f2"><span id="tRefCount"></span> <span id="referralCount">0</span></div>
+<div style="font-size:12px;color:#65676b;margin:10px 0 4px" id="tRefCodeLbl"></div>
+<div class="ref-input-row"><input type="text" id="refCodeInput" class="ref-input" readonly><button class="copy-btn" id="copyCodeBtn" type="button"></button></div>
+<div style="font-size:12px;font-weight:700;color:#1877f2;margin-top:10px"><span id="tRefCount"></span> <span id="referralCount">0</span></div>
 <div class="mz-note" id="tRefRules" style="margin-top:12px;margin-bottom:0"></div>
 <div id="friendsBox" style="margin-top:12px"></div>
 </div>
@@ -116,13 +118,13 @@ var currentUser = null; try { currentUser = JSON.parse(localStorage.getItem('cam
 if (!currentUser) { location.href = 'index.html'; return; }
 var T = {
  km: { friendsTitle: 'មិត្តដែលអ្នកបានអញ្ជើញ', noFriends: 'មិនទាន់មានមិត្តទេ។ ចែករំលែកតំណខាងលើ!', pDays: 'ថ្ងៃ', pPosts: 'ប្រកាស', rs_progress: 'កំពុងធ្វើ', rs_rewarded: 'បានទទួលរង្វាន់', rs_review: 'កំពុងត្រួតពិនិត្យ', rs_rejected: 'មិនរាប់', rs_expired: 'ហួសកំណត់', soon: '🎬 មុខងាររកលុយតាមវីដេអូនឹងមកដល់ឆាប់ៗនេះ។ នៅពេលមានអ្នកប្រើប្រាស់កម្មវិធីនេះច្រើន អ្នកនឹងអាចបង្កើតប្រាក់ចំណូលតាមរយៈវីដេអូរបស់អ្នក។', kReferral: 'រង្វាន់អញ្ជើញមិត្ត', earnedRef: 'រង្វាន់អញ្ជើញដែលបានទទួលសរុប៖', wallet: 'ប្រាក់ក្នុងកាបូប (Total Earnings)', withdraw: 'ដកប្រាក់', note: 'ប្រាក់ក្នុងកាបូបបច្ចុប្បន្នមកពីរង្វាន់ពិសេស និងការប្រកួតរបស់ CamFeed។ ពេល CamFeed មានចំណូលពីការផ្សាយពាណិជ្ជកម្មក្នុងស្រុក ផ្នែកមួយនៃចំណូលនឹងត្រូវបានចែកដល់សមាជិកកម្មវិធី Creator តាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់មិនត្រូវបានធានាទេ។',
-   refTitle: '🎁 កម្មវិធីអញ្ជើញមិត្ត (Referral)', refText: 'ចែករំលែកតំណនេះឱ្យមិត្តភក្តិ។ ពេលគេបង្កើតគណនី អ្នកនឹងបានរាប់ជាអ្នកអញ្ជើញ។', copy: 'ចម្លង (Copy)', copied: 'បានចម្លងតំណអញ្ជើញ!', refCount: 'មិត្តដែលអ្នកបានអញ្ជើញ៖', people: 'នាក់',
+   refCodeLbl: 'ឬផ្តល់លេខណែនាំរបស់អ្នកនេះឱ្យមិត្ត (គេដាក់ក្នុងប្រអប់ "លេខណែនាំ" ពេលបង្កើតគណនី)៖', copiedCode: 'បានចម្លងលេខណែនាំ!', refTitle: '🎁 កម្មវិធីអញ្ជើញមិត្ត (Referral)', refText: 'ចែករំលែកតំណនេះឱ្យមិត្តភក្តិ។ ពេលគេបង្កើតគណនី អ្នកនឹងបានរាប់ជាអ្នកអញ្ជើញ។', copy: 'ចម្លង (Copy)', copied: 'បានចម្លងតំណអញ្ជើញ!', refCount: 'មិត្តដែលអ្នកបានអញ្ជើញ៖', people: 'នាក់',
    progTitle: '💰 កម្មវិធី Creator (Apply for Monetization)', cFollowers: 'អ្នកតាមដាន (Followers)', cViews: 'ចំនួន Views សរុប', cPosts: 'ចំនួនប្រកាស', cAge: 'អាយុគណនី (ថ្ងៃ)', apply: 'ដាក់ពាក្យចូលរួម', applying: 'កំពុងផ្ញើ…',
    approved: '🎉 អបអរសាទរ! អ្នកជាសមាជិកកម្មវិធី Creator ហើយ។', pending: '⏳ ពាក្យសុំរបស់អ្នកកំពុងរង់ចាំការពិនិត្យពី Admin។', rejected: '❌ ពាក្យសុំរបស់អ្នកមិនត្រូវបានអនុម័តទេ។', reason: 'មូលហេតុ៖', again: 'អ្នកអាចដាក់ពាក្យម្តងទៀតក្រោយ 7 ថ្ងៃ។',
    histTitle: '🧾 ប្រវត្តិកាបូប', none: 'មិនទាន់មានប្រវត្តិ', wdTitle: 'ដកប្រាក់', amount: 'ចំនួន ($)', method: 'វិធីទទួលប្រាក់', accName: 'ឈ្មោះគណនី', accNum: 'លេខគណនី', send: 'ផ្ញើសំណើ', cancel: 'បោះបង់', min: 'ដកអប្បបរមា $', paidBy: 'យើងនឹងផ្ទេរប្រាក់ដោយដៃ ក្នុងរយៈពេលពីរបីថ្ងៃ។',
    wdSent: 'បានផ្ញើសំណើដកប្រាក់ហើយ។ យើងនឹងផ្ទេរប្រាក់ទៅគណនីរបស់អ្នក។', onlyCreators: 'មានតែសមាជិក Creator ទេដែលអាចដកប្រាក់បាន។', needMore: 'សមតុល្យមិនទាន់ដល់ចំនួនអប្បបរមា $', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', sent: 'បានផ្ញើពាក្យសុំហើយ! Admin នឹងពិនិត្យ។', kBonus: 'រង្វាន់', kAdjustment: 'កែតម្រូវ', kWithdrawal: 'សំណើដកប្រាក់', kRefund: 'សងប្រាក់វិញ', kRev: 'ចំណែកចំណូល', st_pending: 'រង់ចាំ', st_paid: 'បានបង់', st_rejected: 'បដិសេធ' },
  en: { friendsTitle: 'Friends you invited', noFriends: 'No friend yet. Share the link above!', pDays: 'days', pPosts: 'posts', rs_progress: 'In progress', rs_rewarded: 'Rewarded', rs_review: 'Being checked', rs_rejected: 'Not counted', rs_expired: 'Expired', soon: '🎬 Earning money from videos is coming soon. When many people use CamFeed, you will be able to earn from your videos.', kReferral: 'Invitation reward', earnedRef: 'Invitation rewards earned in total:', wallet: 'Wallet balance (Total Earnings)', withdraw: 'Withdraw', note: 'Wallet money currently comes from special bonuses and contests run by CamFeed. When CamFeed earns from local advertising, part of that income will be shared with members of the Creator Program, at CamFeed\'s discretion. Amounts are not guaranteed.',
-   refTitle: '🎁 Invite friends (Referral)', refText: 'Share this link with your friends. When they create an account you are counted as their inviter.', copy: 'Copy', copied: 'Invitation link copied!', refCount: 'Friends you invited:', people: '',
+   refCodeLbl: 'Or give your friend this referral number (they type it in the "Referral number" box when signing up):', copiedCode: 'Referral number copied!', refTitle: '🎁 Invite friends (Referral)', refText: 'Share this link with your friends. When they create an account you are counted as their inviter.', copy: 'Copy', copied: 'Invitation link copied!', refCount: 'Friends you invited:', people: '',
    progTitle: '💰 Creator Program (Apply for Monetization)', cFollowers: 'Followers', cViews: 'Total views', cPosts: 'Posts', cAge: 'Account age (days)', apply: 'Apply to join', applying: 'Sending…',
    approved: '🎉 Congratulations! You are a member of the Creator Program.', pending: '⏳ Your application is waiting for an admin to review it.', rejected: '❌ Your application was not approved.', reason: 'Reason:', again: 'You can apply again after 7 days.',
    histTitle: '🧾 Wallet history', none: 'Nothing yet', wdTitle: 'Withdraw', amount: 'Amount ($)', method: 'Get paid with', accName: 'Account name', accNum: 'Account number', send: 'Send request', cancel: 'Cancel', min: 'Smallest withdrawal $', paidBy: 'We pay by hand, usually within a few days.',
@@ -140,11 +142,11 @@ function fmtDate(d) { var x = new Date(d); return isNaN(x) ? '' : x.toLocaleDate
 
 function applyTexts() {
   document.documentElement.lang = lang;
-  $('tWalletLbl').textContent = t('wallet'); $('withdrawBtn').textContent = t('withdraw'); $('tNote').textContent = t('note'); $('tRefTitle').textContent = t('refTitle'); $('tRefText').textContent = t('refText'); $('copyBtn').textContent = t('copy'); $('tRefCount').textContent = t('refCount');
+  $('tWalletLbl').textContent = t('wallet'); $('withdrawBtn').textContent = t('withdraw'); $('tNote').textContent = t('note'); $('tRefTitle').textContent = t('refTitle'); $('tRefText').textContent = t('refText'); $('copyBtn').textContent = t('copy'); $('copyCodeBtn').textContent = t('copy'); $('tRefCodeLbl').textContent = t('refCodeLbl'); $('tRefCount').textContent = t('refCount');
   $('tProgTitle').textContent = t('progTitle'); $('tHistTitle').textContent = t('histTitle');
 }
 function renderReferrals(d) {
-  var rr = d.referralRules || { reward: 0.2, days: 3, posts: 3, windowDays: 14 };
+  var rr = d.referralRules || { reward: 0.2, days: 3, posts: 3, windowDays: 3 };
   $('tRefRules').textContent = lang === 'km'
     ? 'រង្វាន់ ' + usd(rr.reward) + ' ក្នុងមួយមិត្ត៖ ពេលមិត្តដែលអ្នកអញ្ជើញ ប្រើ CamFeed ' + rr.days + ' ថ្ងៃខុសគ្នា ហើយបង្ហោះរូបភាព ឬវីដេអូ (សាធារណៈ) ' + rr.posts + ' ក្នុងរយៈពេល ' + rr.windowDays + ' ថ្ងៃ។ ប្រាក់ចូលកាបូបពេលគ្រប់លក្ខខណ្ឌទាំងអស់។'
     : 'Reward ' + usd(rr.reward) + ' per friend: when a friend you invite uses CamFeed on ' + rr.days + ' different days and posts ' + rr.posts + ' public photos or videos within ' + rr.windowDays + ' days. The money is added to your wallet when everything is done.';
@@ -164,6 +166,7 @@ function renderReferrals(d) {
 function render() {
   var d = data; $('walletBalance').textContent = usd(d.walletBalance); $('referralCount').textContent = String(d.referralCount || 0) + (t('people') ? ' ' + t('people') : '');
   $('refLinkInput').value = d.referralCode ? location.origin + '/index.html?ref=' + d.referralCode : '';
+  $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
   var box = $('monetizationStatusContainer'); box.textContent = '';
   if (!d.creatorProgramOpen) box.appendChild(el('div', { class: 'status-banner status-pending' }, t('soon')));
@@ -193,6 +196,7 @@ async function api(path, body) {
 async function load() { var d = await api('/api/monetization/status?email=' + encodeURIComponent(currentUser.email)); if (d.success) { data = d; render(); } else msg(false, d.error || t('net')); }
 async function apply() { if (!confirm(t('apply') + '?')) return; var b = $('applyMonetizeBtn'); b.disabled = true; b.textContent = t('applying'); var d = await api('/api/monetization/apply', {}); if (d.success) { msg(true, t('sent')); } else msg(false, d.error || t('net')); load(); }
 $('copyBtn').addEventListener('click', function () { var i = $('refLinkInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copied')); });
+$('copyCodeBtn').addEventListener('click', function () { var i = $('refCodeInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copiedCode')); });
 $('withdrawBtn').addEventListener('click', function () {
   if (!data) return;
   if (data.walletBalance < data.minWithdraw) return msg(false, t('needMore') + Number(data.minWithdraw).toFixed(2));
