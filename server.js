@@ -390,13 +390,10 @@ const isTelegramOnlyAccount = (email) => /^tg\d+@telegram\.camfeedkh\.com$/i.tes
 const lastGlobalPingMap = new Map();
 app.use((req, res, next) => {
   if (req.path === '/api/presence/offline') return next();
-  const viewerEmail = (
-    (req.query && (req.query.email || req.query.viewerEmail || req.query.user1)) ||
-    (req.body && (req.body.email || req.body.sender || req.body.userEmail || req.body.followerEmail)) ||
-    ''
-  ).toString().trim();
+  // only the VERIFIED caller counts as active (never an email that merely appears in the query/body)
+  const viewerEmail = (req.authEmail || '').toString().trim();
 
-  if ((viewerEmail && viewerEmail.includes('@')) || viewerEmail.length >= 6) {
+  if (viewerEmail && req.path !== '/api/presence/ping' && !req.path.startsWith('/api/presence')) {
     const key = viewerEmail.toLowerCase();
     const now = Date.now();
     if (!lastGlobalPingMap.has(key) || (now - lastGlobalPingMap.get(key)) > 8000) {
