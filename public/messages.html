@@ -1,10 +1,1494 @@
-<!-- ... existing code ... -->
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="CamFeed">
+    <script src="pwa.js" defer></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CamFeed - Direct Connect</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="apple-touch-icon" href="logo-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --cf-bg: #f1f5f9;
+            --cf-surface: #ffffff;
+            --cf-surface-soft: #f8fafc;
+            --cf-border: #e2e8f0;
+            --cf-primary: #4f46e5;
+            --cf-primary-grad: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --cf-text: #0f172a;
+            --cf-muted: #64748b;
+            --cf-online: #10b981;
+            --cf-offline: #94a3b8;
+            --cf-danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--cf-bg);
+            color: var(--cf-text);
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Sleek Modern Top Navigation */
+        .cf-top-bar {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            height: 60px;
+            padding: 0 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--cf-border);
+            flex-shrink: 0;
+            z-index: 20;
+        }
+        .cf-nav-left { display: flex; align-items: center; gap: 12px; }
+        .cf-nav-back {
+            background: var(--cf-surface-soft);
+            border: 1px solid var(--cf-border);
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--cf-text);
+            transition: all 0.15s;
+        }
+        .cf-nav-back:hover { background: #eef2ff; border-color: #c7d2fe; color: var(--cf-primary); }
+        .cf-brand-title {
+            font-size: 20px;
+            font-weight: 800;
+            background: var(--cf-primary-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        .cf-self-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #eef2ff;
+            color: var(--cf-primary);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 12.5px;
+            font-weight: 700;
+        }
+        .cf-self-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--cf-online);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+
+        /* Split-Card Workspace Layout */
+        .cf-workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            max-width: 1240px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        /* Left Contacts Card */
+        .cf-sidebar {
+            width: 340px;
+            background: var(--cf-surface);
+            border: 1px solid var(--cf-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+        }
+        .cf-sidebar-head {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .cf-search-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .cf-search-wrap input {
+            width: 100%;
+            padding: 10px 14px 10px 36px;
+            border-radius: 14px;
+            border: 1px solid var(--cf-border);
+            background: var(--cf-surface-soft);
+            outline: none;
+            font-size: 13.5px;
+            font-family: inherit;
+            color: var(--cf-text);
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .cf-search-wrap input:focus {
+            background: #fff;
+            border-color: var(--cf-primary);
+        }
+        .cf-search-icon {
+            position: absolute;
+            left: 12px;
+            font-size: 14px;
+            color: var(--cf-muted);
+            pointer-events: none;
+        }
+        .cf-contacts-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .cf-contact-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid transparent;
+        }
+        .cf-contact-card:hover { background: var(--cf-surface-soft); }
+        .cf-contact-card.active {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+        }
+        .cf-avatar-box {
+            position: relative;
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+        }
+        .cf-avatar-box img {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            object-fit: cover;
+            background: #e2e8f0;
+        }
+        .cf-status-ring {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--cf-offline);
+            border: 2.5px solid #fff;
+        }
+        .cf-status-ring.online {
+            background: var(--cf-online);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+        }
+        .cf-contact-meta { flex: 1; min-width: 0; }
+        .cf-contact-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 6px;
+        }
+        .cf-contact-name {
+            font-weight: 700;
+            font-size: 14.5px;
+            color: var(--cf-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .cf-contact-state-tag {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 999px;
+            flex-shrink: 0;
+        }
+        .cf-contact-state-tag.online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .cf-contact-state-tag.offline {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .cf-contact-preview {
+            font-size: 12.5px;
+            color: var(--cf-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 3px;
+        }
+
+        /* Unread Conversation Highlight in Sidebar */
+        .cf-contact-card.is-unread {
+            background: #f0f4ff;
+            border-color: #dbeafe;
+        }
+        .cf-contact-card.is-unread .cf-contact-name {
+            font-weight: 900;
+            color: #000000;
+            font-size: 15.5px;
+        }
+        .cf-contact-card.is-unread .cf-contact-preview {
+            font-weight: 800;
+            color: #050505;
+            font-size: 14px;
+        }
+        .cf-unread-pill {
+            background: #4f46e5;
+            color: #fff;
+            font-size: 10.5px;
+            font-weight: 800;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Media Download Button Overlay on Photos & Videos */
+        .cf-media-dl-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 12;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            background: rgba(15, 23, 42, 0.72);
+            color: #ffffff;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            text-decoration: none;
+            transition: transform 0.12s, background 0.15s;
+        }
+        .cf-media-dl-btn:hover {
+            background: #4f46e5;
+            transform: scale(1.06);
+        }
+
+        /* Unplayed Received Voice Message Distinct Highlight */
+        .cf-voice-pill.is-unplayed {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+            border: 1.5px solid #f59e0b !important;
+            box-shadow: 0 3px 12px rgba(245, 158, 11, 0.22);
+        }
+        .cf-voice-pill.is-unplayed .cf-voice-play {
+            background: #f59e0b !important;
+            color: #ffffff !important;
+        }
+        .cf-voice-pill.is-unplayed .wave-bar {
+            background-color: #fbbf24 !important;
+        }
+        .cf-voice-unplayed-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+            flex-shrink: 0;
+        }
+
+        /* Right Conversation Card */
+        .cf-chat-card {
+            flex: 1;
+            background: var(--cf-surface);
+            border: 1px solid var(--cf-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            height: 100%;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(15, 23, 42, 0.04);
+        }
+
+        /* Conversation Header */
+        .cf-chat-header {
+            height: 64px;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--cf-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.95);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .cf-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+        .cf-mobile-back {
+            display: none;
+            background: var(--cf-surface-soft);
+            border: 1px solid var(--cf-border);
+            color: var(--cf-text);
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .cf-header-avatar {
+            position: relative;
+            width: 42px;
+            height: 42px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .cf-header-avatar img {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            object-fit: cover;
+            background: #e2e8f0;
+        }
+        .cf-header-info { min-width: 0; cursor: pointer; }
+        .cf-header-name {
+            font-weight: 800;
+            font-size: 15.5px;
+            color: var(--cf-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .cf-presence-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            font-weight: 700;
+            margin-top: 2px;
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+        .cf-presence-badge.online {
+            background: #ecfdf5;
+            color: #059669;
+        }
+        .cf-presence-badge.offline {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .cf-presence-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .cf-header-tools {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .cf-tool-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: 1px solid var(--cf-border);
+            background: var(--cf-surface-soft);
+            color: var(--cf-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .cf-tool-circle:hover {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: var(--cf-primary);
+        }
+
+        /* Messages Stream */
+        .cf-messages-feed {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: #f8fafc;
+            background-image: radial-gradient(#cbd5e1 0.65px, transparent 0.65px);
+            background-size: 18px 18px;
+        }
+        .cf-empty-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: var(--cf-muted);
+            padding: 24px;
+        }
+        .cf-time-chip {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid var(--cf-border);
+            color: var(--cf-muted);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 999px;
+            margin: 6px 0;
+        }
+
+        /* Message Row & Modern Asymmetric Bubbles */
+        .cf-msg-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            width: 100%;
+            position: relative;
+        }
+        .cf-msg-row.sent { justify-content: flex-end; }
+        .cf-msg-row.received { justify-content: flex-start; }
+
+        .cf-msg-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #e2e8f0;
+        }
+        .cf-msg-stack {
+            display: flex;
+            flex-direction: column;
+            max-width: 76%;
+            position: relative;
+        }
+        .cf-msg-row.sent .cf-msg-stack { align-items: flex-end; }
+        .cf-msg-row.received .cf-msg-stack { align-items: flex-start; }
+
+        .cf-bubble {
+            padding: 10px 15px;
+            font-size: 14.5px;
+            line-height: 1.45;
+            word-break: break-word;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+            position: relative;
+            white-space: pre-wrap;
+        }
+        .cf-msg-row.sent .cf-bubble {
+            background: var(--cf-primary-grad);
+            color: #ffffff;
+            border-radius: 18px 18px 4px 18px;
+        }
+        .cf-msg-row.received .cf-bubble {
+            background: #ffffff;
+            color: var(--cf-text);
+            border: 1px solid var(--cf-border);
+            border-radius: 18px 18px 18px 4px;
+        }
+
+        /* Deleted Message Tombstone Trace */
+        .cf-bubble-deleted {
+            padding: 9px 14px;
+            font-size: 13px;
+            font-style: italic;
+            color: #64748b;
+            background: #f1f5f9;
+            border: 1px dashed #cbd5e1;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .cf-edited-tag {
+            font-size: 10px;
+            opacity: 0.78;
+            margin-left: 6px;
+            font-weight: 600;
+        }
+
+        /* Sending / Delivery Status Indicator */
+        .cf-msg-footer {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 3px;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: var(--cf-muted);
+        }
+        .cf-sending-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #eef2ff;
+            color: var(--cf-primary);
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .cf-mini-spin {
+            width: 10px;
+            height: 10px;
+            border: 2px solid rgba(79, 70, 229, 0.25);
+            border-top-color: var(--cf-primary);
+            border-radius: 50%;
+            animation: spinFast 0.7s linear infinite;
+        }
+        @keyframes spinFast { to { transform: rotate(360deg); } }
+
+        /* Hover / Tap Action Controls for Sent & Received Messages */
+        .cf-msg-actions-wrap {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            align-self: center;
+            position: relative;
+        }
+        .cf-msg-opt-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 10px;
+            border: 1px solid var(--cf-border);
+            background: #fff;
+            color: var(--cf-muted);
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+        .cf-msg-opt-btn:hover {
+            background: #eef2ff;
+            color: var(--cf-primary);
+            border-color: #c7d2fe;
+        }
+        .cf-msg-popover {
+            display: none;
+            position: absolute;
+            bottom: 34px;
+            right: 0;
+            background: #fff;
+            border: 1px solid var(--cf-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+            min-width: 145px;
+            z-index: 60;
+            overflow: hidden;
+        }
+        .cf-msg-row.received .cf-msg-popover {
+            right: auto;
+            left: 0;
+        }
+        .cf-msg-popover.open { display: block; }
+        .cf-msg-popover button {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 9px 12px;
+            font-size: 12.5px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--cf-text);
+        }
+        .cf-msg-popover button:hover { background: #f1f5f9; }
+        .cf-msg-popover button.danger { color: var(--cf-danger); }
+
+        /* Modern Media Cards (Photos & Videos) */
+        .cf-media-card {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--cf-border);
+            background: #0f172a;
+            max-width: 250px;
+            position: relative;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+        }
+        .cf-media-card img {
+            width: 100%;
+            max-height: 320px;
+            object-fit: cover;
+            display: block;
+            cursor: pointer;
+        }
+        .cf-media-card video {
+            width: 100%;
+            max-height: 330px;
+            object-fit: cover;
+            display: block;
+            background: #000;
+        }
+        .cf-media-uploading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.68);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #fff;
+            padding: 12px;
+            text-align: center;
+        }
+        .cf-upload-progress-bar {
+            width: 80%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .cf-upload-progress-fill {
+            height: 100%;
+            background: #38bdf8;
+            transition: width 0.2s;
+        }
+
+        /* Voice Waveform Pill */
+        .cf-voice-pill {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 14px 9px 10px;
+            border-radius: 18px;
+            min-width: 225px;
+            max-width: 74vw;
+            user-select: none;
+        }
+        .cf-msg-row.sent .cf-voice-pill {
+            background: var(--cf-primary-grad);
+            color: #fff;
+        }
+        .cf-msg-row.received .cf-voice-pill {
+            background: #fff;
+            color: var(--cf-text);
+            border: 1px solid var(--cf-border);
+        }
+        .cf-voice-play {
+            width: 32px;
+            height: 32px;
+            border-radius: 11px;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            font-size: 13px;
+        }
+        .cf-msg-row.sent .cf-voice-play {
+            background: rgba(255, 255, 255, 0.22);
+            color: #fff;
+        }
+        .cf-msg-row.received .cf-voice-play {
+            background: #eef2ff;
+            color: var(--cf-primary);
+        }
+        .cf-waveform {
+            display: flex;
+            align-items: center;
+            gap: 2.5px;
+            height: 24px;
+            flex: 1;
+            cursor: pointer;
+        }
+        .wave-bar {
+            width: 2.5px;
+            border-radius: 2px;
+            transition: background-color 0.15s;
+        }
+        .cf-msg-row.sent .wave-bar { background-color: rgba(255, 255, 255, 0.38); }
+        .cf-msg-row.sent .wave-bar.played { background-color: #ffffff; }
+        .cf-msg-row.received .wave-bar { background-color: #cbd5e1; }
+        .cf-msg-row.received .wave-bar.played { background-color: var(--cf-primary); }
+        .cf-voice-dur {
+            font-size: 12px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            min-width: 34px;
+            text-align: right;
+        }
+
+        .big-thumb-sticker { font-size: 38px; line-height: 1; user-select: none; }
+
+        /* Edit Mode Banner above Composer */
+        .cf-edit-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            background: #eef2ff;
+            border-top: 1px solid #c7d2fe;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            color: var(--cf-primary);
+            font-weight: 700;
+        }
+        .cf-edit-banner.active { display: flex; }
+
+        /* Recording & Voice Review Banners */
+        .cf-rec-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 9px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            border-top: 1px solid #fecaca;
+        }
+        .cf-rec-banner.active { display: flex; }
+
+        .cf-review-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: #eef2ff;
+            border-top: 1px solid #c7d2fe;
+            padding: 8px 14px;
+        }
+        .cf-review-banner.active { display: flex; }
+        .cf-review-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--cf-primary-grad);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 14px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* Staged Multi-Media Tray */
+        .cf-staging-tray {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            background: #f8fafc;
+            border-top: 1px solid var(--cf-border);
+            padding: 10px 14px;
+        }
+        .cf-staging-tray.active { display: flex; }
+        .cf-staging-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+        }
+        .cf-staging-scroll::-webkit-scrollbar { display: none; }
+        .cf-stage-card {
+            position: relative;
+            width: 84px;
+            height: 84px;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #0f172a;
+            border: 1.5px solid #cbd5e1;
+            flex-shrink: 0;
+        }
+        .cf-stage-card img, .cf-stage-card video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .cf-stage-del {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.78);
+            color: #fff;
+            border: none;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cf-stage-edit {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            right: 4px;
+            background: rgba(79, 70, 229, 0.92);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 3px 0;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        /* Modern Floating Dock Composer */
+        .cf-composer-dock {
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+            background: #fff;
+            border-top: 1px solid var(--cf-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .cf-dock-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            border: 1px solid var(--cf-border);
+            background: var(--cf-surface-soft);
+            color: var(--cf-text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+        .cf-dock-icon:hover {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: var(--cf-primary);
+        }
+        .cf-dock-icon.recording {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: #fff;
+            animation: pulseRec 1s infinite;
+        }
+        @keyframes pulseRec {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+        .cf-input-capsule {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: var(--cf-surface-soft);
+            border: 1.5px solid var(--cf-border);
+            border-radius: 16px;
+            padding: 4px 10px 4px 14px;
+            min-width: 0;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .cf-input-capsule:focus-within {
+            background: #fff;
+            border-color: var(--cf-primary);
+        }
+        .cf-text-field {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 14.5px;
+            font-family: inherit;
+            color: var(--cf-text);
+            padding: 6px 0;
+            min-width: 0;
+            resize: none;
+            max-height: 110px;
+            line-height: 1.4;
+            overflow-y: auto;
+        }
+        .cf-emoji-trigger {
+            background: none;
+            border: none;
+            font-size: 19px;
+            cursor: pointer;
+            padding: 2px 4px;
+        }
+        .cf-send-pill-btn {
+            background: var(--cf-primary-grad);
+            color: #fff;
+            border: none;
+            border-radius: 14px;
+            height: 38px;
+            padding: 0 16px;
+            font-size: 13.5px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            flex-shrink: 0;
+            box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
+            transition: transform 0.1s, opacity 0.15s;
+        }
+        .cf-send-pill-btn:active { transform: scale(0.95); }
+        .cf-send-pill-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+        /* Fullscreen Image Lightbox Viewer with Close Button */
+        .cf-lightbox-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(9, 13, 22, 0.94);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 4000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .cf-lightbox-overlay.active { display: flex; }
+        .cf-lightbox-topbar {
+            position: absolute;
+            top: calc(12px + env(safe-area-inset-top, 0px));
+            left: 14px;
+            right: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 4010;
+        }
+        .cf-lightbox-btn {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            height: 40px;
+            padding: 0 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(6px);
+        }
+        .cf-lightbox-btn:hover { background: rgba(255, 255, 255, 0.28); }
+        .cf-lightbox-close {
+            width: 40px;
+            padding: 0;
+            justify-content: center;
+            font-size: 20px;
+            background: rgba(239, 68, 68, 0.85);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .cf-lightbox-img {
+            max-width: 96vw;
+            max-height: 82vh;
+            border-radius: 12px;
+            object-fit: contain;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Telegram-Style Sticker & Emoji Drawer */
+        .cf-sticker-drawer {
+            display: none;
+            position: fixed;
+            bottom: 68px;
+            left: 12px;
+            right: 12px;
+            max-width: 440px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid var(--cf-border);
+            border-radius: 18px;
+            box-shadow: 0 12px 34px rgba(15, 23, 42, 0.18);
+            z-index: 600;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .cf-sticker-drawer.show { display: flex; }
+        .cf-drawer-tabs {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--cf-border);
+            gap: 6px;
+        }
+        .cf-drawer-tab-btn {
+            background: none;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--cf-muted);
+            cursor: pointer;
+        }
+        .cf-drawer-tab-btn.active {
+            background: #eef2ff;
+            color: var(--cf-primary);
+        }
+        .cf-sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 12px;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .cf-sticker-tile {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            border-radius: 14px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 6px;
+            transition: transform 0.12s, background 0.12s;
+        }
+        .cf-sticker-tile:hover {
+            background: #eef2ff;
+            transform: scale(1.05);
+        }
+        .cf-sticker-tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .cf-sticker-tile .sticker-emoji-art {
+            font-size: 42px;
+            line-height: 1;
+        }
+        .cf-sticker-tile .sticker-del-badge {
+            display: none;
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ef4444;
+            color: #fff;
+            border: 2px solid #fff;
+            font-size: 12px;
+            font-weight: 800;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .cf-sticker-grid.edit-mode .sticker-del-badge { display: flex; }
+        .cf-add-sticker-tile {
+            border: 2px dashed #94a3b8;
+            background: #f1f5f9;
+            flex-direction: column;
+            gap: 3px;
+            color: var(--cf-primary);
+            font-size: 11.5px;
+            font-weight: 800;
+        }
+        .cf-sent-sticker-img {
+            width: 135px;
+            height: 135px;
+            object-fit: contain;
+            display: block;
+            cursor: pointer;
+        }
+        .cf-sent-sticker-emoji {
+            font-size: 64px;
+            line-height: 1.1;
+            user-select: none;
+        }
+
+        .cf-emoji-grid-panel {
+            display: none;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            padding: 12px;
+            max-height: 230px;
+            overflow-y: auto;
+            justify-items: center;
+        }
+        .emoji-item-btn {
+            font-size: 26px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 10px;
+            transition: background 0.12s, transform 0.1s;
+        }
+        .emoji-item-btn:hover {
+            background: #eef2ff;
+            transform: scale(1.15);
+        }
+
+        /* Photo Editor Modal */
+        .photo-editor-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #090d16;
+            z-index: 3000;
+            flex-direction: column;
+            color: #fff;
+            user-select: none;
+        }
+        .photo-editor-overlay.active { display: flex; }
+        .editor-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 14px;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .editor-tool-tabs { display: flex; gap: 8px; }
+        .editor-tool-btn {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #fff;
+            padding: 7px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .editor-tool-btn.active { background: var(--cf-primary); border-color: var(--cf-primary); }
+        .editor-canvas-stage {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 12px;
+            touch-action: none;
+        }
+        #photoEditorCanvas { max-width: 100%; max-height: 100%; border-radius: 10px; touch-action: none; }
+        .editor-sub-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #0f172a;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; cursor: pointer; }
+        .color-swatch.selected { transform: scale(1.22); box-shadow: 0 0 0 2px var(--cf-primary); }
+        .editor-bottom-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+            background: #090d16;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Forward Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .modal-card {
+            background: #fff;
+            width: 100%;
+            max-width: 400px;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22);
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 14px 16px;
+            font-weight: 800;
+            font-size: 15.5px;
+            border-bottom: 1px solid var(--cf-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 10px 14px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        @media (max-width: 768px) {
+            .cf-workspace { padding: 0; gap: 0; }
+            .cf-sidebar { width: 100%; border-radius: 0; border: none; }
+            .cf-sidebar.hidden { display: none; }
+            .cf-chat-card { width: 100%; border-radius: 0; border: none; }
+            .cf-chat-card.hidden { display: none; }
+            .cf-top-bar.chat-open-hide { display: none; }
+            .cf-mobile-back { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="cf-top-bar" id="mainTopNav">
+        <div class="cf-nav-left">
+            <button class="cf-nav-back" onclick="window.location.href='feed.html'" title="Back to Feed">←</button>
+            <div class="cf-brand-title notranslate" translate="no">CamFeed Connect</div>
+        </div>
+        <div class="cf-self-pill notranslate" translate="no">
+            <span class="cf-self-dot"></span>
+            <span id="userBadge">Online</span>
+        </div>
+    </div>
+
+    <div class="cf-workspace">
+        <!-- Left Contacts Sidebar -->
+        <div class="cf-sidebar" id="contactsPanel">
+            <div class="cf-sidebar-head">
+                <div class="cf-search-wrap">
+                    <span class="cf-search-icon">🔍</span>
+                    <input type="text" id="searchContactInput" placeholder="ស្វែងរកអ្នកជជែក (Search)..." oninput="handleSearch(this.value)">
+                </div>
+            </div>
+            <div class="cf-contacts-scroll" id="contactsList">
+                <div style="padding: 24px; text-align: center; color: #64748b; font-size: 13.5px;">កំពុងផ្ទុកបញ្ជីជជែក...</div>
+            </div>
+        </div>
+
+        <!-- Right Conversation Panel -->
+        <div class="cf-chat-card hidden" id="chatPanel">
+            <div class="cf-chat-header" id="chatHeader">
+                <div class="cf-header-left">
+                    <button class="cf-mobile-back" onclick="showContactsMobile()" title="Back">←</button>
+                    <div class="cf-header-avatar" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                        <img src="https://via.placeholder.com/42" id="activeChatAvatar">
+                        <span class="cf-status-ring" id="activeChatOnlineDot"></span>
+                    </div>
+                    <div class="cf-header-info" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                        <div class="cf-header-name notranslate" translate="no" id="activeChatName">ជ្រើសរើសការជជែក</div>
+                        <div class="cf-presence-badge offline" id="activeChatPresenceBadge">
+                            <span class="cf-presence-dot"></span>
+                            <span id="activeChatStatus">Offline</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cf-header-tools">
+                    <button class="cf-tool-circle" onclick="alert('មុខងារហៅជាសំឡេង (Audio Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Audio Call">📞</button>
+                    <button class="cf-tool-circle" onclick="alert('មុខងារហៅជាវីដេអូ (Video Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Video Call">📹</button>
+                    <button class="cf-tool-circle" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)" title="Profile Info">👤</button>
+                </div>
+            </div>
+
+            <!-- Messages Stream -->
+            <div class="cf-messages-feed" id="chatMessages">
+                <div class="cf-empty-box">
+                    <div style="font-size: 46px; margin-bottom: 10px;">✨</div>
+                    <div style="font-weight: 800; font-size: 16.5px; color: #0f172a;">CamFeed Direct Connect</div>
+                    <div style="font-size: 13.5px; margin-top: 4px;">ជ្រើសរើសមិត្តភក្តិដើម្បីចាប់ផ្តើមផ្ញើសារ រូបភាព ឬវីដេអូ។</div>
+                </div>
+            </div>
+
+            <!-- Edit Message Mode Banner -->
+            <div class="cf-edit-banner" id="editMessageBanner">
+                <span>✏️ កំពុងកែប្រែសារ៖ <span id="editingPreviewText" style="font-weight:600; opacity:0.85;"></span></span>
+                <button type="button" onclick="cancelEditMessage()" style="background:#fff; border:1px solid #c7d2fe; color:#4f46e5; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">✕ បោះបង់</button>
+            </div>
+
+            <!-- Live Recording Banner -->
+            <div class="cf-rec-banner" id="recordingBanner">
+                <span>🔴 កំពុងថតសំឡេង... <span id="recordingTimerText">0:00</span></span>
+                <div style="display:flex; gap:8px;">
+                    <button type="button" onclick="cancelVoiceRecording()" style="background:#fff; border:1px solid #dc2626; color:#dc2626; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">🗑️ បោះបង់</button>
+                    <button type="button" onclick="stopRecordingForReview()" style="background:#0f172a; border:none; color:#fff; padding:5px 12px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">⏹️ បញ្ឈប់</button>
+                </div>
+            </div>
+
+            <!-- Voice Review Before Sending Banner -->
+            <div class="cf-review-banner" id="voiceReviewBanner">
+                <button type="button" onclick="discardReviewedVoice()" style="background:#fff; border:1px solid #ef4444; color:#ef4444; width:36px; height:36px; border-radius:12px; font-size:15px; cursor:pointer; flex-shrink:0;" title="លុបចោល">🗑️</button>
+                <div class="cf-review-pill">
+                    <button type="button" id="reviewPlayBtn" onclick="toggleReviewAudioPlay()" style="background:rgba(255,255,255,0.22); border:none; color:#fff; width:30px; height:30px; border-radius:10px; font-size:13px; cursor:pointer; flex-shrink:0;">▶</button>
+                    <span style="font-size:12.5px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ស្តាប់សំឡេងមុនផ្ញើ</span>
+                    <span id="reviewDurationText" style="font-size:12px; font-weight:700;">0:00</span>
+                </div>
+                <button type="button" id="sendReviewedVoiceBtn" onclick="sendReviewedVoice()" class="cf-send-pill-btn">Send ➤</button>
+            </div>
+
+            <!-- Fullscreen Photo Viewer Lightbox (With Close ✕ & Download Buttons) -->
+            <div class="cf-lightbox-overlay" id="cfPhotoLightbox" onclick="closePhotoLightbox()">
+                <div class="cf-lightbox-topbar" onclick="event.stopPropagation()">
+                    <button type="button" class="cf-lightbox-btn" id="cfLightboxDownloadBtn">⬇️ ទាញយក (Download)</button>
+                    <button type="button" class="cf-lightbox-btn cf-lightbox-close" onclick="closePhotoLightbox()" title="បិទរូបភាព (Close)">✕</button>
+                </div>
+                <img id="cfLightboxImg" class="cf-lightbox-img" src="" onclick="event.stopPropagation()">
+            </div>
+
+            <!-- Telegram-Style Sticker & Emoji Drawer -->
+            <div class="cf-sticker-drawer" id="cfStickerDrawer" onclick="event.stopPropagation()">
+                <div class="cf-drawer-tabs">
+                    <div style="display:flex; gap:6px;">
+                        <button type="button" class="cf-drawer-tab-btn active" id="tabDrawerStickers" onclick="switchDrawerTab('stickers')">💟 Stickers</button>
+                        <button type="button" class="cf-drawer-tab-btn" id="tabDrawerEmojis" onclick="switchDrawerTab('emojis')">😊 Emoji</button>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <button type="button" id="toggleEditStickersBtn" onclick="toggleStickerEditMode()" style="background:#eef2ff; border:1px solid #c7d2fe; color:#4f46e5; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">✏️ Edit</button>
+                        <button type="button" onclick="closeStickerDrawer()" style="background:#f1f5f9; border:none; color:#0f172a; width:26px; height:26px; border-radius:50%; font-weight:800; cursor:pointer;">✕</button>
+                    </div>
+                </div>
+
+                <!-- Stickers Panel -->
+                <div id="drawerStickersPanel">
+                    <input type="file" id="customStickerFileInput" accept="image/*" multiple style="display:none;" onchange="handleAddCustomStickers(this)">
+                    <div class="cf-sticker-grid" id="cfStickerGrid"></div>
+                </div>
+
+                <!-- Emojis Panel -->
+                <div id="drawerEmojisPanel" class="cf-emoji-grid-panel">
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😀')">😀</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😂')">😂</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🤣')">🤣</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🥰')">🥰</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😍')">😍</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😘')">😘</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😎')">😎</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🥳')">🥳</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🥺')">🥺</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😭')">😭</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😡')">😡</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🤔')">🤔</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('😴')">😴</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🤗')">🤗</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('👍')">👍</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('👏')">👏</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🙏')">🙏</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🤝')">🤝</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('❤️')">❤️</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('💔')">💔</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🔥')">🔥</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🎉')">🎉</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('💯')">💯</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🌹')">🌹</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('✨')">✨</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🎶')">🎶</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('☕')">☕</button>
+                    <button type="button" class="emoji-item-btn" onclick="insertEmoji('🎂')">🎂</button>
+                </div>
+            </div>
+
+            <!-- Telegram-Style 3-Dot Popup Menu (Stickers & Pin Location) -->
+            <div class="cf-sticker-drawer" id="cfTripleDotPopupMenu" onclick="event.stopPropagation()" style="bottom: 68px; left: 12px; max-width: 310px;">
+                <div class="cf-drawer-tabs">
+                    <span style="font-size: 13.5px; font-weight: 800; padding: 4px 8px; color: #4f46e5;">📎 មុខងារបន្ថែម (Tools)</span>
+                    <button type="button" onclick="closeTripleDotMenu()" style="background:#f1f5f9; border:none; color:#0f172a; width:26px; height:26px; border-radius:50%; font-weight:800; cursor:pointer;">✕</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px;">
+                    <button type="button" onclick="openStickerDrawerFromMenu()" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; color: #0f172a;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size: 18px;">💟</span> Stickers & Emojis
+                    </button>
+                    <button type="button" onclick="openPinLocationModal()" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; color: #0f172a;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size: 18px;">📍</span> Pin Location (ផ្ញើទីតាំង)
+                    </button>
+                    <button type="button" onclick="document.getElementById('chatMediaInput').click(); closeTripleDotMenu();" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; color: #0f172a;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size: 18px;">🖼️</span> រូបភាព ឬវីដេអូ (Media)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pin Location Interactive Modal -->
+            <div id="pinLocationModal" class="modal-overlay" onclick="closePinLocationModal()">
+                <div class="modal-card" style="max-width: 420px;" onclick="event.stopPropagation()">
+                    <div class="modal-header">
+                        <span>📍 បញ្ជូនទីតាំងបច្ចុប្បន្ន (Pin Location)</span>
+                        <span style="cursor:pointer; font-size:22px;" onclick="closePinLocationModal()">&times;</span>
+                    </div>
+                    <div class="modal-body" style="gap: 12px;">
+                        <p style="font-size: 13px; color: #64748b; margin: 0;">ជ្រើសរើសវិធីផ្ញើទីតាំងរបស់អ្នកទៅកាន់មិត្តភក្តិ៖</p>
+                        <div style="background: #f8fafc; border: 1px solid var(--cf-border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="font-weight: 700; font-size: 13.5px;" id="locationCoordsStatus">កំពុងស្វែងរក GPS របស់អ្នក...</div>
+                            <div id="mapPreviewBox" style="width: 100%; height: 160px; background: #e2e8f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #64748b; font-weight: 600; overflow: hidden; position: relative;">
+                                🗺️ផែនទី GPS (GPS Live Map)
+                            </div>
+                        </div>
+                        <button type="button" onclick="sendGpsLocationMessage()" class="cf-send-pill-btn" style="width: 100%; height: 42px; border-radius: 12px; font-size: 14px;">📍 ផ្ញើទីតាំងនេះ (Send Location)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staged Multi-Media Tray -->
+            <div class="cf-staging-tray" id="mediaStagingTray">
+                <div class="cf-staging-scroll" id="stagingItemsScroll"></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button type="button" onclick="document.getElementById('chatMediaInput').click()" style="background:#e2e8f0; color:#0f172a; border:none; padding:6px 12px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមទៀត</button>
+                        <button type="button" onclick="clearStagedMedia()" style="background:none; border:none; color:#64748b; font-size:12.5px; font-weight:700; cursor:pointer;">លុបទាំងអស់</button>
+                    </div>
+                    <button type="button" id="sendStagedMediaBtn" onclick="sendAllStagedMedia()" class="cf-send-pill-btn">Send ➤</button>
+                </div>
+            </div>
+
             <!-- Bottom Input Composer -->
             <div class="cf-composer-dock" id="chatInputBar" style="display: none;">
                 <input type="file" id="chatCameraInput" accept="image/*,video/*" capture="environment" style="display: none;" onchange="sendMediaMessage(this)">
                 <input type="file" id="chatMediaInput" accept="image/*,video/*" multiple style="display: none;" onchange="sendMediaMessage(this)">
 
-                <!-- ៣. ប៊ូតុងសញ្ញាត្រេបី (☰) នៅខាងក្រៅ បើកម៉ឺនុយមុខងារផ្សេងៗ (Stickers, Pin Location, Camera) -->
                 <button class="cf-dock-icon" id="tripleDotMenuBtn" onclick="toggleTripleDotMenu(event)" title="មុខងារបន្ថែម (More Options)" style="font-weight:900; font-size:18px;">☰</button>
                 <button class="cf-dock-icon" onclick="document.getElementById('chatCameraInput').click()" title="Camera">📷</button>
                 <button class="cf-dock-icon" onclick="document.getElementById('chatMediaInput').click()" title="Photo / Video">🖼️</button>
@@ -12,6 +1496,7 @@
 
                 <div class="cf-input-capsule">
                     <textarea id="messageTextInput" class="cf-text-field" rows="1" placeholder="សរសេរសារនៅទីនេះ... (Enter ចុះបន្ទាត់)" oninput="autoResizeComposerTextarea(this); updateSendOrThumbIcon()"></textarea>
+                    <button type="button" class="cf-emoji-trigger" onclick="toggleEmojiPopup(event)" title="Stickers & Emoji">💟</button>
                 </div>
 
                 <button class="cf-send-pill-btn" id="primaryActionBtn" onclick="handlePrimaryActionBtn()" title="Send">
@@ -21,137 +1506,476 @@
         </div>
     </div>
 
-    <!-- Telegram-Style 3-Dot Popup Menu (Stickers & Pin Location) -->
-    <div class="cf-sticker-drawer" id="cfTripleDotPopupMenu" onclick="event.stopPropagation()" style="bottom: 68px; left: 12px; max-width: 310px;">
-        <div class="cf-drawer-tabs">
-            <span style="font-size: 13.5px; font-weight: 800; padding: 4px 8px; color: #4f46e5;">📎 មុខងារបន្ថែម (Tools)</span>
-            <button type="button" onclick="closeTripleDotMenu()" style="background:#f1f5f9; border:none; color:#0f172a; width:26px; height:26px; border-radius:50%; font-weight:800; cursor:pointer;">✕</button>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px;">
-            <button type="button" onclick="openStickerDrawerFromMenu()" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; color: #0f172a;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'">
-                <span style="font-size: 18px;">💟</span> Stickers & Emojis
-            </button>
-            <button type="button" onclick="openPinLocationModal()" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; color: #0f172a;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'">
-                <span style="font-size: 18px;">📍</span> Pin Location (ផ្ញើទីតាំង)
-            </button>
-            <button type="button" onclick="document.getElementById('chatMediaInput').click(); closeTripleDotMenu();" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left; color: #0f172a;" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='transparent'">
-                <span style="font-size: 18px;">🖼️</span> រូបភាព ឬវីដេអូ (Media)
-            </button>
-        </div>
-    </div>
-
-    <!-- Pin Location Interactive Modal -->
-    <div id="pinLocationModal" class="modal-overlay" onclick="closePinLocationModal()">
-        <div class="modal-card" style="max-width: 420px;" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <span>📍 បញ្ជូនទីតាំងបច្ចុប្បន្ន (Pin Location)</span>
-                <span style="cursor:pointer; font-size:22px;" onclick="closePinLocationModal()">&times;</span>
-            </div>
-            <div class="modal-body" style="gap: 12px;">
-                <p style="font-size: 13px; color: #64748b; margin: 0;">ជ្រើសរើសវិធីផ្ញើទីតាំងរបស់អ្នកទៅកាន់មិត្តភក្តិ៖</p>
-                <div style="background: #f8fafc; border: 1px solid var(--cf-border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-                    <div style="font-weight: 700; font-size: 13.5px;" id="locationCoordsStatus">កំពុងស្វែងរក GPS របស់អ្នក...</div>
-                    <div id="mapPreviewBox" style="width: 100%; height: 160px; background: #e2e8f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #64748b; font-weight: 600; overflow: hidden; position: relative;">
-                        🗺️ផែនទី GPS (GPS Live Map)
-                    </div>
-                </div>
-                <button type="button" onclick="sendGpsLocationMessage()" class="cf-send-pill-btn" style="width: 100%; height: 42px; border-radius: 12px; font-size: 14px;">📍 ផ្ញើទីតាំងនេះ (Send Location)</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Interactive Photo Editor Modal -->
-<!-- ... existing code ... -->
+    <div id="photoEditorModal" class="photo-editor-overlay">
+        <div class="editor-top-bar">
+            <button type="button" onclick="closePhotoEditor()" style="background:none; border:none; color:#fff; font-size:22px; font-weight:700; cursor:pointer; padding:4px 8px;">✕</button>
+            <div class="editor-tool-tabs">
+                <button type="button" class="editor-tool-btn active" id="toolBtn-crop" onclick="setEditorMode('crop')">✂️ Crop</button>
+                <button type="button" class="editor-tool-btn" id="toolBtn-pen" onclick="setEditorMode('pen')">✏️ គូរ (Pen)</button>
+                <button type="button" class="editor-tool-btn" id="toolBtn-text" onclick="setEditorMode('text')">🔤 អក្សរ (Text)</button>
+            </div>
+            <button type="button" onclick="undoEditorAction()" style="background:rgba(255,255,255,0.16); border:none; color:#fff; padding:6px 12px; border-radius:12px; font-size:12.5px; font-weight:700; cursor:pointer;">↩️ ត្រឡប់</button>
+        </div>
+
+        <div class="editor-canvas-stage" id="editorCanvasStage">
+            <canvas id="photoEditorCanvas"></canvas>
+        </div>
+
+        <div class="editor-sub-toolbar" id="editorSubToolbar"></div>
+
+        <div class="editor-bottom-bar">
+            <span style="font-size:12.5px; color:#94a3b8;" id="editorHintText">អូសជ្រុងប្រអប់ដើម្បីកាត់រូបភាព (Crop)</span>
+            <button type="button" id="sendEditedPhotoBtn" onclick="applyEditedPhotoToStage()" class="cf-send-pill-btn">✓ រួចរាល់ (Done)</button>
+        </div>
+    </div>
+
+    <!-- Forward Message Modal -->
+    <div id="forwardModal" class="modal-overlay" onclick="closeForwardModal()">
+        <div class="modal-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span>↪️ បញ្ជូនបន្តទៅកាន់ (Forward)</span>
+                <span style="cursor:pointer; font-size:22px;" onclick="closeForwardModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="forwardContactsList"></div>
+        </div>
+    </div>
+
     <script>
-// ... existing code ...
-        let stagedMediaItems = [];
-        let editingStagedIndex = -1;
+        const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
+        let allConversations = [];
+        let activeFriend = null;
+        let pollInterval = null;
+        let lastMessagesSignature = '';
 
-        // =========================================================================
-        // TRIPLE-DOT MENU & PIN LOCATION LOGIC
-        // =========================================================================
-        function toggleTripleDotMenu(event) {
-            if (event) event.stopPropagation();
-            closeStickerDrawer();
-            const menu = document.getElementById('cfTripleDotPopupMenu');
-            if (menu) menu.classList.toggle('show');
+        // Single Source of Truth for Presence across both Sidebar & Chat Header: { [emailLower]: boolean }
+        const verifiedOnlineMap = {};
+
+        let pendingOutgoingMessages = [];
+        let editingMessageId = null;
+
+        const DELETED_MARKER = '__CAMFEED_MSG_DELETED__';
+        const EDITED_PREFIX = '__CAMFEED_EDITED__:';
+
+        function getLocalOverrides() {
+            try { return JSON.parse(localStorage.getItem('camfeed_chat_overrides') || '{}'); } catch (e) { return {}; }
+        }
+        function setLocalOverride(msgId, data) {
+            const all = getLocalOverrides();
+            all[msgId] = { ...(all[msgId] || {}), ...data };
+            localStorage.setItem('camfeed_chat_overrides', JSON.stringify(all));
         }
 
-        function closeTripleDotMenu() {
-            const menu = document.getElementById('cfTripleDotPopupMenu');
-            if (menu) menu.classList.remove('show');
+        // =========================================================================
+        // PRE-FETCHED IN-MEMORY AUDIO BLOB CACHE
+        // =========================================================================
+        const audioBlobCache = new Map();
+        let activeAudioPlayer = null;
+        let activeAudioMsgId = null;
+        let activeAnimFrame = null;
+        const WAVEFORM_BARS = [35, 65, 95, 50, 80, 100, 60, 40, 85, 70, 95, 45, 75, 100, 65, 50, 90, 75, 45, 85, 60, 35, 70, 50];
+
+        function formatSeconds(sec) {
+            if (!sec || !isFinite(sec) || sec < 0) return '0:00';
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
         }
 
-        function openStickerDrawerFromMenu() {
-            closeTripleDotMenu();
-            const drawer = document.getElementById('cfStickerDrawer');
-            if (drawer) {
-                drawer.classList.add('show');
-                renderStickersGrid();
+        function preloadAudioBlob(remoteUrl, msgId) {
+            if (!remoteUrl) return Promise.resolve(null);
+            if (audioBlobCache.has(remoteUrl)) {
+                const entry = audioBlobCache.get(remoteUrl);
+                if (entry.blobUrl) {
+                    const durEl = document.getElementById(`voice-dur-${msgId}`);
+                    if (durEl && entry.durationSec > 0 && activeAudioMsgId !== msgId) {
+                        durEl.innerText = formatSeconds(entry.durationSec);
+                    }
+                    return Promise.resolve(entry);
+                }
+                return entry.loadingPromise;
+            }
+
+            const entry = { blobUrl: null, durationSec: 0, loadingPromise: null };
+            entry.loadingPromise = fetch(remoteUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    const localBlobUrl = URL.createObjectURL(blob);
+                    entry.blobUrl = localBlobUrl;
+                    return new Promise((resolve) => {
+                        const probe = new Audio();
+                        probe.preload = 'metadata';
+                        probe.src = localBlobUrl;
+                        probe.onloadedmetadata = () => {
+                            if (isFinite(probe.duration) && probe.duration > 0) {
+                                entry.durationSec = probe.duration;
+                                const durEl = document.getElementById(`voice-dur-${msgId}`);
+                                if (durEl && activeAudioMsgId !== msgId) durEl.innerText = formatSeconds(entry.durationSec);
+                                resolve(entry);
+                            } else {
+                                blob.arrayBuffer().then(buf => {
+                                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                                    if (!AudioCtx) return resolve(entry);
+                                    const ctx = new AudioCtx();
+                                    ctx.decodeAudioData(buf, decoded => {
+                                        entry.durationSec = decoded.duration || 0;
+                                        ctx.close().catch(() => {});
+                                        const durEl = document.getElementById(`voice-dur-${msgId}`);
+                                        if (durEl && entry.durationSec > 0 && activeAudioMsgId !== msgId) {
+                                            durEl.innerText = formatSeconds(entry.durationSec);
+                                        }
+                                        resolve(entry);
+                                    }, () => resolve(entry));
+                                }).catch(() => resolve(entry));
+                            }
+                        };
+                        probe.onerror = () => resolve(entry);
+                    });
+                })
+                .catch(() => null);
+
+            audioBlobCache.set(remoteUrl, entry);
+            return entry.loadingPromise;
+        }
+
+        function resetVoiceUI(msgId) {
+            const btn = document.getElementById(`voice-btn-${msgId}`);
+            if (btn) btn.innerHTML = '▶';
+            document.querySelectorAll(`#voice-wave-${msgId} .wave-bar`).forEach(b => b.classList.remove('played'));
+            const durEl = document.getElementById(`voice-dur-${msgId}`);
+            if (durEl && durEl.dataset.totalDur) durEl.innerText = durEl.dataset.totalDur;
+        }
+
+        function getPlayedVoicesSet() {
+            try {
+                return new Set(JSON.parse(localStorage.getItem('camfeed_played_voices') || '[]').map(String));
+            } catch (e) { return new Set(); }
+        }
+        function markVoiceAsPlayed(msgId) {
+            const s = getPlayedVoicesSet();
+            s.add(String(msgId));
+            try { localStorage.setItem('camfeed_played_voices', JSON.stringify(Array.from(s).slice(-500))); } catch (e) {}
+            const pill = document.getElementById(`voice-pill-${msgId}`);
+            const dot = document.getElementById(`voice-unplayed-dot-${msgId}`);
+            if (pill) pill.classList.remove('is-unplayed');
+            if (dot) dot.remove();
+        }
+
+        async function togglePlayVoiceMessage(msgId, remoteUrl) {
+            markVoiceAsPlayed(msgId);
+            const btn = document.getElementById(`voice-btn-${msgId}`);
+            const durEl = document.getElementById(`voice-dur-${msgId}`);
+
+            if (activeAudioPlayer && activeAudioMsgId === msgId) {
+                if (!activeAudioPlayer.paused) {
+                    activeAudioPlayer.pause();
+                    if (btn) btn.innerHTML = '▶';
+                    if (activeAnimFrame) cancelAnimationFrame(activeAnimFrame);
+                    return;
+                } else {
+                    await activeAudioPlayer.play();
+                    if (btn) btn.innerHTML = '⏸';
+                    animateVoiceProgress(msgId);
+                    return;
+                }
+            }
+
+            if (activeAudioPlayer) {
+                activeAudioPlayer.pause();
+                if (activeAnimFrame) cancelAnimationFrame(activeAnimFrame);
+                if (activeAudioMsgId) resetVoiceUI(activeAudioMsgId);
+            }
+
+            if (btn) btn.innerHTML = '⏳';
+            const cached = await preloadAudioBlob(remoteUrl, msgId);
+            const playableSrc = (cached && cached.blobUrl) ? cached.blobUrl : remoteUrl;
+
+            const audio = new Audio(playableSrc);
+            audio.preload = 'auto';
+            activeAudioPlayer = audio;
+            activeAudioMsgId = msgId;
+
+            const totalDur = (cached && cached.durationSec > 0) ? cached.durationSec : 0;
+            if (durEl && totalDur > 0) durEl.dataset.totalDur = formatSeconds(totalDur);
+
+            audio.onended = () => {
+                resetVoiceUI(msgId);
+                activeAudioPlayer = null;
+                activeAudioMsgId = null;
+                if (activeAnimFrame) cancelAnimationFrame(activeAnimFrame);
+            };
+
+            try {
+                await audio.play();
+                if (btn) btn.innerHTML = '⏸';
+                animateVoiceProgress(msgId, totalDur);
+            } catch (err) {
+                if (btn) btn.innerHTML = '▶';
             }
         }
 
-        let userLastCoords = { lat: 11.5564, lng: 104.9282, label: 'Phnom Penh, Cambodia' };
+        function animateVoiceProgress(msgId, knownDuration = 0) {
+            const step = () => {
+                if (!activeAudioPlayer || activeAudioMsgId !== msgId || activeAudioPlayer.paused) return;
+                const dur = (isFinite(activeAudioPlayer.duration) && activeAudioPlayer.duration > 0) ? activeAudioPlayer.duration : knownDuration;
+                const cur = activeAudioPlayer.currentTime || 0;
+                const ratio = dur > 0 ? Math.min(1, cur / dur) : 0;
 
-        function openPinLocationModal() {
-            closeTripleDotMenu();
-            document.getElementById('pinLocationModal').style.display = 'flex';
-            const statusEl = document.getElementById('locationCoordsStatus');
-            const mapBox = document.getElementById('mapPreviewBox');
+                const bars = document.querySelectorAll(`#voice-wave-${msgId} .wave-bar`);
+                const activeCount = Math.round(ratio * bars.length);
+                bars.forEach((b, idx) => b.classList.toggle('played', idx < activeCount));
 
-            if (navigator.geolocation) {
-                statusEl.innerText = 'កំពុងទាញយកទីតាំង GPS ពិតប្រាកដ...';
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        userLastCoords.lat = pos.coords.latitude;
-                        userLastCoords.lng = pos.coords.longitude;
-                        statusEl.innerText = `📍 Lat: ${userLastCoords.lat.toFixed(4)}, Lng: ${userLastCoords.lng.toFixed(4)}`;
-                        mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=${userLastCoords.lat},${userLastCoords.lng}&z=15&output=embed"></iframe>`;
-                    },
-                    (err) => {
-                        statusEl.innerText = '📍 ប្រើប្រាស់ទីតាំងស្ដង់ដារ (Phnom Penh)';
-                        mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=11.5564,104.9282&z=14&output=embed"></iframe>`;
-                    },
-                    { timeout: 10000, enableHighAccuracy: true }
-                );
+                const durEl = document.getElementById(`voice-dur-${msgId}`);
+                if (durEl) {
+                    const remaining = dur > 0 ? Math.max(0, dur - cur) : cur;
+                    durEl.innerText = formatSeconds(remaining);
+                }
+                activeAnimFrame = requestAnimationFrame(step);
+            };
+            activeAnimFrame = requestAnimationFrame(step);
+        }
+
+        // =========================================================================
+        // DIRECT CLOUDFLARE R2 MEDIA UPLOADER FOR CHAT
+        // =========================================================================
+        function compressChatImage(fileOrBlob) {
+            return new Promise((resolve) => {
+                if (!fileOrBlob.type || !fileOrBlob.type.startsWith('image/') || fileOrBlob.type === 'image/gif') {
+                    return resolve(fileOrBlob);
+                }
+                const img = new Image();
+                const objUrl = URL.createObjectURL(fileOrBlob);
+                img.onload = () => {
+                    URL.revokeObjectURL(objUrl);
+                    const maxDim = 1600;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w <= maxDim && h <= maxDim && fileOrBlob.size <= 600 * 1024) return resolve(fileOrBlob);
+                    if (w > maxDim || h > maxDim) {
+                        const scale = maxDim / Math.max(w, h);
+                        w = Math.round(w * scale);
+                        h = Math.round(h * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        if (blob && blob.size > 0 && blob.size < fileOrBlob.size) resolve(blob);
+                        else resolve(fileOrBlob);
+                    }, 'image/jpeg', 0.84);
+                };
+                img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(fileOrBlob); };
+                img.src = objUrl;
+            });
+        }
+
+        function uploadChatMediaToR2(fileOrBlob, fileName, onProgress) {
+            return new Promise(async (resolve, reject) => {
+                const contentType = fileOrBlob.type || 'application/octet-stream';
+                try {
+                    const urlRes = await fetch('/api/videos/upload-url', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_email: currentUser.email,
+                            file_name: fileName,
+                            content_type: contentType
+                        })
+                    });
+                    const urlData = await urlRes.json();
+                    if (urlRes.ok && urlData.uploadUrl && urlData.publicUrl) {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('PUT', urlData.uploadUrl, true);
+                        xhr.setRequestHeader('Content-Type', contentType);
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+                        };
+                        xhr.onload = () => {
+                            if (xhr.status >= 200 && xhr.status < 300) {
+                                resolve(urlData.publicUrl);
+                            } else {
+                                uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress).then(resolve).catch(reject);
+                            }
+                        };
+                        xhr.onerror = () => {
+                            uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress).then(resolve).catch(reject);
+                        };
+                        xhr.send(fileOrBlob);
+                        return;
+                    }
+                } catch (e) {}
+
+                uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress).then(resolve).catch(reject);
+            });
+        }
+
+        function uploadChatMediaViaServerR2(fileOrBlob, fileName, onProgress) {
+            return new Promise((resolve, reject) => {
+                const fd = new FormData();
+                fd.append('user_email', currentUser.email);
+                fd.append('file', fileOrBlob, fileName);
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/videos/upload-direct', true);
+                xhr.timeout = 60000;
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+                };
+                xhr.onload = () => {
+                    try {
+                        const data = JSON.parse(xhr.responseText || '{}');
+                        if (xhr.status >= 200 && xhr.status < 300 && data.publicUrl) {
+                            resolve(data.publicUrl);
+                        } else {
+                            reject(new Error(data.error || 'R2 Upload failed'));
+                        }
+                    } catch (e) { reject(new Error('Invalid upload response')); }
+                };
+                xhr.onerror = () => reject(new Error('Network error during upload'));
+                xhr.ontimeout = () => reject(new Error('Upload timed out'));
+                xhr.send(fd);
+            });
+        }
+
+        // =========================================================================
+        // VOICE RECORDING -> LISTEN & REVIEW -> SEND TO R2
+        // =========================================================================
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let keepRecordingForReview = true;
+        let recordTimerInterval = null;
+        let recordSeconds = 0;
+
+        let pendingVoiceBlob = null;
+        let pendingVoiceExt = 'webm';
+        let pendingVoiceUrl = null;
+        let reviewAudioObj = null;
+
+        async function toggleVoiceRecord() {
+            if (!isRecording) {
+                discardReviewedVoice();
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                        ? 'audio/webm;codecs=opus'
+                        : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+                    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+                    audioChunks = [];
+                    keepRecordingForReview = true;
+
+                    mediaRecorder.ondataavailable = event => {
+                        if (event.data && event.data.size > 0) audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        stream.getTracks().forEach(track => track.stop());
+                        clearInterval(recordTimerInterval);
+                        document.getElementById('recordingBanner').classList.remove('active');
+                        document.getElementById('voiceRecordBtn').classList.remove('recording');
+
+                        if (!keepRecordingForReview || audioChunks.length === 0) return;
+
+                        const blobType = mediaRecorder.mimeType || 'audio/webm';
+                        pendingVoiceExt = blobType.includes('mp4') ? 'm4a' : 'webm';
+                        pendingVoiceBlob = new Blob(audioChunks, { type: blobType });
+                        pendingVoiceUrl = URL.createObjectURL(pendingVoiceBlob);
+
+                        document.getElementById('reviewDurationText').innerText = formatSeconds(recordSeconds);
+                        document.getElementById('reviewPlayBtn').innerText = '▶';
+                        document.getElementById('voiceReviewBanner').classList.add('active');
+                    };
+
+                    mediaRecorder.start(200);
+                    isRecording = true;
+                    recordSeconds = 0;
+                    document.getElementById('recordingTimerText').innerText = '0:00';
+                    document.getElementById('recordingBanner').classList.add('active');
+                    document.getElementById('voiceRecordBtn').classList.add('recording');
+
+                    recordTimerInterval = setInterval(() => {
+                        recordSeconds += 1;
+                        document.getElementById('recordingTimerText').innerText = formatSeconds(recordSeconds);
+                    }, 1000);
+                } catch (err) {
+                    alert('សូមអនុញ្ញាតឱ្យប្រើ Microphone ដើម្បីថតសំឡេង!');
+                }
             } else {
-                statusEl.innerText = '📍 ទីតាំងបច្ចុប្បន្ន';
-                mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=11.5564,104.9282&z=14&output=embed"></iframe>`;
+                stopRecordingForReview();
             }
         }
 
-        function closePinLocationModal() {
-            document.getElementById('pinLocationModal').style.display = 'none';
+        function stopRecordingForReview() {
+            if (mediaRecorder && isRecording) {
+                keepRecordingForReview = true;
+                mediaRecorder.stop();
+                isRecording = false;
+            }
         }
 
-        async function sendGpsLocationMessage() {
-            if (!activeFriend) return;
+        function cancelVoiceRecording() {
+            if (mediaRecorder && isRecording) {
+                keepRecordingForReview = false;
+                mediaRecorder.stop();
+                isRecording = false;
+            }
+        }
+
+        function toggleReviewAudioPlay() {
+            if (!pendingVoiceUrl) return;
+            const btn = document.getElementById('reviewPlayBtn');
+            if (reviewAudioObj && !reviewAudioObj.paused) {
+                reviewAudioObj.pause();
+                btn.innerText = '▶';
+                return;
+            }
+            if (!reviewAudioObj) {
+                reviewAudioObj = new Audio(pendingVoiceUrl);
+                reviewAudioObj.onended = () => { btn.innerText = '▶'; };
+            }
+            reviewAudioObj.play().then(() => { btn.innerText = '⏸'; }).catch(() => {});
+        }
+
+        function discardReviewedVoice() {
+            if (reviewAudioObj) { reviewAudioObj.pause(); reviewAudioObj = null; }
+            if (pendingVoiceUrl) { URL.revokeObjectURL(pendingVoiceUrl); pendingVoiceUrl = null; }
+            pendingVoiceBlob = null;
+            const banner = document.getElementById('voiceReviewBanner');
+            if (banner) banner.classList.remove('active');
+        }
+
+        async function sendReviewedVoice() {
+            if (!pendingVoiceBlob || !activeFriend) return;
+            const blobToUpload = pendingVoiceBlob;
+            const ext = pendingVoiceExt;
             const targetEmail = activeFriend.email;
-            closePinLocationModal();
+            discardReviewedVoice();
 
-            const mapEmbedUrl = `https://www.google.com/maps?q=${userLastCoords.lat},${userLastCoords.lng}&z=15&output=embed`;
-            const mapLink = `https://www.google.com/maps/search/?api=1&query=${userLastCoords.lat},${userLastCoords.lng}`;
-            const locationMsgText = `📍 ទីតាំងរបស់ខ្ញុំ (My Location):\n${mapLink}`;
-
-            const tempId = 'temp-loc-' + Date.now();
+            const tempId = 'temp-' + Date.now();
             pendingOutgoingMessages.push({
                 tempId,
                 receiverEmail: targetEmail,
-                type: 'text',
-                text: locationMsgText
+                type: 'audio',
+                text: '[Voice Message]',
+                progress: 10
             });
             forceRenderCurrentFeed(true);
 
             try {
+                const r2Url = await uploadChatMediaToR2(blobToUpload, `voice-${Date.now()}.${ext}`, (pct) => {
+                    const item = pendingOutgoingMessages.find(p => p.tempId === tempId);
+                    if (item) { item.progress = pct; forceRenderCurrentFeed(false); }
+                });
+
                 const res = await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         sender: currentUser.email,
                         receiver: targetEmail,
-                        message: locationMsgText,
-                        media_url: mapLink,
-                        message_type: 'location'
+                        message: '[Voice Message]',
+                        media_url: r2Url,
+                        message_type: 'audio'
                     })
                 });
                 const data = await res.json();
@@ -161,23 +1985,387 @@
                     loadConversations();
                 } else {
                     forceRenderCurrentFeed(false);
+                    alert(data.error || 'Failed to send voice message.');
                 }
-            } catch (e) {
+            } catch (err) {
                 pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
                 forceRenderCurrentFeed(false);
+                alert('មិនអាចផ្ញើសារសំឡេងបានទេ៖ ' + err.message);
             }
         }
 
+        // =========================================================================
+        // ACCURATE UNIFIED ONLINE / OFFLINE PRESENCE ENGINE (100% Consistent)
+        // =========================================================================
+        function parseServerTimestampMs(raw) {
+            if (!raw) return NaN;
+            if (typeof raw === 'number') return raw;
+            let s = String(raw).trim();
+            if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+                s = s.replace(' ', 'T') + 'Z';
+            }
+            return Date.parse(s);
+        }
+
+        function evaluateStrictOnline(userObj) {
+            if (!userObj) return false;
+            const emailKey = (userObj.email || '').trim().toLowerCase();
+            if (!emailKey) return false;
+
+            if (userObj.is_online === false || userObj.is_online === 0 || userObj.is_online === 'false') {
+                return false;
+            }
+
+            const ts = parseServerTimestampMs(userObj.last_active);
+            if (isNaN(ts)) return false;
+            const ageMs = Date.now() - ts;
+            return ageMs >= -5000 && ageMs <= 25000;
+        }
+
+        function syncUserPresenceEverywhere(email, isOnline) {
+            const key = (email || '').trim().toLowerCase();
+            if (!key) return;
+            verifiedOnlineMap[key] = !!isOnline;
+
+            if (activeFriend && (activeFriend.email || '').trim().toLowerCase() === key) {
+                updateHeaderPresenceUI(!!isOnline);
+            }
+            document.querySelectorAll(`.cf-contact-card[data-email="${key}"]`).forEach(card => {
+                const ring = card.querySelector('.cf-status-ring');
+                const tag = card.querySelector('.cf-contact-state-tag');
+                if (ring) ring.classList.toggle('online', !!isOnline);
+                if (tag) {
+                    tag.classList.toggle('online', !!isOnline);
+                    tag.classList.toggle('offline', !isOnline);
+                    tag.innerText = isOnline ? 'Online' : 'Offline';
+                }
+            });
+        }
+
+        function updateHeaderPresenceUI(isOnline) {
+            const dotEl = document.getElementById('activeChatOnlineDot');
+            const badgeEl = document.getElementById('activeChatPresenceBadge');
+            const statusEl = document.getElementById('activeChatStatus');
+            if (dotEl) dotEl.classList.toggle('online', !!isOnline);
+            if (badgeEl) {
+                badgeEl.classList.toggle('online', !!isOnline);
+                badgeEl.classList.toggle('offline', !isOnline);
+            }
+            if (statusEl) {
+                statusEl.innerText = isOnline ? 'Online' : 'Offline';
+            }
+        }
+
+        async function verifySingleUserPresence(targetEmail) {
+            if (!targetEmail || !currentUser) return false;
+            try {
+                const res = await fetch(`/api/user-profile?email=${encodeURIComponent(targetEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
+                const data = await res.json();
+                if (data.success && data.user) {
+                    const online = evaluateStrictOnline(data.user);
+                    syncUserPresenceEverywhere(targetEmail, online);
+                    return online;
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        let lastHeartbeatSentAt = 0;
+        async function sendOnlineHeartbeat(force = false) {
+            if (!currentUser) return;
+            if (!force && document.visibilityState === 'hidden') return;
+            const now = Date.now();
+            if (!force && (now - lastHeartbeatSentAt) < 8000) return;
+            lastHeartbeatSentAt = now;
+
+            try {
+                await fetch('/api/presence/ping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: currentUser.email, online: true })
+                });
+            } catch (e) {}
+        }
+
+        function sendOfflineBeacon() {
+            if (!currentUser) return;
+            try {
+                const blob = new Blob([JSON.stringify({ email: currentUser.email, online: false })], { type: 'application/json' });
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/api/presence/offline', blob);
+                }
+            } catch (e) {}
+        }
+
+        async function refreshActiveFriendStatus() {
+            if (!activeFriend) return;
+            await verifySingleUserPresence(activeFriend.email);
+        }
+
+        if (!currentUser) {
+            window.location.href = 'index.html';
+        } else {
+            document.getElementById('userBadge').innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''} · Online`;
+            sendOnlineHeartbeat(true);
+            setInterval(() => sendOnlineHeartbeat(false), 10000);
+
+            ['click', 'touchstart', 'keydown'].forEach(evt => {
+                document.addEventListener(evt, () => sendOnlineHeartbeat(false), { passive: true });
+            });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    sendOnlineHeartbeat(true);
+                    loadConversations();
+                    refreshActiveFriendStatus();
+                } else {
+                    sendOfflineBeacon();
+                }
+            });
+            window.addEventListener('beforeunload', sendOfflineBeacon);
+            window.addEventListener('pagehide', sendOfflineBeacon);
+
+            loadConversations();
+            setInterval(loadConversations, 10000);
+        }
+
+        let unreadSenderMap = {};
+
+        async function loadConversations() {
+            try {
+                const [res, notifRes] = await Promise.all([
+                    fetch(`/api/chat-conversations?email=${encodeURIComponent(currentUser.email)}`),
+                    fetch(`/api/chat-notifications?email=${encodeURIComponent(currentUser.email)}`).catch(() => null)
+                ]);
+                const data = await res.json();
+                if (notifRes) {
+                    try {
+                        const nData = await notifRes.json();
+                        if (nData.success && Array.isArray(nData.unreadMessages)) {
+                            const map = {};
+                            nData.unreadMessages.forEach(m => {
+                                const se = (m.sender_email || '').toLowerCase();
+                                if (!activeFriend || activeFriend.email.toLowerCase() !== se) {
+                                    map[se] = (map[se] || 0) + 1;
+                                }
+                            });
+                            unreadSenderMap = map;
+                        }
+                    } catch (e) {}
+                }
+
+                if (data.success && Array.isArray(data.conversations)) {
+                    allConversations = data.conversations.map(c => {
+                        const se = (c.email || '').toLowerCase();
+                        const isCurrentlyOpen = activeFriend && activeFriend.email.toLowerCase() === se;
+                        const dbUnread = parseInt(c.unread_count) || 0;
+                        const liveUnread = isCurrentlyOpen ? 0 : Math.max(dbUnread, unreadSenderMap[se] || 0);
+                        return { ...c, unread_count: liveUnread };
+                    });
+
+                    await Promise.all(
+                        allConversations.slice(0, 12).map(c => verifySingleUserPresence(c.email))
+                    );
+
+                    const searchVal = (document.getElementById('searchContactInput')?.value || '').trim();
+                    if (!searchVal) renderContacts(allConversations);
+
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const targetEmail = urlParams.get('chat') || urlParams.get('user');
+                    if (targetEmail && !activeFriend) {
+                        const found = allConversations.find(f => f.email === targetEmail);
+                        if (found) {
+                            openChat(found);
+                        } else {
+                            const uRes = await fetch(`/api/user-profile?email=${encodeURIComponent(targetEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
+                            const uData = await uRes.json();
+                            if (uData.success && uData.user) openChat(uData.user);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading conversations:', err);
+            }
+        }
+
+        async function handleSearch(keyword) {
+            const q = keyword.trim();
+            if (!q) { renderContacts(allConversations); return; }
+            try {
+                const res = await fetch(`/api/search-users?email=${encodeURIComponent(currentUser.email)}&keyword=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.users)) {
+                    await Promise.all(data.users.slice(0, 10).map(u => verifySingleUserPresence(u.email)));
+                    renderContacts(data.users);
+                }
+            } catch (err) {}
+        }
+
+        async function downloadChatMediaFile(url, isVideo, event) {
+            if (event) event.stopPropagation();
+            const ext = isVideo ? 'mp4' : 'jpg';
+            const fileName = `CamFeed-${Date.now()}.${ext}`;
+            try {
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+            } catch (err) {
+                window.open(url, '_blank');
+            }
+        }
+
+        function formatSidebarPreview(rawMsg) {
+            if (!rawMsg) return 'ចុចដើម្បីជជែក';
+            if (rawMsg === DELETED_MARKER) return '🚫 សារត្រូវបានលុប';
+            if (rawMsg.startsWith(EDITED_PREFIX)) return rawMsg.slice(EDITED_PREFIX.length);
+            if (rawMsg.startsWith('STICKER_EMOJI:') || rawMsg === '[Sticker]') return '💟 Sticker';
+            return rawMsg;
+        }
+
+        function renderContacts(list) {
+            const container = document.getElementById('contactsList');
+            if (!list || list.length === 0) {
+                container.innerHTML = '<div style="padding: 24px; text-align: center; color: #64748b; font-size: 13.5px;">រកមិនឃើញអ្នកជជែកទេ។</div>';
+                return;
+            }
+            container.innerHTML = list.map(person => {
+                const emailKey = (person.email || '').trim().toLowerCase();
+                const isActive = activeFriend && (activeFriend.email || '').trim().toLowerCase() === emailKey ? 'active' : '';
+                const unreadNum = isActive ? 0 : (parseInt(person.unread_count) || 0);
+                const unreadClass = unreadNum > 0 ? 'is-unread' : '';
+                const avatar = person.profile_pic || 'https://via.placeholder.com/48';
+                const subtitle = formatSidebarPreview(person.last_message || person.email);
+                const online = (emailKey in verifiedOnlineMap) ? verifiedOnlineMap[emailKey] : false;
+                const safeData = JSON.stringify({
+                    email: person.email,
+                    first_name: person.first_name,
+                    last_name: person.last_name,
+                    profile_pic: person.profile_pic,
+                    last_active: person.last_active
+                }).replace(/'/g, "&#39;");
+
+                return `
+                    <div class="cf-contact-card ${isActive} ${unreadClass}" data-email="${emailKey}" onclick='openChat(${safeData})'>
+                        <div class="cf-avatar-box">
+                            <img src="${avatar}">
+                            <span class="cf-status-ring ${online ? 'online' : ''}"></span>
+                        </div>
+                        <div class="cf-contact-meta">
+                            <div class="cf-contact-top">
+                                <div class="cf-contact-name notranslate" translate="no">${person.first_name || ''} ${person.last_name || ''}</div>
+                                <div style="display:flex; align-items:center; gap:5px;">
+                                    ${unreadNum > 0 ? `<span class="cf-unread-pill">${unreadNum}</span>` : ''}
+                                    <span class="cf-contact-state-tag ${online ? 'online' : 'offline'}">${online ? 'Online' : 'Offline'}</span>
+                                </div>
+                            </div>
+                            <div class="cf-contact-preview notranslate" translate="no">${escapeHtml(subtitle)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function openChat(friend) {
+            activeFriend = friend;
+            lastMessagesSignature = '';
+            const se = (friend.email || '').trim().toLowerCase();
+            delete unreadSenderMap[se];
+            allConversations = allConversations.map(c =>
+                (c.email || '').trim().toLowerCase() === se ? { ...c, unread_count: 0 } : c
+            );
+            cancelEditMessage();
+            document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
+            document.getElementById('activeChatAvatar').src = friend.profile_pic || 'https://via.placeholder.com/42';
+            updateHeaderPresenceUI(verifiedOnlineMap[se] || false);
+            document.getElementById('chatInputBar').style.display = 'flex';
+            refreshActiveFriendStatus();
+
+            if (window.innerWidth <= 768) {
+                document.getElementById('mainTopNav').classList.add('chat-open-hide');
+                document.getElementById('contactsPanel').classList.add('hidden');
+                document.getElementById('chatPanel').classList.remove('hidden');
+            } else {
+                document.getElementById('chatPanel').classList.remove('hidden');
+            }
+
+            renderContacts(allConversations);
+            await fetchMessages(true);
+
+            fetch('/api/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail: currentUser.email, senderEmail: friend.email })
+            }).catch(() => {});
+
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => {
+                fetchMessages(false);
+                refreshActiveFriendStatus();
+            }, 3000);
+        }
+
+        function showContactsMobile() {
+            if (activeAudioPlayer) {
+                activeAudioPlayer.pause();
+                activeAudioPlayer = null;
+                activeAudioMsgId = null;
+            }
+            document.getElementById('mainTopNav').classList.remove('chat-open-hide');
+            document.getElementById('contactsPanel').classList.remove('hidden');
+            document.getElementById('chatPanel').classList.add('hidden');
+            if (pollInterval) clearInterval(pollInterval);
+            loadConversations();
+        }
+
+        let cachedServerMessages = [];
+
+        async function fetchMessages(forceScroll = false) {
+            if (!activeFriend) return;
+            try {
+                const res = await fetch(`/api/messages?user1=${encodeURIComponent(currentUser.email)}&user2=${encodeURIComponent(activeFriend.email)}`);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.messages)) {
+                    cachedServerMessages = data.messages;
+                    const overrides = JSON.stringify(getLocalOverrides());
+                    const sig = data.messages.map(m => `${m.id}:${m.is_read}:${m.message}:${m.media_url}`).join('|') + '||' + pendingOutgoingMessages.length + '||' + overrides;
+                    if (sig !== lastMessagesSignature || forceScroll) {
+                        lastMessagesSignature = sig;
+                        renderMessages(data.messages, forceScroll);
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching messages:', err);
+            }
+        }
+
+        function forceRenderCurrentFeed(scrollBottom = false) {
+            renderMessages(cachedServerMessages, scrollBottom);
+        }
+
+        function toggleMsgOptionsMenu(msgId, event) {
+            if (event) event.stopPropagation();
+            document.querySelectorAll('.cf-msg-popover').forEach(p => {
+                if (p.id !== `msg-pop-${msgId}`) p.classList.remove('open');
+            });
+            const pop = document.getElementById(`msg-pop-${msgId}`);
+            if (pop) pop.classList.toggle('open');
+        }
+
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('#cfTripleDotPopupMenu') && !e.target.closest('#tripleDotMenuBtn')) {
-                closeTripleDotMenu();
+            if (!e.target.closest('.cf-msg-actions-wrap')) {
+                document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            }
+            if (!e.target.closest('#cfStickerDrawer') && !e.target.closest('.cf-emoji-trigger')) {
+                closeStickerDrawer();
             }
         });
 
-        // =========================================================================
-        // RENDER MESSAGES WITH LOCATION CARD SUPPORT
-        // =========================================================================
-<!-- ... existing code ... -->
         function renderMessages(messages, forceScroll) {
             const box = document.getElementById('chatMessages');
             const activePending = activeFriend ? pendingOutgoingMessages.filter(p => p.receiverEmail === activeFriend.email) : [];
@@ -316,6 +2504,49 @@
                 `;
             }).join('');
 
+            if (activePending.length > 0) {
+                html += activePending.map(p => {
+                    let mediaPreview = '';
+                    if (p.type === 'video' && p.previewUrl) {
+                        mediaPreview = `
+                            <div class="cf-media-card">
+                                <video src="${p.previewUrl}" muted playsinline></video>
+                                <div class="cf-media-uploading-overlay">
+                                    <div class="cf-mini-spin" style="width:22px; height:22px; border-width:3px; border-color:rgba(255,255,255,0.3); border-top-color:#fff;"></div>
+                                    <div style="font-size:12px; font-weight:700;">Sending video... ${p.progress || 0}%</div>
+                                    <div class="cf-upload-progress-bar"><div class="cf-upload-progress-fill" style="width:${p.progress || 0}%"></div></div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (p.type === 'image' && p.previewUrl) {
+                        mediaPreview = `
+                            <div class="cf-media-card">
+                                <img src="${p.previewUrl}">
+                                <div class="cf-media-uploading-overlay">
+                                    <div class="cf-mini-spin" style="width:20px; height:20px; border-width:2.5px; border-color:rgba(255,255,255,0.3); border-top-color:#fff;"></div>
+                                    <div style="font-size:11.5px; font-weight:700;">Sending... ${p.progress || 0}%</div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (p.type === 'audio') {
+                        mediaPreview = `<div class="cf-bubble">🎙️ សារសំឡេង (Voice)</div>`;
+                    } else {
+                        mediaPreview = `<div class="cf-bubble">${escapeHtml(p.text)}</div>`;
+                    }
+
+                    return `
+                        <div class="cf-msg-row sent">
+                            <div class="cf-msg-stack">
+                                ${mediaPreview}
+                                <div class="cf-msg-footer">
+                                    <span class="cf-sending-pill"><span class="cf-mini-spin"></span> Sending...</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
             box.innerHTML = html;
             audioUrlsToPreload.forEach(item => preloadAudioBlob(item.url, item.id));
 
@@ -323,6 +2554,1026 @@
                 box.scrollTop = box.scrollHeight;
             }
         }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // =========================================================================
+        // EDIT & DELETE SENT MESSAGES
+        // =========================================================================
+        function startEditMessage(msgId, encodedText) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            const origText = decodeURIComponent(encodedText || '');
+            editingMessageId = msgId;
+            document.getElementById('editingPreviewText').innerText = origText.slice(0, 42);
+            document.getElementById('editMessageBanner').classList.add('active');
+            const input = document.getElementById('messageTextInput');
+            input.value = origText;
+            autoResizeComposerTextarea(input);
+            input.focus();
+            updateSendOrThumbIcon();
+        }
+
+        function cancelEditMessage() {
+            editingMessageId = null;
+            const banner = document.getElementById('editMessageBanner');
+            if (banner) banner.classList.remove('active');
+            const input = document.getElementById('messageTextInput');
+            if (input) input.value = '';
+            autoResizeComposerTextarea(input);
+            updateSendOrThumbIcon();
+        }
+
+        async function submitEditedMessage(msgId, newText) {
+            cancelEditMessage();
+            setLocalOverride(msgId, { editedText: newText });
+            forceRenderCurrentFeed(false);
+
+            try {
+                await fetch(`/api/messages/${msgId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        message: EDITED_PREFIX + newText,
+                        plainText: newText
+                    })
+                });
+                await fetchMessages(false);
+                loadConversations();
+            } catch (e) {}
+        }
+
+        async function deleteSentMessage(msgId) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            if (!confirm('តើអ្នកចង់លុបសារ/ឯកសារនេះមែនទេ? (នឹងបន្សល់ទុកដានថា Message deleted)')) return;
+
+            setLocalOverride(msgId, { deleted: true });
+            forceRenderCurrentFeed(false);
+
+            try {
+                const delRes = await fetch(`/api/messages/${msgId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sender: currentUser.email, tombstone: DELETED_MARKER })
+                });
+                if (!delRes.ok) {
+                    await fetch(`/api/messages/${msgId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sender: currentUser.email, message: DELETED_MARKER, media_url: null })
+                    });
+                }
+                await fetchMessages(false);
+                loadConversations();
+            } catch (e) {}
+        }
+
+        // =========================================================================
+        // SEND TEXT / EMOJI / MEDIA WITH EXPLICIT "SEND" & "SENDING..."
+        // =========================================================================
+        function updateSendOrThumbIcon() {
+            const val = document.getElementById('messageTextInput').value.trim();
+            const lbl = document.getElementById('primaryBtnLabel');
+            if (!lbl) return;
+            if (editingMessageId) {
+                lbl.innerText = 'Save ✓';
+            } else if (val.length > 0) {
+                lbl.innerText = 'Send ➤';
+            } else {
+                lbl.innerText = '👍';
+            }
+        }
+
+        function handlePrimaryActionBtn() {
+            const input = document.getElementById('messageTextInput');
+            const text = input.value.trim();
+
+            if (editingMessageId) {
+                if (!text) return;
+                submitEditedMessage(editingMessageId, text);
+                return;
+            }
+
+            if (text.length > 0) {
+                sendTextMessage(text);
+            } else {
+                sendTextMessage('👍');
+            }
+        }
+
+        // =========================================================================
+        // FULLSCREEN PHOTO LIGHTBOX (With Close ✕ & Download Buttons)
+        // =========================================================================
+        function openPhotoLightbox(imgUrl) {
+            const box = document.getElementById('cfPhotoLightbox');
+            const img = document.getElementById('cfLightboxImg');
+            const dlBtn = document.getElementById('cfLightboxDownloadBtn');
+            if (!box || !img) return;
+            img.src = imgUrl;
+            if (dlBtn) {
+                dlBtn.onclick = (e) => downloadChatMediaFile(imgUrl, false, e);
+            }
+            box.classList.add('active');
+        }
+
+        function closePhotoLightbox() {
+            const box = document.getElementById('cfPhotoLightbox');
+            const img = document.getElementById('cfLightboxImg');
+            if (box) box.classList.remove('active');
+            if (img) img.src = '';
+        }
+
+        function autoResizeComposerTextarea(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 110) + 'px';
+        }
+
+        // =========================================================================
+        // TELEGRAM-STYLE STICKER PACK (Add Custom Stickers, Edit/Delete, Send)
+        // =========================================================================
+        const STICKERS_STORAGE_KEY = 'camfeed_custom_stickers_v1';
+        const DEFAULT_BUILTIN_STICKERS = [
+            { id: 'def-1', type: 'emoji', value: '🥰' },
+            { id: 'def-2', type: 'emoji', value: '😂' },
+            { id: 'def-3', type: 'emoji', value: '😍' },
+            { id: 'def-4', type: 'emoji', value: '🥳' },
+            { id: 'def-5', type: 'emoji', value: '😭' },
+            { id: 'def-6', type: 'emoji', value: '🙏' },
+            { id: 'def-7', type: 'emoji', value: '🔥' },
+            { id: 'def-8', type: 'emoji', value: '❤️' },
+            { id: 'def-9', type: 'emoji', value: '😎' },
+            { id: 'def-10', type: 'emoji', value: '🤝' },
+            { id: 'def-11', type: 'emoji', value: '🎉' }
+        ];
+        let stickerEditMode = false;
+
+        function getAllStickers() {
+            let custom = [];
+            try {
+                custom = JSON.parse(localStorage.getItem(STICKERS_STORAGE_KEY) || '[]');
+                if (!Array.isArray(custom)) custom = [];
+            } catch (e) { custom = []; }
+            return [...custom, ...DEFAULT_BUILTIN_STICKERS];
+        }
+
+        function saveCustomStickersList(list) {
+            try {
+                localStorage.setItem(STICKERS_STORAGE_KEY, JSON.stringify(list));
+            } catch (e) {}
+        }
+
+        function renderStickersGrid() {
+            const grid = document.getElementById('cfStickerGrid');
+            if (!grid) return;
+            grid.classList.toggle('edit-mode', stickerEditMode);
+
+            const all = getAllStickers();
+            const addTileHtml = `
+                <div class="cf-sticker-tile cf-add-sticker-tile" onclick="document.getElementById('customStickerFileInput').click()" title="បន្ថែម Sticker ផ្ទាល់ខ្លួន">
+                    <span style="font-size:24px;">＋</span>
+                    <span>Add Sticker</span>
+                </div>
+            `;
+
+            const itemsHtml = all.map(st => {
+                const isCustom = String(st.id).startsWith('cust-');
+                const delBtn = isCustom
+                    ? `<button type="button" class="sticker-del-badge" onclick="deleteCustomSticker('${st.id}', event)" title="លុប Sticker">✕</button>`
+                    : '';
+                if (st.type === 'image') {
+                    return `
+                        <div class="cf-sticker-tile" onclick="sendStickerItem('${st.id}')">
+                            ${delBtn}
+                            <img src="${st.url}" alt="Sticker">
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="cf-sticker-tile" onclick="sendStickerItem('${st.id}')">
+                        <span class="sticker-emoji-art">${st.value}</span>
+                    </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = addTileHtml + itemsHtml;
+        }
+
+        function toggleStickerEditMode() {
+            stickerEditMode = !stickerEditMode;
+            const btn = document.getElementById('toggleEditStickersBtn');
+            if (btn) {
+                btn.innerText = stickerEditMode ? '✓ Done' : '✏️ Edit';
+                btn.style.background = stickerEditMode ? '#10b981' : '#eef2ff';
+                btn.style.color = stickerEditMode ? '#fff' : '#4f46e5';
+            }
+            renderStickersGrid();
+        }
+
+        function deleteCustomSticker(stickerId, event) {
+            if (event) event.stopPropagation();
+            let custom = [];
+            try { custom = JSON.parse(localStorage.getItem(STICKERS_STORAGE_KEY) || '[]'); } catch (e) {}
+            custom = custom.filter(s => s.id !== stickerId);
+            saveCustomStickersList(custom);
+            renderStickersGrid();
+        }
+
+        function resizeStickerToWebpOrPng(file) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                const objUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(objUrl);
+                    const maxDim = 360;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > maxDim || h > maxDim) {
+                        const scale = maxDim / Math.max(w, h);
+                        w = Math.round(w * scale);
+                        h = Math.round(h * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        resolve(blob || file);
+                    }, 'image/png');
+                };
+                img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
+                img.src = objUrl;
+            });
+        }
+
+        async function handleAddCustomStickers(input) {
+            const files = Array.from(input.files || []);
+            if (files.length === 0) return;
+            input.value = '';
+
+            let custom = [];
+            try { custom = JSON.parse(localStorage.getItem(STICKERS_STORAGE_KEY) || '[]'); } catch (e) {}
+
+            for (const f of files) {
+                try {
+                    const stickerBlob = await resizeStickerToWebpOrPng(f);
+                    const uploadedUrl = await uploadChatMediaToR2(stickerBlob, `sticker-${Date.now()}.png`);
+                    custom.unshift({
+                        id: 'cust-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+                        type: 'image',
+                        url: uploadedUrl
+                    });
+                } catch (err) {
+                    alert('មិនអាចបន្ថែម Sticker បានទេ៖ ' + err.message);
+                }
+            }
+            saveCustomStickersList(custom.slice(0, 60));
+            renderStickersGrid();
+        }
+
+        async function sendStickerItem(stickerId) {
+            if (stickerEditMode || !activeFriend) return;
+            const st = getAllStickers().find(s => s.id === stickerId);
+            if (!st) return;
+
+            closeStickerDrawer();
+            const targetEmail = activeFriend.email;
+
+            if (st.type === 'emoji') {
+                await sendTextMessage('STICKER_EMOJI:' + st.value);
+                return;
+            }
+
+            const tempId = 'temp-st-' + Date.now();
+            pendingOutgoingMessages.push({
+                tempId,
+                receiverEmail: targetEmail,
+                type: 'image',
+                previewUrl: st.url,
+                progress: 100
+            });
+            forceRenderCurrentFeed(true);
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        receiver: targetEmail,
+                        message: '[Sticker]',
+                        media_url: st.url,
+                        message_type: 'sticker'
+                    })
+                });
+                const data = await res.json();
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                if (data.success) {
+                    await fetchMessages(true);
+                    loadConversations();
+                } else {
+                    forceRenderCurrentFeed(false);
+                }
+            } catch (e) {
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                forceRenderCurrentFeed(false);
+            }
+        }
+
+        function switchDrawerTab(tab) {
+            const isSt = tab === 'stickers';
+            document.getElementById('tabDrawerStickers').classList.toggle('active', isSt);
+            document.getElementById('tabDrawerEmojis').classList.toggle('active', !isSt);
+            document.getElementById('drawerStickersPanel').style.display = isSt ? 'block' : 'none';
+            document.getElementById('drawerEmojisPanel').style.display = isSt ? 'none' : 'grid';
+            document.getElementById('toggleEditStickersBtn').style.display = isSt ? 'inline-block' : 'none';
+            if (isSt) renderStickersGrid();
+        }
+
+        function toggleEmojiPopup(event) {
+            if (event) event.stopPropagation();
+            const drawer = document.getElementById('cfStickerDrawer');
+            if (!drawer) return;
+            const willOpen = !drawer.classList.contains('show');
+            drawer.classList.toggle('show', willOpen);
+            if (willOpen) renderStickersGrid();
+        }
+
+        function closeStickerDrawer() {
+            const drawer = document.getElementById('cfStickerDrawer');
+            if (drawer) drawer.classList.remove('show');
+            stickerEditMode = false;
+            const btn = document.getElementById('toggleEditStickersBtn');
+            if (btn) {
+                btn.innerText = '✏️ Edit';
+                btn.style.background = '#eef2ff';
+                btn.style.color = '#4f46e5';
+            }
+        }
+
+        function insertEmoji(em) {
+            const inp = document.getElementById('messageTextInput');
+            inp.value += em;
+            autoResizeComposerTextarea(inp);
+            inp.focus();
+            updateSendOrThumbIcon();
+        }
+
+        async function sendTextMessage(customText) {
+            const input = document.getElementById('messageTextInput');
+            const text = (customText !== undefined ? customText : input.value).trim();
+            if (!text || !activeFriend) return;
+
+            const targetEmail = activeFriend.email;
+            input.value = '';
+            autoResizeComposerTextarea(input);
+            updateSendOrThumbIcon();
+            closeStickerDrawer();
+
+            const tempId = 'temp-' + Date.now() + Math.random();
+            pendingOutgoingMessages.push({
+                tempId,
+                receiverEmail: targetEmail,
+                type: 'text',
+                text
+            });
+            forceRenderCurrentFeed(true);
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        receiver: targetEmail,
+                        message: text
+                    })
+                });
+                const data = await res.json();
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                if (data.success) {
+                    await fetchMessages(true);
+                    loadConversations();
+                } else {
+                    forceRenderCurrentFeed(false);
+                }
+            } catch (err) {
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                forceRenderCurrentFeed(false);
+            }
+        }
+
+        // =========================================================================
+        // MULTI-FILE MEDIA STAGING QUEUE
+        // =========================================================================
+        let stagedMediaItems = [];
+        let editingStagedIndex = -1;
+
+        function sendMediaMessage(fileInput) {
+            const files = Array.from(fileInput.files || []);
+            if (files.length === 0 || !activeFriend) return;
+            fileInput.value = '';
+
+            files.forEach(file => {
+                const isImage = !!(file.type && file.type.startsWith('image/'));
+                const previewUrl = URL.createObjectURL(file);
+                stagedMediaItems.push({
+                    id: Date.now() + Math.random(),
+                    fileOrBlob: file,
+                    name: file.name || (isImage ? 'photo.jpg' : 'video.mp4'),
+                    previewUrl,
+                    isImage
+                });
+            });
+
+            renderStagedMediaTray();
+        }
+
+        function renderStagedMediaTray() {
+            const tray = document.getElementById('mediaStagingTray');
+            const scrollEl = document.getElementById('stagingItemsScroll');
+            const sendBtn = document.getElementById('sendStagedMediaBtn');
+            if (!tray || !scrollEl) return;
+
+            if (stagedMediaItems.length === 0) {
+                tray.classList.remove('active');
+                scrollEl.innerHTML = '';
+                return;
+            }
+
+            tray.classList.add('active');
+            sendBtn.innerText = stagedMediaItems.length > 1 ? `Send (${stagedMediaItems.length}) ➤` : 'Send ➤';
+
+            scrollEl.innerHTML = stagedMediaItems.map((item, idx) => `
+                <div class="cf-stage-card">
+                    ${item.isImage ? `<img src="${item.previewUrl}">` : `<video src="${item.previewUrl}" muted playsinline></video>`}
+                    <button type="button" class="cf-stage-del" onclick="removeStagedMedia(${idx})" title="លុប">×</button>
+                    ${item.isImage
+                        ? `<button type="button" class="cf-stage-edit" onclick="editStagedPhoto(${idx})">✏️ Edit</button>`
+                        : `<span style="position:absolute; bottom:4px; left:4px; background:rgba(15,23,42,0.75); color:#fff; font-size:10px; padding:2px 6px; border-radius:6px;">🎬 Video</span>`
+                    }
+                </div>
+            `).join('');
+        }
+
+        function removeStagedMedia(idx) {
+            const removed = stagedMediaItems.splice(idx, 1)[0];
+            if (removed && removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+            renderStagedMediaTray();
+        }
+
+        function clearStagedMedia() {
+            stagedMediaItems.forEach(it => { if (it.previewUrl) URL.revokeObjectURL(it.previewUrl); });
+            stagedMediaItems = [];
+            renderStagedMediaTray();
+        }
+
+        function editStagedPhoto(idx) {
+            const item = stagedMediaItems[idx];
+            if (!item || !item.isImage) return;
+            editingStagedIndex = idx;
+            openPhotoEditor(item.fileOrBlob);
+        }
+
+        async function sendAllStagedMedia() {
+            if (stagedMediaItems.length === 0 || !activeFriend) return;
+            const targetEmail = activeFriend.email;
+            const itemsToSend = [...stagedMediaItems];
+
+            stagedMediaItems = [];
+            renderStagedMediaTray();
+
+            for (let i = 0; i < itemsToSend.length; i++) {
+                const it = itemsToSend[i];
+                const tempId = 'temp-media-' + Date.now() + '-' + i;
+                pendingOutgoingMessages.push({
+                    tempId,
+                    receiverEmail: targetEmail,
+                    type: it.isImage ? 'image' : 'video',
+                    previewUrl: it.previewUrl,
+                    progress: 5
+                });
+                forceRenderCurrentFeed(true);
+
+                try {
+                    let blobToUpload = it.fileOrBlob;
+                    if (it.isImage) {
+                        blobToUpload = await compressChatImage(blobToUpload);
+                    }
+
+                    const r2Url = await uploadChatMediaToR2(blobToUpload, it.name, (pct) => {
+                        const pItem = pendingOutgoingMessages.find(p => p.tempId === tempId);
+                        if (pItem) {
+                            pItem.progress = pct;
+                            forceRenderCurrentFeed(false);
+                        }
+                    });
+
+                    const res = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender: currentUser.email,
+                            receiver: targetEmail,
+                            message: it.isImage ? '[Photo]' : '[Video]',
+                            media_url: r2Url,
+                            message_type: it.isImage ? 'image' : 'video'
+                        })
+                    });
+                    const data = await res.json();
+                    pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                    if (it.previewUrl) URL.revokeObjectURL(it.previewUrl);
+
+                    if (data.success) {
+                        await fetchMessages(true);
+                        loadConversations();
+                    } else {
+                        forceRenderCurrentFeed(false);
+                        alert(data.error || 'Failed to deliver media.');
+                    }
+                } catch (err) {
+                    pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                    if (it.previewUrl) URL.revokeObjectURL(it.previewUrl);
+                    forceRenderCurrentFeed(false);
+                    alert('ការផ្ញើបរាជ័យ៖ ' + err.message);
+                }
+            }
+        }
+
+        // =========================================================================
+        // INTERACTIVE PHOTO EDITOR (CROP + FREEHAND PEN + DRAGGABLE TEXT)
+        // =========================================================================
+        let editorBaseImg = null;
+        let editorHistoryStack = [];
+        let editorStrokes = [];
+        let editorTexts = [];
+        let editorMode = 'crop';
+        let editorColor = '#ff3b30';
+        let editorBrushSize = 5;
+
+        let cropBox = { x: 0, y: 0, w: 0, h: 0 };
+        let activeDragHandle = null;
+        let dragStartPt = { x: 0, y: 0 };
+        let dragStartCrop = null;
+        let isDrawingStroke = false;
+        let currentStroke = null;
+        let draggingTextIdx = -1;
+
+        function openPhotoEditor(file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    editorBaseImg = img;
+                    editorHistoryStack = [];
+                    editorStrokes = [];
+                    editorTexts = [];
+                    initCanvasWithImage(img);
+                    document.getElementById('photoEditorModal').classList.add('active');
+                    setEditorMode('crop');
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function closePhotoEditor() {
+            document.getElementById('photoEditorModal').classList.remove('active');
+            editorBaseImg = null;
+        }
+
+        function initCanvasWithImage(img) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            const maxW = Math.min(window.innerWidth - 24, 900);
+            const maxH = Math.min(window.innerHeight - 190, 900);
+            const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+
+            cropBox = {
+                x: Math.round(canvas.width * 0.08),
+                y: Math.round(canvas.height * 0.08),
+                w: Math.round(canvas.width * 0.84),
+                h: Math.round(canvas.height * 0.84)
+            };
+            renderEditorCanvas();
+        }
+
+        function setEditorMode(mode) {
+            editorMode = mode;
+            ['crop', 'pen', 'text'].forEach(m => {
+                const b = document.getElementById(`toolBtn-${m}`);
+                if (b) b.classList.toggle('active', m === mode);
+            });
+
+            const sub = document.getElementById('editorSubToolbar');
+            const hint = document.getElementById('editorHintText');
+            const colors = ['#ff3b30', '#ffcc00', '#34c759', '#007aff', '#ffffff', '#000000'];
+
+            if (mode === 'crop') {
+                hint.innerText = 'អូសជ្រុងប្រអប់ដើម្បីកាត់រូបភាព រួចចុច "✓ អនុវត្តការកាត់"';
+                sub.innerHTML = `
+                    <button type="button" onclick="setCropAspect('free')" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">សេរី (Free)</button>
+                    <button type="button" onclick="setCropAspect('1:1')" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">1:1 ការ៉េ</button>
+                    <button type="button" onclick="setCropAspect('4:5')" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">4:5 បញ្ឈរ</button>
+                    <button type="button" onclick="applyCropSelection()" style="background:#10b981; color:#fff; border:none; padding:6px 14px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer;">✓ អនុវត្តការកាត់</button>
+                `;
+            } else if (mode === 'pen') {
+                hint.innerText = 'ប្រើម្រាមដៃគូរលើរូបភាពដោយសេរី';
+                const swatches = colors.map(c => `<span class="color-swatch ${editorColor === c ? 'selected' : ''}" style="background:${c};" onclick="selectEditorColor('${c}')"></span>`).join('');
+                sub.innerHTML = `
+                    ${swatches}
+                    <button type="button" onclick="editorBrushSize = editorBrushSize === 5 ? 11 : 5; this.innerText = editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ';" style="background:#1e293b; color:#fff; border:1px solid #475569; padding:5px 11px; border-radius:10px; font-size:12px; font-weight:700; cursor:pointer;">${editorBrushSize === 5 ? '🖌️ តូច' : '🖌️ ធំ'}</button>
+                `;
+            } else if (mode === 'text') {
+                hint.innerText = 'ចុច "+ បន្ថែមអក្សរ" រួចអូសផ្លាស់ប្តូរទីតាំងអក្សរលើរូបភាព';
+                const swatches = colors.map(c => `<span class="color-swatch ${editorColor === c ? 'selected' : ''}" style="background:${c};" onclick="selectEditorColor('${c}')"></span>`).join('');
+                sub.innerHTML = `
+                    ${swatches}
+                    <button type="button" onclick="promptAddEditorText()" style="background:#4f46e5; color:#fff; border:none; padding:6px 14px; border-radius:10px; font-size:12.5px; font-weight:700; cursor:pointer;">+ បន្ថែមអក្សរ</button>
+                `;
+            }
+            renderEditorCanvas();
+        }
+
+        function selectEditorColor(c) {
+            editorColor = c;
+            if (editorTexts.length > 0 && editorMode === 'text') editorTexts[editorTexts.length - 1].color = c;
+            setEditorMode(editorMode);
+        }
+
+        function setCropAspect(ratioType) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (ratioType === 'free') {
+                cropBox = { x: Math.round(canvas.width * 0.08), y: Math.round(canvas.height * 0.08), w: Math.round(canvas.width * 0.84), h: Math.round(canvas.height * 0.84) };
+            } else if (ratioType === '1:1') {
+                const side = Math.round(Math.min(canvas.width, canvas.height) * 0.8);
+                cropBox = { x: Math.round((canvas.width - side) / 2), y: Math.round((canvas.height - side) / 2), w: side, h: side };
+            } else if (ratioType === '4:5') {
+                let h = Math.round(canvas.height * 0.85);
+                let w = Math.round(h * 0.8);
+                if (w > canvas.width * 0.9) { w = Math.round(canvas.width * 0.9); h = Math.round(w * 1.25); }
+                cropBox = { x: Math.round((canvas.width - w) / 2), y: Math.round((canvas.height - h) / 2), w, h };
+            }
+            renderEditorCanvas();
+        }
+
+        function applyCropSelection() {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (!editorBaseImg || cropBox.w < 20 || cropBox.h < 20) return;
+            renderEditorCanvas(true);
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = cropBox.w;
+            tempCanvas.height = cropBox.h;
+            tempCanvas.getContext('2d').drawImage(canvas, cropBox.x, cropBox.y, cropBox.w, cropBox.h, 0, 0, cropBox.w, cropBox.h);
+            editorHistoryStack.push({ img: editorBaseImg, strokes: JSON.parse(JSON.stringify(editorStrokes)), texts: JSON.parse(JSON.stringify(editorTexts)) });
+            const croppedImg = new Image();
+            croppedImg.onload = () => { editorBaseImg = croppedImg; editorStrokes = []; editorTexts = []; initCanvasWithImage(croppedImg); };
+            croppedImg.src = tempCanvas.toDataURL('image/png');
+        }
+
+        function promptAddEditorText() {
+            const txt = prompt('សរសេរអក្សរដែលចង់ដាក់លើរូបភាព៖');
+            if (!txt || !txt.trim()) return;
+            const canvas = document.getElementById('photoEditorCanvas');
+            editorTexts.push({ text: txt.trim(), color: editorColor, x: Math.round(canvas.width / 2), y: Math.round(canvas.height / 2), fontSize: Math.max(22, Math.round(canvas.width * 0.065)) });
+            renderEditorCanvas();
+        }
+
+        function undoEditorAction() {
+            if (editorMode === 'pen' && editorStrokes.length > 0) { editorStrokes.pop(); renderEditorCanvas(); return; }
+            if (editorMode === 'text' && editorTexts.length > 0) { editorTexts.pop(); renderEditorCanvas(); return; }
+            if (editorStrokes.length > 0) { editorStrokes.pop(); renderEditorCanvas(); }
+            else if (editorTexts.length > 0) { editorTexts.pop(); renderEditorCanvas(); }
+            else if (editorHistoryStack.length > 0) {
+                const prev = editorHistoryStack.pop();
+                editorBaseImg = prev.img; editorStrokes = prev.strokes; editorTexts = prev.texts;
+                initCanvasWithImage(editorBaseImg);
+            }
+        }
+
+        function renderEditorCanvas(exportClean = false) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (!canvas || !editorBaseImg) return;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(editorBaseImg, 0, 0, canvas.width, canvas.height);
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            editorStrokes.forEach(st => {
+                if (!st.points || st.points.length === 0) return;
+                ctx.strokeStyle = st.color;
+                ctx.lineWidth = st.size;
+                ctx.beginPath();
+                ctx.moveTo(st.points[0].x, st.points[0].y);
+                for (let i = 1; i < st.points.length; i++) ctx.lineTo(st.points[i].x, st.points[i].y);
+                ctx.stroke();
+            });
+
+            editorTexts.forEach(item => {
+                ctx.font = `bold ${item.fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = Math.max(3, Math.round(item.fontSize * 0.12));
+                ctx.strokeStyle = item.color === '#000000' ? '#ffffff' : '#000000';
+                ctx.strokeText(item.text, item.x, item.y);
+                ctx.fillStyle = item.color;
+                ctx.fillText(item.text, item.x, item.y);
+            });
+
+            if (!exportClean && editorMode === 'crop') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
+                ctx.fillRect(0, 0, canvas.width, cropBox.y);
+                ctx.fillRect(0, cropBox.y + cropBox.h, canvas.width, canvas.height - (cropBox.y + cropBox.h));
+                ctx.fillRect(0, cropBox.y, cropBox.x, cropBox.h);
+                ctx.fillRect(cropBox.x + cropBox.w, cropBox.y, canvas.width - (cropBox.x + cropBox.w), cropBox.h);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cropBox.x, cropBox.y, cropBox.w, cropBox.h);
+                const hs = 14;
+                ctx.fillStyle = '#4f46e5';
+                [[cropBox.x, cropBox.y], [cropBox.x + cropBox.w, cropBox.y], [cropBox.x, cropBox.y + cropBox.h], [cropBox.x + cropBox.w, cropBox.y + cropBox.h]].forEach(([cx, cy]) => {
+                    ctx.fillRect(cx - hs / 2, cy - hs / 2, hs, hs);
+                    ctx.strokeRect(cx - hs / 2, cy - hs / 2, hs, hs);
+                });
+            }
+        }
+
+        function getCanvasCoords(e) {
+            const canvas = document.getElementById('photoEditorCanvas');
+            const rect = canvas.getBoundingClientRect();
+            return { x: (e.clientX - rect.left) * (canvas.width / (rect.width || 1)), y: (e.clientY - rect.top) * (canvas.height / (rect.height || 1)) };
+        }
+
+        (function initCanvasPointerHandlers() {
+            const canvas = document.getElementById('photoEditorCanvas');
+            if (!canvas) return;
+            canvas.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                const pt = getCanvasCoords(e);
+                if (editorMode === 'crop') {
+                    const hitR = 26;
+                    if (Math.hypot(pt.x - cropBox.x, pt.y - cropBox.y) <= hitR) activeDragHandle = 'nw';
+                    else if (Math.hypot(pt.x - (cropBox.x + cropBox.w), pt.y - cropBox.y) <= hitR) activeDragHandle = 'ne';
+                    else if (Math.hypot(pt.x - cropBox.x, pt.y - (cropBox.y + cropBox.h)) <= hitR) activeDragHandle = 'sw';
+                    else if (Math.hypot(pt.x - (cropBox.x + cropBox.w), pt.y - (cropBox.y + cropBox.h)) <= hitR) activeDragHandle = 'se';
+                    else if (pt.x >= cropBox.x && pt.x <= cropBox.x + cropBox.w && pt.y >= cropBox.y && pt.y <= cropBox.y + cropBox.h) activeDragHandle = 'move';
+                    dragStartPt = pt; dragStartCrop = { ...cropBox };
+                } else if (editorMode === 'pen') {
+                    isDrawingStroke = true;
+                    currentStroke = { color: editorColor, size: editorBrushSize, points: [pt] };
+                    editorStrokes.push(currentStroke);
+                    renderEditorCanvas();
+                } else if (editorMode === 'text') {
+                    draggingTextIdx = -1;
+                    for (let i = editorTexts.length - 1; i >= 0; i--) {
+                        const t = editorTexts[i];
+                        if (Math.abs(pt.x - t.x) <= 110 && Math.abs(pt.y - t.y) <= 36) { draggingTextIdx = i; dragStartPt = pt; break; }
+                    }
+                }
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if (!activeDragHandle && !isDrawingStroke && draggingTextIdx === -1) return;
+                e.preventDefault();
+                const pt = getCanvasCoords(e);
+                if (editorMode === 'crop' && activeDragHandle && dragStartCrop) {
+                    const dx = pt.x - dragStartPt.x, dy = pt.y - dragStartPt.y, minSize = 40;
+                    if (activeDragHandle === 'move') {
+                        cropBox.x = Math.max(0, Math.min(canvas.width - cropBox.w, dragStartCrop.x + dx));
+                        cropBox.y = Math.max(0, Math.min(canvas.height - cropBox.h, dragStartCrop.y + dy));
+                    } else if (activeDragHandle === 'se') {
+                        cropBox.w = Math.max(minSize, Math.min(canvas.width - dragStartCrop.x, dragStartCrop.w + dx));
+                        cropBox.h = Math.max(minSize, Math.min(canvas.height - dragStartCrop.y, dragStartCrop.h + dy));
+                    } else if (activeDragHandle === 'nw') {
+                        const newX = Math.max(0, Math.min(dragStartCrop.x + dragStartCrop.w - minSize, dragStartCrop.x + dx));
+                        const newY = Math.max(0, Math.min(dragStartCrop.y + dragStartCrop.h - minSize, dragStartCrop.y + dy));
+                        cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX; cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY;
+                        cropBox.x = newX; cropBox.y = newY;
+                    } else if (activeDragHandle === 'ne') {
+                        const newY = Math.max(0, Math.min(dragStartCrop.y + dragStartCrop.h - minSize, dragStartCrop.y + dy));
+                        cropBox.w = Math.max(minSize, Math.min(canvas.width - dragStartCrop.x, dragStartCrop.w + dx));
+                        cropBox.h = (dragStartCrop.y + dragStartCrop.h) - newY; cropBox.y = newY;
+                    } else if (activeDragHandle === 'sw') {
+                        const newX = Math.max(0, Math.min(dragStartCrop.x + dragStartCrop.w - minSize, dragStartCrop.x + dx));
+                        cropBox.w = (dragStartCrop.x + dragStartCrop.w) - newX;
+                        cropBox.h = Math.max(minSize, Math.min(canvas.height - dragStartCrop.y, dragStartCrop.h + dy)); cropBox.x = newX;
+                    }
+                    renderEditorCanvas();
+                } else if (editorMode === 'pen' && isDrawingStroke && currentStroke) {
+                    currentStroke.points.push(pt); renderEditorCanvas();
+                } else if (editorMode === 'text' && draggingTextIdx >= 0) {
+                    editorTexts[draggingTextIdx].x += (pt.x - dragStartPt.x);
+                    editorTexts[draggingTextIdx].y += (pt.y - dragStartPt.y);
+                    dragStartPt = pt; renderEditorCanvas();
+                }
+            });
+
+            const endPointer = () => { activeDragHandle = null; isDrawingStroke = false; currentStroke = null; draggingTextIdx = -1; };
+            canvas.addEventListener('pointerup', endPointer);
+            canvas.addEventListener('pointercancel', endPointer);
+        })();
+
+        function applyEditedPhotoToStage() {
+            const canvas = document.getElementById('photoEditorCanvas');
+            const doneBtn = document.getElementById('sendEditedPhotoBtn');
+            if (!canvas || !editorBaseImg) return;
+            doneBtn.disabled = true;
+            renderEditorCanvas(true);
+            canvas.toBlob((blob) => {
+                try {
+                    if (blob && editingStagedIndex >= 0 && stagedMediaItems[editingStagedIndex]) {
+                        const oldItem = stagedMediaItems[editingStagedIndex];
+                        if (oldItem.previewUrl) URL.revokeObjectURL(oldItem.previewUrl);
+                        stagedMediaItems[editingStagedIndex] = { ...oldItem, fileOrBlob: blob, name: `edited-${Date.now()}.jpg`, previewUrl: URL.createObjectURL(blob) };
+                        renderStagedMediaTray();
+                    }
+                    editingStagedIndex = -1;
+                    closePhotoEditor();
+                } finally { doneBtn.disabled = false; }
+            }, 'image/jpeg', 0.92);
+        }
+
+        // =========================================================================
+        // FORWARD MESSAGE MODAL
+        // =========================================================================
+        let forwardPayload = null;
+        function openForwardModal(msgId, encText, encMedia, msgType) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            forwardPayload = {
+                message: decodeURIComponent(encText || ''),
+                media_url: decodeURIComponent(encMedia || ''),
+                message_type: msgType || 'text'
+            };
+            const listEl = document.getElementById('forwardContactsList');
+            listEl.innerHTML = allConversations.map(c => `
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${c.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:12px; object-fit:cover;">
+                        <div class="notranslate" translate="no" style="font-weight:700; font-size:14px;">${esc(c.first_name || '')} ${esc(c.last_name || '')}</div>
+                    </div>
+                    <button type="button" onclick="confirmForwardTo(decodeURIComponent('${ea(c.email)}'), this)" class="cf-send-pill-btn" style="height:32px; padding:0 14px; font-size:12.5px;">Send</button>
+                </div>
+            `).join('');
+            document.getElementById('forwardModal').style.display = 'flex';
+        }
+
+        function closeForwardModal() {
+            document.getElementById('forwardModal').style.display = 'none';
+            forwardPayload = null;
+        }
+
+        async function confirmForwardTo(targetEmail, btnEl) {
+            if (!forwardPayload) return;
+            btnEl.disabled = true;
+            btnEl.innerText = 'Sending...';
+
+            try {
+                if (forwardPayload.media_url) {
+                    await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender: currentUser.email,
+                            receiver: targetEmail,
+                            message: forwardPayload.message || '[Forwarded Media]',
+                            media_url: forwardPayload.media_url,
+                            message_type: forwardPayload.message_type
+                        })
+                    });
+                } else {
+                    await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sender: currentUser.email,
+                            receiver: targetEmail,
+                            message: forwardPayload.message
+                        })
+                    });
+                }
+                btnEl.innerText = '✓ Sent';
+                btnEl.style.background = '#e2e8f0';
+                btnEl.style.color = '#0f172a';
+            } catch (e) {
+                btnEl.disabled = false;
+                btnEl.innerText = 'Send';
+            }
+        }
+
+        // =========================================================================
+        // TRIPLE-DOT MENU & PIN LOCATION LOGIC
+        // =========================================================================
+        function toggleTripleDotMenu(event) {
+            if (event) event.stopPropagation();
+            closeStickerDrawer();
+            const menu = document.getElementById('cfTripleDotPopupMenu');
+            if (menu) menu.classList.toggle('show');
+        }
+
+        function closeTripleDotMenu() {
+            const menu = document.getElementById('cfTripleDotPopupMenu');
+            if (menu) menu.classList.remove('show');
+        }
+
+        function openStickerDrawerFromMenu() {
+            closeTripleDotMenu();
+            const drawer = document.getElementById('cfStickerDrawer');
+            if (drawer) {
+                drawer.classList.add('show');
+                renderStickersGrid();
+            }
+        }
+
+        let userLastCoords = { lat: 11.5564, lng: 104.9282, label: 'Phnom Penh, Cambodia' };
+
+        function openPinLocationModal() {
+            closeTripleDotMenu();
+            document.getElementById('pinLocationModal').style.display = 'flex';
+            const statusEl = document.getElementById('locationCoordsStatus');
+            const mapBox = document.getElementById('mapPreviewBox');
+
+            if (navigator.geolocation) {
+                statusEl.innerText = 'កំពុងទាញយកទីតាំង GPS ពិតប្រាកដ...';
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        userLastCoords.lat = pos.coords.latitude;
+                        userLastCoords.lng = pos.coords.longitude;
+                        statusEl.innerText = `📍 Lat: ${userLastCoords.lat.toFixed(4)}, Lng: ${userLastCoords.lng.toFixed(4)}`;
+                        mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=${userLastCoords.lat},${userLastCoords.lng}&z=15&output=embed"></iframe>`;
+                    },
+                    (err) => {
+                        statusEl.innerText = '📍 ប្រើប្រាស់ទីតាំងស្ដង់ដារ (Phnom Penh)';
+                        mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=11.5564,104.9282&z=14&output=embed"></iframe>`;
+                    },
+                    { timeout: 10000, enableHighAccuracy: true }
+                );
+            } else {
+                statusEl.innerText = '📍 ទីតាំងបច្ចុប្បន្ន';
+                mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=11.5564,104.9282&z=14&output=embed"></iframe>`;
+            }
+        }
+
+        function closePinLocationModal() {
+            document.getElementById('pinLocationModal').style.display = 'none';
+        }
+
+        async function sendGpsLocationMessage() {
+            if (!activeFriend) return;
+            const targetEmail = activeFriend.email;
+            closePinLocationModal();
+
+            const mapEmbedUrl = `https://www.google.com/maps?q=${userLastCoords.lat},${userLastCoords.lng}&z=15&output=embed`;
+            const mapLink = `https://www.google.com/maps/search/?api=1&query=${userLastCoords.lat},${userLastCoords.lng}`;
+            const locationMsgText = `📍 ទីតាំងរបស់ខ្ញុំ (My Location):\n${mapLink}`;
+
+            const tempId = 'temp-loc-' + Date.now();
+            pendingOutgoingMessages.push({
+                tempId,
+                receiverEmail: targetEmail,
+                type: 'text',
+                text: locationMsgText
+            });
+            forceRenderCurrentFeed(true);
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        receiver: targetEmail,
+                        message: locationMsgText,
+                        media_url: mapLink,
+                        message_type: 'location'
+                    })
+                });
+                const data = await res.json();
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                if (data.success) {
+                    await fetchMessages(true);
+                    loadConversations();
+                } else {
+                    forceRenderCurrentFeed(false);
+                }
+            } catch (e) {
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                forceRenderCurrentFeed(false);
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#cfTripleDotPopupMenu') && !e.target.closest('#tripleDotMenuBtn')) {
+                closeTripleDotMenu();
+            }
+        });
     </script>
 </body>
 </html>
