@@ -989,17 +989,16 @@
             }
         }
 
-        // ---- Video size settings (change here to trade storage for quality) ----
-        const SKIP_COMPRESS_BELOW_MB = 8;        // smaller clips are uploaded as-is
-        const VIDEO_KBPS_UP_TO_1_MIN = 1600;     // 720p, about 12 MB per minute
-        const VIDEO_KBPS_1_TO_5_MIN = 1200;      // about 9 MB per minute
-        const VIDEO_KBPS_OVER_5_MIN = 900;       // about 7 MB per minute
-        const AUDIO_KBPS = 96;
+        // ---- Smart Storage & Fast-Streaming Video Settings ----
+        const SKIP_COMPRESS_BELOW_MB = 4;        // វីដេអូក្រោម 4MB រក្សាទុកដើមភ្លាមៗ
+        const VIDEO_KBPS_UP_TO_1_MIN = 1050;     // ច្បាស់ល្អសម្រាប់អេក្រង់ទូរសព្ទ (~7.8 MB / នាទី)
+        const VIDEO_KBPS_1_TO_5_MIN = 850;       // សន្សំសំចៃទំហំផ្ទុក (~6.3 MB / នាទី)
+        const VIDEO_KBPS_OVER_5_MIN = 700;       // វីដេអូវែង (~5.2 MB / នាទី)
+        const AUDIO_KBPS = 64;
 
-        // Smart Adaptive Video Compressor (Estimates duration & size -> 720p HD with adaptive bitrate so video stays crisp & compact!)
+        // Smart Adaptive Video Compressor (720p/540p HD + Audio Preservation + MP4/WebM Support + Fast-Start Ready)
         function smartCompressVideoFile(file, onProgress) {
             return new Promise((resolve) => {
-                // Skip re-encoding if file is already compact (<= 12MB) so small clips upload immediately at 100% original clarity
                 if (file.size <= SKIP_COMPRESS_BELOW_MB * 1024 * 1024) {
                     if (onProgress) onProgress(100);
                     return resolve(file);
@@ -1008,15 +1007,19 @@
                 const url = URL.createObjectURL(file);
                 const video = document.createElement('video');
                 video.src = url;
-                video.muted = true;
+                video.muted = false; // Keep unmuted internally so audio track captures cleanly; we won't play it to speakers unless routed
+                video.volume = 1.0;
                 video.playsInline = true;
                 video.setAttribute('webkit-playsinline', 'true');
                 video.preload = 'auto';
 
                 let settled = false;
+                let audioCtx = null;
                 const finish = (outFile) => {
                     if (settled) return;
                     settled = true;
+                    try { video.pause(); } catch (e) {}
+                    if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
                     URL.revokeObjectURL(url);
                     if (onProgress) onProgress(100);
                     resolve(outFile);
@@ -1029,20 +1032,19 @@
                     const origW = video.videoWidth || 720;
                     const origH = video.videoHeight || 1280;
 
-                    // Scale >720p down to 720p HD preserving exact aspect ratio
-                    const maxShortSide = 720;
+                    // Smart target resolution: 720p for short clips (<2 min), 540p for longer videos to save R2 storage & load fast
+                    const maxShortSide = duration > 120 ? 540 : 720;
                     const shortSide = Math.min(origW, origH);
                     const scale = shortSide > maxShortSide ? (maxShortSide / shortSide) : 1;
                     const targetW = Math.round((origW * scale) / 2) * 2;
                     const targetH = Math.round((origH * scale) / 2) * 2;
 
-                    // Adaptive bitrate based on video duration (minutes)
                     let targetVideoBps = VIDEO_KBPS_UP_TO_1_MIN * 1000;
                     if (duration > 300) targetVideoBps = VIDEO_KBPS_OVER_5_MIN * 1000;
                     else if (duration > 60) targetVideoBps = VIDEO_KBPS_1_TO_5_MIN * 1000;
 
                     const estimatedCompressedBytes = ((targetVideoBps + AUDIO_KBPS * 1000) / 8) * duration;
-                    if (estimatedCompressedBytes >= file.size * 0.92) {
+                    if (estimatedCompressedBytes >= file.size * 0.90) {
                         return finish(file);
                     }
 
@@ -1055,28 +1057,55 @@
                         return finish(file);
                     }
 
-                    // រំលងការកំហាប់លើទូរសព្ទសម្រាប់វីដេអូវែងលើស ១៥ នាទី ដើម្បីកុំឱ្យរង់ចាំយូរ
-                    if (duration > 900) {
+                    // Skip real-time re-encode for very long videos (> 12 min)
+                    if (duration > 720) {
                         return finish(file);
                     }
-                    // ប្រើតែទម្រង់ MP4 (H.264/AAC) ស្តង់ដារ ដើម្បីកុំឱ្យជាប់អេក្រង់ខ្មៅ 0:00 លើ iOS និង Appilix WebView
+
+                    // Prioritize MP4 (H.264/AAC) for universal iOS/Android playback, fallback to VP9/VP8 WebM on Android Chrome if MP4 recorder is unavailable
                     const mimeCandidates = [
+                        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
                         'video/mp4;codecs=avc1,mp4a.40.2',
-                        'video/mp4'
+                        'video/mp4',
+                        'video/webm;codecs=vp9,opus',
+                        'video/webm;codecs=vp8,opus',
+                        'video/webm'
                     ];
-                    const supportedMime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || '';
+                    const supportedMime = mimeCandidates.find(m => {
+                        try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; }
+                    }) || '';
+
                     if (!supportedMime) {
                         return finish(file);
                     }
 
                     try {
                         const stream = canvas.captureStream(30);
+
+                        // Capture audio cleanly without playing loud sound out of user's phone speaker during compression
+                        let audioAttached = false;
                         try {
-                            const vStream = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
-                            if (vStream) {
-                                vStream.getAudioTracks().forEach(t => stream.addTrack(t));
+                            const AudioContextCls = window.AudioContext || window.webkitAudioContext;
+                            if (AudioContextCls) {
+                                audioCtx = new AudioContextCls();
+                                const sourceNode = audioCtx.createMediaElementSource(video);
+                                const destNode = audioCtx.createMediaStreamDestination();
+                                sourceNode.connect(destNode);
+                                // Do NOT connect sourceNode to audioCtx.destination so user hears silence while compressing!
+                                destNode.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+                                audioAttached = true;
                             }
                         } catch (e) {}
+
+                        if (!audioAttached) {
+                            video.muted = true;
+                            try {
+                                const vStream = video.captureStream ? video.captureStream() : (video.mozCaptureStream ? video.mozCaptureStream() : null);
+                                if (vStream) {
+                                    vStream.getAudioTracks().forEach(t => stream.addTrack(t));
+                                }
+                            } catch (e) {}
+                        }
 
                         const recorder = new MediaRecorder(stream, {
                             mimeType: supportedMime,
@@ -1090,10 +1119,12 @@
                         recorder.onstop = () => {
                             if (uploadJobCancelled || chunks.length === 0) return finish(file);
                             const outBlob = new Blob(chunks, { type: supportedMime });
-                            if (outBlob.size > 0 && outBlob.size < file.size) {
-                                const ext = supportedMime.includes('mp4') ? 'mp4' : 'webm';
+                            if (outBlob.size > 0 && outBlob.size < file.size * 0.95) {
+                                const isMp4 = supportedMime.includes('mp4');
+                                const ext = isMp4 ? 'mp4' : 'webm';
+                                const cleanType = isMp4 ? 'video/mp4' : 'video/webm';
                                 const baseName = (file.name || 'video').replace(/\.[^/.]+$/, '');
-                                finish(new File([outBlob], `${baseName}-hd.${ext}`, { type: supportedMime }));
+                                finish(new File([outBlob], `${baseName}-hd.${ext}`, { type: cleanType }));
                             } else {
                                 finish(file);
                             }
@@ -1129,7 +1160,7 @@
             });
         }
 
-        function uploadViaServerFallback(file, onProgress) {
+                function uploadViaServerFallback(file, onProgress) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
                 formData.append('user_email', currentUser.email);
@@ -1279,7 +1310,12 @@
                 }
 
                 if (uploadJobCancelled) return;
-                updateDualProgressUI({ compressPct: 100, title: '☁️ កំពុងបង្ហោះឡើង Server...' });
+                const origTotalMB = (selectedFiles.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1);
+                const compTotalMB = (compressedFiles.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1);
+                updateDualProgressUI({
+                    compressPct: 100,
+                    title: `☁️ កំពុងបង្ហោះ (${origTotalMB}MB → ${compTotalMB}MB)...`
+                });
 
                 // Stage 2: Upload compressed files to Cloudflare R2 + AI Video Classification
                 const uploadedItems = [];

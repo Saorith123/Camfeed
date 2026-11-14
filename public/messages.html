@@ -971,7 +971,199 @@
         .cf-send-pill-btn:active { transform: scale(0.95); }
         .cf-send-pill-btn:disabled { opacity: 0.65; cursor: not-allowed; }
 
-        /* Quick Emoji Popup */
+        /* Fullscreen Image Lightbox Viewer with Close Button */
+        .cf-lightbox-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(9, 13, 22, 0.94);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 4000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .cf-lightbox-overlay.active { display: flex; }
+        .cf-lightbox-topbar {
+            position: absolute;
+            top: calc(12px + env(safe-area-inset-top, 0px));
+            left: 14px;
+            right: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 4010;
+        }
+        .cf-lightbox-btn {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            height: 40px;
+            padding: 0 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(6px);
+        }
+        .cf-lightbox-btn:hover { background: rgba(255, 255, 255, 0.28); }
+        .cf-lightbox-close {
+            width: 40px;
+            padding: 0;
+            justify-content: center;
+            font-size: 20px;
+            background: rgba(239, 68, 68, 0.85);
+            border-color: rgba(255,255,255,0.3);
+        }
+        .cf-lightbox-img {
+            max-width: 96vw;
+            max-height: 82vh;
+            border-radius: 12px;
+            object-fit: contain;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Multi-line Auto-Growing Textarea in Composer (Enter = New Line, Click Send = Deliver) */
+        .cf-text-field {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 14.5px;
+            font-family: inherit;
+            color: var(--cf-text);
+            padding: 6px 0;
+            min-width: 0;
+            resize: none;
+            max-height: 110px;
+            line-height: 1.4;
+            overflow-y: auto;
+        }
+        .cf-bubble {
+            white-space: pre-wrap;
+        }
+
+        /* Telegram-Style Sticker & Emoji Drawer */
+        .cf-sticker-drawer {
+            display: none;
+            position: fixed;
+            bottom: 68px;
+            left: 12px;
+            right: 12px;
+            max-width: 440px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid var(--cf-border);
+            border-radius: 18px;
+            box-shadow: 0 12px 34px rgba(15, 23, 42, 0.18);
+            z-index: 600;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .cf-sticker-drawer.show { display: flex; }
+        .cf-drawer-tabs {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--cf-border);
+            gap: 6px;
+        }
+        .cf-drawer-tab-btn {
+            background: none;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--cf-muted);
+            cursor: pointer;
+        }
+        .cf-drawer-tab-btn.active {
+            background: #eef2ff;
+            color: var(--cf-primary);
+        }
+        .cf-sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            padding: 12px;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .cf-sticker-tile {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            border-radius: 14px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 6px;
+            transition: transform 0.12s, background 0.12s;
+        }
+        .cf-sticker-tile:hover {
+            background: #eef2ff;
+            transform: scale(1.05);
+        }
+        .cf-sticker-tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .cf-sticker-tile .sticker-emoji-art {
+            font-size: 42px;
+            line-height: 1;
+        }
+        .cf-sticker-tile .sticker-del-badge {
+            display: none;
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ef4444;
+            color: #fff;
+            border: 2px solid #fff;
+            font-size: 12px;
+            font-weight: 800;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .cf-sticker-grid.edit-mode .sticker-del-badge { display: flex; }
+        .cf-add-sticker-tile {
+            border: 2px dashed #94a3b8;
+            background: #f1f5f9;
+            flex-direction: column;
+            gap: 3px;
+            color: var(--cf-primary);
+            font-size: 11.5px;
+            font-weight: 800;
+        }
+        .cf-sent-sticker-img {
+            width: 135px;
+            height: 135px;
+            object-fit: contain;
+            display: block;
+            cursor: pointer;
+        }
+        .cf-sent-sticker-emoji {
+            font-size: 64px;
+            line-height: 1.1;
+            user-select: none;
+        }
+
+                /* Quick Emoji Popup */
         .emoji-popup-bar {
             display: none;
             position: fixed;
@@ -1194,18 +1386,38 @@
                 <button type="button" id="sendReviewedVoiceBtn" onclick="sendReviewedVoice()" class="cf-send-pill-btn">Send ➤</button>
             </div>
 
-            <!-- Emoji Picker Bar -->
-            <div class="emoji-popup-bar" id="emojiPopupBar">
-                <button class="emoji-item-btn" onclick="insertEmoji('😀')">😀</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('😂')">😂</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('🥰')">🥰</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('😍')">😍</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('😭')">😭</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('😡')">😡</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('👍')">👍</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('❤️')">❤️</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('🙏')">🙏</button>
-                <button class="emoji-item-btn" onclick="insertEmoji('🎉')">🎉</button>
+            <!-- Fullscreen Photo Viewer Lightbox (With Close ✕ & Download Buttons) -->
+            <div class="cf-lightbox-overlay" id="cfPhotoLightbox" onclick="closePhotoLightbox()">
+                <div class="cf-lightbox-topbar" onclick="event.stopPropagation()">
+                    <button type="button" class="cf-lightbox-btn" id="cfLightboxDownloadBtn">⬇️ ទាញយក (Download)</button>
+                    <button type="button" class="cf-lightbox-btn cf-lightbox-close" onclick="closePhotoLightbox()" title="បិទរូបភាព (Close)">✕</button>
+                </div>
+                <img id="cfLightboxImg" class="cf-lightbox-img" src="" onclick="event.stopPropagation()">
+            </div>
+
+            <!-- Telegram-Style Sticker & Emoji Drawer (Supports Adding & Editing Custom Stickers) -->
+            <div class="cf-sticker-drawer" id="cfStickerDrawer" onclick="event.stopPropagation()">
+                <div class="cf-drawer-tabs">
+                    <div style="display:flex; gap:6px;">
+                        <button type="button" class="cf-drawer-tab-btn active" id="tabDrawerStickers" onclick="switchDrawerTab('stickers')">💟 Stickers</button>
+                        <button type="button" class="cf-drawer-tab-btn" id="tabDrawerEmojis" onclick="switchDrawerTab('emojis')">😊 Emoji</button>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <button type="button" id="toggleEditStickersBtn" onclick="toggleStickerEditMode()" style="background:#eef2ff; border:1px solid #c7d2fe; color:#4f46e5; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">✏️ Edit</button>
+                        <button type="button" onclick="closeStickerDrawer()" style="background:#f1f5f9; border:none; color:#0f172a; width:26px; height:26px; border-radius:50%; font-weight:800; cursor:pointer;">✕</button>
+                    </div>
+                </div>
+
+                <!-- Stickers Panel -->
+                <div id="drawerStickersPanel">
+                    <input type="file" id="customStickerFileInput" accept="image/*" multiple style="display:none;" onchange="handleAddCustomStickers(this)">
+                    <div class="cf-sticker-grid" id="cfStickerGrid"></div>
+                </div>
+
+                <!-- Emojis Panel -->
+                <div id="drawerEmojisPanel" style="display:none; padding:12px; flex-wrap:wrap; gap:8px; justify-content:center; max-height:220px; overflow-y:auto;">
+                    ${['😀','😂','🥰','😍','😘','😎','😭','😡','👍','❤️','🙏','🎉','🔥','💯','🤝','🥳','🥺','😴','🤔','👏'].map(em => `<button type="button" class="emoji-item-btn" onclick="insertEmoji('${em}')">${em}</button>`).join('')}
+                </div>
             </div>
 
             <!-- Staged Multi-Media Tray (Click Send to Upload to Server/R2 first, then deliver) -->
@@ -1230,8 +1442,8 @@
                 <button class="cf-dock-icon" id="voiceRecordBtn" onclick="toggleVoiceRecord()" title="Voice Message">🎙️</button>
 
                 <div class="cf-input-capsule">
-                    <input type="text" id="messageTextInput" class="cf-text-field" placeholder="សរសេរសារនៅទីនេះ..." oninput="updateSendOrThumbIcon()" onkeypress="if(event.key==='Enter') handlePrimaryActionBtn()">
-                    <button type="button" class="cf-emoji-trigger" onclick="toggleEmojiPopup(event)" title="Emoji">😊</button>
+                    <textarea id="messageTextInput" class="cf-text-field" rows="1" placeholder="សរសេរសារនៅទីនេះ... (Enter ចុះបន្ទាត់)" oninput="autoResizeComposerTextarea(this); updateSendOrThumbIcon()"></textarea>
+                    <button type="button" class="cf-emoji-trigger" onclick="toggleEmojiPopup(event)" title="Stickers & Emoji">💟</button>
                 </div>
 
                 <button class="cf-send-pill-btn" id="primaryActionBtn" onclick="handlePrimaryActionBtn()" title="Send">
@@ -1732,23 +1944,31 @@
         }
 
         // =========================================================================
-        // ACCURATE REAL-TIME ONLINE / OFFLINE PRESENCE ENGINE
+        // ACCURATE REAL-TIME ONLINE / OFFLINE PRESENCE ENGINE (UTC-Safe & Consistent)
         // =========================================================================
-        function isUserActivelyOnline(lastActiveRaw) {
-            if (!lastActiveRaw) return false;
-            const ts = Date.parse(lastActiveRaw);
-            if (isNaN(ts)) return false;
-            // Strictly online ONLY when user has active heartbeat within the last 25 seconds
-            return (Date.now() - ts) <= 25000;
+        function parseServerTimestampMs(raw) {
+            if (!raw) return NaN;
+            if (typeof raw === 'number') return raw;
+            let s = String(raw).trim();
+            // If DB returned timestamp without timezone suffix (e.g. "2026-11-14 05:45:00"), normalize to UTC ISO
+            if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+                s = s.replace(' ', 'T') + 'Z';
+            }
+            return Date.parse(s);
         }
 
-        function formatLastSeenStatus(lastActiveRaw) {
-            if (!lastActiveRaw) return 'Offline';
-            const ts = Date.parse(lastActiveRaw);
-            if (isNaN(ts)) return 'Offline';
-            const diffSec = Math.floor((Date.now() - ts) / 1000);
-            if (diffSec <= 25) return 'Online';
-            return 'Offline';
+        function isUserActivelyOnline(lastActiveRaw, explicitOnlineFlag) {
+            if (explicitOnlineFlag === false || explicitOnlineFlag === 0 || explicitOnlineFlag === 'false') return false;
+            if (!lastActiveRaw) return false;
+            const ts = parseServerTimestampMs(lastActiveRaw);
+            if (isNaN(ts)) return false;
+            const diffMs = Date.now() - ts;
+            // Active within last 35 seconds (and allow up to 10s clock skew)
+            return diffMs >= -10000 && diffMs <= 35000;
+        }
+
+        function formatLastSeenStatus(lastActiveRaw, explicitOnlineFlag) {
+            return isUserActivelyOnline(lastActiveRaw, explicitOnlineFlag) ? 'Online' : 'Offline';
         }
 
         let lastHeartbeatSentAt = 0;
@@ -1785,13 +2005,13 @@
                 const data = await res.json();
                 if (data.success && data.user) {
                     activeFriend.last_active = data.user.last_active;
-                    updateHeaderPresenceUI(data.user.last_active);
+                    updateHeaderPresenceUI(data.user.last_active, data.user.is_online);
                 }
             } catch (e) {}
         }
 
-        function updateHeaderPresenceUI(lastActiveRaw) {
-            const online = isUserActivelyOnline(lastActiveRaw);
+        function updateHeaderPresenceUI(lastActiveRaw, explicitOnlineFlag) {
+            const online = isUserActivelyOnline(lastActiveRaw, explicitOnlineFlag);
             const dotEl = document.getElementById('activeChatOnlineDot');
             const badgeEl = document.getElementById('activeChatPresenceBadge');
             const statusEl = document.getElementById('activeChatStatus');
@@ -1864,6 +2084,14 @@
                         const liveUnread = isCurrentlyOpen ? 0 : Math.max(dbUnread, unreadSenderMap[se] || 0);
                         return { ...c, unread_count: liveUnread };
                     });
+                    if (activeFriend) {
+                        const updatedFriend = allConversations.find(c => (c.email || '').toLowerCase() === activeFriend.email.toLowerCase());
+                        if (updatedFriend) {
+                            activeFriend.last_active = updatedFriend.last_active;
+                            activeFriend.is_online = updatedFriend.is_online;
+                            updateHeaderPresenceUI(updatedFriend.last_active, updatedFriend.is_online);
+                        }
+                    }
                     const searchVal = (document.getElementById('searchContactInput')?.value || '').trim();
                     if (!searchVal) renderContacts(allConversations);
 
@@ -1919,6 +2147,7 @@
             if (!rawMsg) return 'ចុចដើម្បីជជែក';
             if (rawMsg === DELETED_MARKER) return '🚫 សារត្រូវបានលុប';
             if (rawMsg.startsWith(EDITED_PREFIX)) return rawMsg.slice(EDITED_PREFIX.length);
+            if (rawMsg.startsWith('STICKER_EMOJI:') || rawMsg === '[Sticker]') return '💟 Sticker';
             return rawMsg;
         }
 
@@ -1934,7 +2163,7 @@
                 const unreadClass = unreadNum > 0 ? 'is-unread' : '';
                 const avatar = person.profile_pic || 'https://via.placeholder.com/48';
                 const subtitle = formatSidebarPreview(person.last_message || person.email);
-                const online = isUserActivelyOnline(person.last_active);
+                const online = isUserActivelyOnline(person.last_active, person.is_online);
                 const safeData = JSON.stringify({
                     email: person.email,
                     first_name: person.first_name,
@@ -2055,7 +2284,7 @@
                 document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
             }
             if (!e.target.closest('#emojiPopupBar') && !e.target.closest('.cf-emoji-trigger')) {
-                document.getElementById('emojiPopupBar').classList.remove('show');
+                closeStickerDrawer();
             }
         });
 
@@ -2152,11 +2381,16 @@
                             ${isUnplayedReceived ? `<span class="cf-voice-unplayed-dot" id="voice-unplayed-dot-${m.id}" title="សារសំឡេងថ្មីមិនទាន់ស្តាប់"></span>` : ''}
                         </div>
                     `;
+                } else if (m.media_type === 'sticker' && m.media_url) {
+                    bodyHtml = `<img src="${m.media_url}" class="cf-sent-sticker-img" onclick="openPhotoLightbox('${m.media_url}')" alt="Sticker">`;
+                } else if (displayText.startsWith('STICKER_EMOJI:')) {
+                    const emChar = displayText.replace('STICKER_EMOJI:', '');
+                    bodyHtml = `<div class="cf-sent-sticker-emoji">${escapeHtml(emChar)}</div>`;
                 } else if (m.media_url) {
                     const dlBtnHtml = `<button type="button" class="cf-media-dl-btn" onclick="downloadChatMediaFile('${m.media_url}', ${isVideo ? 'true' : 'false'}, event)" title="ទាញយក (Download)">⬇️</button>`;
                     bodyHtml = isVideo
                         ? `<div class="cf-media-card">${dlBtnHtml}<video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
-                        : `<div class="cf-media-card">${dlBtnHtml}<img src="${m.media_url}" onclick="window.open('${m.media_url}', '_blank')"></div>`;
+                        : `<div class="cf-media-card">${dlBtnHtml}<img src="${m.media_url}" onclick="openPhotoLightbox('${m.media_url}')"></div>`;
                 } else if (displayText === '👍') {
                     bodyHtml = `<div class="big-thumb-sticker">👍</div>`;
                 } else if (displayText) {
@@ -2263,6 +2497,7 @@
             if (banner) banner.classList.remove('active');
             const input = document.getElementById('messageTextInput');
             if (input) input.value = '';
+            autoResizeComposerTextarea(input);
             updateSendOrThumbIcon();
         }
 
@@ -2345,14 +2580,261 @@
             }
         }
 
+        // =========================================================================
+        // FULLSCREEN PHOTO LIGHTBOX (With Close ✕ & Download Buttons)
+        // =========================================================================
+        function openPhotoLightbox(imgUrl) {
+            const box = document.getElementById('cfPhotoLightbox');
+            const img = document.getElementById('cfLightboxImg');
+            const dlBtn = document.getElementById('cfLightboxDownloadBtn');
+            if (!box || !img) return;
+            img.src = imgUrl;
+            if (dlBtn) {
+                dlBtn.onclick = (e) => downloadChatMediaFile(imgUrl, false, e);
+            }
+            box.classList.add('active');
+        }
+
+        function closePhotoLightbox() {
+            const box = document.getElementById('cfPhotoLightbox');
+            const img = document.getElementById('cfLightboxImg');
+            if (box) box.classList.remove('active');
+            if (img) img.src = '';
+        }
+
+        // Auto-resize multi-line composer textarea (Enter adds a newline, only clicking Send sends!)
+        function autoResizeComposerTextarea(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 110) + 'px';
+        }
+
+        // =========================================================================
+        // TELEGRAM-STYLE STICKER PACK (Add Custom Stickers, Edit/Delete, Send)
+        // =========================================================================
+        const STICKERS_STORAGE_KEY = 'camfeed_custom_stickers_v1';
+        const DEFAULT_BUILTIN_STICKERS = [
+            { id: 'def-1', type: 'emoji', value: '🥰' },
+            { id: 'def-2', type: 'emoji', value: '😂' },
+            { id: 'def-3', type: 'emoji', value: '😍' },
+            { id: 'def-4', type: 'emoji', value: '🥳' },
+            { id: 'def-5', type: 'emoji', value: '😭' },
+            { id: 'def-6', type: 'emoji', value: '🙏' },
+            { id: 'def-7', type: 'emoji', value: '🔥' },
+            { id: 'def-8', type: 'emoji', value: '❤️' },
+            { id: 'def-9', type: 'emoji', value: '😎' },
+            { id: 'def-10', type: 'emoji', value: '🤝' },
+            { id: 'def-11', type: 'emoji', value: '🎉' }
+        ];
+        let stickerEditMode = false;
+
+        function getAllStickers() {
+            let custom = [];
+            try {
+                custom = JSON.parse(localStorage.getItem(STICKERS_STORAGE_KEY) || '[]');
+                if (!Array.isArray(custom)) custom = [];
+            } catch (e) { custom = []; }
+            return [...custom, ...DEFAULT_BUILTIN_STICKERS];
+        }
+
+        function saveCustomStickersList(list) {
+            try {
+                localStorage.setItem(STICKERS_STORAGE_KEY, JSON.stringify(list));
+            } catch (e) {}
+        }
+
+        function renderStickersGrid() {
+            const grid = document.getElementById('cfStickerGrid');
+            if (!grid) return;
+            grid.classList.toggle('edit-mode', stickerEditMode);
+
+            const all = getAllStickers();
+            const addTileHtml = `
+                <div class="cf-sticker-tile cf-add-sticker-tile" onclick="document.getElementById('customStickerFileInput').click()" title="បន្ថែម Sticker ផ្ទាល់ខ្លួន">
+                    <span style="font-size:24px;">＋</span>
+                    <span>Add Sticker</span>
+                </div>
+            `;
+
+            const itemsHtml = all.map(st => {
+                const isCustom = String(st.id).startsWith('cust-');
+                const delBtn = isCustom
+                    ? `<button type="button" class="sticker-del-badge" onclick="deleteCustomSticker('${st.id}', event)" title="លុប Sticker">✕</button>`
+                    : '';
+                if (st.type === 'image') {
+                    return `
+                        <div class="cf-sticker-tile" onclick="sendStickerItem('${st.id}')">
+                            ${delBtn}
+                            <img src="${st.url}" alt="Sticker">
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="cf-sticker-tile" onclick="sendStickerItem('${st.id}')">
+                        <span class="sticker-emoji-art">${st.value}</span>
+                    </div>
+                `;
+            }).join('');
+
+            grid.innerHTML = addTileHtml + itemsHtml;
+        }
+
+        function toggleStickerEditMode() {
+            stickerEditMode = !stickerEditMode;
+            const btn = document.getElementById('toggleEditStickersBtn');
+            if (btn) {
+                btn.innerText = stickerEditMode ? '✓ Done' : '✏️ Edit';
+                btn.style.background = stickerEditMode ? '#10b981' : '#eef2ff';
+                btn.style.color = stickerEditMode ? '#fff' : '#4f46e5';
+            }
+            renderStickersGrid();
+        }
+
+        function deleteCustomSticker(stickerId, event) {
+            if (event) event.stopPropagation();
+            let custom = [];
+            try { custom = JSON.parse(localStorage.getItem(STICKERS_STORAGE_KEY) || '[]'); } catch (e) {}
+            custom = custom.filter(s => s.id !== stickerId);
+            saveCustomStickersList(custom);
+            renderStickersGrid();
+        }
+
+        function resizeStickerToWebpOrPng(file) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                const objUrl = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(objUrl);
+                    const maxDim = 360;
+                    let w = img.width;
+                    let h = img.height;
+                    if (w > maxDim || h > maxDim) {
+                        const scale = maxDim / Math.max(w, h);
+                        w = Math.round(w * scale);
+                        h = Math.round(h * scale);
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob((blob) => {
+                        resolve(blob || file);
+                    }, 'image/png');
+                };
+                img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(file); };
+                img.src = objUrl;
+            });
+        }
+
+        async function handleAddCustomStickers(input) {
+            const files = Array.from(input.files || []);
+            if (files.length === 0) return;
+            input.value = '';
+
+            let custom = [];
+            try { custom = JSON.parse(localStorage.getItem(STICKERS_STORAGE_KEY) || '[]'); } catch (e) {}
+
+            for (const f of files) {
+                try {
+                    const stickerBlob = await resizeStickerToWebpOrPng(f);
+                    const uploadedUrl = await uploadChatMediaToR2(stickerBlob, `sticker-${Date.now()}.png`);
+                    custom.unshift({
+                        id: 'cust-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+                        type: 'image',
+                        url: uploadedUrl
+                    });
+                } catch (err) {
+                    alert('មិនអាចបន្ថែម Sticker បានទេ៖ ' + err.message);
+                }
+            }
+            saveCustomStickersList(custom.slice(0, 60));
+            renderStickersGrid();
+        }
+
+        async function sendStickerItem(stickerId) {
+            if (stickerEditMode || !activeFriend) return;
+            const st = getAllStickers().find(s => s.id === stickerId);
+            if (!st) return;
+
+            closeStickerDrawer();
+            const targetEmail = activeFriend.email;
+
+            if (st.type === 'emoji') {
+                await sendTextMessage('STICKER_EMOJI:' + st.value);
+                return;
+            }
+
+            const tempId = 'temp-st-' + Date.now();
+            pendingOutgoingMessages.push({
+                tempId,
+                receiverEmail: targetEmail,
+                type: 'image',
+                previewUrl: st.url,
+                progress: 100
+            });
+            forceRenderCurrentFeed(true);
+
+            try {
+                const res = await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sender: currentUser.email,
+                        receiver: targetEmail,
+                        message: '[Sticker]',
+                        media_url: st.url,
+                        message_type: 'sticker'
+                    })
+                });
+                const data = await res.json();
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                if (data.success) {
+                    await fetchMessages(true);
+                    loadConversations();
+                } else {
+                    forceRenderCurrentFeed(false);
+                }
+            } catch (e) {
+                pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
+                forceRenderCurrentFeed(false);
+            }
+        }
+
+        function switchDrawerTab(tab) {
+            const isSt = tab === 'stickers';
+            document.getElementById('tabDrawerStickers').classList.toggle('active', isSt);
+            document.getElementById('tabDrawerEmojis').classList.toggle('active', !isSt);
+            document.getElementById('drawerStickersPanel').style.display = isSt ? 'block' : 'none';
+            document.getElementById('drawerEmojisPanel').style.display = isSt ? 'none' : 'flex';
+            document.getElementById('toggleEditStickersBtn').style.display = isSt ? 'inline-block' : 'none';
+            if (isSt) renderStickersGrid();
+        }
+
         function toggleEmojiPopup(event) {
-            event.stopPropagation();
-            document.getElementById('emojiPopupBar').classList.toggle('show');
+            if (event) event.stopPropagation();
+            const drawer = document.getElementById('cfStickerDrawer');
+            if (!drawer) return;
+            const willOpen = !drawer.classList.contains('show');
+            drawer.classList.toggle('show', willOpen);
+            if (willOpen) renderStickersGrid();
+        }
+
+        function closeStickerDrawer() {
+            const drawer = document.getElementById('cfStickerDrawer');
+            if (drawer) drawer.classList.remove('show');
+            stickerEditMode = false;
+            const btn = document.getElementById('toggleEditStickersBtn');
+            if (btn) {
+                btn.innerText = '✏️ Edit';
+                btn.style.background = '#eef2ff';
+                btn.style.color = '#4f46e5';
+            }
         }
 
         function insertEmoji(em) {
             const inp = document.getElementById('messageTextInput');
             inp.value += em;
+            autoResizeComposerTextarea(inp);
             inp.focus();
             updateSendOrThumbIcon();
         }
@@ -2364,8 +2846,9 @@
 
             const targetEmail = activeFriend.email;
             input.value = '';
+            autoResizeComposerTextarea(input);
             updateSendOrThumbIcon();
-            document.getElementById('emojiPopupBar').classList.remove('show');
+            closeStickerDrawer();
 
             const tempId = 'temp-' + Date.now() + Math.random();
             pendingOutgoingMessages.push({
