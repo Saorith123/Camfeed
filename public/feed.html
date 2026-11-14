@@ -1100,6 +1100,11 @@
         .btn-unfollow:hover { background: #d8dadf; }
 
         .hidden { display: none !important; }
+
+        /* Sponsored ads */
+        .sponsored-ad-card { border: 1.5px solid #e2e8f0; background: #ffffff; border-radius: 10px; overflow: hidden; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .sponsored-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 6px 14px; }
+        .sponsored-badge { font-size: 11px; background: #e7f3ff; color: #1877f2; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
     </style>
 </head>
 <body>
@@ -2096,11 +2101,11 @@
                                 <div style="display:flex; align-items:center; gap:10px; padding:10px 12px;">
                                     <img src="${p.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                     <div>
-                                        <div style="font-weight:700; font-size:14px;">${p.first_name} ${p.last_name}</div>
+                                        <div style="font-weight:700; font-size:14px;">${esc(p.first_name)} ${esc(p.last_name)}</div>
                                         <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (srcUrl ? '🖼️ Photo' : '📝 Post')} · ${new Date(p.created_at).toLocaleDateString()}</div>
                                     </div>
                                 </div>
-                                ${p.content ? `<div style="padding:0 12px 10px; font-size:14px; color:#050505;">${p.content}</div>` : ''}
+                                ${p.content ? `<div style="padding:0 12px 10px; font-size:14px; color:#050505;">${linkify(p.content)}</div>` : ''}
                                 ${mediaPreview}
                             </div>
                         `;
@@ -2197,11 +2202,11 @@
                     <div style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #f0f2f5;">
                         <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                         <div>
-                            <div style="font-weight:700; font-size:14.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${post.first_name} ${post.last_name}</div>
+                            <div style="font-weight:700; font-size:14.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${esc(post.first_name)} ${esc(post.last_name)}</div>
                             <div style="font-size:11px; color:#65676b;">${dateStr} · 🌐</div>
                         </div>
                     </div>
-                    ${post.content ? `<div style="padding:10px 14px; font-size:14.5px; color:#050505; white-space:pre-wrap;">${post.content}</div>` : ''}
+                    ${post.content ? `<div style="padding:10px 14px; font-size:14.5px; color:#050505; white-space:pre-wrap;">${linkify(post.content)}</div>` : ''}
                     <div>${mediaHtml}</div>
                     <div style="padding:10px 14px; background:#f8f9fa; border-top:1px solid #e4e6eb;">
                         <div style="font-weight:700; font-size:13.5px; margin-bottom:10px; color:#050505;">💬 មតិយោបល់ (${comments.length})</div>
@@ -2247,9 +2252,9 @@
                     <div style="flex:1;">
                         <div style="background:#fff; padding:8px 12px; border-radius:14px; border:1px solid #e4e6eb;">
                             <div style="font-weight:700; font-size:12.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
-                                ${c.first_name} ${c.last_name} ${replyTag}
+                                ${esc(c.first_name)} ${esc(c.last_name)} ${replyTag}
                             </div>
-                            <div style="font-size:13.5px; color:#1c1e21; margin-top:2px;">${c.content}</div>
+                            <div style="font-size:13.5px; color:#1c1e21; margin-top:2px;">${linkify(c.content)}</div>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; padding:3px 8px; font-size:11.5px; color:#65676b; font-weight:700; position:relative;">
                             <span style="cursor:pointer; color:${userReact ? '#1877f2' : '#65676b'};" onclick="toggleCommentReactionPicker(${c.id}, event)">
@@ -2815,7 +2820,7 @@
                 post.id,
                 post.media_type,
                 post.media_url,
-                `${post.first_name} ${post.last_name}`,
+                `${esc(post.first_name)} ${esc(post.last_name)}`,
                 post.profile_pic || '',
                 post.content || '',
                 dateStr,
@@ -2984,6 +2989,7 @@
             }
 
             posts.forEach((post, idx) => {
+                maybeInsertFeedAd(container, containerId);
                 const count = parseInt(post.likes_count) || 0;
                 const viewsCount = parseInt(post.views_count) || 0;
                 const sharesCount = parseInt(post.shares_count) || 0;
@@ -3042,7 +3048,7 @@
                         </div>
                     </div>
                     ${post.content ? `
-                        <div class="post-content notranslate ${post.media_type === 'styled_text' ? 'hidden' : ''}" translate="no" id="post-content-orig-${post.id}" style="padding: 0 14px; margin-bottom: 4px;">${esc(post.content)}</div>
+                        <div class="post-content notranslate ${post.media_type === 'styled_text' ? 'hidden' : ''}" translate="no" id="post-content-orig-${post.id}" style="padding: 0 14px; margin-bottom: 4px;">${linkify(post.content)}</div>
                         <div id="post-translated-${post.id}" class="translated-box notranslate hidden" translate="no"></div>
                         <button type="button" class="see-translation-btn notranslate" translate="no" id="trans-btn-${post.id}" onclick="translateSinglePost(${post.id})">🌐 បកប្រែ (See translation)</button>
                     ` : ''}
@@ -3619,6 +3625,84 @@
         let feedVideoScrollRaf = null;
         let iosAudioSessionUnlocked = false;
 
+        // ---- Sponsored ads: a banner after every 6 posts (the ads come from the server; text is escaped, links are web links only) ----
+        let cachedSponsoredAds = [];
+        async function fetchSponsoredAdsCatalog() {
+            try {
+                const res = await fetch('/api/sponsored-ads');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.ads)) { cachedSponsoredAds = data.ads; injectAdsIntoRenderedFeed(); }
+            } catch (e) {}
+        }
+        // the ads can arrive after the first posts are already on screen: place them in the posts that are there
+        function injectAdsIntoRenderedFeed() {
+            const container = document.getElementById('postsContainer');
+            const banners = cachedSponsoredAds.filter(a => a.placement === 'feed_banner');
+            if (!container || !banners.length || container.querySelector('.sponsored-ad-card')) return;
+            const posts = Array.from(container.children).filter(e => e.classList && e.classList.contains('post-item'));
+            let n = 0;
+            for (let i = 5; i < posts.length; i += 6) {
+                posts[i].insertAdjacentHTML('afterend', buildSponsoredFeedCard(banners[n++ % banners.length]));
+                const card = posts[i].nextElementSibling;
+                if (card && adSeenObserver) adSeenObserver.observe(card);
+            }
+        }
+        fetchSponsoredAdsCatalog();
+        setInterval(fetchSponsoredAdsCatalog, 120000);
+
+        function adById(id) { return cachedSponsoredAds.find(a => String(a.id) === String(id)) || null; }
+        function recordAdClick(adId) {
+            const ad = adById(adId);
+            fetch('/api/sponsored-ads/' + encodeURIComponent(adId) + '/click', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+            if (ad && /^https?:\/\//i.test(ad.target_url || '')) window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+        }
+        const adSeenObserver = ('IntersectionObserver' in window) ? new IntersectionObserver((entries) => {
+            entries.forEach((en) => {
+                if (en.isIntersecting && en.intersectionRatio >= 0.5) {
+                    const id = en.target.dataset.adId; adSeenObserver.unobserve(en.target);
+                    fetch('/api/sponsored-ads/' + encodeURIComponent(id) + '/impression', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+                }
+            });
+        }, { threshold: [0.5] }) : null;
+
+        function buildSponsoredFeedCard(ad) {
+            const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
+            const hasLink = /^https?:\/\//i.test(ad.target_url || '');
+            const mediaHtml = isVideo
+                ? `<video src="${esc(ad.media_url)}" style="width:100%; max-height:360px; object-fit:cover; background:#000; display:block;" controls playsinline muted loop preload="metadata"></video>`
+                : `<img src="${esc(ad.media_url)}" style="width:100%; max-height:380px; object-fit:cover; display:block; ${hasLink ? 'cursor:pointer;' : ''}" ${hasLink ? `onclick="recordAdClick(${Number(ad.id)})"` : ''} alt="">`;
+            return `
+                <div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}">
+                    <div class="sponsored-header">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="sponsored-badge">Sponsored · ពាណិជ្ជកម្ម</span>
+                            <span class="notranslate" translate="no" style="font-weight:700; font-size:13.5px; color:#050505;">${esc(ad.advertiser_name)}</span>
+                        </div>
+                        <span style="font-size:11px; color:#65676b;">Ad</span>
+                    </div>
+                    ${ad.caption ? `<div class="notranslate" translate="no" style="padding:4px 14px 10px 14px; font-size:14.5px; color:#1c1e21; white-space:pre-wrap;">${esc(ad.caption)}</div>` : ''}
+                    ${mediaHtml}
+                    ${hasLink ? `<div style="padding:10px 14px; display:flex; justify-content:space-between; align-items:center; background:#fff; border-top:1px solid #f0f2f5;">
+                        <div style="font-size:12.5px; font-weight:700; color:#1877f2;">ស្វែងយល់បន្ថែម (Learn More)</div>
+                        <button type="button" onclick="recordAdClick(${Number(ad.id)})" style="background:#1877f2; color:#fff; border:none; padding:7px 16px; border-radius:18px; font-weight:700; font-size:13px; cursor:pointer;">មើលបន្ថែម</button>
+                    </div>` : ''}
+                </div>`;
+        }
+
+        // put one ad after every 6th post of the main feed
+        function maybeInsertFeedAd(container, containerId) {
+            if (containerId !== 'postsContainer' || !cachedSponsoredAds.length) return;
+            const banners = cachedSponsoredAds.filter(a => a.placement === 'feed_banner'); if (!banners.length) return;
+            const shown = container.querySelectorAll('.post-item, .sponsored-ad-card').length;
+            if (shown > 0 && (shown + 1) % 6 === 0) {
+                const ad = banners[Math.floor(shown / 6) % banners.length];
+                container.insertAdjacentHTML('beforeend', buildSponsoredFeedCard(ad));
+                const card = container.lastElementChild;
+                if (card && adSeenObserver) adSeenObserver.observe(card);
+            }
+        }
+
+
         function clearIosMediaSessionWidget() {
             if ('mediaSession' in navigator) {
                 try {
@@ -3972,11 +4056,11 @@
                         return `
                             <div class="comment-container ${isReply ? 'is-reply' : ''}" id="comment-${c.id}" style="flex-direction:column; gap:2px; margin-bottom:4px;">
                                 <div style="display:flex; gap:8px; width:100%; align-items:flex-start;">
-                                    <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${c.user_email}'" title="View Profile">
+                                    <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'" title="View Profile">
                                     <div class="comment-content-wrapper" style="flex:1;">
                                         <div style="flex: 1;">
-                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${c.user_email}'">${c.first_name} ${c.last_name} ${replyBadge}</span>
-                                            <div id="comment-text-${c.id}" class="notranslate" translate="no" style="font-size:14px; line-height:1.4;">${c.content}</div>
+                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${esc(c.first_name)} ${esc(c.last_name)} ${replyBadge}</span>
+                                            <div id="comment-text-${c.id}" class="notranslate" translate="no" style="font-size:14px; line-height:1.4;">${linkify(c.content)}</div>
                                         </div>
                                         <button class="comment-options-btn" onclick="toggleCommentMenu(event, ${c.id})">⋮</button>
                                     </div>

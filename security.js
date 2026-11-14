@@ -193,7 +193,7 @@ function securityHeaders(req, res, next) {
     "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://translate.google.com https://translate.googleapis.com https://www.gstatic.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com https://translate.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
-    `img-src 'self' data: blob: ${media} https://via.placeholder.com https://www.gstatic.com https://translate.google.com https://translate.googleapis.com`,
+    `img-src 'self' data: blob: ${media} https://via.placeholder.com https://tile.openstreetmap.org https://www.gstatic.com https://translate.google.com https://translate.googleapis.com`,
     `media-src 'self' blob: ${media}`,
     `connect-src 'self' ${media} https://*.r2.cloudflarestorage.com https://translate.googleapis.com`,
     'frame-src https://challenges.cloudflare.com https://translate.google.com',

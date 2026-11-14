@@ -2,6 +2,7 @@
 <html lang="km">
 <head>
     <script src="auth-client.js"></script>
+    <script src="pin-map.js" defer></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -1460,14 +1461,15 @@
                         <span style="cursor:pointer; font-size:22px;" onclick="closePinLocationModal()">&times;</span>
                     </div>
                     <div class="modal-body" style="gap: 12px;">
-                        <p style="font-size: 13px; color: #64748b; margin: 0;">ជ្រើសរើសវិធីផ្ញើទីតាំងរបស់អ្នកទៅកាន់មិត្តភក្តិ៖</p>
-                        <div style="background: #f8fafc; border: 1px solid var(--cf-border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-                            <div style="font-weight: 700; font-size: 13.5px;" id="locationCoordsStatus">កំពុងស្វែងរក GPS របស់អ្នក...</div>
-                            <div id="mapPreviewBox" style="width: 100%; height: 160px; background: #e2e8f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #64748b; font-weight: 600; overflow: hidden; position: relative;">
-                                🗺️ផែនទី GPS (GPS Live Map)
+                        <p style="font-size: 13px; color: #64748b; margin: 0;">អូសផែនទីដើម្បីដាក់ម្ជុល 📍 ឲ្យចំទីតាំងដែលអ្នកចង់ផ្ញើ (បើ GPS ឬ Google ខុស អ្នកកែបាន)។</p>
+                        <div style="background: #f8fafc; border: 1px solid var(--cf-border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="font-weight: 700; font-size: 13px;" id="locationCoordsStatus">កំពុងស្វែងរក GPS របស់អ្នក...</div>
+                            <div id="mapPreviewBox" style="width: 100%; height: 280px; background: #e2e8f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #64748b; font-weight: 600; overflow: hidden; position: relative;">
+                                🗺️ កំពុងផ្ទុកផែនទី...
                             </div>
+                            <button type="button" onclick="recenterToMyGps()" style="background:#e2e8f0; color:#0f172a; border:none; padding:8px 12px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer;">📡 ត្រឡប់ទៅទីតាំង GPS របស់ខ្ញុំ</button>
                         </div>
-                        <button type="button" onclick="sendGpsLocationMessage()" class="cf-send-pill-btn" style="width: 100%; height: 42px; border-radius: 12px; font-size: 14px;">📍 ផ្ញើទីតាំងនេះ (Send Location)</button>
+                        <button type="button" onclick="sendGpsLocationMessage()" class="cf-send-pill-btn" style="width: 100%; height: 42px; border-radius: 12px; font-size: 14px;">📍 Pin ផ្ញើទីតាំងនេះ (Send this pin)</button>
                     </div>
                 </div>
             </div>
@@ -2426,7 +2428,7 @@
 
                 const isVideo = !ov.deleted && m.media_url && (m.message_type === 'video' || (m.media_url.match(/\.(mp4|webm|mov|m4v)$/i) && m.message_type !== 'audio'));
                 const isAudio = !ov.deleted && m.media_url && (m.message_type === 'audio' || displayText === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
-                const isLocation = !ov.deleted && (m.message_type === 'location' || displayText.includes('📍 ទីតាំងរបស់ខ្ញុំ'));
+                const isLocation = !ov.deleted && !m.media_url && (m.message_type === 'location' || displayText.includes('📍 ទីតាំងរបស់ខ្ញុំ'));
                 const isTextOnly = !m.media_url && displayText && displayText !== '👍' && !displayText.startsWith('STICKER_EMOJI:');
 
                 const menuItems = `
@@ -2458,13 +2460,14 @@
                             ${isUnplayedReceived ? `<span class="cf-voice-unplayed-dot" id="voice-unplayed-dot-${m.id}" title="សារសំឡេងថ្មីមិនទាន់ស្តាប់"></span>` : ''}
                         </div>
                     `;
-                } else if (isLocation) {
+                } else if (isLocation && parseLocationText(displayText)) {
+                    const loc = parseLocationText(displayText);
                     bodyHtml = `
-                        <div class="cf-media-card" style="width:250px; cursor:pointer;" onclick="window.open('${m.media_url || '#'}', '_blank')">
-                            <div style="height:120px; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:32px;">📍</div>
+                        <div class="cf-media-card" style="width:250px; cursor:pointer;" onclick="openLocationLink(${loc.lat}, ${loc.lng})">
+                            ${window.PinMap ? PinMap.previewHtml(loc.lat, loc.lng, 250, 130, 16) : '<div style="height:130px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:32px;">📍</div>'}
                             <div style="padding:10px; background:#fff; color:#0f172a; font-size:13px; font-weight:700;">
-                                <div>📍 ទីតាំង GPS (Location)</div>
-                                <div style="font-size:11px; color:#4f46e5; margin-top:2px;">ចុចដើម្បីបើក Google Maps ↗</div>
+                                <div>📍 ទីតាំង (Location)</div>
+                                <div style="font-size:11px; color:#4f46e5; margin-top:2px;">ចុចដើម្បីបើក Google Maps ត្រង់ទីតាំងនេះ ↗</div>
                             </div>
                         </div>
                     `;
@@ -2481,7 +2484,7 @@
                 } else if (displayText === '👍') {
                     bodyHtml = `<div class="big-thumb-sticker">👍</div>`;
                 } else if (displayText) {
-                    bodyHtml = `<div class="cf-bubble notranslate" translate="no">${escapeHtml(displayText)}${isEdited ? '<span class="cf-edited-tag">(បានកែ)</span>' : ''}</div>`;
+                    bodyHtml = `<div class="cf-bubble notranslate" translate="no">${linkify(displayText)}${isEdited ? '<span class="cf-edited-tag">(បានកែ)</span>' : ''}</div>`;
                 }
 
                 const seenFooter = (isSent && m.id === lastSeenSentMsgId)
@@ -3492,80 +3495,99 @@
             }
         }
 
-        let userLastCoords = { lat: 11.5564, lng: 104.9282, label: 'Phnom Penh, Cambodia' };
+        let userLastCoords = { lat: 11.5564, lng: 104.9282 };
+        let pinMapCtl = null;
+        let myGpsCoords = null;
+
+        function setPinStatus(lat, lng) {
+            const el = document.getElementById('locationCoordsStatus');
+            if (el) el.innerText = `📍 Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+        }
+
+        function mountPinMap(lat, lng) {
+            const box = document.getElementById('mapPreviewBox');
+            if (!box) return;
+            if (!window.PinMap) { box.innerText = 'កំពុងផ្ទុកផែនទី... សូមព្យាយាមម្តងទៀត'; return; }
+            if (pinMapCtl) pinMapCtl.destroy();
+            userLastCoords = { lat, lng };
+            pinMapCtl = PinMap.mount(box, { lat, lng, zoom: 17, onMove: (la, ln) => { userLastCoords = { lat: la, lng: ln }; setPinStatus(la, ln); } });
+        }
 
         function openPinLocationModal() {
             closeTripleDotMenu();
             document.getElementById('pinLocationModal').style.display = 'flex';
-            const statusEl = document.getElementById('locationCoordsStatus');
-            const mapBox = document.getElementById('mapPreviewBox');
+            // show a map straight away (last known spot), then move it to the real GPS position
+            mountPinMap(userLastCoords.lat, userLastCoords.lng);
+            recenterToMyGps();
+        }
 
-            if (navigator.geolocation) {
-                statusEl.innerText = 'កំពុងទាញយកទីតាំង GPS ពិតប្រាកដ...';
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                        userLastCoords.lat = pos.coords.latitude;
-                        userLastCoords.lng = pos.coords.longitude;
-                        statusEl.innerText = `📍 Lat: ${userLastCoords.lat.toFixed(4)}, Lng: ${userLastCoords.lng.toFixed(4)}`;
-                        mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=${userLastCoords.lat},${userLastCoords.lng}&z=15&output=embed"></iframe>`;
-                    },
-                    (err) => {
-                        statusEl.innerText = '📍 ប្រើប្រាស់ទីតាំងស្ដង់ដារ (Phnom Penh)';
-                        mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=11.5564,104.9282&z=14&output=embed"></iframe>`;
-                    },
-                    { timeout: 10000, enableHighAccuracy: true }
-                );
-            } else {
-                statusEl.innerText = '📍 ទីតាំងបច្ចុប្បន្ន';
-                mapBox.innerHTML = `<iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=11.5564,104.9282&z=14&output=embed"></iframe>`;
-            }
+        function recenterToMyGps() {
+            const statusEl = document.getElementById('locationCoordsStatus');
+            if (myGpsCoords && pinMapCtl) { pinMapCtl.setCenter(myGpsCoords.lat, myGpsCoords.lng); return; }
+            if (!navigator.geolocation) { statusEl.innerText = '📍 ឧបករណ៍មិនគាំទ្រ GPS - អូសផែនទីដើម្បីជ្រើសទីតាំង'; return; }
+            statusEl.innerText = 'កំពុងទាញយកទីតាំង GPS...';
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    myGpsCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    if (pinMapCtl) pinMapCtl.setCenter(myGpsCoords.lat, myGpsCoords.lng); else mountPinMap(myGpsCoords.lat, myGpsCoords.lng);
+                },
+                () => { setPinStatus(userLastCoords.lat, userLastCoords.lng); statusEl.innerText = '⚠️ មិនអាចយក GPS បានទេ (សូមអនុញ្ញាតទីតាំង) - អូសផែនទីដើម្បីជ្រើសដោយខ្លួនឯង'; },
+                { timeout: 10000, enableHighAccuracy: true, maximumAge: 15000 }
+            );
         }
 
         function closePinLocationModal() {
             document.getElementById('pinLocationModal').style.display = 'none';
+            if (pinMapCtl) { pinMapCtl.destroy(); pinMapCtl = null; }
+        }
+
+        // the chat text holds the place as a link; the card reads the numbers back from it
+        function parseLocationText(text) {
+            const m = /query=(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/.exec(String(text || ''));
+            if (!m) return null;
+            const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+            if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+            return { lat, lng };
+        }
+        function openLocationLink(lat, lng) {
+            lat = parseFloat(lat); lng = parseFloat(lng);
+            if (!isFinite(lat) || !isFinite(lng)) return;
+            window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank', 'noopener');
         }
 
         async function sendGpsLocationMessage() {
             if (!activeFriend) return;
             const targetEmail = activeFriend.email;
+            const lat = Number(userLastCoords.lat.toFixed(6)), lng = Number(userLastCoords.lng.toFixed(6));
             closePinLocationModal();
 
-            const mapEmbedUrl = `https://www.google.com/maps?q=${userLastCoords.lat},${userLastCoords.lng}&z=15&output=embed`;
-            const mapLink = `https://www.google.com/maps/search/?api=1&query=${userLastCoords.lat},${userLastCoords.lng}`;
+            const mapLink = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
             const locationMsgText = `📍 ទីតាំងរបស់ខ្ញុំ (My Location):\n${mapLink}`;
 
             const tempId = 'temp-loc-' + Date.now();
-            pendingOutgoingMessages.push({
-                tempId,
-                receiverEmail: targetEmail,
-                type: 'text',
-                text: locationMsgText
-            });
+            pendingOutgoingMessages.push({ tempId, receiverEmail: targetEmail, type: 'text', text: locationMsgText });
             forceRenderCurrentFeed(true);
 
             try {
+                // the link lives inside the message text (the server only accepts media links from our own storage)
                 const res = await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sender: currentUser.email,
-                        receiver: targetEmail,
-                        message: locationMsgText,
-                        media_url: mapLink,
-                        message_type: 'location'
-                    })
+                    body: JSON.stringify({ sender: currentUser.email, receiver: targetEmail, message: locationMsgText, message_type: 'location' })
                 });
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
                 pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
                 if (data.success) {
                     await fetchMessages(true);
                     loadConversations();
                 } else {
                     forceRenderCurrentFeed(false);
+                    alert(data.error || 'ផ្ញើទីតាំងមិនបានទេ សូមព្យាយាមម្តងទៀត');
                 }
             } catch (e) {
                 pendingOutgoingMessages = pendingOutgoingMessages.filter(p => p.tempId !== tempId);
                 forceRenderCurrentFeed(false);
+                alert('បញ្ហាបណ្តាញ ផ្ញើទីតាំងមិនបានទេ');
             }
         }
 

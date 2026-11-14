@@ -198,6 +198,12 @@ pool.connect(async (err, client, release) => {
     await pool.query(`CREATE TABLE IF NOT EXISTS wallet_ledger (
       id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, kind VARCHAR(30) NOT NULL, note TEXT, ref_id INTEGER, created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_wallet_ledger_user ON wallet_ledger (user_email)');
+    await pool.query(`CREATE TABLE IF NOT EXISTS sponsored_ads (
+      id SERIAL PRIMARY KEY, advertiser_name VARCHAR(80) NOT NULL, placement VARCHAR(20) NOT NULL DEFAULT 'feed_banner', caption TEXT, target_url TEXT, media_url TEXT NOT NULL,
+      skip_seconds INTEGER NOT NULL DEFAULT 5, status VARCHAR(12) NOT NULL DEFAULT 'active', impressions INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS ad_events (
+      ad_id INTEGER NOT NULL, user_email TEXT NOT NULL, kind VARCHAR(10) NOT NULL, day DATE NOT NULL DEFAULT CURRENT_DATE, PRIMARY KEY (ad_id, user_email, kind, day))`);
     await pool.query(`CREATE TABLE IF NOT EXISTS withdrawal_requests (
       id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, method VARCHAR(20) NOT NULL, account_name VARCHAR(80), account_number VARCHAR(40),
       status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
@@ -1758,6 +1764,15 @@ app.post('/api/messages', (req, res, next) => {
       else if (messageType === 'audio') defaultMsg = '[Voice Message]';
     }
 
+    // A shared place: the link sits inside the text (media links must come from our own storage), the numbers must be real coordinates.
+    if (messageType === 'location') {
+      const loc = /^📍[^\n]{0,60}\nhttps:\/\/www\.google\.com\/maps\/search\/\?api=1&query=(-?\d{1,3}(?:\.\d{1,8})?),(-?\d{1,3}(?:\.\d{1,8})?)$/.exec(String(req.body.message || ''));
+      if (!loc || Math.abs(parseFloat(loc[1])) > 90 || Math.abs(parseFloat(loc[2])) > 180) {
+        return res.status(400).json({ success: false, error: 'Invalid location' });
+      }
+      mediaUrl = null;
+    }
+
     const message = req.body.message || defaultMsg;
 
     const query = `
@@ -2546,6 +2561,80 @@ app.post('/api/admin/system', async (req, res) => {
   } catch (err) { console.error('[admin] system error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 
+
+// ---------------------------------------------------------------------------
+// Sponsored ads (local advertising): a banner between feed posts and a skippable video before reels.
+// Viewers only get what is needed to show the ad. Numbers count once per person, per ad, per day. Admins manage ads through adminGate.
+// ---------------------------------------------------------------------------
+const AD_PLACEMENTS = ['feed_banner', 'video_preroll'];
+const adLink = (v) => { const s = String(v || '').trim(); return /^https?:\/\/[^\s<>"'`]{4,480}$/i.test(s) ? s : ''; };   // only web links: never javascript:
+const adPublic = (r) => ({ id: r.id, advertiser_name: r.advertiser_name, placement: r.placement, caption: r.caption || '', target_url: r.target_url || '', media_url: r.media_url, skip_seconds: r.skip_seconds });
+
+app.get('/api/sponsored-ads', async (req, res) => {
+  try {
+    const r = await pool.query("SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds FROM sponsored_ads WHERE status = 'active' ORDER BY id DESC LIMIT 40");
+    res.json({ success: true, ads: r.rows.map(adPublic) });
+  } catch (err) { res.json({ success: true, ads: [] }); }
+});
+
+async function adEvent(req, res, kind) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id < 1 || !req.authEmail) return res.json({ success: true });
+    const ins = await pool.query('INSERT INTO ad_events (ad_id, user_email, kind) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING 1', [id, req.authEmail, kind]);
+    if (ins.rowCount) await pool.query(`UPDATE sponsored_ads SET ${kind === 'click' ? 'clicks = clicks' : 'impressions = impressions'} + 1 WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (err) { res.json({ success: true }); }
+}
+app.post('/api/sponsored-ads/:id/impression', (req, res) => adEvent(req, res, 'impression'));
+app.post('/api/sponsored-ads/:id/click', (req, res) => adEvent(req, res, 'click'));
+
+app.post('/api/admin/ads/list', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query('SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds, status, impressions, clicks, created_at FROM sponsored_ads ORDER BY id DESC LIMIT 200');
+    res.json({ success: true, ads: r.rows });
+  } catch (err) { console.error('[admin] ads list:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+app.post('/api/admin/ads/create', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const b = req.body || {};
+    const name = String(b.advertiser_name || '').trim().slice(0, 80);
+    const placement = AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner';
+    const media = security.safeUrl(String(b.media_url || ''));           // picture / video must be stored on our own media host
+    const target = b.target_url ? adLink(b.target_url) : '';
+    if (!name) return res.status(400).json({ success: false, error: 'Advertiser name is required.' });
+    if (!media) return res.status(400).json({ success: false, error: 'Media link must be a file uploaded to CamFeed storage (media.camfeedkh.com).' });
+    if (b.target_url && !target) return res.status(400).json({ success: false, error: 'Target link must start with http:// or https://' });
+    const skip = clampInt(b.skip_seconds, 5, 3, 15);
+    const r = await pool.query('INSERT INTO sponsored_ads (advertiser_name, placement, caption, target_url, media_url, skip_seconds, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [name, placement, String(b.caption || '').slice(0, 500), target || null, media, skip, a.adminEmail]);
+    audit(a.adminEmail, 'ad_create', r.rows[0].id, name + ' / ' + placement);
+    res.status(201).json({ success: true, id: r.rows[0].id });
+  } catch (err) { console.error('[admin] ads create:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+app.post('/api/admin/ads/status', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const id = parseInt(req.body.id, 10), status = req.body.status === 'paused' ? 'paused' : 'active';
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
+    await pool.query('UPDATE sponsored_ads SET status = $1 WHERE id = $2', [status, id]);
+    audit(a.adminEmail, 'ad_status', id, status);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+app.post('/api/admin/ads/delete', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const id = parseInt(req.body.id, 10);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
+    await pool.query('DELETE FROM sponsored_ads WHERE id = $1', [id]);
+    await pool.query('DELETE FROM ad_events WHERE ad_id = $1', [id]).catch(() => {});
+    audit(a.adminEmail, 'ad_delete', id, '');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not delete.' }); }
+});
 
 // ---------------------------------------------------------------------------
 // Monetization (Creator Program): rules, wallet (a ledger of cents), withdrawals paid BY HAND, referrals.

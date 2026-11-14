@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['system', '⚙️ System']];
+  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
 
   // ---------- helpers ----------
   function el(tag, props, kids) {
@@ -54,7 +54,7 @@
       dash.appendChild(el('div', { class: 'panel', id: 'panel-' + t[0], style: 'display:none' }));
     });
     // keep the order: Overview, Users, Content, (existing: Monetization, Reports, All Users, Posts, Accounts), Activity Log, System
-    var order = ['overview', 'umanage', 'content', 'monetization', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
+    var order = ['overview', 'umanage', 'content', 'monetization', 'ads', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
     order.forEach(function (id) { var b = document.getElementById('tabBtn-' + id); if (b) bar.appendChild(b); });
     var panels = {}; order.forEach(function (id) { panels[id] = document.getElementById('panel-' + id); });
     order.forEach(function (id) { if (panels[id]) dash.appendChild(panels[id]); });
@@ -339,9 +339,66 @@
   }
   window.loadMonetizationAdmin = loadMonetizationAdmin;
 
+
+  // ---------- Sponsored ads (local advertising) ----------
+  function loadAdsAdmin() {
+    var p = document.getElementById('panel-ads'); if (!p) return;
+    p.textContent = '';
+    var out = el('div', { id: 'adMsg' });
+    var name = el('input', { class: 'at-in', maxlength: '80', placeholder: 'e.g. RS Shop Cam' });
+    var place = el('select', { class: 'at-in' }, [el('option', { value: 'feed_banner', text: '📱 Banner in the Feed (one after every 6 posts)' }), el('option', { value: 'video_preroll', text: '🎬 Video ad before reels (with Skip button)' })]);
+    var cap = el('textarea', { class: 'at-in', rows: '2', maxlength: '500', placeholder: 'Special offer 50% today!' });
+    var target = el('input', { class: 'at-in', placeholder: 'https://t.me/yourshop (optional)' });
+    var media = el('input', { class: 'at-in', placeholder: 'Upload a file below, or paste a media.camfeedkh.com link' });
+    var skip = el('input', { class: 'at-in', type: 'number', value: '5', min: '3', max: '15' });
+    var file = el('input', { type: 'file', accept: 'image/*,video/mp4,video/webm,video/quicktime', style: 'font-size:13px' });
+    var upMsg = el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:4px' });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0]; if (!f) return;
+      upMsg.textContent = 'Uploading…';
+      fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name, content_type: f.type || 'application/octet-stream' }) })
+        .then(function (r) { return r.json(); })
+        .then(function (u) {
+          if (!u.uploadUrl) throw new Error(u.error || 'Upload not allowed');
+          return fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f }).then(function (r) { if (!r.ok) throw new Error('Upload failed (' + r.status + ')'); media.value = u.publicUrl; upMsg.textContent = '✅ Uploaded'; });
+        }).catch(function (e) { upMsg.textContent = '❌ ' + e.message; });
+    });
+    var launch = el('button', { class: 'btn-sm btn-blue', text: '🚀 Launch ad', onclick: function () {
+      launch.disabled = true;
+      adm('/api/admin/ads/create', { advertiser_name: name.value, placement: place.value, caption: cap.value, target_url: target.value, media_url: media.value, skip_seconds: skip.value }).then(function (d) {
+        launch.disabled = false; msg(out, d.success, d.success ? '✅ Ad is live (#' + d.id + ')' : '❌ ' + (d.error || 'Failed'));
+        if (d.success) { name.value = ''; cap.value = ''; target.value = ''; media.value = ''; file.value = ''; upMsg.textContent = ''; loadAdsList(); }
+      });
+    } });
+    p.appendChild(el('div', { class: 'at-h', text: '📢 Create a Sponsored ad' }));
+    p.appendChild(el('div', { class: 'at-grid' }, [el('div', {}, [el('div', { class: 'at-lbl', text: 'Advertiser / campaign' }), name]), el('div', {}, [el('div', { class: 'at-lbl', text: 'Where it shows' }), place]),
+      el('div', {}, [el('div', { class: 'at-lbl', text: 'Link when tapped' }), target]), el('div', {}, [el('div', { class: 'at-lbl', text: 'Skip after (seconds, video ads)' }), skip])]));
+    p.appendChild(el('div', { class: 'at-lbl', text: 'Caption' })); p.appendChild(cap);
+    p.appendChild(el('div', { class: 'at-lbl', text: 'Picture or video' })); p.appendChild(file); p.appendChild(upMsg); p.appendChild(media);
+    p.appendChild(el('div', { style: 'margin-top:12px' }, [launch])); p.appendChild(out);
+    p.appendChild(el('div', { class: 'at-h', text: '📊 All campaigns' })); p.appendChild(el('div', { id: 'adsList' }));
+    loadAdsList();
+  }
+  function loadAdsList() {
+    var box = document.getElementById('adsList'); if (!box) return; box.textContent = ''; box.appendChild(empty('Loading…'));
+    adm('/api/admin/ads/list').then(function (d) {
+      box.textContent = ''; if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
+      if (!d.ads.length) { box.appendChild(empty('No ads yet.')); return; }
+      var rows = d.ads.map(function (a) {
+        var ctr = a.impressions ? (a.clicks / a.impressions * 100).toFixed(1) + '%' : '—';
+        return el('tr', {}, [el('td', { text: '#' + a.id }), el('td', { text: a.advertiser_name }), el('td', { text: a.placement === 'video_preroll' ? '🎬 video' : '📱 feed' }), el('td', { text: (a.caption || '').slice(0, 40) }),
+          el('td', { text: String(a.impressions) }), el('td', { text: a.clicks + ' (' + ctr + ')' }), el('td', { text: a.status }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: a.status === 'active' ? 'Pause' : 'Resume', onclick: function () { adm('/api/admin/ads/status', { id: a.id, status: a.status === 'active' ? 'paused' : 'active' }).then(loadAdsList); } }),
+            el('button', { class: 'btn-sm btn-gray', style: 'margin-left:4px', text: '🗑️', onclick: function () { if (confirm('Delete this ad?')) adm('/api/admin/ads/delete', { id: a.id }).then(loadAdsList); } })])]);
+      });
+      box.appendChild(el('div', { style: 'overflow-x:auto' }, [table(['ID', 'Advertiser', 'Where', 'Caption', 'Views', 'Clicks', 'Status', ''], rows)]));
+    });
+  }
+  window.loadAdsAdmin = loadAdsAdmin;
+
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin();
+    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin();
   };
   window.onAdminUnlocked = function () { switchAdminTab('overview'); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();

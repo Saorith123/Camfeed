@@ -139,6 +139,21 @@
     });
   };
 
+
+  // Makes web links clickable in posts, comments and chat. Text is escaped FIRST, then only http(s):// and www. links are wrapped,
+  // so nobody can slip in HTML or javascript: links. Use linkify(value) instead of esc(value) where links should be clickable.
+  window.linkify = function (v) {
+    var safe = window.esc(v);
+    return safe.replace(/(^|[\s(>])((?:https?:\/\/|www\.)[^\s<>"']+)/gi, function (all, pre, url) {
+      var tail = '';
+      var m = /[.,;:!?)\]]+$/.exec(url); if (m) { tail = m[0]; url = url.slice(0, url.length - tail.length); }
+      if (!url) return all;
+      var href = /^www\./i.test(url) ? 'https://' + url : url;
+      return pre + '<a href="' + href + '" target="_blank" rel="noopener noreferrer nofollow ugc" class="cf-link" onclick="event.stopPropagation()">' + url + '</a>' + tail;
+    });
+  };
+  (function () { try { var st = document.createElement('style'); st.textContent = 'a.cf-link{color:#1877f2;text-decoration:underline;word-break:break-all}'; (document.head || document.documentElement).appendChild(st); } catch (e) {} })();
+
   // For values inside an inline handler such as onclick="f('...')": use  decodeURIComponent('${ea(value)}')
   window.ea = function (v) {
     return encodeURIComponent(String(v === null || v === undefined ? '' : v)).replace(/[!'()*]/g, function (ch) { return '%' + ch.charCodeAt(0).toString(16).toUpperCase(); });
