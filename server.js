@@ -1544,7 +1544,7 @@ app.get('/api/user-profile', async (req, res) => {
     }
 
     const query = `
-      SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $2), TRUE)) AS is_online,
+      SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '40 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $2), TRUE)) AS is_online,
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
@@ -1685,7 +1685,7 @@ app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
+      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '40 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
       (
         SELECT m.message FROM messages m 
         WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
@@ -1716,7 +1716,7 @@ app.get('/api/chat-conversations', async (req, res) => {
       
       UNION
       
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '40 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
       'Start a conversation' as last_message,
       NULL as last_sender_email,
       0 as unread_count,
@@ -1748,7 +1748,7 @@ app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
     const query = `
-      SELECT email, first_name, last_name, profile_pic, CASE WHEN COALESCE(show_active_status, TRUE) THEN last_active END AS last_active, (last_active IS NOT NULL AND last_active >= NOW() - INTERVAL '35 seconds' AND COALESCE(show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online 
+      SELECT email, first_name, last_name, profile_pic, CASE WHEN COALESCE(show_active_status, TRUE) THEN last_active END AS last_active, (last_active IS NOT NULL AND last_active >= NOW() - INTERVAL '40 seconds' AND COALESCE(show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online 
       FROM users 
       WHERE email != $1 
         AND COALESCE(is_banned, FALSE) = FALSE
@@ -1828,7 +1828,7 @@ app.get('/api/messages', async (req, res) => {
 // Real-Time Online / Offline Presence Endpoints
 let presenceColReady = false;
 app.post('/api/presence/ping', async (req, res) => {
-  const { email } = req.body || {};
+  const email = req.authEmail || (req.body || {}).email;
   if (!email) return res.json({ success: false });
   try {
     if (!presenceColReady) {

@@ -871,6 +871,10 @@
         /* Action Buttons & Persistent Long-Press Reaction Bar */
         .post-actions { display: flex; border-top: 1px solid #e4e6eb; border-bottom: 1px solid #e4e6eb; padding: 4px 10px; margin-top: 6px; justify-content: space-around; position: relative; }
         .reaction-wrapper { flex: 1; position: relative; display: flex; }
+        /* bigger touch target for the Like button (hold = reactions) */
+        .reaction-wrapper > button { position: relative; min-height: 44px; touch-action: manipulation; }
+        .reaction-wrapper > button::after { content: ''; position: absolute; top: -8px; bottom: -8px; left: -6px; right: -6px; }
+
         .action-btn { flex: 1; background: none; border: none; font-weight: 600; color: #65676b; cursor: pointer; padding: 7px 6px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13.5px; transition: transform 0.1s ease, background 0.15s; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
         .action-btn:hover { background: #f2f2f2; }
         .action-btn:active { transform: scale(0.94); }
@@ -3369,7 +3373,7 @@
                 document.querySelectorAll('.reaction-picker').forEach(p => p.classList.remove('show'));
                 const picker = document.getElementById(`picker-${postId}`);
                 if (picker) picker.classList.add('show');
-            }, 1000);
+            }, 500);
         }
 
         function endHoldReaction(event, postId) {

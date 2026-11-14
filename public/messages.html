@@ -1498,7 +1498,6 @@
 
                 <div class="cf-input-capsule">
                     <textarea id="messageTextInput" class="cf-text-field" rows="1" placeholder="សរសេរសារនៅទីនេះ... (Enter ចុះបន្ទាត់)" oninput="autoResizeComposerTextarea(this); updateSendOrThumbIcon()"></textarea>
-                    <button type="button" class="cf-emoji-trigger" onclick="toggleEmojiPopup(event)" title="Stickers & Emoji">💟</button>
                 </div>
 
                 <button class="cf-send-pill-btn" id="primaryActionBtn" onclick="handlePrimaryActionBtn()" title="Send">
@@ -2014,14 +2013,14 @@
             const emailKey = (userObj.email || '').trim().toLowerCase();
             if (!emailKey) return false;
 
-            if (userObj.is_online === false || userObj.is_online === 0 || userObj.is_online === 'false') {
-                return false;
-            }
+            // The server decides (last_active is hidden for other people): trust its answer
+            if (userObj.is_online === true || userObj.is_online === 1 || userObj.is_online === 'true') return true;
+            if (userObj.is_online === false || userObj.is_online === 0 || userObj.is_online === 'false') return false;
 
             const ts = parseServerTimestampMs(userObj.last_active);
             if (isNaN(ts)) return false;
             const ageMs = Date.now() - ts;
-            return ageMs >= -5000 && ageMs <= 25000;
+            return ageMs >= -5000 && ageMs <= 35000;
         }
 
         function syncUserPresenceEverywhere(email, isOnline) {
@@ -2128,6 +2127,8 @@
 
             loadConversations();
             setInterval(loadConversations, 10000);
+            // while a chat is open, re-check the other person's status every 5 s
+            setInterval(() => { if (document.visibilityState === 'visible') refreshActiveFriendStatus(); }, 5000);
         }
 
         let unreadSenderMap = {};
