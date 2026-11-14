@@ -376,8 +376,34 @@
     p.appendChild(el('div', { class: 'at-lbl', text: 'Caption' })); p.appendChild(cap);
     p.appendChild(el('div', { class: 'at-lbl', text: 'Picture or video' })); p.appendChild(file); p.appendChild(upMsg); p.appendChild(media);
     p.appendChild(el('div', { style: 'margin-top:12px' }, [launch])); p.appendChild(out);
+    p.appendChild(el('div', { class: 'at-h', text: '📥 Requests from advertisers' })); p.appendChild(el('div', { id: 'adReqs' }));
     p.appendChild(el('div', { class: 'at-h', text: '📊 All campaigns' })); p.appendChild(el('div', { id: 'adsList' }));
-    loadAdsList();
+    loadAdRequests(); loadAdsList();
+  }
+  function loadAdRequests() {
+    var box = document.getElementById('adReqs'); if (!box) return; box.textContent = ''; box.appendChild(empty('Loading…'));
+    adm('/api/admin/ad-requests/list').then(function (d) {
+      box.textContent = ''; if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
+      if (!d.requests.length) { box.appendChild(empty('No requests yet.')); return; }
+      d.requests.forEach(function (r) {
+        var price = el('input', { class: 'at-in', type: 'number', min: '0', step: '0.01', placeholder: 'Price USD', style: 'max-width:130px', value: r.price_cents ? (r.price_cents / 100).toFixed(2) : '' });
+        var note = el('input', { class: 'at-in', placeholder: 'Note to advertiser (optional)', maxlength: '300', style: 'flex:1;min-width:160px' });
+        var acts = el('div', { class: 'at-row', style: 'margin:8px 0 0' });
+        var open = r.status === 'pending' || r.status === 'quoted' || r.status === 'payment_sent';
+        if (r.status === 'pending' || r.status === 'quoted') { acts.appendChild(price); acts.appendChild(note); acts.appendChild(el('button', { class: 'btn-sm btn-blue', text: r.status === 'quoted' ? 'Update price' : 'Send price', onclick: function () { adm('/api/admin/ad-requests/quote', { id: r.id, price_usd: price.value, note: note.value }).then(function (x) { if (!x.success) alert(x.error); loadAdRequests(); }); } })); }
+        if ((r.status === 'quoted' || r.status === 'payment_sent') && d.isSuperAdmin) acts.appendChild(el('button', { class: 'btn-sm btn-blue', text: '✅ Money received - start ad', onclick: function () { if (confirm('Start this ad for ' + r.days + ' days? Only do this after the money is in your account.')) adm('/api/admin/ad-requests/activate', { id: r.id }).then(function (x) { if (!x.success) alert(x.error); loadAdRequests(); loadAdsList(); }); } }));
+        if (open) acts.appendChild(el('button', { class: 'btn-sm btn-gray', text: 'Reject', onclick: function () { adm('/api/admin/ad-requests/reject', { id: r.id, note: note.value }).then(loadAdRequests); } }));
+        box.appendChild(el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-bottom:10px' }, [
+          el('div', { style: 'display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap' }, [el('b', { text: '#' + r.id + ' ' + r.business_name }), el('span', { class: 'badge badge-pending', text: r.status })]),
+          el('div', { style: 'font-size:13px;color:#65676b;margin-top:4px', text: (r.placement === 'video_preroll' ? '🎬 video' : '📱 feed') + ' · ' + r.days + ' days · budget: ' + (r.budget_note || '—') + ' · contact: ' + r.contact + ' · by ' + ((r.first_name || '') + ' ' + (r.last_name || '')).trim() }),
+          r.caption ? el('div', { style: 'margin-top:6px;font-size:13.5px', text: r.caption }) : null,
+          r.target_url ? el('div', { style: 'margin-top:4px;font-size:12.5px;color:#65676b', text: 'Link: ' + r.target_url }) : null,
+          el('a', { href: r.media_url, target: '_blank', rel: 'noopener noreferrer', style: 'font-size:12.5px;color:#1877f2', text: 'Open picture / video ↗' }),
+          r.price_cents ? el('div', { style: 'margin-top:4px;font-weight:700', text: 'Quoted: $' + (r.price_cents / 100).toFixed(2) }) : null,
+          r.pay_ref ? el('div', { style: 'margin-top:4px;font-weight:700;color:#92580a', text: '💳 Payment reference from advertiser: ' + r.pay_ref }) : null,
+          acts]));
+      });
+    });
   }
   function loadAdsList() {
     var box = document.getElementById('adsList'); if (!box) return; box.textContent = ''; box.appendChild(empty('Loading…'));

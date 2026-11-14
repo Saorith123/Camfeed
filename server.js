@@ -204,6 +204,13 @@ pool.connect(async (err, client, release) => {
       created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await pool.query(`CREATE TABLE IF NOT EXISTS ad_events (
       ad_id INTEGER NOT NULL, user_email TEXT NOT NULL, kind VARCHAR(10) NOT NULL, day DATE NOT NULL DEFAULT CURRENT_DATE, PRIMARY KEY (ad_id, user_email, kind, day))`);
+    await pool.query('ALTER TABLE sponsored_ads ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ');
+    await pool.query(`CREATE TABLE IF NOT EXISTS ad_requests (
+      id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, business_name VARCHAR(80) NOT NULL, contact VARCHAR(120) NOT NULL, placement VARCHAR(20) NOT NULL DEFAULT 'feed_banner',
+      caption TEXT, target_url TEXT, media_url TEXT NOT NULL, days INTEGER NOT NULL DEFAULT 7, budget_note VARCHAR(120),
+      status VARCHAR(16) NOT NULL DEFAULT 'pending', price_cents INTEGER, admin_note VARCHAR(300), pay_ref VARCHAR(120), ad_id INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_ad_requests_user ON ad_requests (user_email)');
     await pool.query(`CREATE TABLE IF NOT EXISTS withdrawal_requests (
       id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, method VARCHAR(20) NOT NULL, account_name VARCHAR(80), account_number VARCHAR(40),
       status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
@@ -2572,7 +2579,7 @@ const adPublic = (r) => ({ id: r.id, advertiser_name: r.advertiser_name, placeme
 
 app.get('/api/sponsored-ads', async (req, res) => {
   try {
-    const r = await pool.query("SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds FROM sponsored_ads WHERE status = 'active' ORDER BY id DESC LIMIT 40");
+    const r = await pool.query("SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds FROM sponsored_ads WHERE status = 'active' AND (ends_at IS NULL OR ends_at > NOW()) ORDER BY id DESC LIMIT 40");
     res.json({ success: true, ads: r.rows.map(adPublic) });
   } catch (err) { res.json({ success: true, ads: [] }); }
 });
@@ -2592,7 +2599,7 @@ app.post('/api/sponsored-ads/:id/click', (req, res) => adEvent(req, res, 'click'
 app.post('/api/admin/ads/list', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
-    const r = await pool.query('SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds, status, impressions, clicks, created_at FROM sponsored_ads ORDER BY id DESC LIMIT 200');
+    const r = await pool.query('SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds, status, impressions, clicks, created_at, ends_at FROM sponsored_ads ORDER BY id DESC LIMIT 200');
     res.json({ success: true, ads: r.rows });
   } catch (err) { console.error('[admin] ads list:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
@@ -2634,6 +2641,95 @@ app.post('/api/admin/ads/delete', async (req, res) => {
     audit(a.adminEmail, 'ad_delete', id, '');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not delete.' }); }
+});
+
+// ---------------------------------------------------------------------------
+// Advertise with us: a business sends a request -> an admin quotes a price -> the business pays (by hand for now) and sends the payment reference
+// -> a Super Admin checks the money arrived and starts the ad for the chosen number of days. Nothing goes live without a person approving it.
+// ---------------------------------------------------------------------------
+app.get('/api/ads/info', (req, res) => {
+  const qr = security.safeUrl(process.env.AD_PAYMENT_QR_URL || '');
+  res.json({ success: true, paymentText: String(process.env.AD_PAYMENT_TEXT || '').slice(0, 600), paymentQr: qr || '', contact: supportTelegramLink() || '' });
+});
+
+const AD_STATUS_TEXT = ['pending', 'quoted', 'payment_sent', 'live', 'ended', 'rejected'];
+app.post('/api/ads/request', async (req, res) => {
+  try {
+    const email = req.authEmail; if (!email) return res.status(401).json({ success: false, error: 'Please log in.' });
+    const b = req.body || {};
+    const name = String(b.business_name || '').trim().slice(0, 80), contact = String(b.contact || '').trim().slice(0, 120);
+    const placement = AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner';
+    const media = security.safeUrl(String(b.media_url || ''));
+    const target = b.target_url ? adLink(b.target_url) : '';
+    if (!name || !contact) return res.status(400).json({ success: false, error: 'Business name and a phone / Telegram contact are required.' });
+    if (!media) return res.status(400).json({ success: false, error: 'Please upload a picture or video.' });
+    if (b.target_url && !target) return res.status(400).json({ success: false, error: 'The link must start with http:// or https://' });
+    const open = await pool.query("SELECT COUNT(*)::int AS n FROM ad_requests WHERE user_email = $1 AND status IN ('pending', 'quoted', 'payment_sent')", [email]);
+    if (open.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for an answer.' });
+    const r = await pool.query('INSERT INTO ad_requests (user_email, business_name, contact, placement, caption, target_url, media_url, days, budget_note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+      [email, name, contact, placement, String(b.caption || '').slice(0, 500), target || null, media, clampInt(b.days, 7, 1, 90), String(b.budget_note || '').slice(0, 120)]);
+    res.status(201).json({ success: true, id: r.rows[0].id });
+  } catch (err) { console.error('[ads] request:', err.message); res.status(500).json({ success: false, error: 'Could not send the request.' }); }
+});
+app.get('/api/ads/my', async (req, res) => {
+  try {
+    if (!req.authEmail) return res.status(401).json({ success: false, error: 'Please log in.' });
+    const r = await pool.query('SELECT id, business_name, placement, caption, days, status, price_cents, admin_note, pay_ref, created_at FROM ad_requests WHERE user_email = $1 ORDER BY id DESC LIMIT 30', [req.authEmail]);
+    res.json({ success: true, requests: r.rows });
+  } catch (err) { res.json({ success: true, requests: [] }); }
+});
+app.post('/api/ads/my/:id/paid', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), ref = String((req.body || {}).pay_ref || '').trim().slice(0, 120);
+    if (!req.authEmail || !Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad request.' });
+    if (ref.length < 3) return res.status(400).json({ success: false, error: 'Please write the payment reference (transaction number or the name you paid from).' });
+    const r = await pool.query("UPDATE ad_requests SET status = 'payment_sent', pay_ref = $1, updated_at = NOW() WHERE id = $2 AND user_email = $3 AND status = 'quoted'", [ref, id, req.authEmail]);
+    if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request is not waiting for payment.' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+app.post('/api/admin/ad-requests/list', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query(`SELECT q.id, q.user_email, q.business_name, q.contact, q.placement, q.caption, q.target_url, q.media_url, q.days, q.budget_note, q.status, q.price_cents, q.admin_note, q.pay_ref, q.ad_id, q.created_at,
+      u.first_name, u.last_name FROM ad_requests q LEFT JOIN users u ON u.email = q.user_email ORDER BY (q.status IN ('pending','payment_sent')) DESC, q.id DESC LIMIT 100`);
+    res.json({ success: true, requests: r.rows, isSuperAdmin: !!a.isSuperAdmin });
+  } catch (err) { console.error('[admin] ad requests:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+app.post('/api/admin/ad-requests/quote', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const id = parseInt(req.body.id, 10), price = Math.round(parseFloat(req.body.price_usd) * 100);
+    if (!Number.isInteger(id) || id < 1 || !Number.isFinite(price) || price < 0 || price > 10000000) return res.status(400).json({ success: false, error: 'Enter a price in USD.' });
+    const r = await pool.query("UPDATE ad_requests SET status = 'quoted', price_cents = $1, admin_note = $2, updated_at = NOW() WHERE id = $3 AND status IN ('pending', 'quoted')", [price, String(req.body.note || '').slice(0, 300), id]);
+    if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request can no longer be quoted.' });
+    audit(a.adminEmail, 'ad_quote', id, '$' + (price / 100).toFixed(2));
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+app.post('/api/admin/ad-requests/reject', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const id = parseInt(req.body.id, 10); if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
+    await pool.query("UPDATE ad_requests SET status = 'rejected', admin_note = $1, updated_at = NOW() WHERE id = $2 AND status IN ('pending', 'quoted', 'payment_sent')", [String(req.body.note || '').slice(0, 300), id]);
+    audit(a.adminEmail, 'ad_reject', id, '');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+app.post('/api/admin/ad-requests/activate', async (req, res) => {          // money is confirmed by a Super Admin only
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can start a paid ad.' });
+    const id = parseInt(req.body.id, 10); if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
+    const q = (await pool.query("SELECT * FROM ad_requests WHERE id = $1 AND status IN ('quoted', 'payment_sent')", [id])).rows[0];
+    if (!q) return res.status(400).json({ success: false, error: 'This request is not ready to start.' });
+    const ad = await pool.query("INSERT INTO sponsored_ads (advertiser_name, placement, caption, target_url, media_url, skip_seconds, created_by, ends_at) VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval) RETURNING id",
+      [q.business_name, q.placement, q.caption, q.target_url, q.media_url, a.adminEmail, String(q.days)]);
+    await pool.query("UPDATE ad_requests SET status = 'live', ad_id = $1, updated_at = NOW() WHERE id = $2", [ad.rows[0].id, id]);
+    audit(a.adminEmail, 'ad_activate', id, 'ad #' + ad.rows[0].id + ' for ' + q.days + ' days, $' + ((q.price_cents || 0) / 100).toFixed(2));
+    res.json({ success: true, adId: ad.rows[0].id });
+  } catch (err) { console.error('[admin] ad activate:', err.message); res.status(500).json({ success: false, error: 'Could not start the ad.' }); }
 });
 
 // ---------------------------------------------------------------------------
