@@ -492,4 +492,3 @@ Respond ONLY with valid JSON:
 
 module.exports.resolveUploadType = resolveUploadType;
 module.exports.R2_KEY_RE = R2_KEY_RE;
-
