@@ -1113,12 +1113,15 @@
         (async function loadPrerollAds() {
             try {
                 const d = await (await fetch('/api/sponsored-ads')).json();
-                if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => a.placement === 'video_preroll');
+                if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => (a.placement === 'video_preroll' || a.placement === 'both') && a.media_url);
             } catch (e) {}
             setTimeout(loadPrerollAds, 180000);
         })();
 
-        function closeReelPreroll() {
+        function adEv(id, type) { fetch('/api/sponsored-ads/' + encodeURIComponent(id) + '/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) }).catch(() => {}); }
+        let prerollEnded = false;
+        function closeReelPreroll(how) {
+            if (prerollOpen && prerollCurrentId && how !== 'done') adEv(prerollCurrentId, 'skip');
             clearInterval(prerollTimer); prerollTimer = null; prerollOpen = false;
             const ov = document.getElementById('prerollAdOverlay');
             if (ov) { ov.classList.remove('active'); const m = document.getElementById('prerollMedia'); if (m) m.innerHTML = ''; }
@@ -1128,7 +1131,8 @@
         function clickReelPrerollAd() {
             const ad = preAds.find(a => a.id === prerollCurrentId);
             if (!ad) return;
-            fetch('/api/sponsored-ads/' + encodeURIComponent(ad.id) + '/click', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+            if (ad.cta === 'message' && ad.owner_email) { adEv(ad.id, 'message'); window.location.href = 'messages.html?chat=' + encodeURIComponent(ad.owner_email); return; }
+            adEv(ad.id, 'click');
             if (/^https?:\/\//i.test(ad.target_url || '')) window.open(ad.target_url, '_blank', 'noopener,noreferrer');
         }
         function maybeShowReelPreroll(reelVideo) {
@@ -1140,16 +1144,16 @@
             prerollOpen = true; prerollCurrentId = ad.id; prerollResume = reelVideo;
             try { reelVideo.pause(); } catch (e) {}
             const isVid = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
-            const hasLink = /^https?:\/\//i.test(ad.target_url || '');
+            const hasLink = (/^https?:\/\//i.test(ad.target_url || '') || (ad.cta === 'message' && !!ad.owner_email)) && ad.cta !== 'none';
             const media = document.getElementById('prerollMedia');
             media.innerHTML = isVid
                 ? `<video id="prerollVideo" src="${esc(ad.media_url)}" playsinline autoplay ${globalMuted ? 'muted' : ''} style="max-width:100%; max-height:100%; width:100%; height:100%; object-fit:contain; background:#000;"></video>`
                 : `<img src="${esc(ad.media_url)}" alt="" style="max-width:100%; max-height:100%; object-fit:contain;">`;
             document.getElementById('prerollAdvertiser').textContent = ad.advertiser_name;
             document.getElementById('prerollCaption').textContent = ad.caption || '';
-            const cta = document.getElementById('prerollCta'); cta.style.display = hasLink ? 'inline-block' : 'none';
+            const cta = document.getElementById('prerollCta'); cta.style.display = hasLink ? 'inline-block' : 'none'; cta.textContent = ad.cta === 'message' ? '💬 ផ្ញើសារ (Message)' : ad.cta === 'shop' ? 'ទិញឥឡូវ (Shop)' : ad.cta === 'call' ? 'ទាក់ទង (Contact)' : 'មើលបន្ថែម (Learn more)';
             ov.classList.add('active');
-            fetch('/api/sponsored-ads/' + encodeURIComponent(ad.id) + '/impression', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+            fetch('/api/sponsored-ads/' + encodeURIComponent(ad.id) + '/impression', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placement: 'video' }) }).catch(() => {});
             const skipBtn = document.getElementById('prerollSkip');
             let left = Math.min(Math.max(parseInt(ad.skip_seconds, 10) || 5, 3), 15), shownFor = 0;
             skipBtn.disabled = true; skipBtn.textContent = 'រំលងក្នុង ' + left + ' វិ (Skip in ' + left + 's)';
@@ -1158,10 +1162,10 @@
                 shownFor++; left--;
                 if (left > 0) skipBtn.textContent = 'រំលងក្នុង ' + left + ' វិ (Skip in ' + left + 's)';
                 else { skipBtn.disabled = false; skipBtn.textContent = 'រំលង Skip ▶'; }
-                if (!isVid && shownFor >= 10) closeReelPreroll();      // a picture ad closes by itself
+                if (!isVid && shownFor >= 10) { adEv(ad.id, 'complete'); closeReelPreroll('done'); }      // a picture ad closes by itself
             }, 1000);
             const pv = document.getElementById('prerollVideo');
-            if (pv) { pv.addEventListener('ended', closeReelPreroll); pv.addEventListener('error', closeReelPreroll); pv.play().catch(() => { pv.muted = true; pv.play().catch(() => {}); }); }
+            if (pv) { pv.addEventListener('ended', () => { adEv(ad.id, 'complete'); closeReelPreroll('done'); }); pv.addEventListener('error', () => closeReelPreroll('done')); pv.play().catch(() => { pv.muted = true; pv.play().catch(() => {}); }); }
             return true;
         }
 
@@ -1721,7 +1725,7 @@
     })();
     </script>
     <div id="prerollAdOverlay" class="preroll-ad-overlay">
-        <button type="button" id="prerollSkip" class="skip-ad-pill" onclick="if(!this.disabled) closeReelPreroll()" disabled>Skip</button>
+        <button type="button" id="prerollSkip" class="skip-ad-pill" onclick="if(!this.disabled) closeReelPreroll('skip')" disabled>Skip</button>
         <div id="prerollMedia" class="preroll-media"></div>
         <div class="preroll-info">
             <span class="sponsored-badge">Sponsored · ពាណិជ្ជកម្ម</span>

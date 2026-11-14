@@ -380,25 +380,35 @@
     p.appendChild(el('div', { class: 'at-h', text: '📊 All campaigns' })); p.appendChild(el('div', { id: 'adsList' }));
     loadAdRequests(); loadAdsList();
   }
+  var PLACE_TXT = { feed_banner: '📱 feed', video_preroll: '🎬 video (skip)', both: '✨ feed + video' };
+  function adReportModal(id) {
+    adm('/api/admin/ads/report', { id: id }).then(function (d) {
+      if (!d.success) { alert(d.error || 'No report'); return; }
+      var r = d.report, lines = ['Views: ' + r.views + ' (feed ' + r.feedViews + ', video ' + r.videoViews + ')', 'Reach: ' + r.reach, 'Clicks: ' + r.clicks + ' (CTR ' + r.ctr + '%)', 'Messages: ' + r.messages,
+        'Skips: ' + r.skips + (r.skipRate !== null ? ' (' + r.skipRate + '%)' : '') + ', completed: ' + r.completes, 'Spent: $' + r.spent.toFixed(2) + ' of $' + r.budget.toFixed(2)];
+      if (r.engagement) lines.push('Engagement: ' + r.engagement.reactions + ' reactions, ' + r.engagement.comments + ' comments, ' + r.engagement.shares + ' shares');
+      alert('Ad #' + id + ' (' + r.status + ')\n\n' + lines.join('\n'));
+    });
+  }
   function loadAdRequests() {
     var box = document.getElementById('adReqs'); if (!box) return; box.textContent = ''; box.appendChild(empty('Loading…'));
     adm('/api/admin/ad-requests/list').then(function (d) {
       box.textContent = ''; if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
       if (!d.requests.length) { box.appendChild(empty('No requests yet.')); return; }
       d.requests.forEach(function (r) {
-        var price = el('input', { class: 'at-in', type: 'number', min: '0', step: '0.01', placeholder: 'Price USD', style: 'max-width:130px', value: r.price_cents ? (r.price_cents / 100).toFixed(2) : '' });
+        var price = el('input', { class: 'at-in', type: 'number', min: '0', step: '0.01', placeholder: 'Price USD', style: 'max-width:130px', value: r.price_cents ? (r.price_cents / 100).toFixed(2) : (r.budget_cents ? (r.budget_cents / 100).toFixed(2) : '') });
         var note = el('input', { class: 'at-in', placeholder: 'Note to advertiser (optional)', maxlength: '300', style: 'flex:1;min-width:160px' });
         var acts = el('div', { class: 'at-row', style: 'margin:8px 0 0' });
         var open = r.status === 'pending' || r.status === 'quoted' || r.status === 'payment_sent';
-        if (r.status === 'pending' || r.status === 'quoted') { acts.appendChild(price); acts.appendChild(note); acts.appendChild(el('button', { class: 'btn-sm btn-blue', text: r.status === 'quoted' ? 'Update price' : 'Send price', onclick: function () { adm('/api/admin/ad-requests/quote', { id: r.id, price_usd: price.value, note: note.value }).then(function (x) { if (!x.success) alert(x.error); loadAdRequests(); }); } })); }
+        if (r.status === 'pending' || r.status === 'quoted') { acts.appendChild(price); acts.appendChild(note); acts.appendChild(el('button', { class: 'btn-sm btn-blue', text: r.status === 'quoted' ? 'Update price' : 'Approve & ask payment', onclick: function () { adm('/api/admin/ad-requests/quote', { id: r.id, price_usd: price.value, note: note.value }).then(function (x) { if (!x.success) alert(x.error); loadAdRequests(); }); } })); }
         if ((r.status === 'quoted' || r.status === 'payment_sent') && d.isSuperAdmin) acts.appendChild(el('button', { class: 'btn-sm btn-blue', text: '✅ Money received - start ad', onclick: function () { if (confirm('Start this ad for ' + r.days + ' days? Only do this after the money is in your account.')) adm('/api/admin/ad-requests/activate', { id: r.id }).then(function (x) { if (!x.success) alert(x.error); loadAdRequests(); loadAdsList(); }); } }));
         if (open) acts.appendChild(el('button', { class: 'btn-sm btn-gray', text: 'Reject', onclick: function () { adm('/api/admin/ad-requests/reject', { id: r.id, note: note.value }).then(loadAdRequests); } }));
         box.appendChild(el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-bottom:10px' }, [
           el('div', { style: 'display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap' }, [el('b', { text: '#' + r.id + ' ' + r.business_name }), el('span', { class: 'badge badge-pending', text: r.status })]),
-          el('div', { style: 'font-size:13px;color:#65676b;margin-top:4px', text: (r.placement === 'video_preroll' ? '🎬 video' : '📱 feed') + ' · ' + r.days + ' days · budget: ' + (r.budget_note || '—') + ' · contact: ' + r.contact + ' · by ' + ((r.first_name || '') + ' ' + (r.last_name || '')).trim() }),
+          el('div', { style: 'font-size:13px;color:#65676b;margin-top:4px', text: (PLACE_TXT[r.placement] || r.placement) + ' · goal: ' + (r.objective || '—') + ' · ' + r.days + ' days · budget: $' + ((r.budget_cents || 0) / 100).toFixed(2) + (r.budget_note ? ' (' + r.budget_note + ')' : '') + ' · country: ' + (r.country || 'all') + ' · interests: ' + (r.interests || 'all') + (r.post_id ? ' · 🚀 BOOST post #' + r.post_id : '') + ' · contact: ' + r.contact + ' · by ' + ((r.first_name || '') + ' ' + (r.last_name || '')).trim() }),
           r.caption ? el('div', { style: 'margin-top:6px;font-size:13.5px', text: r.caption }) : null,
           r.target_url ? el('div', { style: 'margin-top:4px;font-size:12.5px;color:#65676b', text: 'Link: ' + r.target_url }) : null,
-          el('a', { href: r.media_url, target: '_blank', rel: 'noopener noreferrer', style: 'font-size:12.5px;color:#1877f2', text: 'Open picture / video ↗' }),
+          (r.media_url || r.post_media_url) ? el('a', { href: r.media_url || r.post_media_url, target: '_blank', rel: 'noopener noreferrer', style: 'font-size:12.5px;color:#1877f2', text: 'Open picture / video ↗' }) : null,
           r.price_cents ? el('div', { style: 'margin-top:4px;font-weight:700', text: 'Quoted: $' + (r.price_cents / 100).toFixed(2) }) : null,
           r.pay_ref ? el('div', { style: 'margin-top:4px;font-weight:700;color:#92580a', text: '💳 Payment reference from advertiser: ' + r.pay_ref }) : null,
           acts]));
@@ -412,12 +422,12 @@
       if (!d.ads.length) { box.appendChild(empty('No ads yet.')); return; }
       var rows = d.ads.map(function (a) {
         var ctr = a.impressions ? (a.clicks / a.impressions * 100).toFixed(1) + '%' : '—';
-        return el('tr', {}, [el('td', { text: '#' + a.id }), el('td', { text: a.advertiser_name }), el('td', { text: a.placement === 'video_preroll' ? '🎬 video' : '📱 feed' }), el('td', { text: (a.caption || '').slice(0, 40) }),
+        return el('tr', {}, [el('td', { text: '#' + a.id }), el('td', { text: a.advertiser_name }), el('td', { text: (PLACE_TXT[a.placement] || a.placement) + (a.post_id ? ' 🚀' : '') }), el('td', { text: (a.caption || '').slice(0, 40) }), el('td', { text: a.budget_cents ? '$' + (a.spent_cents / 100).toFixed(2) + ' / $' + (a.budget_cents / 100).toFixed(2) : 'no limit' }),
           el('td', { text: String(a.impressions) }), el('td', { text: a.clicks + ' (' + ctr + ')' }), el('td', { text: a.status }),
-          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: a.status === 'active' ? 'Pause' : 'Resume', onclick: function () { adm('/api/admin/ads/status', { id: a.id, status: a.status === 'active' ? 'paused' : 'active' }).then(loadAdsList); } }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-blue', style: 'margin-right:4px', text: '📊', onclick: function () { adReportModal(a.id); } }), el('button', { class: 'btn-sm btn-gray', text: a.status === 'active' ? 'Pause' : 'Resume', onclick: function () { adm('/api/admin/ads/status', { id: a.id, status: a.status === 'active' ? 'paused' : 'active' }).then(loadAdsList); } }),
             el('button', { class: 'btn-sm btn-gray', style: 'margin-left:4px', text: '🗑️', onclick: function () { if (confirm('Delete this ad?')) adm('/api/admin/ads/delete', { id: a.id }).then(loadAdsList); } })])]);
       });
-      box.appendChild(el('div', { style: 'overflow-x:auto' }, [table(['ID', 'Advertiser', 'Where', 'Caption', 'Views', 'Clicks', 'Status', ''], rows)]));
+      box.appendChild(el('div', { style: 'overflow-x:auto' }, [table(['ID', 'Advertiser', 'Where', 'Caption', 'Spent', 'Views', 'Clicks', 'Status', ''], rows)]));
     });
   }
   window.loadAdsAdmin = loadAdsAdmin;

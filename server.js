@@ -211,6 +211,24 @@ pool.connect(async (err, client, release) => {
       status VARCHAR(16) NOT NULL DEFAULT 'pending', price_cents INTEGER, admin_note VARCHAR(300), pay_ref VARCHAR(120), ad_id INTEGER,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_ad_requests_user ON ad_requests (user_email)');
+    await pool.query(`ALTER TABLE sponsored_ads
+      ADD COLUMN IF NOT EXISTS objective VARCHAR(16) NOT NULL DEFAULT 'traffic', ADD COLUMN IF NOT EXISTS post_id INTEGER, ADD COLUMN IF NOT EXISTS interests TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS country VARCHAR(60) NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS budget_cents INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS days INTEGER NOT NULL DEFAULT 7,
+      ADD COLUMN IF NOT EXISTS spent_cents NUMERIC(14,4) NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS cpm_feed_cents NUMERIC(8,2) NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS cpm_video_cents NUMERIC(8,2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS owner_email TEXT, ADD COLUMN IF NOT EXISTS cta VARCHAR(16) NOT NULL DEFAULT 'learn_more',
+      ADD COLUMN IF NOT EXISTS base_likes INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS base_comments INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS base_shares INTEGER NOT NULL DEFAULT 0`);
+    await pool.query('ALTER TABLE sponsored_ads ALTER COLUMN media_url DROP NOT NULL');
+    await pool.query(`ALTER TABLE ad_requests
+      ADD COLUMN IF NOT EXISTS objective VARCHAR(16) NOT NULL DEFAULT 'traffic', ADD COLUMN IF NOT EXISTS post_id INTEGER, ADD COLUMN IF NOT EXISTS interests TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS country VARCHAR(60) NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS budget_cents INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS cta VARCHAR(16) NOT NULL DEFAULT 'learn_more'`);
+    await pool.query('ALTER TABLE ad_requests ALTER COLUMN media_url DROP NOT NULL');
+    await pool.query(`CREATE TABLE IF NOT EXISTS ad_daily (
+      ad_id INTEGER NOT NULL, day DATE NOT NULL, feed_imps INTEGER NOT NULL DEFAULT 0, video_imps INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0, skips INTEGER NOT NULL DEFAULT 0,
+      completes INTEGER NOT NULL DEFAULT 0, messages INTEGER NOT NULL DEFAULT 0, spent_cents NUMERIC(14,4) NOT NULL DEFAULT 0, PRIMARY KEY (ad_id, day))`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS ad_user_day (
+      ad_id INTEGER NOT NULL, user_email TEXT NOT NULL, day DATE NOT NULL DEFAULT CURRENT_DATE, imps INTEGER NOT NULL DEFAULT 0, clicks INTEGER NOT NULL DEFAULT 0, skips INTEGER NOT NULL DEFAULT 0,
+      completes INTEGER NOT NULL DEFAULT 0, messages INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (ad_id, user_email, day))`);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_ad_user_day_ad ON ad_user_day (ad_id)');
     await pool.query(`CREATE TABLE IF NOT EXISTS withdrawal_requests (
       id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, method VARCHAR(20) NOT NULL, account_name VARCHAR(80), account_number VARCHAR(40),
       status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
@@ -2570,46 +2588,228 @@ app.post('/api/admin/system', async (req, res) => {
 
 
 // ---------------------------------------------------------------------------
-// Sponsored ads (local advertising): a banner between feed posts and a skippable video before reels.
-// Viewers only get what is needed to show the ad. Numbers count once per person, per ad, per day. Admins manage ads through adminGate.
+// Ads Manager (local advertising): goals, boosting a post, feed + video placements, interest / country targeting, a budget that is spent per 1000 views (CPM),
+// a daily pace, and reports. A person approves every ad and confirms the payment by hand before it starts.
 // ---------------------------------------------------------------------------
-const AD_PLACEMENTS = ['feed_banner', 'video_preroll'];
+const AD_PLACEMENTS = ['feed_banner', 'video_preroll', 'both'];
+const AD_OBJECTIVES = ['reach', 'traffic', 'engagement', 'messages', 'video_views'];
+const AD_INTERESTS = ['Comedy', 'Music', 'Gaming', 'Food', 'Vehicles & Motorcycles', 'Technology', 'News', 'Sports', 'Education', 'Travel', 'Lifestyle'];
+const AD_DEFAULT_PAYMENT_TEXT = 'ABA Bank\nលេខគណនី / Account: 002217985\nសូមសរសេរក្នុងកំណត់ចំណាំ: CamFeed Ads + ឈ្មោះអាជីវកម្មរបស់អ្នក\nPlease write in the note: CamFeed Ads + your business name';
+const AD_FREQ_CAP = 3;                                                     // one person is shown the same ad at most 3 times a day
+const adNum = (v, d) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 ? n : d; };
+const AD_CPM = { feed: adNum(process.env.AD_CPM_FEED_USD, 0.5), video: adNum(process.env.AD_CPM_VIDEO_USD, 0.8) };   // USD per 1000 views
+const AD_MIN_BUDGET_USD = adNum(process.env.AD_MIN_BUDGET_USD, 2);
 const adLink = (v) => { const s = String(v || '').trim(); return /^https?:\/\/[^\s<>"'`]{4,480}$/i.test(s) ? s : ''; };   // only web links: never javascript:
-const adPublic = (r) => ({ id: r.id, advertiser_name: r.advertiser_name, placement: r.placement, caption: r.caption || '', target_url: r.target_url || '', media_url: r.media_url, skip_seconds: r.skip_seconds });
+const adInterests = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim()).filter((x) => AD_INTERESTS.includes(x)).slice(0, 6);
+const adPlaceFeed = (p) => p === 'feed_banner' || p === 'both';
+const adPlaceVideo = (p) => p === 'video_preroll' || p === 'both';
+// how many views a budget buys: the money is split over the places chosen
+function adEstimate(budgetUsd, days, placement) {
+  const cpms = [];
+  if (adPlaceFeed(placement)) cpms.push(AD_CPM.feed);
+  if (adPlaceVideo(placement)) cpms.push(AD_CPM.video);
+  const cpm = cpms.reduce((a, b) => a + b, 0) / (cpms.length || 1);
+  const views = Math.floor(budgetUsd / cpm * 1000);
+  return { cpm: Number(cpm.toFixed(3)), views, perDay: Math.floor(views / Math.max(days, 1)) };
+}
 
-app.get('/api/sponsored-ads', async (req, res) => {
+app.get('/api/ads/estimate', async (req, res) => {
   try {
-    const r = await pool.query("SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds FROM sponsored_ads WHERE status = 'active' AND (ends_at IS NULL OR ends_at > NOW()) ORDER BY id DESC LIMIT 40");
-    res.json({ success: true, ads: r.rows.map(adPublic) });
-  } catch (err) { res.json({ success: true, ads: [] }); }
+    const budget = adNum(req.query.budget, 0), days = clampInt(req.query.days, 7, 1, 30);
+    const placement = AD_PLACEMENTS.includes(req.query.placement) ? req.query.placement : 'both';
+    const est = adEstimate(budget, days, placement);
+    const country = String(req.query.country || '').trim().slice(0, 60);
+    const users = (await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE last_active >= NOW() - INTERVAL '30 days' AND ($1 = '' OR LOWER(country) = LOWER($1))", [country])).rows[0].n;
+    const ceiling = users * AD_FREQ_CAP * days;                         // the most that real people can be shown in that time
+    res.json({ success: true, cpm: est.cpm, cpmFeed: AD_CPM.feed, cpmVideo: AD_CPM.video, views: est.views, viewsPerDay: est.perDay, activeUsers: users, canDeliver: Math.min(est.views, ceiling), minBudget: AD_MIN_BUDGET_USD });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not calculate.' }); }
 });
 
-async function adEvent(req, res, kind) {
+// what the viewer is shown: only live ads, not their own, inside budget and today's pace, matching country and interests
+app.get('/api/sponsored-ads', async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id) || id < 1 || !req.authEmail) return res.json({ success: true });
-    const ins = await pool.query('INSERT INTO ad_events (ad_id, user_email, kind) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING 1', [id, req.authEmail, kind]);
-    if (ins.rowCount) await pool.query(`UPDATE sponsored_ads SET ${kind === 'click' ? 'clicks = clicks' : 'impressions = impressions'} + 1 WHERE id = $1`, [id]);
+    const me = req.authEmail || '';
+    const u = me ? (await pool.query('SELECT country FROM users WHERE email = $1', [me])).rows[0] : null;
+    const myInterests = me ? (await pool.query('SELECT category FROM user_interest_scores WHERE user_email = $1 AND score > 0 ORDER BY score DESC LIMIT 5', [me])).rows.map((r) => r.category) : [];
+    const r = await pool.query(`SELECT a.id, a.advertiser_name, a.placement, a.objective, a.cta, COALESCE(NULLIF(a.caption, ''), p.content, '') AS caption, a.target_url, COALESCE(a.media_url, p.media_url) AS media_url, a.skip_seconds, a.post_id, a.owner_email, a.interests, a.country
+      FROM sponsored_ads a LEFT JOIN posts p ON p.id = a.post_id LEFT JOIN ad_daily d ON d.ad_id = a.id AND d.day = CURRENT_DATE
+      WHERE a.status = 'active' AND (a.ends_at IS NULL OR a.ends_at > NOW()) AND COALESCE(a.owner_email, '') <> $1
+        AND (a.budget_cents = 0 OR (a.spent_cents < a.budget_cents AND COALESCE(d.spent_cents, 0) < (a.budget_cents::numeric / GREATEST(a.days, 1)) * 1.25))
+      ORDER BY a.id DESC LIMIT 60`, [me]);
+    const mine = String((u && u.country) || '').toLowerCase();
+    const out = [];
+    for (const a of r.rows) {
+      if (a.country && mine && String(a.country).toLowerCase() !== mine) continue;
+      const wanted = String(a.interests || '').split(',').filter(Boolean);
+      const match = wanted.length ? wanted.filter((x) => myInterests.includes(x)).length : 0;
+      if (wanted.length && myInterests.length && !match) continue;       // we only leave an ad out when we KNOW the person is not interested
+      out.push({ ad: { id: a.id, advertiser_name: a.advertiser_name, placement: a.placement, objective: a.objective, cta: a.cta, caption: String(a.caption || '').slice(0, 500), target_url: a.target_url || '', media_url: a.media_url || '', skip_seconds: a.skip_seconds, post_id: a.post_id || null, owner_email: a.owner_email || null }, match, rnd: Math.random() });
+    }
+    out.sort((x, y) => (y.match - x.match) || (x.rnd - y.rnd));
+    res.json({ success: true, ads: out.slice(0, 20).map((x) => x.ad) });
+  } catch (err) { console.error('[ads] serve:', err.message); res.json({ success: true, ads: [] }); }
+});
+
+// counting: views are capped per person per day, the cost is taken from the budget, clicks / skips are counted once per view
+async function adTrack(req, res, kind) {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail;
+    if (!Number.isInteger(id) || id < 1 || !me) return res.json({ success: true });
+    const ad = (await pool.query("SELECT id, budget_cents, cpm_feed_cents, cpm_video_cents FROM sponsored_ads WHERE id = $1 AND status = 'active' AND (ends_at IS NULL OR ends_at > NOW())", [id])).rows[0];
+    if (!ad) return res.json({ success: true });
+    if (kind === 'impression') {
+      const where = (req.body && req.body.placement) === 'video' ? 'video' : 'feed';
+      const up = await pool.query(`INSERT INTO ad_user_day (ad_id, user_email, day, imps) VALUES ($1, $2, CURRENT_DATE, 1)
+        ON CONFLICT (ad_id, user_email, day) DO UPDATE SET imps = ad_user_day.imps + 1 WHERE ad_user_day.imps < $3 RETURNING imps`, [id, me, AD_FREQ_CAP]);
+      if (!up.rowCount) return res.json({ success: true });
+      const cost = ad.budget_cents > 0 ? Number(where === 'video' ? ad.cpm_video_cents : ad.cpm_feed_cents) / 1000 : 0;   // cents for ONE view
+      await pool.query(`UPDATE sponsored_ads SET impressions = impressions + 1, spent_cents = spent_cents + $2,
+        status = CASE WHEN budget_cents > 0 AND spent_cents + $2 >= budget_cents THEN 'completed' ELSE status END WHERE id = $1`, [id, cost]);
+      await pool.query(`INSERT INTO ad_daily (ad_id, day, feed_imps, video_imps, spent_cents) VALUES ($1, CURRENT_DATE, $2, $3, $4)
+        ON CONFLICT (ad_id, day) DO UPDATE SET feed_imps = ad_daily.feed_imps + $2, video_imps = ad_daily.video_imps + $3, spent_cents = ad_daily.spent_cents + $4`,
+        [id, where === 'feed' ? 1 : 0, where === 'video' ? 1 : 0, cost]);
+      return res.json({ success: true });
+    }
+    // click / message: once per person per day. skip / complete: not more than the views they were shown.
+    const col = { click: 'clicks', message: 'messages', skip: 'skips', complete: 'completes' }[kind];
+    if (!col) return res.json({ success: true });
+    const lim = (col === 'skips' || col === 'completes') ? `ad_user_day.${col} < ad_user_day.imps` : `ad_user_day.${col} < 1`;
+    const hit = await pool.query(`UPDATE ad_user_day SET ${col} = ${col} + 1 WHERE ad_id = $1 AND user_email = $2 AND day = CURRENT_DATE AND ${lim} RETURNING 1`, [id, me]);
+    if (!hit.rowCount) return res.json({ success: true });
+    await pool.query(`INSERT INTO ad_daily (ad_id, day, ${col}) VALUES ($1, CURRENT_DATE, 1) ON CONFLICT (ad_id, day) DO UPDATE SET ${col} = ad_daily.${col} + 1`, [id]);
+    if (kind === 'click') await pool.query('UPDATE sponsored_ads SET clicks = clicks + 1 WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (err) { res.json({ success: true }); }
 }
-app.post('/api/sponsored-ads/:id/impression', (req, res) => adEvent(req, res, 'impression'));
-app.post('/api/sponsored-ads/:id/click', (req, res) => adEvent(req, res, 'click'));
+app.post('/api/sponsored-ads/:id/impression', (req, res) => adTrack(req, res, 'impression'));
+app.post('/api/sponsored-ads/:id/click', (req, res) => adTrack(req, res, 'click'));
+app.post('/api/sponsored-ads/:id/event', (req, res) => adTrack(req, res, ['click', 'message', 'skip', 'complete'].includes((req.body || {}).type) ? req.body.type : ''));
 
+// numbers for one ad (shared by the advertiser report and the admin view)
+async function adReport(adId) {
+  const a = (await pool.query('SELECT * FROM sponsored_ads WHERE id = $1', [adId])).rows[0];
+  if (!a) return null;
+  const t = (await pool.query(`SELECT COALESCE(SUM(feed_imps),0)::int AS feed, COALESCE(SUM(video_imps),0)::int AS video, COALESCE(SUM(clicks),0)::int AS clicks, COALESCE(SUM(skips),0)::int AS skips,
+    COALESCE(SUM(completes),0)::int AS completes, COALESCE(SUM(messages),0)::int AS messages FROM ad_daily WHERE ad_id = $1`, [adId])).rows[0];
+  const reach = (await pool.query('SELECT COUNT(DISTINCT user_email)::int AS n FROM ad_user_day WHERE ad_id = $1 AND imps > 0', [adId])).rows[0].n;
+  const daily = (await pool.query(`SELECT to_char(g.d, 'YYYY-MM-DD') AS day, COALESCE(x.feed_imps,0)+COALESCE(x.video_imps,0) AS views, COALESCE(x.clicks,0) AS clicks, COALESCE(x.spent_cents,0) AS spent_cents
+    FROM generate_series((CURRENT_DATE - INTERVAL '13 days')::date, CURRENT_DATE, INTERVAL '1 day') g(d) LEFT JOIN ad_daily x ON x.ad_id = $1 AND x.day = g.d::date ORDER BY g.d`, [adId])).rows
+    .map((r) => ({ day: r.day, views: Number(r.views), clicks: Number(r.clicks), spent: Number((Number(r.spent_cents) / 100).toFixed(2)) }));
+  let engagement = null;
+  if (a.post_id) {
+    const p = (await pool.query(`SELECT (SELECT COUNT(*) FROM likes l WHERE l.post_id = $1)::int AS likes, (SELECT COUNT(*) FROM comments c WHERE c.post_id = $1)::int AS comments,
+      (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = $1)::int AS shares`, [a.post_id])).rows[0];
+    engagement = { reactions: Math.max(0, p.likes - (a.base_likes || 0)), comments: Math.max(0, p.comments - (a.base_comments || 0)), shares: Math.max(0, p.shares - (a.base_shares || 0)) };
+    engagement.total = engagement.reactions + engagement.comments + engagement.shares;
+  }
+  const views = t.feed + t.video, spent = Number(a.spent_cents) / 100;
+  return {
+    id: a.id, status: a.status, objective: a.objective, placement: a.placement, postId: a.post_id, days: a.days, endsAt: a.ends_at,
+    budget: Number(a.budget_cents) / 100, spent: Number(spent.toFixed(2)), views, feedViews: t.feed, videoViews: t.video, reach, clicks: t.clicks,
+    ctr: views ? Number((t.clicks / views * 100).toFixed(2)) : 0, costPerClick: t.clicks ? Number((spent / t.clicks).toFixed(3)) : null, costPer1000: views ? Number((spent / views * 1000).toFixed(3)) : null,
+    skips: t.skips, completes: t.completes, skipRate: t.video ? Number((t.skips / t.video * 100).toFixed(1)) : null, completionRate: t.video ? Number((t.completes / t.video * 100).toFixed(1)) : null,
+    messages: t.messages, engagement, daily
+  };
+}
+
+// a business sends a campaign; nothing is shown before a person approves it and the money arrives
+app.get('/api/ads/info', (req, res) => {
+  const qr = security.safeUrl(process.env.AD_PAYMENT_QR_URL || '');
+  res.json({ success: true, paymentText: String(process.env.AD_PAYMENT_TEXT || AD_DEFAULT_PAYMENT_TEXT).slice(0, 600), paymentQr: qr || '', contact: supportTelegramLink() || '', interests: AD_INTERESTS, minBudget: AD_MIN_BUDGET_USD, cpmFeed: AD_CPM.feed, cpmVideo: AD_CPM.video });
+});
+
+app.get('/api/ads/my-posts', async (req, res) => {                          // posts the person can boost (their own, public)
+  try {
+    if (!req.authEmail) return res.status(401).json({ success: false, error: 'Please log in.' });
+    const r = await pool.query("SELECT id, content, media_type, media_url, created_at FROM posts WHERE user_email = $1 AND COALESCE(privacy, 'public') = 'public' AND shared_post_id IS NULL ORDER BY id DESC LIMIT 30", [req.authEmail]);
+    res.json({ success: true, posts: r.rows.map((p) => ({ id: p.id, content: String(p.content || '').slice(0, 140), media_type: p.media_type, media_url: p.media_url, created_at: p.created_at })) });
+  } catch (err) { res.json({ success: true, posts: [] }); }
+});
+
+app.post('/api/ads/request', async (req, res) => {
+  try {
+    const email = req.authEmail; if (!email) return res.status(401).json({ success: false, error: 'Please log in.' });
+    const b = req.body || {};
+    const name = String(b.business_name || '').trim().slice(0, 80), contact = String(b.contact || '').trim().slice(0, 120);
+    const placement = AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner';
+    const objective = AD_OBJECTIVES.includes(b.objective) ? b.objective : 'traffic';
+    const target = b.target_url ? adLink(b.target_url) : '';
+    const budget = Math.round(adNum(b.budget_usd, 0) * 100), days = clampInt(b.days, 7, 1, 30);
+    if (!name || !contact) return res.status(400).json({ success: false, error: 'Business name and a phone / Telegram contact are required.' });
+    if (budget < AD_MIN_BUDGET_USD * 100 || budget > 100000 * 100) return res.status(400).json({ success: false, error: 'The smallest budget is $' + AD_MIN_BUDGET_USD + '.' });
+    if (b.target_url && !target) return res.status(400).json({ success: false, error: 'The link must start with http:// or https://' });
+    if (objective === 'traffic' && !target && !b.post_id) return res.status(400).json({ success: false, error: 'For "more visits" please add the link people should open.' });
+    let postId = null, media = null, caption = String(b.caption || '').slice(0, 500);
+    if (b.post_id) {                                                        // boost one of my own public posts
+      postId = parseInt(b.post_id, 10);
+      const p = (await pool.query("SELECT id, content FROM posts WHERE id = $1 AND user_email = $2 AND COALESCE(privacy, 'public') = 'public'", [postId, email])).rows[0];
+      if (!p) return res.status(400).json({ success: false, error: 'You can only boost your own public posts.' });
+      if (!caption) caption = String(p.content || '').slice(0, 500);
+    } else {
+      media = security.safeUrl(String(b.media_url || ''));
+      if (!media) return res.status(400).json({ success: false, error: 'Please upload a picture or video, or choose a post to boost.' });
+    }
+    if (adPlaceVideo(placement) && !postId && !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(media || '') && placement === 'video_preroll') { /* a picture is shown for a few seconds: allowed */ }
+    const open = await pool.query("SELECT COUNT(*)::int AS n FROM ad_requests WHERE user_email = $1 AND status IN ('pending', 'quoted', 'payment_sent')", [email]);
+    if (open.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for an answer.' });
+    const cta = ['learn_more', 'message', 'shop', 'call', 'none'].includes(b.cta) ? b.cta : (objective === 'messages' ? 'message' : 'learn_more');
+    const r = await pool.query(`INSERT INTO ad_requests (user_email, business_name, contact, placement, caption, target_url, media_url, days, budget_note, objective, post_id, interests, country, budget_cents, price_cents, cta)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15) RETURNING id`,
+      [email, name, contact, placement, caption, target || null, media, days, String(b.budget_note || '').slice(0, 120), objective, postId, adInterests(b.interests).join(','), String(b.country || '').trim().slice(0, 60), budget, cta]);
+    res.status(201).json({ success: true, id: r.rows[0].id });
+  } catch (err) { console.error('[ads] request:', err.message); res.status(500).json({ success: false, error: 'Could not send the request.' }); }
+});
+app.get('/api/ads/my', async (req, res) => {
+  try {
+    if (!req.authEmail) return res.status(401).json({ success: false, error: 'Please log in.' });
+    const r = await pool.query(`SELECT q.id, q.business_name, q.placement, q.objective, q.caption, q.days, q.status, q.budget_cents, q.price_cents, q.admin_note, q.pay_ref, q.post_id, q.ad_id, q.created_at,
+      a.status AS ad_status, a.impressions, a.clicks, a.spent_cents, a.ends_at
+      FROM ad_requests q LEFT JOIN sponsored_ads a ON a.id = q.ad_id WHERE q.user_email = $1 ORDER BY q.id DESC LIMIT 30`, [req.authEmail]);
+    res.json({ success: true, requests: r.rows });
+  } catch (err) { res.json({ success: true, requests: [] }); }
+});
+app.get('/api/ads/my/:id/report', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!req.authEmail || !Number.isInteger(id)) return res.status(400).json({ success: false, error: 'Bad request.' });
+    const q = (await pool.query('SELECT ad_id FROM ad_requests WHERE id = $1 AND user_email = $2', [id, req.authEmail])).rows[0];
+    if (!q || !q.ad_id) return res.status(404).json({ success: false, error: 'No report yet.' });
+    res.json({ success: true, report: await adReport(q.ad_id) });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not load the report.' }); }
+});
+app.post('/api/ads/my/:id/paid', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), ref = String((req.body || {}).pay_ref || '').trim().slice(0, 120);
+    if (!req.authEmail || !Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad request.' });
+    if (ref.length < 3) return res.status(400).json({ success: false, error: 'Please write the payment reference (transaction number or the name you paid from).' });
+    const r = await pool.query("UPDATE ad_requests SET status = 'payment_sent', pay_ref = $1, updated_at = NOW() WHERE id = $2 AND user_email = $3 AND status = 'quoted'", [ref, id, req.authEmail]);
+    if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request is not waiting for payment.' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+// ----- admin -----
 app.post('/api/admin/ads/list', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
-    const r = await pool.query('SELECT id, advertiser_name, placement, caption, target_url, media_url, skip_seconds, status, impressions, clicks, created_at, ends_at FROM sponsored_ads ORDER BY id DESC LIMIT 200');
+    const r = await pool.query('SELECT id, advertiser_name, placement, objective, caption, target_url, media_url, post_id, skip_seconds, status, impressions, clicks, budget_cents, spent_cents, created_at, ends_at FROM sponsored_ads ORDER BY id DESC LIMIT 200');
     res.json({ success: true, ads: r.rows });
   } catch (err) { console.error('[admin] ads list:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
-app.post('/api/admin/ads/create', async (req, res) => {
+app.post('/api/admin/ads/report', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const rep = await adReport(parseInt(req.body.id, 10));
+    res.json(rep ? { success: true, report: rep } : { success: false, error: 'Not found.' });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+app.post('/api/admin/ads/create', async (req, res) => {                     // an ad made by the team itself (no budget limit)
   try {
     const a = await adminGate(req, res); if (!a) return;
     const b = req.body || {};
     const name = String(b.advertiser_name || '').trim().slice(0, 80);
     const placement = AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner';
-    const media = security.safeUrl(String(b.media_url || ''));           // picture / video must be stored on our own media host
+    const media = security.safeUrl(String(b.media_url || ''));
     const target = b.target_url ? adLink(b.target_url) : '';
     if (!name) return res.status(400).json({ success: false, error: 'Advertiser name is required.' });
     if (!media) return res.status(400).json({ success: false, error: 'Media link must be a file uploaded to CamFeed storage (media.camfeedkh.com).' });
@@ -2626,7 +2826,7 @@ app.post('/api/admin/ads/status', async (req, res) => {
     const a = await adminGate(req, res); if (!a) return;
     const id = parseInt(req.body.id, 10), status = req.body.status === 'paused' ? 'paused' : 'active';
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
-    await pool.query('UPDATE sponsored_ads SET status = $1 WHERE id = $2', [status, id]);
+    await pool.query("UPDATE sponsored_ads SET status = $1 WHERE id = $2 AND status IN ('active', 'paused')", [status, id]);
     audit(a.adminEmail, 'ad_status', id, status);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
@@ -2638,62 +2838,20 @@ app.post('/api/admin/ads/delete', async (req, res) => {
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
     await pool.query('DELETE FROM sponsored_ads WHERE id = $1', [id]);
     await pool.query('DELETE FROM ad_events WHERE ad_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM ad_daily WHERE ad_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM ad_user_day WHERE ad_id = $1', [id]).catch(() => {});
     audit(a.adminEmail, 'ad_delete', id, '');
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not delete.' }); }
 });
 
-// ---------------------------------------------------------------------------
-// Advertise with us: a business sends a request -> an admin quotes a price -> the business pays (by hand for now) and sends the payment reference
-// -> a Super Admin checks the money arrived and starts the ad for the chosen number of days. Nothing goes live without a person approving it.
-// ---------------------------------------------------------------------------
-app.get('/api/ads/info', (req, res) => {
-  const qr = security.safeUrl(process.env.AD_PAYMENT_QR_URL || '');
-  res.json({ success: true, paymentText: String(process.env.AD_PAYMENT_TEXT || '').slice(0, 600), paymentQr: qr || '', contact: supportTelegramLink() || '' });
-});
-
-const AD_STATUS_TEXT = ['pending', 'quoted', 'payment_sent', 'live', 'ended', 'rejected'];
-app.post('/api/ads/request', async (req, res) => {
-  try {
-    const email = req.authEmail; if (!email) return res.status(401).json({ success: false, error: 'Please log in.' });
-    const b = req.body || {};
-    const name = String(b.business_name || '').trim().slice(0, 80), contact = String(b.contact || '').trim().slice(0, 120);
-    const placement = AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner';
-    const media = security.safeUrl(String(b.media_url || ''));
-    const target = b.target_url ? adLink(b.target_url) : '';
-    if (!name || !contact) return res.status(400).json({ success: false, error: 'Business name and a phone / Telegram contact are required.' });
-    if (!media) return res.status(400).json({ success: false, error: 'Please upload a picture or video.' });
-    if (b.target_url && !target) return res.status(400).json({ success: false, error: 'The link must start with http:// or https://' });
-    const open = await pool.query("SELECT COUNT(*)::int AS n FROM ad_requests WHERE user_email = $1 AND status IN ('pending', 'quoted', 'payment_sent')", [email]);
-    if (open.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for an answer.' });
-    const r = await pool.query('INSERT INTO ad_requests (user_email, business_name, contact, placement, caption, target_url, media_url, days, budget_note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
-      [email, name, contact, placement, String(b.caption || '').slice(0, 500), target || null, media, clampInt(b.days, 7, 1, 90), String(b.budget_note || '').slice(0, 120)]);
-    res.status(201).json({ success: true, id: r.rows[0].id });
-  } catch (err) { console.error('[ads] request:', err.message); res.status(500).json({ success: false, error: 'Could not send the request.' }); }
-});
-app.get('/api/ads/my', async (req, res) => {
-  try {
-    if (!req.authEmail) return res.status(401).json({ success: false, error: 'Please log in.' });
-    const r = await pool.query('SELECT id, business_name, placement, caption, days, status, price_cents, admin_note, pay_ref, created_at FROM ad_requests WHERE user_email = $1 ORDER BY id DESC LIMIT 30', [req.authEmail]);
-    res.json({ success: true, requests: r.rows });
-  } catch (err) { res.json({ success: true, requests: [] }); }
-});
-app.post('/api/ads/my/:id/paid', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10), ref = String((req.body || {}).pay_ref || '').trim().slice(0, 120);
-    if (!req.authEmail || !Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad request.' });
-    if (ref.length < 3) return res.status(400).json({ success: false, error: 'Please write the payment reference (transaction number or the name you paid from).' });
-    const r = await pool.query("UPDATE ad_requests SET status = 'payment_sent', pay_ref = $1, updated_at = NOW() WHERE id = $2 AND user_email = $3 AND status = 'quoted'", [ref, id, req.authEmail]);
-    if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request is not waiting for payment.' });
-    res.json({ success: true });
-  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
-});
-
 app.post('/api/admin/ad-requests/list', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
-    const r = await pool.query(`SELECT q.id, q.user_email, q.business_name, q.contact, q.placement, q.caption, q.target_url, q.media_url, q.days, q.budget_note, q.status, q.price_cents, q.admin_note, q.pay_ref, q.ad_id, q.created_at,
-      u.first_name, u.last_name FROM ad_requests q LEFT JOIN users u ON u.email = q.user_email ORDER BY (q.status IN ('pending','payment_sent')) DESC, q.id DESC LIMIT 100`);
+    const r = await pool.query(`SELECT q.id, q.user_email, q.business_name, q.contact, q.placement, q.objective, q.caption, q.target_url, q.media_url, q.post_id, q.days, q.budget_note, q.interests, q.country, q.budget_cents,
+      q.status, q.price_cents, q.admin_note, q.pay_ref, q.ad_id, q.created_at, u.first_name, u.last_name,
+      (SELECT media_type FROM posts WHERE id = q.post_id) AS post_media_type, (SELECT media_url FROM posts WHERE id = q.post_id) AS post_media_url
+      FROM ad_requests q LEFT JOIN users u ON u.email = q.user_email ORDER BY (q.status IN ('pending','payment_sent')) DESC, q.id DESC LIMIT 100`);
     res.json({ success: true, requests: r.rows, isSuperAdmin: !!a.isSuperAdmin });
   } catch (err) { console.error('[admin] ad requests:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
@@ -2703,7 +2861,7 @@ app.post('/api/admin/ad-requests/quote', async (req, res) => {
     const id = parseInt(req.body.id, 10), price = Math.round(parseFloat(req.body.price_usd) * 100);
     if (!Number.isInteger(id) || id < 1 || !Number.isFinite(price) || price < 0 || price > 10000000) return res.status(400).json({ success: false, error: 'Enter a price in USD.' });
     const r = await pool.query("UPDATE ad_requests SET status = 'quoted', price_cents = $1, admin_note = $2, updated_at = NOW() WHERE id = $3 AND status IN ('pending', 'quoted')", [price, String(req.body.note || '').slice(0, 300), id]);
-    if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request can no longer be quoted.' });
+    if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request can no longer be approved.' });
     audit(a.adminEmail, 'ad_quote', id, '$' + (price / 100).toFixed(2));
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
@@ -2724,10 +2882,19 @@ app.post('/api/admin/ad-requests/activate', async (req, res) => {          // mo
     const id = parseInt(req.body.id, 10); if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'Bad id.' });
     const q = (await pool.query("SELECT * FROM ad_requests WHERE id = $1 AND status IN ('quoted', 'payment_sent')", [id])).rows[0];
     if (!q) return res.status(400).json({ success: false, error: 'This request is not ready to start.' });
-    const ad = await pool.query("INSERT INTO sponsored_ads (advertiser_name, placement, caption, target_url, media_url, skip_seconds, created_by, ends_at) VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval) RETURNING id",
-      [q.business_name, q.placement, q.caption, q.target_url, q.media_url, a.adminEmail, String(q.days)]);
+    let media = q.media_url, base = { likes: 0, comments: 0, shares: 0 };
+    if (q.post_id) {                                                        // a boosted post: remember the numbers it had on day one
+      const p = (await pool.query(`SELECT p.id, (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)::int AS likes, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id)::int AS comments,
+        (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id)::int AS shares FROM posts p WHERE p.id = $1 AND p.user_email = $2 AND COALESCE(p.privacy, 'public') = 'public'`, [q.post_id, q.user_email])).rows[0];
+      if (!p) return res.status(400).json({ success: false, error: 'The post is no longer public or was deleted.' });
+      base = p; media = null;
+    }
+    const ad = await pool.query(`INSERT INTO sponsored_ads (advertiser_name, placement, caption, target_url, media_url, skip_seconds, created_by, ends_at, objective, post_id, interests, country, budget_cents, days, cpm_feed_cents, cpm_video_cents, owner_email, cta, base_likes, base_comments, base_shares)
+      VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval, $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
+      [q.business_name, q.placement, q.caption, q.target_url, media, a.adminEmail, String(q.days), q.objective, q.post_id, q.interests || '', q.country || '', q.budget_cents || 0, q.days,
+        AD_CPM.feed * 100, AD_CPM.video * 100, q.user_email, q.cta || 'learn_more', base.likes, base.comments, base.shares]);
     await pool.query("UPDATE ad_requests SET status = 'live', ad_id = $1, updated_at = NOW() WHERE id = $2", [ad.rows[0].id, id]);
-    audit(a.adminEmail, 'ad_activate', id, 'ad #' + ad.rows[0].id + ' for ' + q.days + ' days, $' + ((q.price_cents || 0) / 100).toFixed(2));
+    audit(a.adminEmail, 'ad_activate', id, 'ad #' + ad.rows[0].id + ' for ' + q.days + ' days, budget $' + ((q.budget_cents || 0) / 100).toFixed(2) + ', paid $' + ((q.price_cents || 0) / 100).toFixed(2));
     res.json({ success: true, adId: ad.rows[0].id });
   } catch (err) { console.error('[admin] ad activate:', err.message); res.status(500).json({ success: false, error: 'Could not start the ad.' }); }
 });
