@@ -41,8 +41,26 @@
             z-index: 1000;
             pointer-events: none;
         }
-        .top-circle-btn { pointer-events: auto; background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
-        .top-circle-btn:hover { background: rgba(255,255,255,0.2); }
+        .top-circle-btn {
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.58);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+            transition: transform 0.15s ease, background 0.15s ease;
+        }
+        .top-circle-btn:hover { background: rgba(255, 255, 255, 0.22); }
+        .top-circle-btn:active { transform: scale(0.92); }
+        .top-circle-btn svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 
         .reels-container {
             width: 100vw;
@@ -81,9 +99,7 @@
             transform: translateZ(0);
         }
 
-        /* Smooth start: video fades in when its first frame is ready; spinner only if it really stalls */
-        .reel-video { opacity: 0; transition: opacity .22s ease; }
-        .reel-video.vid-ready { opacity: 1; }
+        .reel-video { opacity: 1 !important; }
         .reel-spinner {
             position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px;
             border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff;
@@ -126,20 +142,14 @@
             box-shadow: 0 6px 24px rgba(0,0,0,0.45);
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
         .reel-item.is-paused .reel-center-play {
             opacity: 1;
             pointer-events: auto;
             transform: translate(-50%, -50%) scale(1);
         }
-        .reel-center-play:active {
-            transform: translate(-50%, -50%) scale(0.92);
-        }
-
-        /* Bottom Gradient for Readability */
         .reel-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 48%; background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.45) 60%, transparent 100%); z-index: 5; pointer-events: none; }
-
         .reel-overlay {
             position: absolute;
             bottom: calc(64px + env(safe-area-inset-bottom, 0px));
@@ -148,10 +158,7 @@
             z-index: 10;
             color: #fff;
             text-shadow: 0 1px 4px rgba(0,0,0,0.85);
-            transition: bottom 0.25s ease;
         }
-
-        /* YouTube-Style Bottom Interactive Video Control Bar */
         .reel-controls-bar {
             position: absolute;
             bottom: calc(8px + env(safe-area-inset-bottom, 0px));
@@ -220,11 +227,6 @@
             background: #1877f2;
             border: 2px solid #fff;
             box-shadow: 0 0 6px rgba(0,0,0,0.6);
-            transition: transform 0.15s ease;
-        }
-        .yt-reel-progress-area:hover .yt-reel-thumb,
-        .yt-reel-progress-area.scrubbing .yt-reel-thumb {
-            transform: translateY(-50%) scale(1.25);
         }
         .yt-reel-tip {
             position: absolute;
@@ -269,7 +271,6 @@
             cursor: pointer;
             flex-shrink: 0;
             padding: 0;
-            transition: background 0.15s, transform 0.1s;
         }
         .rc-btn:hover { background: rgba(255, 255, 255, 0.16); }
         .rc-btn:active { transform: scale(0.9); }
@@ -287,7 +288,6 @@
             min-width: 36px;
             text-align: center;
         }
-        .rc-speed-btn:active { transform: scale(0.92); }
         .rc-time {
             font-size: 12px;
             font-weight: 600;
@@ -404,7 +404,7 @@
 <body>
 
     <div class="reels-top-bar">
-        <button class="top-circle-btn" onclick="window.location.href='feed.html'" title="Back to Feed">🡠</button>
+        <button class="top-circle-btn" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='feed.html'; }" title="ត្រឡប់ក្រោយ (Back)" aria-label="Back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
         <div class="notranslate" translate="no" style="font-weight: 800; font-size: 18px; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.85);">Videos</div>
         <div style="width: 40px;"></div>
     </div>
@@ -518,7 +518,6 @@
 
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
-        // Start muted ONLY if user explicitly muted before or browser hasn't unlocked audio yet; remember sound preference across pages!
         let savedSoundPref = null;
         try { savedSoundPref = localStorage.getItem('camfeed_sound'); } catch (e) {}
         let globalMuted = (savedSoundPref === 'off');
@@ -667,12 +666,12 @@
 
         function toggleReelPlayPause(uid, event) {
             if (event) event.stopPropagation();
+            if (!audioUnlocked) unlockReelsAudio();
             const vid = document.getElementById(`rvid-${uid}`);
             if (!vid) return;
             const realSrc = vid.dataset.videoSrc;
-            if (realSrc && vid.getAttribute('src') !== realSrc) {
+            if (realSrc && !vid.getAttribute('src')) {
                 vid.setAttribute('src', realSrc);
-                try { vid.load(); } catch (e) {}
             }
             if (vid.paused) {
                 vid.dataset.userPaused = 'false';
@@ -681,7 +680,10 @@
                     vid.removeAttribute('muted');
                     vid.volume = 1.0;
                 }
-                vid.play().catch(() => {});
+                vid.play().catch(() => {
+                    vid.muted = true;
+                    vid.play().catch(() => {});
+                });
             } else {
                 vid.dataset.userPaused = 'true';
                 vid.pause();
@@ -836,12 +838,12 @@
                         userReaction: video.user_reaction
                     };
                     const isOwn = currentUser.email === video.user_email;
-                    const cleanVideoSrc = video.media_url.split('#')[0] + '#t=0.001'; // shows the first frame while loading
+                    const cleanVideoSrc = video.media_url.split('#')[0];
 
                     return `
                         <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
-                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
-                                onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="this.classList.add('vid-ready')" onprogress="updateReelBuffer('${uid}')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="this.classList.add('vid-ready'); reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
+                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
+                                onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="reelHideLoading('${uid}')" onprogress="updateReelBuffer('${uid}')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
                                 ontimeupdate="updateReelProgress('${uid}')"
                                 onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerHTML=YT_REEL_SVG.pause;"
                                 onpause="document.getElementById('reel-${uid}')?.classList.add('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerHTML=YT_REEL_SVG.play;"></video>
@@ -987,9 +989,8 @@
 
         function hydrateReel(v) {
             const realSrc = v.dataset.videoSrc;
-            if (realSrc && v.getAttribute('src') !== realSrc) {
+            if (realSrc && !v.getAttribute('src')) {
                 v.setAttribute('src', realSrc);
-                try { v.load(); } catch (e) {}
             }
         }
 
@@ -1542,8 +1543,8 @@
                                     <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                                     <div class="comment-content-wrapper">
                                         <div class="comment-bubble">
-                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${esc(c.first_name)} ${esc(c.last_name)} ${replyBadge}</span>
-                                            <div id="v-comment-text-${c.id}" class="notranslate" translate="no">${esc(c.content)}</div>
+                                            <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${c.first_name} ${c.last_name} ${replyBadge}</span>
+                                            <div id="v-comment-text-${c.id}" class="notranslate" translate="no">${c.content}</div>
                                         </div>
                                         <div style="display:flex; gap:4px; align-items:center;">
                                             ${isCommentOwner ? `<button class="comment-options-btn" onclick="enableEditVideoComment(${c.id}, ${postId}, '${encodeURIComponent(c.content)}')" title="កែប្រែ">✏️</button>` : ''}

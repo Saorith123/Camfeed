@@ -34,8 +34,23 @@
             cursor: pointer;
             letter-spacing: -0.8px;
         }
-        .back-btn { background: #e4e6eb; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; color: #050505; }
-        .back-btn:hover { background: #d8dadf; }
+        .back-btn {
+            background: #f0f2f5;
+            border: 1px solid #e4e6eb;
+            padding: 7px 14px 7px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 13.5px;
+            color: #050505;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .back-btn:hover { background: #e4e6eb; }
+        .back-btn:active { transform: scale(0.95); }
+        .back-btn svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 
         .profile-container { max-width: 900px; margin: 0 auto 40px; }
 
@@ -219,6 +234,8 @@
             margin: 0;
             display: block;
             cursor: pointer;
+            opacity: 1 !important;
+            background: #000;
         }
         .feed-video-center-play {
             position: absolute;
@@ -229,8 +246,8 @@
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            border: 1.5px solid rgba(255,255,255,0.25);
-            background: rgba(15, 23, 42, 0.65);
+            border: 1.5px solid rgba(255,255,255,0.28);
+            background: rgba(15, 23, 42, 0.68);
             color: #fff;
             display: flex;
             align-items: center;
@@ -238,18 +255,15 @@
             cursor: pointer;
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.45);
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
         .feed-video-wrap.is-paused .feed-video-center-play {
             opacity: 1;
             pointer-events: auto;
             transform: translate(-50%, -50%) scale(1);
-        }
-        .feed-video-center-play:active {
-            transform: translate(-50%, -50%) scale(0.92);
         }
         .feed-video-controls-bar {
             position: absolute;
@@ -265,7 +279,7 @@
             color: #fff;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.28s ease;
+            transition: opacity 0.25s ease;
         }
         .feed-video-wrap.is-paused .feed-video-controls-bar,
         .feed-video-wrap.controls-visible .feed-video-controls-bar,
@@ -318,24 +332,19 @@
             position: absolute;
             right: -6px;
             top: 50%;
-            transform: translateY(-50%) scale(0.85);
+            transform: translateY(-50%) scale(0.9);
             width: 12px;
             height: 12px;
             border-radius: 50%;
             background: #1877f2;
             border: 2px solid #fff;
             box-shadow: 0 0 6px rgba(0,0,0,0.6);
-            transition: transform 0.15s ease;
-        }
-        .yt-progress-area:hover .yt-play-thumb,
-        .yt-progress-area.scrubbing .yt-play-thumb {
-            transform: translateY(-50%) scale(1.2);
         }
         .yt-hover-time-tip {
             position: absolute;
             bottom: 16px;
             transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(15, 23, 42, 0.92);
             color: #fff;
             font-size: 11px;
             font-weight: 700;
@@ -374,7 +383,6 @@
             cursor: pointer;
             flex-shrink: 0;
             padding: 0;
-            transition: background 0.15s, transform 0.1s;
         }
         .fvc-btn:hover { background: rgba(255, 255, 255, 0.16); }
         .fvc-btn:active { transform: scale(0.9); }
@@ -398,17 +406,14 @@
             cursor: pointer;
             line-height: 1.2;
         }
-        .yt-speed-pill:hover { background: rgba(255, 255, 255, 0.28); }
         .feed-video-spinner {
-            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px;
-            border-radius: 50%; border: 3px solid rgba(0,0,0,.15); border-top-color: #1877f2;
+            position: absolute; top: 50%; left: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px;
+            border-radius: 50%; border: 3px solid rgba(255,255,255,.22); border-top-color: #1877f2;
             animation: fvspin .8s linear infinite; z-index: 17; display: none; pointer-events: none;
         }
         .feed-video-wrap.is-loading .feed-video-spinner { display: block; }
         @keyframes fvspin { to { transform: rotate(360deg); } }
-        /* Smooth videos: light placeholder (never black), reserved space so the page does not jump, fade-in when the first frame is ready */
-        video.sv { width: 100%; aspect-ratio: 9 / 16; max-height: 78vh; object-fit: cover; background: #e4e6eb; display: block; opacity: 0; transition: opacity .22s ease; }
-        video.sv.vid-ready { opacity: 1; }
+        video.sv { width: 100%; aspect-ratio: 9 / 16; max-height: 78vh; object-fit: cover; background: #000; display: block; opacity: 1 !important; }
         .see-translation-btn {
             background: none;
             border: none;
@@ -567,7 +572,7 @@
 
     <div class="top-bar">
         <div class="logo-nav notranslate" translate="no" onclick="window.location.href='feed.html'">CamFeed</div>
-        <button class="back-btn" onclick="window.location.href='feed.html'">⬅ Back to Feed</button>
+        <button class="back-btn" onclick="if(window.history.length > 1){ window.history.back(); } else { window.location.href='feed.html'; }"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg><span>ត្រឡប់ក្រោយ</span></button>
     </div>
 
     <div class="profile-container">
@@ -1229,9 +1234,8 @@
             const vid = document.getElementById(`pvid-${uid}`);
             if (!vid) return;
             const realSrc = vid.dataset.videoSrc;
-            if (realSrc && vid.getAttribute('src') !== realSrc) {
+            if (realSrc && !vid.getAttribute('src')) {
                 vid.setAttribute('src', realSrc);
-                try { vid.load(); } catch (e) {}
             }
             if (vid.paused) {
                 vid.dataset.userPaused = 'false';
@@ -1246,7 +1250,10 @@
                     vid.removeAttribute('muted');
                     vid.volume = 1.0;
                 }
-                vid.play().catch(() => {});
+                vid.play().catch(() => {
+                    vid.muted = true;
+                    vid.play().catch(() => {});
+                });
             } else {
                 vid.dataset.userPaused = 'true';
                 vid.pause();
@@ -1372,18 +1379,18 @@
         function buildProfileVideoTag(videoUrl, postId, extraClass = 'post-media profile-autoplay-video', mediaAspect = '') {
             const uid = `${postId}-${Math.random().toString(36).slice(2, 7)}`;
             const initialAspect = mediaAspect && mediaAspect.trim() ? mediaAspect.trim() : '9 / 16';
-            const frameUrl = (videoUrl || '').split('#')[0] + '#t=0.001';
+            const cleanUrl = (videoUrl || '').split('#')[0];
             return `
                 <div class="feed-video-wrap" id="pvwrap-${uid}" style="aspect-ratio: ${initialAspect};"
                      onmousemove="revealProfileVideoControls('${uid}')"
                      onclick="handleProfileVideoSurfaceTap('${uid}', event)">
-                    <video id="pvid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="sv ${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
+                    <video id="pvid-${uid}" src="${cleanUrl}" data-video-src="${cleanUrl}" class="sv ${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
                         onloadedmetadata="adjustProfileVideoAspect('${uid}')"
-                        onloadeddata="this.classList.add('vid-ready'); updateProfileVideoClock('${uid}')"
+                        onloadeddata="document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading'); updateProfileVideoClock('${uid}')"
                         onprogress="updateProfileVideoBuffer('${uid}')"
                         oncanplay="document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
                         onwaiting="document.getElementById('pvwrap-${uid}')?.classList.add('is-loading')"
-                        onplaying="this.classList.add('vid-ready'); document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
+                        onplaying="document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
                         onerror="document.getElementById('pvwrap-${uid}')?.classList.remove('is-loading')"
                         ontimeupdate="updateProfileVideoClock('${uid}')"
                         onplay="document.getElementById('pvwrap-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('pvplay-${uid}'); if(b) b.innerHTML=YT_SVG.pause; revealProfileVideoControls('${uid}');"
@@ -1448,9 +1455,8 @@
             });
             if (best && best.dataset.userPaused !== 'true') {
                 const realSrc = best.dataset.videoSrc;
-                if (realSrc && best.getAttribute('src') !== realSrc) {
+                if (realSrc && !best.getAttribute('src')) {
                     best.setAttribute('src', realSrc);
-                    try { best.load(); } catch (e) {}
                 }
                 if (globalProfileVideoUnmuted) {
                     best.muted = false;
