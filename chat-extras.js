@@ -324,14 +324,17 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const role = c.caller === me ? 'caller' : 'callee';
     const other = role === 'caller' ? 'callee' : 'caller';
     const since = Math.max(0, parseInt(req.query.ic, 10) || 0);
-    res.json({ success: true, status: c.status, kind: c.kind, answer: role === 'caller' ? c.answer : null,
+    res.json({ success: true, status: c.status, why: c.why || '', kind: c.kind, answer: role === 'caller' ? c.answer : null,
       ice: c.ice[other].slice(since), icTotal: c.ice[other].length, answeredAt: c.answeredAt });
   });
 
   app.post('/api/calls/:id/answer', (req, res) => {
     const me = norm(req.authEmail); const c = calls.get(req.params.id);
     const answer = (req.body || {}).answer;
-    if (!c || c.callee !== me || c.status !== 'ringing' || typeof answer !== 'string' || answer.length > 20000) return res.status(400).json({ success: false });
+    if (!c) return res.status(404).json({ success: false, why: 'ans-notfound' });
+    if (c.callee !== me) return res.status(400).json({ success: false, why: 'ans-notcallee' });
+    if (c.status !== 'ringing') return res.status(400).json({ success: false, why: 'ans-status-' + c.status + (c.why ? '-' + c.why : '') });
+    if (typeof answer !== 'string' || answer.length > 60000) return res.status(400).json({ success: false, why: 'ans-bad' });
     c.answer = answer; c.status = 'accepted'; c.answeredAt = Date.now(); c.seen[me] = Date.now(); c.seen[c.caller] = Date.now();
     res.json({ success: true });
   });
@@ -349,6 +352,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const me = norm(req.authEmail); const c = calls.get(req.params.id);
     if (!involved(c, me)) return res.status(404).json({ success: false });
     if (live(c)) {
+      c.why = (c.caller === me ? 'caller:' : 'callee:') + String((req.body || {}).why || '').slice(0, 60);
+      console.log('[call] end', c.id, c.status, c.why);
       if (c.status === 'ringing') finish(c, c.caller === me ? 'cancelled' : 'declined', c.caller === me ? 'cancelled' : 'declined');
       else finish(c, 'ended', 'ended');
     }

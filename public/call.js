@@ -189,7 +189,7 @@
     if (S.ended) return; S.ended = true;
     var id = (S.call && S.call.id) || (S.incoming && S.incoming.id);
     if (id) S.dismissed[id] = Date.now();
-    if (notify && id) apiRetry('/api/calls/' + id + '/end', 'POST', {}, 5);
+    if (notify && id) apiRetry('/api/calls/' + id + '/end', 'POST', { why: msg || 'user' }, 5);
     cleanup(msg);
   }
 
@@ -247,7 +247,7 @@
       });
     }).then(function (j) {
       if (!j) return;
-      if (!j.success) { hangup(true, transient(j) ? 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត (កូដ ' + j._status + ')' : 'ការហៅបានបញ្ចប់ហើយ'); return; }
+      if (!j.success) { hangup(true, transient(j) ? 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត (កូដ ' + j._status + ')' : 'ការហៅបានបញ្ចប់ហើយ [' + (j.why || j._status) + ']'); return; }
       S.poll = setInterval(pollCall, 1000);
     }).catch(function (e) {
       console.error('[call]', e);
@@ -267,7 +267,7 @@
     api('/api/calls/' + c.id + '?ic=' + c.icIdx).then(function (j) {
       if (!S.call || S.call.id !== c.id) return;
       if (!j.success) {
-        if (j._status === 404) { hangup(false, 'ការហៅបានបញ្ចប់'); return; }
+        if (j._status === 404) { hangup(false, 'ការហៅបានបញ្ចប់ [404]'); return; }
         c.fails = (c.fails || 0) + 1;                       // network hiccup / rate limit: keep the call, only give up after ~25 s
         if (c.fails > 25) hangup(true, 'ការតភ្ជាប់ដាច់');
         return;
@@ -277,12 +277,12 @@
         stopTone(); setStatus('កំពុងតភ្ជាប់…');
         S.pc.setRemoteDescription(JSON.parse(j.answer)).then(function () {
           S.answerSet = true; var q = S.remoteIce; S.remoteIce = []; q.forEach(function (x) { S.pc.addIceCandidate(x).catch(function () {}); });
-        }).catch(function () { hangup(true, 'ការតភ្ជាប់បរាជ័យ'); });
+        }).catch(function (e) { hangup(true, 'ការតភ្ជាប់បរាជ័យ sdp:' + ((e && (e.name || e.message)) || '')); });
       }
       if (j.ice && j.ice.length) { addRemoteIce(j.ice); c.icIdx = j.icTotal; }
       if (j.status !== 'ringing' && j.status !== 'accepted') {
         var m = { declined: 'គេបានបដិសេធការហៅ', missed: 'គ្មានអ្នកទទួល', cancelled: 'ការហៅត្រូវបានបោះបង់', ended: 'ការហៅបានបញ្ចប់' }[j.status];
-        hangup(false, m);
+        hangup(false, m + (j.why ? ' [' + j.why + ']' : ''));
       }
     }).catch(function () {});
   }
