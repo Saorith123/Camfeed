@@ -40,7 +40,7 @@ async function loadNotifications() {
                                 <div style="font-size:11px; font-weight:800; color:#1877f2; margin-bottom:2px;">CamFeed Team</div>
                                 <div style="color: #050505; line-height: 1.35;">${esc(n.message)}</div>
                                 <div style="font-size: 10.5px; color: ${isUnread ? '#e8590c' : '#90949c'}; margin-top: 3px;">
-                                    ${new Date(n.created_at).toLocaleString()} ${isUnread ? '· ថ្មី' : ''}
+                                    ${window.timeAgo ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString()} ${isUnread ? '· ថ្មី' : ''}
                                 </div>
                             </div>
                         </div>`;
@@ -61,7 +61,7 @@ async function loadNotifications() {
                             <div style="flex: 1;">
                                 <div style="color: #050505; line-height: 1.35;">${esc(n.message)}</div>
                                 <div style="font-size: 10.5px; color: ${isUnread ? '#1877f2' : '#90949c'}; margin-top: 3px;">
-                                    ${new Date(n.created_at).toLocaleString()} ${isUnread ? '· ថ្មី' : ''}
+                                    ${window.timeAgo ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString()} ${isUnread ? '· ថ្មី' : ''}
                                 </div>
                             </div>
                         </div>

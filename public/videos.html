@@ -409,6 +409,7 @@
         .skip-ad-pill { position: absolute; top: calc(18px + env(safe-area-inset-top, 0px)); right: 18px; z-index: 5010; background: rgba(0,0,0,.72); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.28); color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13.5px; font-weight: 700; cursor: pointer; }
         .skip-ad-pill:disabled { color: #cbd5e1; cursor: not-allowed; }
     </style>
+    <script src="timeago.js"></script>
 </head>
 <body>
     <script>
@@ -1450,7 +1451,7 @@
                                 <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px;">${esc(s.first_name)} ${esc(s.last_name)}</div>
-                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${timeAgo(s.shared_at)}</div>
                                 </div>
                             </div>
                             ${s.email !== currentUser.email ? `

@@ -1135,6 +1135,7 @@
         .sponsored-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 6px 14px; }
         .sponsored-badge { font-size: 11px; background: #e7f3ff; color: #1877f2; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
     </style>
+    <script src="timeago.js"></script>
 </head>
 <body>
 
@@ -2132,7 +2133,7 @@
                                     <img src="${p.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                     <div>
                                         <div style="font-weight:700; font-size:14px;">${esc(p.first_name)} ${esc(p.last_name)}</div>
-                                        <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (srcUrl ? '🖼️ Photo' : '📝 Post')} · ${new Date(p.created_at).toLocaleDateString()}</div>
+                                        <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (srcUrl ? '🖼️ Photo' : '📝 Post')} · ${timeAgo(p.created_at)}</div>
                                     </div>
                                 </div>
                                 ${p.content ? `<div style="padding:0 12px 10px; font-size:14px; color:#050505;">${linkify(p.content)}</div>` : ''}
@@ -2220,7 +2221,7 @@
                 }
 
                 const post = postData.post;
-                const dateStr = new Date(post.created_at).toLocaleString();
+                const dateStr = timeAgo(post.created_at);
                 const mediaHtml = renderPostMediaHtml(post, dateStr, true);
                 const comments = commentsData.success ? (commentsData.comments || []) : [];
 
@@ -2233,7 +2234,7 @@
                         <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                         <div>
                             <div style="font-weight:700; font-size:14.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${esc(post.first_name)} ${esc(post.last_name)}</div>
-                            <div style="font-size:11px; color:#65676b;">${dateStr} · 🌐</div>
+                            <div style="font-size:11px; color:#65676b;"><span data-ts="${post.created_at}" title="${fullDateTime(post.created_at)}">${dateStr}</span> · 🌐</div>
                         </div>
                     </div>
                     ${post.content ? `<div style="padding:10px 14px; font-size:14.5px; color:#050505; white-space:pre-wrap;">${linkify(post.content)}</div>` : ''}
@@ -2829,7 +2830,7 @@
                     return `<div class="embedded-shared-card" style="padding:12px; color:#65676b; font-size:13px;">⚠️ ការបង្ហោះដើមត្រូវបានលុប ឬមិនអាចបង្ហាញបានទេ។</div>`;
                 }
                 const origAuthor = `${post.orig_first_name || ''} ${post.orig_last_name || ''}`.trim();
-                const origDate = post.orig_created_at ? new Date(post.orig_created_at).toLocaleDateString() : '';
+                const origDate = post.orig_created_at ? timeAgo(post.orig_created_at) : '';
                 if (post.orig_media_type === 'styled_text') {
                     return `
                         <div class="embedded-shared-card" style="margin: 0 12px 8px 12px; border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden;">
@@ -3061,7 +3062,7 @@
                     types: types
                 };
 
-                const dateStr = new Date(post.created_at).toLocaleString();
+                const dateStr = timeAgo(post.created_at);
                 const div = document.createElement('div');
                 div.className = 'post-item';
                 div.id = `post-${post.id}`;
@@ -3089,7 +3090,7 @@
                                         </button>
                                     ` : ''}
                                 </div>
-                                <div class="post-time">${dateStr} (${post.privacy || 'public'})</div>
+                                <div class="post-time"><span data-ts="${post.created_at}" title="${fullDateTime(post.created_at)}">${dateStr}</span> (${post.privacy || 'public'})</div>
                             </div>
                         </div>
                         <div class="post-header-right">
@@ -3672,7 +3673,7 @@
                                 <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px; color:#050505;">${esc(s.first_name)} ${esc(s.last_name)}</div>
-                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${new Date(s.shared_at).toLocaleDateString()}</div>
+                                    <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${timeAgo(s.shared_at)}</div>
                                 </div>
                             </div>
                             ${s.email !== currentUser.email ? `

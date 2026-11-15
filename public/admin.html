@@ -62,6 +62,7 @@
         .report-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
         .report-reason { background: #ffebe9; color: #d93025; padding: 6px 10px; border-radius: 6px; font-weight: 700; font-size: 13px; margin-bottom: 8px; display: inline-block; }
     </style>
+    <script src="timeago.js"></script>
 </head>
 <body>
 
@@ -454,17 +455,27 @@
             return one(mu, p.media_type);
         }
 
+        let adminPostsById = {};
+        function toggleAdminMedia(btn, id) {
+            const box = btn.nextElementSibling; if (!box) return;
+            if (box.innerHTML) { box.innerHTML = ''; btn.textContent = btn.textContent.replace('✖ Hide', '▶ Show'); return; }   // hide again (the video stops loading)
+            const p = adminPostsById[id]; if (!p) return;
+            box.innerHTML = adminMediaPreview(p);
+            btn.textContent = btn.textContent.replace('▶ Show', '✖ Hide');
+        }
         function renderPostsTable(posts) {
+            adminPostsById = {}; (posts || []).forEach((p) => { adminPostsById[p.id] = p; });
             const tbody = document.getElementById('postsTableBody');
             tbody.innerHTML = posts.map(p => `
                 <tr>
                     <td>
                         <b>${esc(p.first_name)} ${esc(p.last_name)}</b><br>
-                        <span style="font-size:11.5px; color:#65676b;">${esc(p.user_email)}</span>
+                        <span style="font-size:11.5px; color:#65676b;">${esc(p.user_email)}</span><br>
+                        <span style="font-size:11.5px; color:#65676b;" title="${esc(fullDateTime(p.created_at))}">📅 ${esc(fullDateTime(p.created_at))} · <b data-ts="${esc(p.created_at)}">${esc(timeAgo(p.created_at))}</b></span>
                     </td>
                     <td>
                         <div style="max-width:340px; white-space:pre-wrap;">${esc(p.content || '[No caption]')}</div>
-                        ${adminMediaPreview(p)}
+                        ${(p.media_url && p.media_type !== 'styled_text') ? `<button type="button" class="btn-sm btn-gray" style="margin-top:6px;" onclick="toggleAdminMedia(this, ${Number(p.id)})">▶ Show ${esc(p.media_type === 'video' ? 'video' : (String(p.media_url).trim().startsWith('[') ? 'media' : 'image'))}</button><div class="admin-media-box"></div>` : ''}
                     </td>
                     <td>#${esc(p.ai_category || 'General')} · 👁️ ${p.views_count || 0}</td>
                     <td>
