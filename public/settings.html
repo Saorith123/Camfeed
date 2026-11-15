@@ -89,13 +89,13 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 
 <section class="view" id="v-login"><div class="group" id="loginRows"></div></section>
 
-<section class="view" id="v-name"><div class="card"><h2 data-i18n="acc_name_t">ឈ្មោះរបស់អ្នក</h2><p class="desc" data-i18n="acc_name_d">ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។</p>
+
+<section class="view" id="v-details">
+<div class="card"><h2 data-i18n="acc_name_t">ឈ្មោះរបស់អ្នក</h2><p class="desc" data-i18n="acc_name_d">ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។</p>
 <div class="note warn" data-i18n="acc_name_note">ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។</div>
 <div class="grid2 field-gap"><div><label class="field" for="firstName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="firstName" maxlength="60" autocomplete="given-name"></div>
 <div><label class="field" for="lastName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="lastName" maxlength="60" autocomplete="family-name"></div></div>
-<button type="button" class="btn" id="saveNameBtn" data-i18n="save" disabled>រក្សាទុក</button></div></section>
-
-<section class="view" id="v-details">
+<button type="button" class="btn" id="saveNameBtn" data-i18n="save" disabled>រក្សាទុក</button></div>
 <div class="card"><h2 data-i18n="acc_contact_t">លេខសម្គាល់ និងតំណ</h2><p class="desc" data-i18n="acc_contact_d2">ចែករំលែកតំណរបស់អ្នកឱ្យមិត្តរកអ្នក។</p>
 <div class="row" id="idRow"><span class="r-ic">🔢</span><div class="r-main"><div class="r-title" data-i18n="acc_id">លេខសម្គាល់របស់អ្នក</div><div class="r-sub" id="idValue">…</div></div><button type="button" class="btn small secondary" id="copyIdBtn" data-i18n="copy">ចម្លង</button></div>
 <div class="row" id="linkRow"><span class="r-ic">🔗</span><div class="r-main"><div class="r-title" data-i18n="acc_link">តំណប្រវត្តិរូបរបស់អ្នក</div><div class="r-sub" data-i18n="acc_link_d">ចែករំលែកឱ្យមិត្តរកអ្នក</div></div><button type="button" class="btn small secondary" id="copyLinkBtn" data-i18n="copy">ចម្លង</button></div></div>
@@ -295,7 +295,7 @@ function renderAllRows(){
     {ic:'🔐',t:'nav_login',s:'nav_login_s',go:'login'},{ic:'🔒',t:'nav_privacy',s:'nav_privacy_s',go:'privacy'},{ic:'🔔',t:'nav_notifications',s:'nav_notifications_s',go:'notifications'},
     {ic:'🚫',t:'nav_blocking',s:'nav_blocking_s',go:'blocking'},{ic:'🕘',t:'nav_activity',s:'nav_activity_s',go:'activity'},{ic:'📦',t:'nav_data',s:'nav_data_s',go:'data'}]);
   fillRows('loginRows',[
-    {ic:'✏️',t:'lg_name',s:()=>fullName()+' · '+t('lg_name_s'),go:'name'},
+    
     {ic:'📱',t:'lg_contact',s:()=>me.contact_mail||'—',go:'contact'},{ic:'🔑',t:'lg_pw',s:'lg_pw_s',go:'password'},
     {ic:'🔐',t:'lg_2fa',s:'lg_2fa_s',go:'twofa',soon:true},{ic:'💻',t:'lg_devices',s:'lg_devices_s',go:'devices'}]);
   fillRows('activityRows',[
@@ -309,9 +309,9 @@ function renderAllRows(){
 }
 
 // ---------------------------------------------------------------- views
-const VIEWS={home:'v-home',login:'v-login',details:'v-details',name:'v-name',contact:'v-contact',password:'v-password',twofa:'v-twofa',devices:'v-devices',privacy:'v-privacy',notifications:'v-notifications',blocking:'v-blocking',activity:'v-activity','activity-reactions':'v-activitylist','activity-shares':'v-activitylist','activity-comments':'v-activitylist','activity-posts':'v-activitylist',data:'v-data',install:'v-install',about:'v-about'};
-const PARENT={login:'home',details:'home',name:'login',contact:'login',password:'login',twofa:'login',devices:'login',privacy:'home',notifications:'home',blocking:'home',activity:'home','activity-reactions':'activity','activity-shares':'activity','activity-comments':'activity','activity-posts':'activity',data:'home',install:'home',about:'home'};
-const TITLE_KEY={home:'v_home',login:'v_login',details:'v_details',name:'v_name',contact:'v_contact',password:'v_password',twofa:'v_twofa',devices:'v_devices',privacy:'v_privacy',notifications:'v_notifications',blocking:'v_blocking',activity:'v_activity','activity-reactions':'ac_reactions','activity-shares':'ac_shares','activity-comments':'ac_comments','activity-posts':'ac_posts',data:'v_data',install:'v_install',about:'v_about'};
+const VIEWS={home:'v-home',login:'v-login',details:'v-details',contact:'v-contact',password:'v-password',twofa:'v-twofa',devices:'v-devices',privacy:'v-privacy',notifications:'v-notifications',blocking:'v-blocking',activity:'v-activity','activity-reactions':'v-activitylist','activity-shares':'v-activitylist','activity-comments':'v-activitylist','activity-posts':'v-activitylist',data:'v-data',install:'v-install',about:'v-about'};
+const PARENT={login:'home',details:'home',contact:'login',password:'login',twofa:'login',devices:'login',privacy:'home',notifications:'home',blocking:'home',activity:'home','activity-reactions':'activity','activity-shares':'activity','activity-comments':'activity','activity-posts':'activity',data:'home',install:'home',about:'home'};
+const TITLE_KEY={home:'v_home',login:'v_login',details:'v_details',contact:'v_contact',password:'v_password',twofa:'v_twofa',devices:'v_devices',privacy:'v_privacy',notifications:'v_notifications',blocking:'v_blocking',activity:'v_activity','activity-reactions':'ac_reactions','activity-shares':'ac_shares','activity-comments':'ac_comments','activity-posts':'ac_posts',data:'v_data',install:'v_install',about:'v_about'};
 let current='home';
 function depth(){return (history.state&&history.state.d)||0;}
 function go(name){if(location.hash==='#'+name){show(name);return;}history.pushState({d:depth()+1},'','#'+name);show(name);}
