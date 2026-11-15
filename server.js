@@ -3320,7 +3320,7 @@ app.post('/api/admin/sounds/toggle', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false }); }
 });
 
-// ---- Live video (Cloudflare Stream; only approved Creators; not recorded) ----
+// ---- Live video (Cloudflare Stream; only approved Creators; a finished live is saved as a video post, see live-replay.js) ----
 const LIVE_EMOJI = ['❤️', '😂', '😮', '😢', '👏', '🔥'];
 const LIVE_MAX_VIEWERS = () => clampInt(process.env.LIVE_MAX_VIEWERS, 100, 1, 5000);
 const LIVE_MAX_MINUTES = () => clampInt(process.env.LIVE_MAX_MINUTES, 120, 5, 600);
@@ -3338,10 +3338,22 @@ async function cfStream(method, path, body) {
   } finally { clearTimeout(t); }
 }
 const cfHost = (u) => { try { return new URL(u).origin; } catch (e) { return ''; } };
+const liveReplay = require('./live-replay')({
+  pool, cf: cfStream, publicBase: () => String(process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/+$/, ''),
+  ffmpegBin: (() => { try { return require('ffmpeg-static') || 'ffmpeg'; } catch (e) { return 'ffmpeg'; } })(),
+  putFile: async (key, file, type) => {
+    const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3'), fs = require('fs');
+    const r2 = new S3Client({ region: 'auto', endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY } });
+    await r2.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage', Key: key, Body: fs.createReadStream(file), ContentLength: fs.statSync(file).size, ContentType: type }));
+  }
+});
+const liveReplayOn = () => liveReplay.enabled() && !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY);
 async function liveEnd(id, by, reason) {
-  const r = await pool.query("UPDATE live_streams SET status = 'ended', ended_at = NOW(), ended_by = $2, end_reason = $3 WHERE id = $1 AND status <> 'ended' RETURNING cf_uid, host_email", [id, by || null, reason || null]);
+  const r = await pool.query("UPDATE live_streams SET status = 'ended', ended_at = NOW(), ended_by = $2, end_reason = $3 WHERE id = $1 AND status <> 'ended' RETURNING cf_uid, host_email, started_at", [id, by || null, reason || null]);
   const row = r.rows[0]; if (!row) return null;
-  if (row.cf_uid && liveConfigured()) cfStream('DELETE', '/live_inputs/' + encodeURIComponent(row.cf_uid)).catch((e) => console.error('[live] cf delete:', e.message));
+  // keep the recording for the saver when the live really ran; otherwise tidy Cloudflare now
+  if (row.cf_uid && liveConfigured() && liveReplayOn() && row.started_at && (!by || by === row.host_email)) { await pool.query("UPDATE live_streams SET replay_status = 'pending' WHERE id = $1", [id]).catch(() => {}); row.replay = true; }
+  else if (row.cf_uid && liveConfigured()) cfStream('DELETE', '/live_inputs/' + encodeURIComponent(row.cf_uid)).catch((e) => console.error('[live] cf delete:', e.message));
   pool.query('DELETE FROM live_viewers WHERE live_id = $1', [id]).catch(() => {});
   return row;
 }
@@ -3425,7 +3437,7 @@ app.post('/api/live/start', async (req, res) => {
     const old = await pool.query("SELECT id FROM live_streams WHERE host_email = $1 AND status <> 'ended'", [me]);
     for (const o of old.rows) await liveEnd(o.id, me, 'replaced');
     const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 100), privacy = b.privacy === 'friends' ? 'friends' : 'public';
-    const cf = await cfStream('POST', '/live_inputs', { meta: { name: 'camfeed-' + Date.now() }, recording: { mode: 'off' } });
+    const cf = await cfStream('POST', '/live_inputs', { meta: { name: 'camfeed-' + Date.now() }, recording: { mode: liveReplayOn() ? 'automatic' : 'off' } });
     const whip = cf.webRTC && cf.webRTC.url; if (!cf.uid || !whip) throw new Error('Cloudflare gave no WebRTC address (is Stream WebRTC available on this account?)');
     const origin = cfHost(whip);
     const whep = (cf.webRTCPlayback && cf.webRTCPlayback.url) || `${origin}/${cf.uid}/webRTC/play`, iframe = `${origin}/${cf.uid}/iframe`;
@@ -3575,6 +3587,7 @@ async function sweepLives() {
   } catch (err) { console.error('[live] sweep error:', err.message); }
 }
 setInterval(sweepLives, 30 * 1000);
+liveReplay.ensureSchema().catch(() => {}); setInterval(() => liveReplay.processAll(), 60 * 1000);
 
 // ---- payout codes (top-up PIN / Wing cash-out code): kept sealed (AES-256-GCM) and shown only to the owner ----
 const PAYOUT_METHODS = ['TopUp', 'WingCash', 'ABA', 'ACLEDA', 'Wing', 'KHQR', 'Other'], CODE_METHODS = ['TopUp', 'WingCash'], CARRIERS = ['Cellcard', 'Smart', 'Metfone'];
