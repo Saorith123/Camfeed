@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="i18n-dict.js"></script><script src="i18n.js"></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -374,7 +375,7 @@
                 yearSelect.appendChild(opt);
             }
 
-            const savedLang = localStorage.getItem('camfeed_lang') || 'en';
+            const savedLang = localStorage.getItem('camfeed_lang') || 'km';
             document.getElementById('langSwitch').value = savedLang;
             changeLanguage();
             loadAuthOptions();
@@ -438,6 +439,7 @@
         function changeLanguage() {
             const lang = document.getElementById('langSwitch').value;
             localStorage.setItem('camfeed_lang', lang);
+            location.reload(); return;
             const t = texts[lang];
 
             document.getElementById('logoTagline').innerText = t.logoTagline;
@@ -518,7 +520,7 @@
             document.getElementById('wizardMsg').innerText = '';
             const finishBtn = document.getElementById('btnFinishReg');
             finishBtn.disabled = false;
-            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const lang = localStorage.getItem('camfeed_lang') || 'km';
             finishBtn.innerText = texts[lang].btnFinishReg;
         }
 
@@ -634,9 +636,9 @@
                 descPhone: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ Telegram របស់អ្នក (${m})។ សូមបើក Telegram រួចបញ្ចូលលេខកូដខាងក្រោម។`
             }
         };
-        function vt() { return verifyTexts[localStorage.getItem('camfeed_lang') || 'en'] || verifyTexts.en; }
+        function vt() { return verifyTexts[localStorage.getItem('camfeed_lang') || 'km'] || verifyTexts.en; }
         function serverMsg(data, fallback) {
-            const km = (localStorage.getItem('camfeed_lang') || 'en') === 'km';
+            const km = (localStorage.getItem('camfeed_lang') || 'km') === 'km';
             return (km && data && data.errorKm) || (data && data.error) || fallback;
         }
 
@@ -813,7 +815,7 @@
                 done: 'បានប្តូរពាក្យសម្ងាត់ហើយ។ សូមចូលគណនីដោយពាក្យសម្ងាត់ថ្មី។'
             }
         };
-        function rt() { return resetTexts[localStorage.getItem('camfeed_lang') || 'en'] || resetTexts.en; }
+        function rt() { return resetTexts[localStorage.getItem('camfeed_lang') || 'km'] || resetTexts.en; }
 
         function renderResetTurnstile() {
             if (!turnstileEnabled() || resetTsWidgetId !== null) return;
@@ -1059,7 +1061,7 @@
         }
 
         function applyLegalTexts() {
-            const km = (localStorage.getItem('camfeed_lang') || 'en') === 'km';
+            const km = (localStorage.getItem('camfeed_lang') || 'km') === 'km';
             const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener" style="color: #1877f2; text-decoration: none;">${text}</a>`;
             const a = document.getElementById('legalLine'), b = document.getElementById('legalLineReg');
             if (a) a.innerHTML = km ? `${link('/terms.html', 'លក្ខខណ្ឌប្រើប្រាស់')} · ${link('/privacy.html', 'គោលការណ៍ឯកជនភាព')}`
@@ -1069,7 +1071,7 @@
         }
 
         function applyIdentityPlaceholders() {
-            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const lang = localStorage.getItem('camfeed_lang') || 'km';
             const t = texts[lang] || texts.en;
             const v = vt();
             const setTab = (idOn, idOff) => { const on = document.getElementById(idOn), off = document.getElementById(idOff); if (on) on.classList.add('active'); if (off) off.classList.remove('active'); };
@@ -1161,7 +1163,7 @@
                 document.getElementById('previewCoverContainer').style.display = 'block';
                 document.getElementById('coverPlaceholderText').style.display = 'none';
                 
-                const lang = localStorage.getItem('camfeed_lang') || 'en';
+                const lang = localStorage.getItem('camfeed_lang') || 'km';
                 document.getElementById('coverUploadLabel').childNodes[0].nodeValue = (lang === 'km' ? "🖼️ ផ្លាស់ប្តូររូបគម្រប" : "🖼️ Change Cover Photo") + " ";
             });
         }
@@ -1172,7 +1174,7 @@
             document.getElementById('previewCoverContainer').style.display = 'none';
             document.getElementById('coverPlaceholderText').style.display = 'block';
             
-            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const lang = localStorage.getItem('camfeed_lang') || 'km';
             document.getElementById('coverPlaceholderText').innerText = texts[lang].noCover;
             document.getElementById('coverUploadLabel').childNodes[0].nodeValue = texts[lang].chooseCover + " ";
         }
@@ -1219,7 +1221,7 @@
             const coverFile = croppedCoverFile || document.getElementById('regCoverFile').files[0];
             const msg = document.getElementById('wizardMsg');
             const finishBtn = document.getElementById('btnFinishReg');
-            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const lang = localStorage.getItem('camfeed_lang') || 'km';
 
             msg.innerText = '';
             finishBtn.disabled = true;

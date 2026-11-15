@@ -2,6 +2,7 @@
 <html lang="km" data-native-dark>
 <head>
 <script src="auth-client.js"></script>
+    <script src="i18n-dict.js"></script><script src="i18n.js"></script>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#1877f2">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -329,7 +330,7 @@ function applyLang(){document.documentElement.lang=lang;
 document.querySelectorAll('[data-i18n]').forEach((n)=>{const v=t(n.getAttribute('data-i18n'));if(typeof v==='string')n.textContent=v;});
 document.querySelectorAll('.lang-switch button').forEach((b)=>b.classList.toggle('on',b.dataset.lang===lang));
 $('viewTitle').textContent=t(TITLE_KEY[current]);renderAllRows();applyDeleteMode();renderContact();renderPrivacy();renderNotifications();renderBlocked();renderSessions();renderActivity();renderInstall();updateStrength();}
-document.querySelectorAll('.lang-switch button').forEach((b)=>b.addEventListener('click',()=>{lang=b.dataset.lang;try{localStorage.setItem('camfeed_lang',lang);}catch(e){}applyLang();}));
+document.querySelectorAll('.lang-switch button').forEach((b)=>b.addEventListener('click',()=>{lang=b.dataset.lang;try{localStorage.setItem('camfeed_lang',lang);}catch(e){}if(window.CamI18n&&CamI18n.lang()!==lang){location.reload();return;}applyLang();}));
 
 // ---------------------------------------------------------------- profile summary, name, details
 function renderContact(){$('pName').textContent=fullName();fillAvatar($('avatar'),me);

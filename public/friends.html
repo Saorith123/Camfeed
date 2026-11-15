@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="i18n-dict.js"></script><script src="i18n.js"></script>
     <script src="call.js" defer></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
@@ -287,7 +288,7 @@
         }
 
         function updateLangCheckmarks() {
-            const lang = localStorage.getItem('camfeed_lang') || 'en';
+            const lang = localStorage.getItem('camfeed_lang') || 'km';
             document.getElementById('checkKm').style.display = lang === 'km' ? 'inline' : 'none';
             document.getElementById('checkEn').style.display = lang === 'en' ? 'inline' : 'none';
             document.getElementById('optLangKm').classList.toggle('active-lang', lang === 'km');
@@ -314,6 +315,7 @@
 
         function selectAppLanguage(langCode) {
             localStorage.setItem('camfeed_lang', langCode);
+            location.reload(); return;
             updateLangCheckmarks();
             document.getElementById('langSubmenu').classList.remove('open');
             document.getElementById('menuDropdown').style.display = 'none';
@@ -340,7 +342,7 @@
                 includedLanguages: 'en,km',
                 autoDisplay: false
             }, 'google_translate_element');
-            const savedLang = localStorage.getItem('camfeed_lang') || 'en';
+            const savedLang = localStorage.getItem('camfeed_lang') || 'km';
             if (savedLang === 'km') {
                 setTimeout(() => triggerGoogleTranslate('km'), 500);
             }
