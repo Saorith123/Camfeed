@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
 
   // ---------- helpers ----------
   function el(tag, props, kids) {
@@ -102,7 +102,7 @@
       dash.appendChild(el('div', { class: 'panel', id: 'panel-' + t[0], style: 'display:none' }));
     });
     // keep the order: Overview, Users, Content, (existing: Monetization, Reports, All Users, Posts, Accounts), Activity Log, System
-    var order = ['inbox', 'overview', 'umanage', 'content', 'monetization', 'ads', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
+    var order = ['inbox', 'overview', 'umanage', 'chats', 'content', 'monetization', 'ads', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
     order.forEach(function (id) { var b = document.getElementById('tabBtn-' + id); if (b) bar.appendChild(b); });
     var panels = {}; order.forEach(function (id) { panels[id] = document.getElementById('panel-' + id); });
     order.forEach(function (id) { if (panels[id]) dash.appendChild(panels[id]); });
@@ -193,6 +193,7 @@
         if (!confirm((u.is_banned ? 'Unban ' : 'Ban ') + nm(u) + '?')) return;
         adm('/api/admin/ban-user', { targetEmail: u.email, ban: !u.is_banned }).then(function (r) { if (r.success) { searchUsers(true); openUser(u.email); } else msg(out, false, '❌ ' + (r.error || 'Failed')); });
       }, !self);
+      act('💬 Chats / limits', 'btn-blue', function () { closeModal(); switchAdminTab('chats'); openChatConsole(u); }, !!sup);
       act('🚪 Log out all devices', 'btn-gray', function () {
         if (!confirm('Log ' + nm(u) + ' out of every device?')) return;
         adm('/api/admin/users/logout-all', { target: u.email }).then(function (r) { msg(out, r.success, r.success ? '✅ Logged out (' + r.devices + ' device(s))' : '❌ ' + (r.error || 'Failed')); });
@@ -616,11 +617,106 @@
   }
   function pollInbox() { try { if (typeof savedAdminKey !== 'undefined' && savedAdminKey && document.getElementById('tabBtn-inbox')) adm('/api/admin/inbox', {}).then(function (d) { if (d && d.success) applyInbox(d); }); } catch (e) {} }
 
+  // ---------- Chats: limit who may start chats, review chats (reason + logged), send notices ----------
+  var LIMIT_LABEL = { '': 'No limit', reply_only: 'Reply only (cannot start a chat / group / call first)', banned: 'Banned from chat & calls' };
+  function loadChatsAdmin() {
+    var p = document.getElementById('panel-chats'); if (!p) return; p.textContent = '';
+    p.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px;max-width:760px;line-height:1.5', text: 'Chat safety. You can limit a person who spams, send them a notice, and — only to handle reports, scams or rule-breaking — read their chats and see the photos/videos. Reading needs a reason and is saved in the Activity Log with your name.' }));
+    var q = el('input', { class: 'at-in', id: 'chatQ', placeholder: 'Search a person: name, e-mail, phone or ID', style: 'max-width:340px' }), box = el('div', { style: 'margin-top:8px' });
+    function go() {
+      box.textContent = ''; box.appendChild(empty('Searching…'));
+      adm('/api/admin/users/search', { query: q.value.trim(), limit: 15 }).then(function (d) {
+        box.textContent = ''; if (!d.success) { box.appendChild(empty(d.error || 'Could not search.')); return; }
+        if (!d.users.length) { box.appendChild(empty('Nobody found.')); return; }
+        d.users.forEach(function (u) {
+          box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e4e6eb;border-radius:10px;margin-bottom:6px;background:#fff' }, [
+            el('div', { style: 'flex:1;min-width:0' }, [el('div', { style: 'font-weight:700', text: nm(u) }), el('div', { style: 'font-size:12px;color:#65676b', text: u.contact + ' · ID ' + (u.public_id || '—') })]),
+            el('button', { class: 'btn-sm btn-blue', text: 'Open', onclick: function () { openChatConsole(u); } })]));
+        });
+      });
+    }
+    q.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    p.appendChild(el('div', { class: 'at-row' }, [q, el('button', { class: 'btn-sm btn-blue', text: '🔍 Search', onclick: go })]));
+    p.appendChild(box); p.appendChild(el('div', { id: 'chatConsole', style: 'margin-top:14px' }));
+  }
+  function cleanMsg(m) {
+    var t = String(m.message || ''); if (t === '__CAMFEED_MSG_DELETED__') return '🚫 (deleted)'; if (t.indexOf('__CAMFEED_EDITED__:') === 0) t = t.slice(19);
+    if (t.indexOf('CALL:') === 0) { var c = t.split(':'); return '📞 call (' + c[1] + ', ' + c[2] + ')'; }
+    return t;
+  }
+  function openChatConsole(u) {
+    if (!document.getElementById('chatQ')) { var pn = document.getElementById('panel-chats'); if (pn) { loadChatsAdmin(); } }
+    var c = document.getElementById('chatConsole'); if (!c) return; c.textContent = '';
+    var out = el('div'); var card = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px;max-width:820px' });
+    card.appendChild(el('div', { style: 'font-size:18px;font-weight:800', text: '💬 ' + nm(u) })); card.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-bottom:8px', text: u.contact || u.email })); card.appendChild(out);
+    // 1 limit
+    card.appendChild(el('div', { class: 'at-h', text: '1) Limit this person’s chat' }));
+    var sel = el('select', { class: 'at-in', style: 'max-width:420px' }, Object.keys(LIMIT_LABEL).map(function (k) { return el('option', { value: k, text: LIMIT_LABEL[k] }); }));
+    var why = el('input', { class: 'at-in', placeholder: 'Reason (shown to the person)', maxlength: '200', style: 'margin-top:6px;max-width:420px' });
+    card.appendChild(sel); card.appendChild(why);
+    card.appendChild(el('button', { class: 'btn-sm btn-red', style: 'margin-top:8px;padding:8px 14px', text: 'Apply limit', onclick: function () {
+      adm('/api/admin/chat/limit', { target: u.email, limit: sel.value, reason: why.value }).then(function (r) { msg(out, r.success, r.success ? '✅ Saved: ' + LIMIT_LABEL[r.limit || ''] : '❌ ' + (r.error || 'Failed')); });
+    } }));
+    adm('/api/admin/chat/status', { target: u.email }).then(function (r) { if (r.success) sel.value = r.limit || ''; });
+    // 2 notice
+    card.appendChild(el('div', { class: 'at-h', text: '2) Send a notice (shows in their notification bell)' }));
+    var kind = el('select', { class: 'at-in', style: 'max-width:260px' }, [el('option', { value: 'warning', text: '⚠️ Warning' }), el('option', { value: 'message', text: '📢 Message' })]);
+    var note = el('textarea', { class: 'at-in', rows: '2', maxlength: '400', placeholder: 'Write the message…' });
+    card.appendChild(kind); card.appendChild(note);
+    card.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:8px;padding:8px 14px', text: 'Send notice', onclick: function () {
+      if (!note.value.trim()) { msg(out, false, '❌ Write a message first.'); return; }
+      adm('/api/admin/notice', { targetEmail: u.email, kind: kind.value, note: note.value }).then(function (r) { msg(out, r.success, r.success ? '✅ Notice sent' : '❌ ' + (r.error || 'Failed')); if (r.success) note.value = ''; });
+    } }));
+    // 3 review
+    card.appendChild(el('div', { class: 'at-h', text: '3) Review chats (reason required, logged)' }));
+    var rsn = el('input', { class: 'at-in', placeholder: 'Reason, e.g. “report #12: scam / money request” (min 5 letters)', maxlength: '250' }), list = el('div', { style: 'margin-top:10px' }), thread = el('div', { style: 'margin-top:10px' });
+    card.appendChild(rsn);
+    card.appendChild(el('button', { class: 'btn-sm btn-gray', style: 'margin-top:8px;padding:8px 14px', text: '📂 Show their conversations', onclick: function () {
+      list.textContent = ''; thread.textContent = ''; list.appendChild(empty('Loading…'));
+      adm('/api/admin/chat/conversations', { target: u.email, reason: rsn.value }).then(function (d) {
+        list.textContent = ''; if (!d.success) { msg(out, false, '❌ ' + (d.error || 'Failed')); return; } msg(out, true, '');
+        if (!d.peers.length && !d.groups.length) { list.appendChild(empty('No chats.')); return; }
+        d.peers.forEach(function (x) { list.appendChild(row('👤 ' + (((x.first_name || '') + ' ' + (x.last_name || '')).trim() || x.peer), x.n + ' msgs · ' + ago(x.last_at), function () { openThread({ peer: x.peer }); })); });
+        d.groups.forEach(function (g) { list.appendChild(row('👥 ' + g.name, g.members + ' members · ' + g.n + ' msgs', function () { openThread({ groupId: g.id }); })); });
+      });
+    } }));
+    function row(t, sub, fn) { return el('div', { style: 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e4e6eb;border-radius:10px;margin-bottom:6px;cursor:pointer;background:#fafbfc', onclick: fn }, [el('div', { style: 'flex:1;min-width:0' }, [el('div', { style: 'font-weight:700', text: t }), el('div', { style: 'font-size:12px;color:#65676b', text: sub })]), el('span', { text: '›' })]); }
+    function openThread(which) {
+      thread.textContent = ''; thread.appendChild(empty('Loading…'));
+      adm('/api/admin/chat/thread', Object.assign({ target: u.email, reason: rsn.value }, which)).then(function (d) {
+        thread.textContent = ''; if (!d.success) { msg(out, false, '❌ ' + (d.error || 'Failed')); return; }
+        var me = u.email.toLowerCase(), wrap = el('div', { style: 'background:#f0f2f5;border-radius:12px;padding:10px;max-height:480px;overflow-y:auto' });
+        if (!d.messages.length) wrap.appendChild(empty('No messages.'));
+        d.messages.forEach(function (m) {
+          var mine = String(m.sender_email).toLowerCase() === me; var body = el('div', { style: 'display:inline-block;max-width:80%;background:' + (mine ? '#d8e7ff' : '#fff') + ';border-radius:12px;padding:7px 10px;font-size:13.5px;word-break:break-word;white-space:pre-wrap' });
+          if (m.media_url && /^https?:/.test(m.media_url)) {
+            if (m.message_type === 'video') body.appendChild(el('video', { src: m.media_url, controls: 'controls', preload: 'metadata', style: 'max-width:240px;max-height:260px;display:block;border-radius:8px' }));
+            else if (m.message_type === 'audio') body.appendChild(el('audio', { src: m.media_url, controls: 'controls', style: 'max-width:240px' }));
+            else body.appendChild(el('a', { href: m.media_url, target: '_blank', rel: 'noopener' }, [el('img', { src: m.media_url, style: 'max-width:240px;max-height:260px;display:block;border-radius:8px' })]));
+          }
+          var t = cleanMsg(m); if (t && !(m.media_url && /^\[(Photo|Video|Voice Message|Image Message|Video Message|Sticker)\]$/.test(t))) body.appendChild(el('div', { text: t }));
+          var who = (m.first_name || m.last_name) ? ((m.first_name || '') + ' ' + (m.last_name || '')).trim() : m.sender_email;
+          var del = el('button', { class: 'btn-sm btn-gray', style: 'margin-left:6px;padding:2px 7px;font-size:11px', text: '🗑', title: 'Delete this message', onclick: function () {
+            var r = prompt('Reason for deleting this message?'); if (!r) return;
+            adm('/api/admin/chat/delete-message', { kind: d.kind, id: m.id, reason: r, notify: true }).then(function (x) { if (x.success) openThread(which); else msg(out, false, '❌ ' + (x.error || 'Failed')); });
+          } });
+          wrap.appendChild(el('div', { style: 'text-align:' + (mine ? 'right' : 'left') + ';margin-bottom:8px' }, [el('div', { style: 'font-size:11px;color:#65676b;margin-bottom:2px', text: (mine ? 'Them' : who) + ' · ' + fmt(m.created_at) }), body, del]));
+        });
+        thread.appendChild(wrap); setTimeout(function () { wrap.scrollTop = wrap.scrollHeight; }, 50);
+      });
+    }
+    card.appendChild(list); card.appendChild(thread); c.appendChild(card); c.scrollIntoView({ behavior: 'smooth' });
+  }
+
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin();
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
-  window.onAdminUnlocked = function () { switchAdminTab('inbox'); };
+  window.onAdminUnlocked = function () {
+    switchAdminTab('inbox');
+    // the Chats tab is for Super Admins only
+    adm('/api/admin/chat/status', {}).then(function (r) { var b = document.getElementById('tabBtn-chats'); if (b) b.style.display = (r && r.success) ? '' : 'none'; });
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
   function pollLiveBadge() { return; }
   function _oldPollLive() { try { if (typeof savedAdminKey !== 'undefined' && savedAdminKey && document.getElementById('tabBtn-live')) adm('/api/admin/live/requests', {}).then(function (q) { if (q && q.success) setLiveBadge(q.pending); }); } catch (e) {} }

@@ -38,6 +38,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
         message_id INTEGER NOT NULL, user_email VARCHAR(255) NOT NULL, emoji VARCHAR(40) NOT NULL,
         PRIMARY KEY (message_id, user_email))`);
       await pool.query('ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to INTEGER DEFAULT NULL');
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS chat_limit VARCHAR(12) DEFAULT ''");
       await pool.query(`CREATE TABLE IF NOT EXISTS chat_groups (
         id SERIAL PRIMARY KEY, name VARCHAR(80) NOT NULL, pic TEXT DEFAULT '', created_by VARCHAR(255), created_at TIMESTAMP DEFAULT NOW())`);
       await pool.query(`CREATE TABLE IF NOT EXISTS chat_group_members (
@@ -55,6 +56,29 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     return ready;
   }
 
+  // Admin can restrict a person: 'reply_only' = may answer people who wrote first but never start a chat / group / call;
+  // 'banned' = may not send chat messages or make calls at all.
+  const RESTRICT = {
+    banned: { code: 'chat_restricted', error: '🚫 គណនីរបស់អ្នកត្រូវបានក្រុមការងារ CamFeed រឹតត្បិតមិនឱ្យជជែក ឬហៅ។ បើមានចម្ងល់ សូមទាក់ទងផ្នែកជំនួយ។' },
+    reply: { code: 'chat_restricted', error: '⚠️ អ្នកមិនអាចចាប់ផ្តើមជជែកជាមួយអ្នកផ្សេងមុនបានទេ។ អ្នកអាចឆ្លើយតបបានតែពេលគេផ្ញើសារមកអ្នកមុន។' }
+  };
+  async function chatAllowed(from, to, opts) {
+    try {
+      await ensureSchema();
+      const r = await pool.query('SELECT chat_limit FROM users WHERE LOWER(email)=LOWER($1)', [from]);
+      const lim = (r.rows[0] && r.rows[0].chat_limit) || '';
+      if (!lim) return null;
+      if (lim === 'banned') return RESTRICT.banned;
+      if (lim === 'reply_only' && !(opts && opts.post)) {
+        if (!to) return RESTRICT.reply;
+        const h = await pool.query("SELECT 1 FROM messages WHERE LOWER(sender_email)=LOWER($1) AND LOWER(receiver_email)=LOWER($2) AND message_type NOT IN ('system','call') LIMIT 1", [to, from]);
+        if (!h.rows.length) return RESTRICT.reply;
+      }
+      return null;
+    } catch (e) { return null; }
+  }
+  const deny = (res, d) => res.status(403).json(Object.assign({ success: false }, d));
+
   async function settingsFor(me, peer) {
     await ensureSchema();
     const [a, b] = pairOf(me, peer);
@@ -69,7 +93,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     await ensureSchema();
     const r = await pool.query('SELECT message_id, user_email, emoji FROM message_reactions WHERE message_id = ANY($1::int[])', [ids]);
     const out = {};
-    r.rows.forEach((x) => { (out[x.message_id] = out[x.message_id] || []).push({ u: x.user_email, e: x.emoji }); });
+    r.rows.forEach((x) => { (out[x.message_id] = out[x.message_id] || []).push({ user_email: x.user_email, e: x.emoji }); });
     return out;
   }
 
@@ -89,7 +113,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
 
   // ---------- settings ----------
   app.get('/api/chat-settings', async (req, res) => {
-    const me = req.authEmail; const peer = String(req.query.peer || '');
+    const me = req.authEmail; const peer = String(req.query.peer_email || req.query.peer || '');
     if (!me || !peer) return res.status(400).json({ success: false });
     try {
       if (isGroupKey(peer) && !(await memberOf(parseInt(norm(peer).slice(6), 10), me))) return res.status(403).json({ success: false }); res.json({ success: true, settings: await settingsFor(me, peer) }); }
@@ -97,7 +121,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   });
 
   app.post('/api/chat-settings', async (req, res) => {
-    const me = req.authEmail; const body = req.body || {}; const peer = String(body.peer || '');
+    const me = req.authEmail; const body = req.body || {}; const peer = String(body.peer_email || body.peer || '');
     if (!me || !peer || norm(me) === norm(peer)) return res.status(400).json({ success: false });
     try {
       await ensureSchema();
@@ -265,12 +289,13 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   });
 
   app.post('/api/calls/start', async (req, res) => {
-    const me = norm(req.authEmail); const b = req.body || {}; const peer = norm(b.peer);
+    const me = norm(req.authEmail); const b = req.body || {}; const peer = norm(b.peer_email || b.peer);
     const kind = b.kind === 'video' ? 'video' : 'audio';
     if (!me || !peer || me === peer || typeof b.offer !== 'string' || b.offer.length > 20000) return res.status(400).json({ success: false });
     try {
       const blk = await pool.query('SELECT 1 FROM blocked_users WHERE (LOWER(blocker_email)=$1 AND LOWER(blocked_email)=$2) OR (LOWER(blocker_email)=$2 AND LOWER(blocked_email)=$1)', [me, peer]);
       if (blk.rows.length) return res.status(403).json({ success: false, error: 'blocked' });
+      const lim = await chatAllowed(me, peer); if (lim) return deny(res, lim);
       const mine = busyWith(me); if (mine) finish(mine, 'ended', mine.status === 'ringing' ? 'cancelled' : 'ended');
       if (busyWith(peer)) return res.json({ success: false, error: 'busy' });
       const c = { id: newId(), caller: me, callee: peer, kind, status: 'ringing', offer: b.offer, answer: null,
@@ -286,7 +311,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       if (c.callee === me && c.status === 'ringing') {
         const u = await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE LOWER(email)=LOWER($1)', [c.caller]).catch(() => ({ rows: [] }));
         const p = u.rows[0] || {};
-        return res.json({ success: true, incoming: { id: c.id, kind: c.kind, from: c.caller, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), pic: p.profile_pic || '', offer: c.offer } });
+        return res.json({ success: true, incoming: { id: c.id, kind: c.kind, from_email: c.caller, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), pic: p.profile_pic || '', offer: c.offer } });
       }
     }
     res.json({ success: true });
@@ -373,7 +398,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     if (!me || !name) return bad(res, 400, 'name required');
     try {
       await ensureSchema();
-      let emails = Array.from(new Set((Array.isArray(b.members) ? b.members : []).map(norm).filter((e) => e && e !== me))).slice(0, maxMembers - 1);
+      const lim = await chatAllowed(me, null); if (lim) return deny(res, lim);
+      let emails = Array.from(new Set((Array.isArray(b.members) ? b.members : []).map((x) => norm(x && x.email ? x.email : x)).filter((e) => e && e !== me))).slice(0, maxMembers - 1);
       if (!emails.length) return bad(res, 400, 'need members');
       const ok = await pool.query('SELECT LOWER(email) AS email FROM users WHERE LOWER(email) = ANY($1::text[])', [emails]);
       const blocked = await pool.query('SELECT LOWER(blocker_email) AS a, LOWER(blocked_email) AS b FROM blocked_users WHERE LOWER(blocker_email)=$1 OR LOWER(blocked_email)=$1', [me]);
@@ -410,7 +436,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const me = norm(req.authEmail); const gid = gidOf(req);
     try {
       const mem = await memberOf(gid, me); if (!mem) return bad(res, 403, 'not a member');
-      const g = await pool.query('SELECT id, name, pic, created_by FROM chat_groups WHERE id=$1', [gid]);
+      const g = await pool.query('SELECT id, name, pic FROM chat_groups WHERE id=$1', [gid]);
       const m = await pool.query(`SELECT LOWER(u.email) AS email, u.first_name, u.last_name, u.profile_pic, gm.role FROM chat_group_members gm
         JOIN users u ON LOWER(u.email) = gm.user_email WHERE gm.group_id = $1 ORDER BY (gm.role = 'admin') DESC, gm.joined_at ASC`, [gid]);
       res.json({ success: true, group: g.rows[0], members: m.rows, myRole: mem.role, maxMembers });
@@ -444,8 +470,9 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const me = norm(req.authEmail); const gid = gidOf(req);
     try {
       const mem = await memberOf(gid, me); if (!mem || mem.role !== 'admin') return bad(res, 403, 'admin only');
+      const lim = await chatAllowed(me, null); if (lim) return deny(res, lim);
       const cnt = (await pool.query('SELECT COUNT(*)::int AS c FROM chat_group_members WHERE group_id=$1', [gid])).rows[0].c;
-      let emails = Array.from(new Set((Array.isArray((req.body || {}).emails) ? req.body.emails : []).map(norm).filter(Boolean)));
+      let emails = Array.from(new Set((Array.isArray((req.body || {}).members) ? req.body.members : (Array.isArray((req.body || {}).emails) ? req.body.emails : [])).map((x) => norm(x && x.email ? x.email : x)).filter(Boolean)));
       emails = emails.slice(0, Math.max(0, maxMembers - cnt));
       if (!emails.length) return bad(res, 400, cnt >= maxMembers ? 'group full' : 'no members');
       const ok = await pool.query('SELECT LOWER(email) AS email, first_name, last_name FROM users WHERE LOWER(email) = ANY($1::text[])', [emails]);
@@ -512,7 +539,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       const rx = {};
       if (ids.length) {
         const rr = await pool.query('SELECT message_id, user_email, emoji FROM group_reactions WHERE message_id = ANY($1::int[])', [ids]);
-        rr.rows.forEach((x) => { (rx[x.message_id] = rx[x.message_id] || []).push({ u: x.user_email, e: x.emoji }); });
+        rr.rows.forEach((x) => { (rx[x.message_id] = rx[x.message_id] || []).push({ user_email: x.user_email, e: x.emoji }); });
       }
       r.rows.forEach((x) => { x.reactions = rx[x.id] || []; x.sender_name = `${x.sender_first || ''} ${x.sender_last || ''}`.trim(); x.is_read = false; });
       res.json({ success: true, messages: r.rows, settings: await settingsFor(me, 'group:' + gid) });
@@ -523,6 +550,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const me = norm(req.authEmail); const gid = gidOf(req); const b = req.body || {};
     try {
       const mem = await memberOf(gid, me); if (!mem) return bad(res, 403, 'not a member');
+      const lim = await chatAllowed(me, null, { post: true }); if (lim) return deny(res, lim);
       let type = GROUP_TYPES.includes(b.message_type) ? b.message_type : 'text';
       let media = b.media_url ? String(b.media_url) : null;
       if (media && (!/^https:\/\//.test(media) || media.length > 2000)) return bad(res, 400, 'bad media');
@@ -592,5 +620,5 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   setTimeout(sweepChats, 3 * 60 * 1000);
   setInterval(sweepChats, 60 * 60 * 1000).unref();
 
-  return { ensureSchema, settingsFor, reactionsFor, sweepChats };
+  return { ensureSchema, settingsFor, reactionsFor, sweepChats, chatAllowed, deny, purgeGroupRows };
 };

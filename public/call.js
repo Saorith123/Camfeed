@@ -196,12 +196,12 @@
       return getIce().then(function (servers) {
         var pc = makePC(servers, kind);
         return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); }).then(function () {
-          return api('/api/calls/start', 'POST', { peer: peer, kind: kind, offer: JSON.stringify(pc.localDescription) });
+          return api('/api/calls/start', 'POST', { peer_email: peer, kind: kind, offer: JSON.stringify(pc.localDescription) });
         });
       });
     }).then(function (j) {
       if (!j) return;
-      if (!j.success) { hangup(false, j.error === 'busy' ? 'គេកំពុងនិយាយទូរស័ព្ទជាមួយអ្នកផ្សេង' : j.error === 'blocked' ? 'មិនអាចហៅអ្នកប្រើនេះបានទេ' : 'ហៅមិនបាន សូមព្យាយាមម្ដងទៀត'); return; }
+      if (!j.success) { hangup(false, j.code === 'chat_restricted' ? j.error : j.error === 'busy' ? 'គេកំពុងនិយាយទូរស័ព្ទជាមួយអ្នកផ្សេង' : j.error === 'blocked' ? 'មិនអាចហៅអ្នកប្រើនេះបានទេ' : 'ហៅមិនបាន សូមព្យាយាមម្ដងទៀត'); return; }
       S.call.id = j.id;
       S.pendingIce.forEach(function (c) { api('/api/calls/' + j.id + '/ice', 'POST', { candidate: c }); }); S.pendingIce = [];
       S.poll = setInterval(pollCall, 1000);
@@ -212,7 +212,7 @@
   // ---------- incoming ----------
   function showIncoming(inc) {
     S.incoming = inc; S.ended = false;
-    showCallUI(inc.name || inc.from, inc.pic, inc.kind, 'ring');
+    showCallUI(inc.name || inc.from_email, inc.pic, inc.kind, 'ring');
     setStatus(inc.kind === 'video' ? 'ការហៅវីដេអូចូល…' : 'ការហៅសំឡេងចូល…');
     startTone(true);
     try { document.title = '📞 ' + (inc.name || '') + ' · CamFeed'; } catch (e) {}
@@ -222,9 +222,9 @@
     stopTone(); S.facing = 'user';
     getMedia(inc.kind).then(function (stream) {
       S.local = stream;
-      S.call = { id: inc.id, role: 'callee', peer: inc.from, kind: inc.kind, icIdx: 0 };
+      S.call = { id: inc.id, role: 'callee', peer: inc.from_email, kind: inc.kind, icIdx: 0 };
       S.incoming = null;
-      showCallUI(inc.name || inc.from, inc.pic, inc.kind, 'out');
+      showCallUI(inc.name || inc.from_email, inc.pic, inc.kind, 'out');
       setStatus('កំពុងតភ្ជាប់…');
       return getIce().then(function (servers) {
         var pc = makePC(servers, inc.kind);

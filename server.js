@@ -1977,6 +1977,9 @@ app.post('/api/messages', (req, res, next) => {
       return res.status(403).json({ success: false, error: 'Cannot send messages to this user (Blocked).' });
     }
 
+    const limited = await chatExtras.chatAllowed(sender, receiver);
+    if (limited) return chatExtras.deny(res, limited);
+
     await pool.query('UPDATE users SET last_active = NOW() WHERE email = $1', [sender]).catch(() => {});
 
     let defaultMsg = '';
@@ -3291,6 +3294,8 @@ app.post('/api/stories/:id/reply', async (req, res) => {
     if (!text) return res.status(400).json({ success: false, error: 'Please write a message.' });
     const st = await canSeeStory(me, id); if (!st) return res.status(404).json({ success: false });
     if (st.user_email === me) return res.status(400).json({ success: false, error: 'You cannot reply to your own story.' });
+    const limited = await chatExtras.chatAllowed(me, st.user_email);
+    if (limited) return chatExtras.deny(res, limited);
     await pool.query("INSERT INTO messages (sender_email, receiver_email, message, message_type, is_read) VALUES ($1, $2, $3, 'text', FALSE)", [me, st.user_email, '↩️ ឆ្លើយតបទៅរឿង (Story)៖ ' + text]);
     res.json({ success: true });
   } catch (err) { console.error('[story] reply error:', err.message); res.status(500).json({ success: false }); }
@@ -4183,6 +4188,119 @@ app.delete('/api/admin/posts/:postId', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+
+// ---- Chat safety tools for the team: limit who may start chats, review chats (reason required + logged), remove messages
+const CHAT_LIMITS = ['', 'reply_only', 'banned'];
+const chatReviewAllowed = (a) => !!a.isSuperAdmin;     // chat limits / chat review: Super Admin only
+const superOnlyChat = (a, res) => { if (a.isSuperAdmin) return true; res.status(403).json({ success: false, error: 'Only a Super Admin can use the chat safety tools.' }); return false; };
+const reasonOf = (b) => String(b.reason || '').trim().slice(0, 300);
+
+app.post('/api/admin/chat/limit', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!superOnlyChat(a, res)) return;
+    const b = req.body || {};
+    const u = await loadAdminTarget(b); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    const limit = String(b.limit || '');
+    if (!CHAT_LIMITS.includes(limit)) return res.status(400).json({ success: false, error: 'Bad limit.' });
+    const reason = reasonOf(b);
+    if (limit && reason.length < 3) return res.status(400).json({ success: false, error: 'Please write a reason.' });
+    await chatExtras.ensureSchema();
+    await pool.query('UPDATE users SET chat_limit = $1 WHERE email = $2', [limit, u.email]);
+    audit(a.adminEmail, 'chat-limit-' + (limit || 'off'), u.email, reason);
+    if (b.notify !== false) {
+      const text = limit === 'banned' ? `🚫 CamFeed៖ គណនីរបស់អ្នកត្រូវបានរឹតត្បិតមិនឱ្យជជែក ឬហៅ។${reason ? ' មូលហេតុ៖ ' + reason : ''}`
+        : limit === 'reply_only' ? `⚠️ CamFeed៖ អ្នកអាចឆ្លើយតបសារបានតែពេលគេផ្ញើមកមុន អ្នកមិនអាចចាប់ផ្តើមជជែកជាមួយអ្នកផ្សេងមុនបានទេ។${reason ? ' មូលហេតុ៖ ' + reason : ''}`
+        : '✅ CamFeed៖ ការរឹតត្បិតការជជែករបស់អ្នកត្រូវបានដកចេញ។';
+      await sendAdminNotice(a.adminEmail, u.email, text.slice(0, 700)).catch(() => {});
+    }
+    res.json({ success: true, limit });
+  } catch (err) { console.error('[admin] chat limit error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+app.post('/api/admin/chat/status', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!superOnlyChat(a, res)) return;
+    if (!(req.body || {}).target) return res.json({ success: true, limit: '', reviewAllowed: true });
+    const u = await loadAdminTarget(req.body || {}); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    await chatExtras.ensureSchema();
+    const r = await pool.query('SELECT chat_limit FROM users WHERE email = $1', [u.email]);
+    res.json({ success: true, limit: (r.rows[0] && r.rows[0].chat_limit) || '', reviewAllowed: chatReviewAllowed(a) });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/chat/conversations', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!chatReviewAllowed(a)) return res.status(403).json({ success: false, error: 'Only a Super Admin may review chats.' });
+    const b = req.body || {};
+    const u = await loadAdminTarget(b); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    const reason = reasonOf(b);
+    if (reason.length < 5) return res.status(400).json({ success: false, error: 'Please write the reason for reviewing (at least 5 letters).' });
+    await chatExtras.ensureSchema();
+    audit(a.adminEmail, 'chat-review', u.email, reason);
+    const me = u.email.toLowerCase();
+    const peers = await pool.query(
+      `SELECT t.peer, COUNT(*)::int AS n, MAX(t.created_at) AS last_at, x.first_name, x.last_name, x.profile_pic
+       FROM (SELECT CASE WHEN LOWER(sender_email) = $1 THEN LOWER(receiver_email) ELSE LOWER(sender_email) END AS peer, created_at
+             FROM messages WHERE (LOWER(sender_email) = $1 OR LOWER(receiver_email) = $1) AND COALESCE(message_type, 'text') NOT IN ('system')) t
+       LEFT JOIN users x ON LOWER(x.email) = t.peer GROUP BY t.peer, x.first_name, x.last_name, x.profile_pic ORDER BY last_at DESC LIMIT 100`, [me]);
+    const groups = await pool.query(
+      `SELECT g.id, g.name, (SELECT COUNT(*)::int FROM chat_group_members x WHERE x.group_id = g.id) AS members,
+              (SELECT COUNT(*)::int FROM group_messages gm WHERE gm.group_id = g.id) AS n
+       FROM chat_groups g JOIN chat_group_members m ON m.group_id = g.id WHERE m.user_email = $1 ORDER BY g.id DESC LIMIT 100`, [me]);
+    res.json({ success: true, peers: peers.rows, groups: groups.rows });
+  } catch (err) { console.error('[admin] chat conversations error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/chat/thread', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!chatReviewAllowed(a)) return res.status(403).json({ success: false, error: 'Only a Super Admin may review chats.' });
+    const b = req.body || {};
+    const u = await loadAdminTarget(b); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    const reason = reasonOf(b);
+    if (reason.length < 5) return res.status(400).json({ success: false, error: 'Please write the reason for reviewing (at least 5 letters).' });
+    await chatExtras.ensureSchema();
+    const me = u.email.toLowerCase();
+    if (b.groupId) {
+      const gid = parseInt(b.groupId, 10) || 0;
+      const mem = await pool.query('SELECT 1 FROM chat_group_members WHERE group_id = $1 AND user_email = $2', [gid, me]);
+      if (!mem.rows.length) return res.status(404).json({ success: false, error: 'Not in this group.' });
+      audit(a.adminEmail, 'chat-review-group', `${u.email} #${gid}`, reason);
+      const r = await pool.query(`SELECT * FROM (SELECT gm.id, gm.sender_email, gm.message, gm.media_url, gm.message_type, gm.created_at, x.first_name, x.last_name
+          FROM group_messages gm LEFT JOIN users x ON LOWER(x.email) = gm.sender_email WHERE gm.group_id = $1 ORDER BY gm.id DESC LIMIT 300) t ORDER BY id ASC`, [gid]);
+      return res.json({ success: true, kind: 'group', messages: r.rows });
+    }
+    const peer = String(b.peer || '').trim().toLowerCase();
+    if (!peer) return res.status(400).json({ success: false, error: 'Who?' });
+    audit(a.adminEmail, 'chat-review-dm', `${u.email} ↔ ${peer}`, reason);
+    const r = await pool.query(`SELECT * FROM (SELECT id, sender_email, receiver_email, message, media_url, message_type, created_at FROM messages
+        WHERE (LOWER(sender_email) = $1 AND LOWER(receiver_email) = $2) OR (LOWER(sender_email) = $2 AND LOWER(receiver_email) = $1) ORDER BY id DESC LIMIT 300) t ORDER BY id ASC`, [me, peer]);
+    res.json({ success: true, kind: 'dm', messages: r.rows });
+  } catch (err) { console.error('[admin] chat thread error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+app.post('/api/admin/chat/delete-message', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!superOnlyChat(a, res)) return;
+    const b = req.body || {}; const id = parseInt(b.id, 10) || 0; const reason = reasonOf(b);
+    if (!id || reason.length < 3) return res.status(400).json({ success: false, error: 'Please write a reason.' });
+    await chatExtras.ensureSchema();
+    const group = b.kind === 'group';
+    const cur = (await pool.query(group ? 'SELECT sender_email, media_url FROM group_messages WHERE id = $1' : 'SELECT sender_email, media_url FROM messages WHERE id = $1', [id])).rows[0];
+    if (!cur) return res.status(404).json({ success: false, error: 'Message not found.' });
+    await pool.query(group ? "UPDATE group_messages SET message = '__CAMFEED_MSG_DELETED__', media_url = NULL, message_type = 'deleted' WHERE id = $1"
+      : "UPDATE messages SET message = '__CAMFEED_MSG_DELETED__', media_url = NULL, message_type = 'deleted' WHERE id = $1", [id]);
+    if (cur.media_url) cleanup.purgeMediaUrls(extractMediaUrls(cur.media_url)).catch(() => {});
+    audit(a.adminEmail, group ? 'chat-delete-group-msg' : 'chat-delete-dm', `${cur.sender_email} #${id}`, reason);
+    if (b.notify === true && cur.sender_email) await sendAdminNotice(a.adminEmail, cur.sender_email, noticeText('removed', 'សារ', reason, '')).catch(() => {});
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] chat delete error:', err.message); res.status(500).json({ success: false, error: 'Could not delete.' }); }
 });
 
 // warn / message the owner of a post (or any person) without deleting anything

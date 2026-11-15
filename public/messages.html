@@ -39,8 +39,9 @@
             font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--cf-bg);
             color: var(--cf-text);
-            height: 100vh;
-            height: 100dvh;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            bottom: var(--kb, 0px);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -2508,7 +2509,7 @@
             if (!rs.length) return '';
             const me = String(currentUser.email || '').toLowerCase();
             const g = {};
-            rs.forEach(r => { g[r.e] = g[r.e] || { n: 0, me: false }; g[r.e].n++; if (r.u === me) g[r.e].me = true; });
+            rs.forEach(r => { g[r.e] = g[r.e] || { n: 0, me: false }; g[r.e].n++; if (String(r.user_email || '').toLowerCase() === me) g[r.e].me = true; });
             return '<div class="cf-react-row">' + Object.keys(g).map(e => `<button type="button" class="cf-react-chip ${g[e].me ? 'me' : ''}" onclick="reactToMessage(${m.id}, '${e}')">${e}${g[e].n > 1 ? ' ' + g[e].n : ''}</button>`).join('') + '</div>';
         }
         function callPillHtml(m, isSent) {
@@ -2562,6 +2563,11 @@
         // =========================================================================
         const DEFAULT_AVATAR = 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
         let groupInfo = null;
+        (function fitKeyboard() {
+            const vv = window.visualViewport; if (!vv) return;
+            const fit = () => { const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)); document.documentElement.style.setProperty('--kb', kb > 80 ? kb + 'px' : '0px'); };
+            vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); fit();
+        })();
         let groupPickMode = 'create';
         const _origFetch = window.fetch.bind(window);
         window.fetch = function (input, init) {
@@ -2579,7 +2585,15 @@
                     if (x) return _origFetch('/api/groups/' + g + '/messages/' + x[1] + (x[2] || ''), init);
                 }
             } catch (e) {}
-            return _origFetch(input, init);
+            return _origFetch(input, init).then(res => {
+                try {
+                    const u2 = typeof input === 'string' ? input : (input && input.url) || '';
+                    if (res.status === 403 && /^\/api\/(messages$|groups(\/\d+\/messages)?$|calls\/start)/.test(u2) && String((init && init.method) || 'GET').toUpperCase() === 'POST') {
+                        res.clone().json().then(j => { if (j && j.code === 'chat_restricted' && Date.now() - (window.__lastRestrictAlert || 0) > 3000) { window.__lastRestrictAlert = Date.now(); alert(j.error); } }).catch(() => {});
+                    }
+                } catch (e) {}
+                return res;
+            });
         };
 
         function openHeaderTarget() {
@@ -2679,28 +2693,71 @@
             const d = await groupPost('/delete', {});
             if (d.success) exitGroupView(); else alert('លុបមិនបាន');
         }
+        let groupPickSel = new Map();   // email -> {first_name,last_name,profile_pic}
+        let groupPickBase = [];
+        let groupPickExtra = [];
+        let groupPickTimer = null;
         function openGroupPicker(mode) {
-            groupPickMode = mode;
-            const existing = new Set(mode === 'add' && groupInfo ? groupInfo.members.map(m => m.email) : []);
-            const friends = allConversations.filter(c => !c.is_group && c.email && !existing.has(String(c.email).toLowerCase()));
-            const list = friends.map(c => `<label class="cs-pick"><img src="${c.profile_pic || DEFAULT_AVATAR}"><span class="notranslate" translate="no">${escapeHtml((c.first_name || '') + ' ' + (c.last_name || ''))}</span><input type="checkbox" value="${escapeHtml(c.email)}"></label>`).join('');
+            groupPickMode = mode; groupPickSel = new Map(); groupPickExtra = [];
+            const existing = new Set(mode === 'add' && groupInfo ? groupInfo.members.map(m => String(m.email).toLowerCase()) : []);
+            groupPickBase = allConversations.filter(c => !c.is_group && c.email && !existing.has(String(c.email).toLowerCase()));
+            groupPickBase._existing = existing;
             document.getElementById('groupPickBody').innerHTML = `
                 <div class="cs-head"><span>${mode === 'create' ? '👥 បង្កើតក្រុមឆាតថ្មី' : '＋ បន្ថែមសមាជិក'}</span><button type="button" onclick="closeGroupPicker()">✕</button></div>
-                ${mode === 'create' ? '<input class="cs-input" id="newGroupName" maxlength="60" placeholder="ឈ្មោះក្រុម">' : ''}
-                <div class="cs-sec"><h4>ជ្រើសរើសមិត្ត</h4>${list || '<small>មិនមានមិត្តដែលអាចជ្រើសបានទេ។ សូមជជែកជាមួយនរណាម្នាក់សិន។</small>'}</div>
+                ${mode === 'create' ? '<input class="cs-input" id="newGroupName" maxlength="60" placeholder="ឈ្មោះក្រុម" style="margin-bottom:10px">' : ''}
+                <input class="cs-input" id="groupPickSearch" placeholder="🔍 ស្វែងរកមិត្ត..." oninput="onGroupPickSearch(this.value)" autocomplete="off">
+                <div class="cs-sec"><div id="groupPickCount" style="font-size:12px;color:#64748b;margin-bottom:6px"></div><div id="groupPickList" style="max-height:42vh;overflow-y:auto"></div></div>
                 <button type="button" class="cs-btn" id="groupPickSubmit" onclick="submitGroupPicker()">${mode === 'create' ? 'បង្កើតក្រុម' : 'បន្ថែម'}</button>`;
+            renderGroupPickList();
             document.getElementById('groupPickModal').classList.add('open');
+        }
+        function renderGroupPickList() {
+            const q = ((document.getElementById('groupPickSearch') || {}).value || '').trim().toLowerCase();
+            const seen = new Set();
+            const rows = [];
+            groupPickBase.concat(groupPickExtra).forEach(c => {
+                const key = String(c.email || '').toLowerCase();
+                if (!key || seen.has(key) || (groupPickBase._existing && groupPickBase._existing.has(key)) || key === String(currentUser.email).toLowerCase()) return;
+                seen.add(key);
+                const nm = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+                if (q && !nm.toLowerCase().includes(q)) return;
+                rows.push({ c, key, nm });
+            });
+            document.getElementById('groupPickList').innerHTML = rows.map(r => `
+                <label class="cs-pick"><img src="${r.c.profile_pic || DEFAULT_AVATAR}"><span class="notranslate" translate="no">${escapeHtml(r.nm)}</span>
+                <input type="checkbox" value="${escapeHtml(r.c.email)}" ${groupPickSel.has(r.c.email) ? 'checked' : ''} onchange="toggleGroupPick('${escapeHtml(r.c.email)}', this.checked)"></label>`).join('')
+                || '<small>រកមិនឃើញអ្នកណាទេ។</small>';
+            document.getElementById('groupPickCount').innerText = groupPickSel.size ? `បានជ្រើសរើស ${groupPickSel.size} នាក់` : 'ជ្រើសរើសមិត្តដែលចង់បន្ថែម';
+        }
+        function toggleGroupPick(email, on) {
+            if (on) groupPickSel.set(email, true); else groupPickSel.delete(email);
+            document.getElementById('groupPickCount').innerText = groupPickSel.size ? `បានជ្រើសរើស ${groupPickSel.size} នាក់` : 'ជ្រើសរើសមិត្តដែលចង់បន្ថែម';
+        }
+        function onGroupPickSearch(v) {
+            renderGroupPickList();
+            clearTimeout(groupPickTimer);
+            const q = (v || '').trim();
+            if (q.length < 2) return;
+            groupPickTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/search-users?email=${encodeURIComponent(currentUser.email)}&keyword=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.users) && ((document.getElementById('groupPickSearch') || {}).value || '').trim() === q) {
+                        groupPickExtra = data.users; renderGroupPickList();
+                    }
+                } catch (e) {}
+            }, 300);
         }
         function closeGroupPicker() { document.getElementById('groupPickModal').classList.remove('open'); }
         async function submitGroupPicker() {
-            const emails = Array.from(document.querySelectorAll('#groupPickBody input[type=checkbox]:checked')).map(i => i.value);
+            const emails = Array.from(groupPickSel.keys());
             if (!emails.length) return alert('សូមជ្រើសរើសសមាជិកយ៉ាងហោចណាស់ ១ នាក់');
             const btn = document.getElementById('groupPickSubmit'); btn.disabled = true;
             try {
                 if (groupPickMode === 'create') {
                     const name = (document.getElementById('newGroupName').value || '').trim();
                     if (!name) { btn.disabled = false; return alert('សូមដាក់ឈ្មោះក្រុម'); }
-                    const r = await fetch('/api/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, members: emails }) });
+                    const r = await fetch('/api/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, members: emails.map(e => ({ email: e })) }) });
                     const d = await r.json();
                     if (!d.success) { btn.disabled = false; return alert('បង្កើតក្រុមមិនបាន'); }
                     closeGroupPicker();
@@ -2708,7 +2765,7 @@
                     const g = allConversations.find(c => c.is_group && c.group_id === d.group.id);
                     if (g) openChat(g);
                 } else {
-                    const d = await groupPost('/members', { emails });
+                    const d = await groupPost('/members', { members: emails.map(e => ({ email: e })) });
                     closeGroupPicker();
                     if (!d.success) alert('បន្ថែមមិនបាន (ក្រុមអាចពេញ)'); else await refreshGroupUI();
                 }
@@ -2763,7 +2820,7 @@
         async function saveChatSetting(patch) {
             if (!activeFriend) return;
             try {
-                const res = await fetch('/api/chat-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ peer: activeFriend.email }, patch)) });
+                const res = await fetch('/api/chat-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ peer_email: activeFriend.email }, patch)) });
                 const data = await res.json();
                 if (data.success) { applyChatSettings(data.settings); await fetchMessages(true); loadConversations(); }
                 else alert('រក្សាទុកមិនបាន៖ ' + (data.error || ''));
