@@ -329,7 +329,14 @@ pool.connect(async (err, client, release) => {
       id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, method VARCHAR(20) NOT NULL, account_name VARCHAR(80), account_number VARCHAR(40),
       status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
     await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS ux_withdraw_pending ON withdrawal_requests (user_email) WHERE status = 'pending'");   // one open request at a time
+    for (const col of ['payout_code TEXT', 'code_issued_at TIMESTAMPTZ', 'code_viewed_at TIMESTAMPTZ', 'reissue_requested_at TIMESTAMPTZ', 'reissue_count INTEGER NOT NULL DEFAULT 0']) {
+      await pool.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS ' + col).catch(() => {});
+    }
     await pool.query('CREATE TABLE IF NOT EXISTS referrals (referred_email TEXT PRIMARY KEY, referrer_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+    await pool.query('CREATE TABLE IF NOT EXISTS creator_settings (key VARCHAR(40) PRIMARY KEY, value TEXT)').catch(() => {});
+    await pool.query('CREATE TABLE IF NOT EXISTS creator_earn (user_email TEXT PRIMARY KEY, carry_cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
+    await pool.query('CREATE TABLE IF NOT EXISTS post_earn (post_id INTEGER PRIMARY KEY, user_email TEXT NOT NULL, views_seen INTEGER NOT NULL DEFAULT 0, cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_post_earn_user ON post_earn (user_email)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_email)');
     for (const col of ["status VARCHAR(20) NOT NULL DEFAULT 'progress'", 'days_done INTEGER NOT NULL DEFAULT 0', 'posts_done INTEGER NOT NULL DEFAULT 0', 'ip_hash VARCHAR(64)', 'completed_at TIMESTAMPTZ', 'rewarded_at TIMESTAMPTZ', 'note TEXT']) {
       await pool.query(`ALTER TABLE referrals ADD COLUMN IF NOT EXISTS ${col}`);
@@ -3056,9 +3063,60 @@ app.post('/api/admin/ad-requests/activate', async (req, res) => {          // mo
 // Monetization (Creator Program): rules, wallet (a ledger of cents), withdrawals paid BY HAND, referrals.
 // No money moves automatically: bonuses are added by a Super Admin and withdrawals are paid by the owner (ABA / Wing / KHQR).
 // ---------------------------------------------------------------------------
+// ---- payout codes (top-up PIN / Wing cash-out code): kept sealed (AES-256-GCM) and shown only to the owner ----
+const PAYOUT_METHODS = ['TopUp', 'WingCash', 'ABA', 'ACLEDA', 'Wing', 'KHQR', 'Other'], CODE_METHODS = ['TopUp', 'WingCash'], CARRIERS = ['Cellcard', 'Smart', 'Metfone'];
+const payoutKey = () => { const k = process.env.PAYOUT_CODE_KEY || process.env.JWT_SECRET || ''; return String(k).length >= 16 ? require('crypto').createHash('sha256').update('camfeed-payout|' + k).digest() : null; };
+function sealCode(plain) {
+  const k = payoutKey(); if (!k) throw new Error('NO_KEY');
+  const c = require('crypto'), iv = c.randomBytes(12), ci = c.createCipheriv('aes-256-gcm', k, iv);
+  const enc = Buffer.concat([ci.update(String(plain), 'utf8'), ci.final()]);
+  return [iv, ci.getAuthTag(), enc].map((b) => b.toString('base64')).join('.');
+}
+function openCode(sealed) {
+  const k = payoutKey(); if (!k || !sealed) return null;
+  try {
+    const [iv, tag, enc] = String(sealed).split('.').map((x) => Buffer.from(x, 'base64')), d = require('crypto').createDecipheriv('aes-256-gcm', k, iv);
+    d.setAuthTag(tag); return Buffer.concat([d.update(enc), d.final()]).toString('utf8');
+  } catch (e) { return null; }
+}
+const usdText = (cents) => '$' + (cents / 100).toFixed(2);
+const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9 \-]{2,58}[A-Za-z0-9]$/;
+// ---- Pay per view: an admin-invited (approved) creator earns a small amount for each view that comes AFTER the approval / the day the rate was switched on.
+//      The Super Admin sets the price ($ per 1,000 views) and a daily cap per creator; 0 = switched off.
+async function earnSettings() {
+  const r = await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('rpm_usd', 'daily_cap_usd')");
+  const m = {}; r.rows.forEach((x) => { m[x.key] = Number(x.value); });
+  const pick = (k, env, d) => (Number.isFinite(m[k]) && m[k] >= 0 ? m[k] : (Number.isFinite(Number(process.env[env])) && process.env[env] !== undefined && process.env[env] !== '' ? Number(process.env[env]) : d));
+  return { rpm: pick('rpm_usd', 'CREATOR_RPM_USD', 0), dailyCap: pick('daily_cap_usd', 'CREATOR_DAILY_CAP_USD', 1) };
+}
+async function syncViewEarnings(email) {
+  const cfg = await earnSettings(); if (!(cfg.rpm > 0)) return 0;
+  const ok = (await pool.query("SELECT decided_at FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0]; if (!ok) return 0;
+  const st = (await pool.query("SELECT value FROM creator_settings WHERE key = 'earn_start'")).rows[0];
+  const since = Math.max(ok.decided_at ? new Date(ok.decided_at).getTime() : 0, st ? Number(st.value) || 0 : 0);   // posts made after this moment are paid from their very first view
+  const posts = (await pool.query("SELECT p.id, p.created_at, COALESCE(p.views_count, 0) AS views, e.views_seen FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
+  let gained = 0;
+  for (const p of posts) {
+    const views = Number(p.views) || 0;
+    if (p.views_seen === null || p.views_seen === undefined) { await pool.query('INSERT INTO post_earn (post_id, user_email, views_seen) VALUES ($1, $2, $3) ON CONFLICT (post_id) DO NOTHING', [p.id, email, new Date(p.created_at).getTime() > since ? 0 : views]); if (new Date(p.created_at).getTime() <= since) continue; p.views_seen = 0; }   // views before the start are not paid
+    const delta = views - Number(p.views_seen); if (delta <= 0) continue;
+    const cents = delta * cfg.rpm * 100 / 1000;
+    const u = await pool.query('UPDATE post_earn SET views_seen = $3, cents = cents + $4 WHERE post_id = $1 AND views_seen = $2 RETURNING post_id', [p.id, Number(p.views_seen), views, cents]);   // only one request can claim these views
+    if (u.rows.length) gained += cents;
+  }
+  if (gained <= 0) return 0;
+  await pool.query('INSERT INTO creator_earn (user_email, carry_cents) VALUES ($1, 0) ON CONFLICT (user_email) DO NOTHING', [email]);
+  const c = await pool.query('UPDATE creator_earn SET carry_cents = carry_cents + $2 WHERE user_email = $1 RETURNING carry_cents', [email, gained]);
+  const whole = Math.floor(Number(c.rows[0].carry_cents) || 0); if (whole < 1) return 0;
+  const took = await pool.query('UPDATE creator_earn SET carry_cents = carry_cents - $2 WHERE user_email = $1 AND carry_cents >= $2 RETURNING carry_cents', [email, whole]); if (!took.rows.length) return 0;
+  const today = Number((await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE user_email = $1 AND kind = 'revenue_share' AND created_at >= date_trunc('day', NOW())", [email])).rows[0].n) || 0;
+  const pay = Math.min(whole, Math.max(0, Math.round(cfg.dailyCap * 100) - today));   // over the daily cap: not paid
+  if (pay > 0) await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'revenue_share', 'Earnings from views', 'system')", [email, pay]);
+  return pay;
+}
 const creatorRules = () => {
   const n = (k, d) => { const raw = process.env[k]; const v = Number(raw); return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d; };
-  return { followers: n('CREATOR_MIN_FOLLOWERS', 1000), views: n('CREATOR_MIN_VIEWS', 10000), ageDays: n('CREATOR_MIN_ACCOUNT_DAYS', 30), posts: n('CREATOR_MIN_POSTS', 5), minWithdrawCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 5)) * 100) };
+  return { followers: n('CREATOR_MIN_FOLLOWERS', 1000), views: n('CREATOR_MIN_VIEWS', 10000), ageDays: n('CREATOR_MIN_ACCOUNT_DAYS', 30), posts: n('CREATOR_MIN_POSTS', 5), minWithdrawCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100) };
 };
 async function creatorStats(email) {
   const r = await pool.query(
@@ -3147,13 +3205,14 @@ app.get('/api/monetization/status', async (req, res) => {
   try {
     const email = req.authEmail, rules = creatorRules();
     try { const open = (await pool.query("SELECT referred_email FROM referrals WHERE referrer_email = $1 AND status = 'progress' ORDER BY created_at DESC LIMIT 20", [email])).rows; await Promise.all(open.map((x) => evaluateReferral(x.referred_email).catch(() => {}))); } catch (e) { /* the page still opens */ }
+    await syncViewEarnings(email).catch((e) => console.error('[earn] sync error:', e.message));
     const [st, cents, app_, refs, me, wd, led] = await Promise.all([
       creatorStats(email), walletCents(email),
       pool.query('SELECT status, decided_at, note FROM creator_applications WHERE user_email = $1', [email]),
       pool.query('SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1', [email]),
       pool.query('SELECT public_id FROM users WHERE email = $1', [email]),
-      pool.query('SELECT id, amount_cents, method, status, created_at, note FROM withdrawal_requests WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 5', [email]),
-      pool.query('SELECT amount_cents, kind, note, created_at FROM wallet_ledger WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 10', [email])
+      pool.query('SELECT id, amount_cents, method, account_name, account_number, status, created_at, decided_at, note, (payout_code IS NOT NULL) AS has_code, code_issued_at, code_viewed_at, reissue_requested_at, reissue_count FROM withdrawal_requests WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 20', [email]),
+      pool.query('SELECT amount_cents, kind, note, created_at FROM wallet_ledger WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 50', [email])
     ]);
     const a = app_.rows[0] || null;
     const rr = referralRules(), steps = rr.days + rr.posts;
@@ -3166,8 +3225,8 @@ app.get('/api/monetization/status', async (req, res) => {
       referrals: invited.map((x) => { const done = Math.min(steps, (x.days_done || 0) + (x.posts_done || 0)); return { name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), status: x.status, daysDone: x.days_done || 0, postsDone: x.posts_done || 0, joined: x.created_at, note: x.status === 'review' || x.status === 'rejected' ? '' : '', progress: x.status === 'rewarded' ? rr.rewardCents / 100 : (x.status === 'progress' ? Math.round(rr.rewardCents * done / steps) / 100 : 0), reward: rr.rewardCents / 100 }; }),
       followersCount: st.followers, totalViews: st.views, postsCount: st.posts, accountAgeDays: st.ageDays,
       applicationStatus: a ? a.status : null, applicationNote: a && a.status === 'rejected' ? (a.note || '') : '', eligible: meetsRules(st, rules),
-      criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100,
-      withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, status: w.status, created_at: w.created_at, note: w.note || '' })),
+      criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100, payPerView: (await earnSettings()).rpm,
+      withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, accountName: w.account_name || '', accountNumber: w.account_number || '', status: w.status, created_at: w.created_at, decided_at: w.decided_at, note: w.note || '', hasCode: !!w.has_code, usesCode: CODE_METHODS.includes(w.method), codeIssuedAt: w.code_issued_at, codeSeen: !!w.code_viewed_at, reissuePending: !!w.reissue_requested_at, reissueLeft: Math.max(0, 3 - (w.reissue_count || 0)) })),
       ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at })) });
   } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
@@ -3194,9 +3253,19 @@ app.post('/api/monetization/withdraw', async (req, res) => {
     const cents = Math.round(Number(b.amount) * 100);
     if (!Number.isFinite(cents) || cents <= 0) return res.status(400).json({ success: false, error: 'Please enter an amount.' });
     if (cents < rules.minWithdrawCents) return res.status(400).json({ success: false, error: `The smallest withdrawal is $${(rules.minWithdrawCents / 100).toFixed(2)}.` });
-    const method = ['ABA', 'Wing', 'KHQR', 'Other'].includes(b.method) ? b.method : '';
-    const accountName = String(b.accountName || '').replace(/\s+/g, ' ').trim().slice(0, 80), accountNumber = String(b.accountNumber || '').replace(/[^\d+\- ]/g, '').trim().slice(0, 40);
-    if (!method || !accountName || accountNumber.replace(/\D/g, '').length < 4) return res.status(400).json({ success: false, error: 'Please choose how to be paid and enter the account name and number.' });
+    const method = PAYOUT_METHODS.includes(b.method) ? b.method : '';
+    let accountName = String(b.accountName || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    const accountNumber = String(b.accountNumber || '').replace(/[^\d+\- ]/g, '').trim().slice(0, 40), digits = accountNumber.replace(/\D/g, '').length;
+    if (!method) return res.status(400).json({ success: false, error: 'Please choose how to be paid.' });
+    if (method === 'TopUp') {
+      accountName = CARRIERS.includes(b.carrier) ? b.carrier : '';
+      if (!accountName) return res.status(400).json({ success: false, error: 'Please choose your phone company.' });
+      if (digits < 8) return res.status(400).json({ success: false, error: 'Please enter your phone number.' });
+    } else if (method === 'WingCash') {
+      if (digits < 8) return res.status(400).json({ success: false, error: 'Please enter the phone number you will use at the Wing agent.' });
+      accountName = accountName || 'Wing cash-out';
+    } else if (accountName.length < 3 || !/\S+\s+\S+|\S{3,}/.test(accountName)) return res.status(400).json({ success: false, error: 'Please enter your full name exactly as it appears on the account.' });
+    else if (digits < 6) return res.status(400).json({ success: false, error: 'Please enter your correct account number.' });
     if (cents > (await walletCents(email))) return res.status(400).json({ success: false, error: 'Your balance is not enough.' });
     let id;
     try {
@@ -3206,6 +3275,46 @@ app.post('/api/monetization/withdraw', async (req, res) => {
     await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal', $3, $4, $1)", [email, -cents, 'Withdrawal request #' + id, id]);   // the money is set aside at once
     res.json({ success: true, id });
   } catch (err) { console.error('[monetization] withdraw error:', err.message); res.status(500).json({ success: false, error: 'Could not send your request.' }); }
+});
+
+
+// per-post numbers for the owner (like "Post details" on Facebook)
+app.get('/api/monetization/posts', async (req, res) => {
+  try {
+    const email = req.authEmail;
+    await syncViewEarnings(email).catch((e) => console.error('[earn] sync error:', e.message));
+    const r = await pool.query(
+      `SELECT p.id, p.content, p.media_type, p.media_url, p.privacy, p.created_at, COALESCE(p.views_count, 0) AS views, COALESCE(e.cents, 0) AS earn_cents,
+              (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)::int AS likes, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id)::int AS comments,
+              (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id)::int AS shares
+       FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL ORDER BY p.created_at DESC LIMIT 30`, [email]);
+    res.json({ success: true, posts: r.rows.map((x) => ({ id: x.id, text: String(x.content || '').slice(0, 120), mediaType: x.media_type || '', mediaUrl: x.media_type === 'image' ? x.media_url : '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: Math.round(Number(x.earn_cents)) / 100, likes: x.likes, comments: x.comments, shares: x.shares })) });
+  } catch (err) { console.error('[monetization] posts error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+// the owner reads their own secret code (never sent in a notification or in the status list)
+app.post('/api/monetization/withdrawals/:id/code', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10); if (!id) return res.status(400).json({ success: false, error: 'Invalid request.' });
+    const r = (await pool.query("SELECT payout_code FROM withdrawal_requests WHERE id = $1 AND user_email = $2 AND status = 'paid'", [id, req.authEmail])).rows[0];
+    if (!r || !r.payout_code) return res.status(404).json({ success: false, error: 'No code yet.' });
+    const code = openCode(r.payout_code); if (!code) return res.status(500).json({ success: false, error: 'The code cannot be read right now.' });
+    await pool.query('UPDATE withdrawal_requests SET code_viewed_at = COALESCE(code_viewed_at, NOW()) WHERE id = $1', [id]);
+    res.set('Cache-Control', 'no-store'); res.json({ success: true, code });
+  } catch (err) { console.error('[monetization] code error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+// the owner asks for a fresh code (for example the Wing code has expired)
+app.post('/api/monetization/withdrawals/:id/reissue', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10); if (!id) return res.status(400).json({ success: false, error: 'Invalid request.' });
+    const r = (await pool.query("SELECT method, reissue_count, reissue_requested_at FROM withdrawal_requests WHERE id = $1 AND user_email = $2 AND status = 'paid'", [id, req.authEmail])).rows[0];
+    if (!r || !CODE_METHODS.includes(r.method)) return res.status(404).json({ success: false, error: 'Not found.' });
+    if (r.reissue_requested_at) return res.status(409).json({ success: false, error: 'You already asked for a new code. Please wait.' });
+    if ((r.reissue_count || 0) >= 3) return res.status(429).json({ success: false, error: 'You have used all new-code requests. Please contact CamFeed.' });
+    await pool.query('UPDATE withdrawal_requests SET reissue_requested_at = NOW() WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) { console.error('[monetization] reissue error:', err.message); res.status(500).json({ success: false, error: 'Could not send your request.' }); }
 });
 
 // ---- admin side ----
@@ -3246,13 +3355,18 @@ app.post('/api/admin/wallet/credit', async (req, res) => {
     const a = await adminGate(req, res); if (!a) return;
     if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change a wallet.' });
     const cents = Math.round(Number(b.amount) * 100);
+    const giftMax = Math.round((Number(process.env.GIFT_MAX_USD) || 100) * 100);
     if (!Number.isFinite(cents) || cents === 0 || Math.abs(cents) > 100000) return res.status(400).json({ success: false, error: 'The amount must be between -$1,000 and $1,000 (not 0).' });
+    if ((b.kind || 'bonus') !== 'adjustment' && cents > giftMax) return res.status(400).json({ success: false, error: 'A gift can be at most $' + (giftMax / 100) + ' at a time.' });
     const note = String(b.note || '').replace(/\s+/g, ' ').trim().slice(0, 200); if (!note) return res.status(400).json({ success: false, error: 'Please write a reason.' });
     const kind = b.kind === 'adjustment' ? 'adjustment' : 'bonus';
     const u = await resolveIdentifier(b.identifier || b.targetEmail); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
     if (cents < 0 && -cents > (await walletCents(u.email))) return res.status(400).json({ success: false, error: 'That would make the wallet negative.' });
     await pool.query('INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, $3, $4, $5)', [u.email, cents, kind, note, a.adminEmail]);
     audit(a.adminEmail, 'wallet-' + kind, u.email, (cents / 100).toFixed(2) + ' USD: ' + note);
+    if (kind === 'bonus' && cents > 0 && b.notify !== false) {
+      await sendAdminNotice(a.adminEmail, u.email, '🎁 អបអរសាទរ! អ្នកទទួលបានកាដូលើកទឹកចិត្តសម្រាប់ការផលិតមាតិកា ' + usdText(cents) + ' ពី CamFeed។ សូមបន្តផលិតមាតិកាល្អៗ!', 'wallet_notice').catch((e) => console.error('[wallet] notice error:', e.message));
+    }
     res.json({ success: true, name: `${u.first_name || ''} ${u.last_name || ''}`.trim(), balance: (await walletCents(u.email)) / 100 });
   } catch (err) { console.error('[admin] wallet error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
@@ -3261,8 +3375,8 @@ app.post('/api/admin/withdrawals', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
     const r = await pool.query(
-      `SELECT w.id, w.user_email, w.amount_cents, w.method, w.account_name, w.account_number, w.status, w.created_at, w.decided_at, w.decided_by, w.note, u.first_name, u.last_name, u.public_id
-       FROM withdrawal_requests w JOIN users u ON u.email = w.user_email ORDER BY CASE WHEN w.status = 'pending' THEN 0 ELSE 1 END, w.created_at DESC LIMIT 100`);
+      `SELECT w.id, w.user_email, w.amount_cents, w.method, w.account_name, w.account_number, w.status, w.created_at, w.decided_at, w.decided_by, w.note, (w.payout_code IS NOT NULL) AS has_code, w.code_viewed_at, w.reissue_requested_at, w.reissue_count, u.first_name, u.last_name, u.public_id
+       FROM withdrawal_requests w JOIN users u ON u.email = w.user_email ORDER BY CASE WHEN w.status = 'pending' THEN 0 WHEN w.reissue_requested_at IS NOT NULL THEN 1 ELSE 2 END, w.created_at DESC LIMIT 100`);
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, withdrawals: r.rows.map((x) => Object.assign({}, x, { amount: x.amount_cents / 100 })) });
   } catch (err) { console.error('[admin] withdrawals error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
@@ -3275,14 +3389,65 @@ app.post('/api/admin/withdrawals/decide', async (req, res) => {
     const status = ['paid', 'rejected'].includes(b.status) ? b.status : ''; const id = parseInt(b.id, 10);
     if (!status || !id) return res.status(400).json({ success: false, error: 'Invalid request.' });
     const note = String(b.note || '').slice(0, 300);
-    const upd = await pool.query("UPDATE withdrawal_requests SET status = $1, decided_at = NOW(), decided_by = $2, note = $3 WHERE id = $4 AND status = 'pending' RETURNING user_email, amount_cents", [status, a.adminEmail, note, id]);
+    const cur = (await pool.query("SELECT method FROM withdrawal_requests WHERE id = $1 AND status = 'pending'", [id])).rows[0];
+    if (!cur) return res.status(409).json({ success: false, error: 'This request was already decided.' });
+    let sealed = null;
+    if (status === 'paid' && CODE_METHODS.includes(cur.method)) {
+      const code = String(b.code || '').trim();
+      if (!CODE_RE.test(code)) return res.status(400).json({ success: false, error: 'Please enter the code (letters, numbers, spaces or dashes).' });
+      try { sealed = sealCode(code); } catch (e) { return res.status(500).json({ success: false, error: 'Server key is missing: set PAYOUT_CODE_KEY (or JWT_SECRET) on Render first.' }); }
+    }
+    if (status === 'rejected' && !note) return res.status(400).json({ success: false, error: 'Please write the reason.' });
+    const upd = await pool.query("UPDATE withdrawal_requests SET status = $1, decided_at = NOW(), decided_by = $2, note = $3, payout_code = $5, code_issued_at = CASE WHEN $5::text IS NULL THEN NULL ELSE NOW() END WHERE id = $4 AND status = 'pending' RETURNING user_email, amount_cents, method", [status, a.adminEmail, note, id, sealed]);
     if (!upd.rows.length) return res.status(409).json({ success: false, error: 'This request was already decided.' });
     if (status === 'rejected') await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal_refund', $3, $4, $5)", [upd.rows[0].user_email, upd.rows[0].amount_cents, 'Withdrawal #' + id + ' was refused' + (note ? ': ' + note : ''), id, a.adminEmail]);
+    const amt = usdText(upd.rows[0].amount_cents), m = upd.rows[0].method;
+    const text = status === 'rejected' ? '❌ សំណើដកប្រាក់ ' + amt + ' មិនត្រូវបានអនុម័ត៖ ' + note + '។ ទឹកប្រាក់ត្រូវបានប្រគល់ទៅកាបូបរបស់អ្នកវិញ។'
+      : m === 'TopUp' ? '✅ ការដកប្រាក់ ' + amt + ' ជោគជ័យ! សូមចុចដើម្បីមើលកូដបញ្ចូលទឹកប្រាក់ទូរស័ព្ទរបស់អ្នក។'
+      : m === 'WingCash' ? '✅ ការដកប្រាក់ ' + amt + ' ជោគជ័យ! សូមចុចដើម្បីមើលកូដសម្រាប់ដកប្រាក់នៅភ្នាក់ងារ Wing។'
+      : '✅ ការដកប្រាក់ជោគជ័យ សូមពិនិត្យមើលទឹកប្រាក់ក្នុងគណនីធនាគាររបស់អ្នក (' + amt + ')។';
+    await sendAdminNotice(a.adminEmail, upd.rows[0].user_email, text, 'wallet_notice').catch((e) => console.error('[withdraw] notice error:', e.message));
     audit(a.adminEmail, 'withdrawal-' + status, upd.rows[0].user_email, '#' + id + ' ' + (upd.rows[0].amount_cents / 100).toFixed(2) + ' USD');
     res.json({ success: true });
   } catch (err) { console.error('[admin] withdrawal decide error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
+
+app.post('/api/admin/withdrawals/reissue', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can issue a code.' });
+    const id = parseInt(b.id, 10), code = String(b.code || '').trim();
+    if (!id || !CODE_RE.test(code)) return res.status(400).json({ success: false, error: 'Please enter the new code.' });
+    let sealed; try { sealed = sealCode(code); } catch (e) { return res.status(500).json({ success: false, error: 'Server key is missing: set PAYOUT_CODE_KEY (or JWT_SECRET) on Render first.' }); }
+    const upd = await pool.query("UPDATE withdrawal_requests SET payout_code = $2, code_issued_at = NOW(), code_viewed_at = NULL, reissue_requested_at = NULL, reissue_count = reissue_count + 1 WHERE id = $1 AND status = 'paid' AND method IN ('TopUp', 'WingCash') RETURNING user_email", [id, sealed]);
+    if (!upd.rows.length) return res.status(409).json({ success: false, error: 'This request cannot get a new code.' });
+    audit(a.adminEmail, 'withdrawal-reissue', upd.rows[0].user_email, '#' + id);
+    await sendAdminNotice(a.adminEmail, upd.rows[0].user_email, '🔑 កូដថ្មីរបស់អ្នកត្រៀមរួចរាល់ហើយ។ សូមចុចដើម្បីមើលកូដ។', 'wallet_notice').catch((e) => console.error('[withdraw] notice error:', e.message));
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] reissue error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+app.post('/api/admin/creator-rate', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (b.set) {
+      if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change the price.' });
+      const rpm = Number(b.rpm), cap = Number(b.dailyCap);
+      if (!Number.isFinite(rpm) || rpm < 0 || rpm > 50) return res.status(400).json({ success: false, error: 'Price per 1,000 views must be between $0 and $50.' });
+      if (!Number.isFinite(cap) || cap < 0 || cap > 100) return res.status(400).json({ success: false, error: 'Daily cap must be between $0 and $100.' });
+      if (rpm > 0 && !(await pool.query("SELECT 1 FROM creator_settings WHERE key = 'earn_start'")).rows.length) await pool.query("INSERT INTO creator_settings (key, value) VALUES ('earn_start', $1)", [String(Date.now())]);
+      await pool.query("INSERT INTO creator_settings (key, value) VALUES ('rpm_usd', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [String(rpm)]);
+      await pool.query("INSERT INTO creator_settings (key, value) VALUES ('daily_cap_usd', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [String(cap)]);
+      audit(a.adminEmail, 'creator-rate', 'settings', '$' + rpm + ' per 1000 views, cap $' + cap + '/day');
+    }
+    const cfg = await earnSettings();
+    const t = (await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE kind = 'revenue_share'")).rows[0];
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, rpm: cfg.rpm, dailyCap: cfg.dailyCap, paidTotal: (Number(t.n) || 0) / 100 });
+  } catch (err) { console.error('[admin] rate error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
 
 app.post('/api/admin/referrals', async (req, res) => {
   try {
@@ -3337,8 +3502,8 @@ const noticeText = (kind, what, reason, note) => {
   return [head, reason ? `មូលហេតុ៖ ${reason}` : '', note || ''].filter(Boolean).join(' ').slice(0, 700);
 };
 const mediaWord = (t) => (t === 'video' ? 'វីដេអូ' : t === 'image' ? 'រូបភាព' : 'ប្រកាស');
-async function sendAdminNotice(adminEmail, toEmail, text) {
-  await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'admin_notice', $3, FALSE)", [toEmail, adminEmail, text]);
+async function sendAdminNotice(adminEmail, toEmail, text, type) {
+  await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, $3, $4, FALSE)", [toEmail, adminEmail, type === 'wallet_notice' ? 'wallet_notice' : 'admin_notice', text]);
 }
 
 app.delete('/api/admin/posts/:postId', async (req, res) => {

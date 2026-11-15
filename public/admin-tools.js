@@ -310,11 +310,11 @@
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['apps', '⭐ Applications'], ['ref', '🎁 Invitations'], ['wd', '💵 Withdrawals'], ['wallet', '👛 Wallet bonus']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['apps', '⭐ Applications'], ['ref', '🎁 Invitations'], ['wd', '💵 Withdrawals'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'apps') monApps(body); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else monWallet(body);
+    if (mon.view === 'apps') monApps(body); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
   }
   function monApps(body) {
     body.appendChild(empty('Loading…'));
@@ -357,20 +357,48 @@
       })));
     });
   }
+  function monRate(body) {
+    body.appendChild(empty('Loading…'));
+    adm('/api/admin/creator-rate', {}).then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: d.rpm }), cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: d.dailyCap }), out = el('div', { style: 'display:none' });
+      var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px', text: 'Save', onclick: function () {
+        btn.disabled = true; adm('/api/admin/creator-rate', { set: true, rpm: rpm.value, dailyCap: cap.value }).then(function (x) { btn.disabled = false; msg(out, x.success, x.success ? '✅ Saved' : '❌ ' + (x.error || 'Failed')); });
+      } });
+      body.appendChild(el('div', { style: 'max-width:520px' }, [
+        el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Approved Creators (the ones you invited) earn this amount for every 1,000 NEW views on their posts. 0 = off. Views before the rate is switched on / before they became a Creator are not paid. Total paid so far: ' + money(d.paidTotal) + '.' }),
+        el('div', { class: 'at-lbl', text: 'Price per 1,000 views ($) — example 0.10' }), rpm, el('div', { class: 'at-lbl', text: 'Daily limit per Creator ($)' }), cap, el('div', { style: 'margin-top:12px' }, [btn]), out]));
+    });
+  }
   function monWithdrawals(body) {
     body.appendChild(empty('Loading…'));
     adm('/api/admin/withdrawals').then(function (d) {
       body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
-      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: d.isSuperAdmin ? 'Pay the person yourself (ABA / Wing / KHQR), then press "Mark paid". "Reject" gives the money back to their wallet.' : 'Only a Super Admin can pay or refuse a withdrawal.' }));
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: d.isSuperAdmin ? 'Pay the person yourself. Phone top-up / Wing cash-out: buy or create the code, then press "Mark paid" and enter it. Bank (ABA / ACLEDA / Wing account): transfer, then "Mark paid". "Reject" needs a reason and refunds the wallet. Codes are never shown here again.' : 'Only a Super Admin can pay or refuse a withdrawal.' }));
       d.withdrawals = d.withdrawals || []; if (!d.withdrawals.length) { body.appendChild(empty('No withdrawal request yet.')); return; }
-      body.appendChild(table(['Creator', 'Amount', 'Pay with', 'Account name', 'Account number', 'Asked', 'Status', ''], d.withdrawals.map(function (w) {
+      var ML = { TopUp: '📱 Phone top-up', WingCash: '🟢 Wing cash-out (agent)', ABA: '🏦 ABA', ACLEDA: '🏦 ACLEDA', Wing: '🟢 Wing account' }, CODE = { TopUp: 1, WingCash: 1 };
+      body.appendChild(table(['Creator', 'Amount', 'Pay with', 'Name / carrier', 'Number', 'Asked', 'Status', ''], d.withdrawals.map(function (w) {
         function decide(status) {
-          var note = prompt(status === 'paid' ? 'Bank reference / note (optional):' : 'Reason for refusing (shown to the creator):', '') ; if (note === null) return;
+          var note = '', code = '';
+          if (status === 'paid') {
+            if (CODE[w.method]) { code = prompt((w.method === 'TopUp' ? 'Enter the TOP-UP CODE for ' + w.account_name + ' ' : 'Enter the WING CASH-OUT CODE for phone ') + w.account_number + ':', ''); if (!code) return; }
+            note = prompt('Internal note / bank reference (optional):', ''); if (note === null) return;
+          } else { note = prompt('Reason for refusing (the creator sees it):', ''); if (!note) return; }
           if (!confirm((status === 'paid' ? 'Mark ' + money(w.amount) + ' as PAID to ' : 'Refuse and refund ' + money(w.amount) + ' to ') + nm(w) + '?')) return;
-          adm('/api/admin/withdrawals/decide', { id: w.id, status: status, note: note }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+          adm('/api/admin/withdrawals/decide', { id: w.id, status: status, note: note, code: code }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
         }
-        var acts = el('td', {}, w.status === 'pending' && d.isSuperAdmin ? [el('button', { class: 'btn-sm btn-green', text: 'Mark paid', onclick: function () { decide('paid'); } }), el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { decide('rejected'); } })] : [el('span', { style: 'font-size:12px;color:#65676b', text: w.note || '' })]);
-        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(w) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: w.public_id || '' })]), el('td', { style: 'font-weight:800', text: money(w.amount) }), el('td', { text: w.method }), el('td', { text: w.account_name || '' }), el('td', { text: w.account_number || '' }), el('td', { text: fmt(w.created_at) }), el('td', {}, [statusBadge(w.status)]), acts]);
+        function reissue() {
+          var code = prompt('Enter the NEW code for ' + nm(w) + ' (' + (ML[w.method] || w.method) + ', ' + w.account_number + '):', ''); if (!code) return;
+          adm('/api/admin/withdrawals/reissue', { id: w.id, code: code }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+        }
+        var kids = [];
+        if (d.isSuperAdmin && w.status === 'pending') kids = [el('button', { class: 'btn-sm btn-green', text: 'Mark paid', onclick: function () { decide('paid'); } }), el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { decide('rejected'); } })];
+        else if (w.status === 'paid' && CODE[w.method]) {
+          if (w.reissue_requested_at && d.isSuperAdmin) kids.push(el('button', { class: 'btn-sm btn-green', text: '🔑 Send new code', onclick: reissue }));
+          kids.push(el('span', { style: 'font-size:12px;color:#65676b;display:block', text: (w.reissue_requested_at ? '⚠️ Asked for a new code. ' : '') + (w.code_viewed_at ? 'Code seen by owner.' : 'Code not seen yet.') }));
+        } else kids.push(el('span', { style: 'font-size:12px;color:#65676b', text: w.note || '' }));
+        var hot = w.reissue_requested_at ? 'background:#fff4e5' : '';
+        return el('tr', { style: hot }, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(w) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: w.public_id || '' })]), el('td', { style: 'font-weight:800', text: money(w.amount) }), el('td', { text: ML[w.method] || w.method }), el('td', { text: w.account_name || '' }), el('td', { text: w.account_number || '' }), el('td', { text: fmt(w.created_at) }), el('td', {}, [statusBadge(w.status)]), el('td', {}, kids)]);
       })));
     });
   }
@@ -378,7 +406,7 @@
     var out = el('div', { id: 'monOut', style: 'display:none' });
     var who = el('input', { class: 'at-in', id: 'mwWho', placeholder: 'Phone number, Gmail or 15-digit ID of the creator' });
     var amount = el('input', { class: 'at-in', id: 'mwAmount', type: 'number', step: '0.01', placeholder: 'Amount in $ (negative = take back)' });
-    var kind = el('select', { class: 'at-in', id: 'mwKind' }, [el('option', { value: 'bonus', text: 'Bonus / prize' }), el('option', { value: 'adjustment', text: 'Correction' })]);
+    var kind = el('select', { class: 'at-in', id: 'mwKind' }, [el('option', { value: 'bonus', text: '🎁 Gift (creator gets a notification)' }), el('option', { value: 'adjustment', text: 'Correction' })]);
     var note = el('input', { class: 'at-in', id: 'mwNote', placeholder: 'Reason (the creator sees it), e.g. "Launch contest winner"' });
     var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px', text: 'Add to wallet', onclick: function () {
       if (!confirm('Change the wallet of ' + who.value + ' by ' + amount.value + ' $ ?')) return; btn.disabled = true;

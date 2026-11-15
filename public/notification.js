@@ -32,10 +32,10 @@ async function loadNotifications() {
 
                 list.innerHTML = notifs.map(n => {
                     const isUnread = !n.is_read;
-                    if (n.type === 'admin_notice') {   // a message from the CamFeed team (not from a person)
+                    if (n.type === 'admin_notice' || n.type === 'wallet_notice') {   // a message from the CamFeed team (not from a person)
                         return `
-                        <div class="notification-item" style="${isUnread ? 'background-color: #fff4e5; font-weight: 600;' : 'background-color: #ffffff;'}" onclick="markNoticeRead(${n.id}); event.stopPropagation();">
-                            <div style="width:38px; height:38px; border-radius:50%; background:#1877f2; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:19px;">📢</div>
+                        <div class="notification-item" style="${isUnread ? 'background-color: #fff4e5; font-weight: 600;' : 'background-color: #ffffff;'}" onclick="markNoticeRead(${n.id}${n.type === 'wallet_notice' ? ", 'monetization.html#payouts'" : ''}); event.stopPropagation();">
+                            <div style="width:38px; height:38px; border-radius:50%; background:#1877f2; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:19px;">${n.type === 'wallet_notice' ? '🎁' : '📢'}</div>
                             <div style="flex: 1;">
                                 <div style="font-size:11px; font-weight:800; color:#1877f2; margin-bottom:2px;">CamFeed Team</div>
                                 <div style="color: #050505; line-height: 1.35;">${esc(n.message)}</div>
@@ -187,12 +187,12 @@ async function openNotificationTarget(notifId, postId, commentId, mediaType) {
 }
 
 // a notice from the CamFeed team: tapping it only marks it as read
-function markNoticeRead(notifId) {
+function markNoticeRead(notifId, goTo) {
     const currentUser = JSON.parse(localStorage.getItem('camfeed_user'));
     if (!currentUser || !notifId) return;
     fetch('/api/notifications/mark-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: currentUser.email, notificationId: notifId })
-    }).then(() => { if (typeof loadNotifications === 'function') loadNotifications(); }).catch(() => {});
+    }).then(() => { if (goTo) { location.href = goTo; return; } if (typeof loadNotifications === 'function') loadNotifications(); }).catch(() => { if (goTo) location.href = goTo; });
 }
