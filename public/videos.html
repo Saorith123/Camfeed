@@ -416,7 +416,17 @@
     var IN_FEED_FRAME = (function () { try { return window.parent !== window && new URLSearchParams(location.search).get('embed') === '1'; } catch (e) { return false; } })();
     function goPage(url) { try { (IN_FEED_FRAME ? window.top : window).location.href = url; } catch (e) { window.location.href = url; } }
     function reelsBack() {
-        if (IN_FEED_FRAME) { try { window.parent.postMessage({ camfeed: 'close-reels' }, location.origin); } catch (e) {} return; }
+        if (IN_FEED_FRAME) {
+            var info = {};
+            try {   // which reel is on screen now, and how far it has played: the feed continues from there
+                var best = null, bestVis = 0, vh = window.innerHeight;
+                document.querySelectorAll('.reel-item').forEach(function (it) { var r = it.getBoundingClientRect(); var vis = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0)); if (vis > bestVis) { bestVis = vis; best = it; } });
+                var bv = best && best.querySelector('video.reel-video');
+                if (best && bv) info = { postId: best.dataset.postId, time: bv.currentTime || 0 };
+            } catch (e) {}
+            try { window.parent.postMessage({ camfeed: 'close-reels', postId: info.postId, time: info.time }, location.origin); } catch (e) {}
+            return;
+        }
         if (window.history.length > 1) window.history.back(); else window.location.href = 'feed.html';
     }
     </script>

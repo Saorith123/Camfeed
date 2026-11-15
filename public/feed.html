@@ -2440,10 +2440,10 @@
         }
 
         // ---- tap on a feed video = open the Reels viewer (videos.html) over the feed; Back closes it and the feed is untouched ----
-        let reelsOpen = false;
+        let reelsOpen = false, reelsOrigin = null;
         function openReelsViewer(postId, vidEl) {
             if (reelsOpen || !postId) return;
-            reelsOpen = true;
+            reelsOpen = true; reelsOrigin = vidEl || null;
             const resumeAt = (vidEl && vidEl.currentTime > 0.5) ? Math.floor(vidEl.currentTime * 10) / 10 : 0;   // the Reels viewer continues from here, not from the start
             document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} });
             let ov = document.getElementById('reelsOverlay');
@@ -2462,7 +2462,21 @@
             if (!fromPop) { try { if (history.state && history.state.reels) history.back(); } catch (e) {} }
             setTimeout(() => { try { evaluateCenterFeedVideo(); } catch (e) {} }, 150);
         }
-        window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.camfeed === 'close-reels') closeReelsViewer(false); });
+        window.addEventListener('message', (e) => {
+            if (e.origin !== location.origin || !e.data || e.data.camfeed !== 'close-reels') return;
+            // the feed player continues from where the Reels viewer stopped (and jumps to that post if you swiped to another video)
+            try {
+                const t = Number(e.data.time) || 0, pid = String(e.data.postId || '');
+                let target = reelsOrigin && document.contains(reelsOrigin) && (!pid || String(reelsOrigin.dataset.postId) === pid) ? reelsOrigin : null;
+                if (!target && pid) target = document.querySelector('video[data-post-id="' + pid + '"]');
+                if (!target) target = reelsOrigin;
+                if (target) {
+                    if (t > 0.5) { try { target.currentTime = t; } catch (err) {} }
+                    if (target !== reelsOrigin) { const w = target.closest('.feed-video-wrap') || target; w.scrollIntoView({ block: 'center' }); }
+                }
+            } catch (err) {}
+            closeReelsViewer(false);
+        });
         window.addEventListener('popstate', () => { if (reelsOpen) closeReelsViewer(true); });
 
         function handleFeedVideoSurfaceTap(uid, event) {
