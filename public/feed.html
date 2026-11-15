@@ -1278,6 +1278,10 @@
                         <span>វីដេអូ (Videos)</span>
                         <input type="file" id="composerVideoInput" accept="video/*" multiple class="hidden" onchange="handleComposerFilesSelected(event)">
                     </label>
+                    <a href="live.html?host=1" style="grid-column:1/-1; display:flex; align-items:center; justify-content:center; gap:7px; padding:10px; border-radius:10px; border:1.5px dashed #f5c2c9; background:#fff1f3; color:#e41e3f; font-size:13.5px; font-weight:700; text-decoration:none;">
+                        <span>🔴</span>
+                        <span>ផ្សាយផ្ទាល់ (Live Video)</span>
+                    </a>
                 </div>
 
                 <div id="composerPreviewGrid" class="composer-preview-grid hidden"></div>
@@ -5243,5 +5247,21 @@
     setInterval(sync, 15000);
 })();
 </script>
+    <script>
+    // remember where you were in the feed: after Friends / Videos / Messages (or Back) you land at the same place, not at the top
+    (function () {
+        var KEY = 'camfeed_feed_pos';
+        function save() { try { if (document.getElementById('postsContainer')) sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY || 0, t: Date.now() })); } catch (e) {} }
+        window.addEventListener('pagehide', save);
+        document.addEventListener('visibilitychange', function () { if (document.hidden) save(); });
+        var st = null; try { st = JSON.parse(sessionStorage.getItem(KEY) || 'null'); sessionStorage.removeItem(KEY); } catch (e) {}
+        if (!st || !(st.y > 80) || Date.now() - st.t > 30 * 60 * 1000) return;
+        var moved = false, tries = 0; ['wheel', 'touchstart', 'keydown'].forEach(function (ev) { window.addEventListener(ev, function () { moved = true; }, { once: true, passive: true }); });
+        var iv = setInterval(function () {
+            if (moved || ++tries > 30) { clearInterval(iv); return; }
+            if (document.documentElement.scrollHeight >= st.y + window.innerHeight * 0.6) { window.scrollTo(0, st.y); if (Math.abs((window.scrollY || 0) - st.y) < 6 && tries > 3) clearInterval(iv); }
+        }, 200);
+    })();
+    </script>
 </body>
 </html>

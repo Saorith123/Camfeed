@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
+  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
 
   // ---------- helpers ----------
   function el(tag, props, kids) {
@@ -422,6 +422,35 @@
 
   // ---------- Sponsored ads (local advertising) ----------
   function setLiveBadge(n) { var b = document.getElementById('tabBtn-live'); if (!b) return; b.textContent = '🔴 Live' + (n > 0 ? '  (' + n + ')' : ''); }
+  function loadSoundsAdmin() {
+    var p = document.getElementById('panel-sounds'); if (!p) return; p.textContent = '';
+    var out = el('div'), form = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:10px;padding:12px;margin-bottom:12px;max-width:560px' }), list = el('div');
+    p.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Music for Stories. Only add songs you are ALLOWED to use (royalty-free / your own / licensed). People pick these sounds in the Story maker. Upload an .mp3 or .m4a (up to 100 MB).' }));
+    var title = el('input', { class: 'at-in', maxlength: '100', placeholder: 'Song name' }), artist = el('input', { class: 'at-in', maxlength: '80', placeholder: 'Artist (optional)' });
+    var file = el('input', { type: 'file', accept: 'audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/wav,.mp3,.m4a,.aac,.ogg,.wav', style: 'font-size:13px;margin-top:6px' }), st = el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:4px' });
+    var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:8px', text: 'Upload & add', onclick: function () {
+      if (!title.value.trim()) { msg(out, false, '❌ Please write the song name.'); return; } if (!file.files[0]) { msg(out, false, '❌ Please choose the audio file.'); return; }
+      btn.disabled = true; st.textContent = 'Uploading…'; var f = file.files[0], fd = new FormData(); fd.append('user_email', currentUser.email); fd.append('file', f);
+      var dur = 30; try { var au = new Audio(URL.createObjectURL(f)); au.onloadedmetadata = function () { if (isFinite(au.duration)) dur = Math.round(au.duration); }; } catch (e) {}
+      setTimeout(function () {
+        fetch('/api/videos/upload-direct', { method: 'POST', body: fd }).then(function (r) { return r.json(); }).then(function (u) {
+          if (!u.publicUrl) throw new Error(u.error || 'Upload failed');
+          return adm('/api/admin/sounds/add', { title: title.value, artist: artist.value, audioUrl: u.publicUrl, duration: dur });
+        }).then(function (x) { btn.disabled = false; st.textContent = ''; msg(out, x.success, x.success ? '✅ Added' : '❌ ' + (x.error || 'Failed')); if (x.success) loadSoundsAdmin(); })
+          .catch(function (e) { btn.disabled = false; st.textContent = ''; msg(out, false, '❌ ' + (e.message || 'Upload failed')); });
+      }, 600);
+    } });
+    [title, artist, file, st, btn].forEach(function (x) { form.appendChild(x); }); p.appendChild(form); p.appendChild(out); p.appendChild(list); list.appendChild(empty('Loading…'));
+    adm('/api/admin/sounds', {}).then(function (d) {
+      list.textContent = ''; if (!d.success) { list.appendChild(empty(d.error || 'Could not load.')); return; } if (!d.sounds.length) { list.appendChild(empty('No sounds yet.')); return; }
+      d.sounds.forEach(function (sn) {
+        var tg = el('button', { class: 'btn-sm ' + (sn.active ? 'btn-red' : 'btn-blue'), text: sn.active ? 'Turn off' : 'Turn on', onclick: function () { adm('/api/admin/sounds/toggle', { id: sn.id, active: !sn.active }).then(function () { loadSoundsAdmin(); }); } });
+        var au = el('audio', { controls: 'controls', preload: 'none', src: sn.url, style: 'height:32px;max-width:220px' });
+        list.appendChild(el('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #e4e6eb;border-radius:10px;padding:8px 12px;margin-bottom:6px' }, [
+          el('div', { style: 'flex:1;min-width:140px' }, [el('b', { text: (sn.active ? '' : '⛔ ') + sn.title }), el('div', { style: 'font-size:12px;color:#65676b', text: (sn.artist ? sn.artist + ' · ' : '') + sn.duration + 's · used ' + sn.uses + '×' })]), au, tg]));
+      });
+    });
+  }
   function loadLiveAdmin() {
     var p = document.getElementById('panel-live'); if (!p) return; p.textContent = '';
     var out = el('div'), reqBox = el('div'), box = el('div'); p.appendChild(out); p.appendChild(reqBox); p.appendChild(box); box.appendChild(empty('Loading…'));
@@ -554,7 +583,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin();
+    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin();
   };
   window.onAdminUnlocked = function () { switchAdminTab('overview'); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();

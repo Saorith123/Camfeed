@@ -346,6 +346,9 @@ pool.connect(async (err, client, release) => {
     await pool.query("CREATE TABLE IF NOT EXISTS live_requests (id SERIAL PRIMARY KEY, user_email TEXT NOT NULL UNIQUE, status VARCHAR(10) NOT NULL DEFAULT 'pending', purpose VARCHAR(20), message TEXT, link TEXT, channel_name TEXT, requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT, blocked BOOLEAN NOT NULL DEFAULT FALSE)").catch(() => {});
     await pool.query('ALTER TABLE live_streams ADD COLUMN IF NOT EXISTS display_name TEXT').catch(() => {});
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS live_blocked BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
+    await pool.query("CREATE TABLE IF NOT EXISTS sounds (id SERIAL PRIMARY KEY, title TEXT NOT NULL, artist TEXT, audio_url TEXT NOT NULL, cover_url TEXT, duration INTEGER NOT NULL DEFAULT 30, active BOOLEAN NOT NULL DEFAULT TRUE, uses INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())").catch(() => {});
+    await pool.query('CREATE TABLE IF NOT EXISTS saved_sounds (user_email TEXT NOT NULL, sound_id INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, sound_id))').catch(() => {});
+    await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories (expires_at)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS story_views (story_id INTEGER NOT NULL, viewer_email TEXT NOT NULL, viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (story_id, viewer_email))').catch(() => {});
@@ -3109,7 +3112,14 @@ app.post('/api/stories', async (req, res) => {
     const bg = STORY_BG.includes(b.bg) ? b.bg : 'blue', privacy = b.privacy === 'friends' ? 'friends' : 'public';
     const active = Number((await pool.query('SELECT COUNT(*) AS n FROM stories WHERE user_email = $1 AND expires_at > NOW()', [email])).rows[0].n);
     if (active >= 30) return res.status(429).json({ success: false, error: 'You already have 30 stories today. Please wait until some of them disappear.' });
-    const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours') RETURNING id", [email, type, url, caption || null, bg, privacy]);
+    let soundId = null, sStart = 0, sLen = 15;
+    if (b.soundId) {
+      const sd = (await pool.query('SELECT id, duration FROM sounds WHERE id = $1 AND active = TRUE', [parseInt(b.soundId, 10) || 0])).rows[0];
+      if (!sd) return res.status(400).json({ success: false, error: 'This sound is not available any more. Please choose another.' });
+      soundId = sd.id; sLen = Math.min(Math.max(parseInt(b.soundLen, 10) || 15, 5), 30); sStart = Math.min(Math.max(parseInt(b.soundStart, 10) || 0, 0), Math.max(0, sd.duration - 5));
+    }
+    const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at, sound_id, sound_start, sound_len) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours', $7, $8, $9) RETURNING id", [email, type, url, caption || null, bg, privacy, soundId, sStart, sLen]);
+    if (soundId) pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [soundId]).catch(() => {});
     res.status(201).json({ success: true, id: r.rows[0].id });
   } catch (err) { console.error('[story] create error:', err.message); res.status(500).json({ success: false, error: 'Could not post your story.' }); }
 });
@@ -3120,8 +3130,10 @@ app.get('/api/stories/feed', async (req, res) => {
     const r = await pool.query(
       `SELECT s.id, s.user_email, s.media_type, s.media_url, s.caption, s.bg, s.privacy, s.created_at, s.expires_at, u.first_name, u.last_name, u.profile_pic,
               (v.story_id IS NOT NULL) AS seen, rx.emoji AS my_reaction,
-              (SELECT COUNT(*) FROM story_views sv WHERE sv.story_id = s.id)::int AS views, (SELECT COUNT(*) FROM story_reactions sr WHERE sr.story_id = s.id)::int AS reactions
+              (SELECT COUNT(*) FROM story_views sv WHERE sv.story_id = s.id)::int AS views, (SELECT COUNT(*) FROM story_reactions sr WHERE sr.story_id = s.id)::int AS reactions,
+              sd.id AS snd_id, sd.title AS snd_title, sd.artist AS snd_artist, sd.audio_url AS snd_url, s.sound_start, s.sound_len
        FROM stories s JOIN users u ON u.email = s.user_email
+       LEFT JOIN sounds sd ON sd.id = s.sound_id AND sd.active = TRUE
        LEFT JOIN story_views v ON v.story_id = s.id AND v.viewer_email = $1
        LEFT JOIN story_reactions rx ON rx.story_id = s.id AND rx.viewer_email = $1
        WHERE s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$1')}
@@ -3133,7 +3145,7 @@ app.get('/api/stories/feed', async (req, res) => {
       let g = groups.get(x.user_email);
       if (!g) { g = { user_email: x.user_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', mine: x.user_email === me, allSeen: true, latest: 0, stories: [] }; groups.set(x.user_email, g); }
       const mine = x.user_email === me;
-      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
+      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', sound: x.snd_id ? { id: x.snd_id, title: x.snd_title, artist: x.snd_artist || '', url: x.snd_url, start: x.sound_start, len: x.sound_len } : null, views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
       if (!x.seen && !mine) g.allSeen = false;
       g.latest = Math.max(g.latest, new Date(x.created_at).getTime());
     }
@@ -3215,6 +3227,53 @@ async function sweepStories() {
   } catch (err) { console.error('[story] sweep error:', err.message); }
 }
 setTimeout(sweepStories, 2 * 60 * 1000); setInterval(sweepStories, 60 * 60 * 1000);
+
+// ---- Sounds (music for Stories): a library the admin fills, search, and "saved" sounds per person ----
+app.get('/api/sounds', async (req, res) => {
+  const me = req.authEmail, q = String(req.query.q || '').trim().slice(0, 60), tab = req.query.tab === 'saved' ? 'saved' : 'all';
+  try {
+    const r = await pool.query(
+      `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, (ss.sound_id IS NOT NULL) AS saved
+       FROM sounds sd LEFT JOIN saved_sounds ss ON ss.sound_id = sd.id AND ss.user_email = $1
+       WHERE sd.active = TRUE AND ($2 = '' OR sd.title ILIKE '%' || $2 || '%' OR COALESCE(sd.artist, '') ILIKE '%' || $2 || '%')
+         AND ($3 = 'all' OR ss.sound_id IS NOT NULL)
+       ORDER BY (CASE WHEN $3 = 'saved' THEN ss.created_at ELSE sd.created_at END) DESC, sd.uses DESC, sd.id DESC LIMIT 80`, [me, likeEsc(q), tab]);
+    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.title, artist: x.artist || '', url: x.audio_url, cover: x.cover_url || '', duration: x.duration, uses: x.uses, saved: !!x.saved })) });
+  } catch (err) { res.status(500).json({ success: false, sounds: [] }); }
+});
+app.post('/api/sounds/:id/save', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail; if (!id) return res.status(400).json({ success: false });
+    const ex = (await pool.query('SELECT 1 FROM saved_sounds WHERE user_email = $1 AND sound_id = $2', [me, id])).rows[0];
+    if (ex) { await pool.query('DELETE FROM saved_sounds WHERE user_email = $1 AND sound_id = $2', [me, id]); return res.json({ success: true, saved: false }); }
+    const have = Number((await pool.query('SELECT COUNT(*) AS n FROM saved_sounds WHERE user_email = $1', [me])).rows[0].n);
+    if (have >= 200) return res.status(400).json({ success: false, error: 'You can save up to 200 sounds.' });
+    const ok = (await pool.query('SELECT 1 FROM sounds WHERE id = $1 AND active = TRUE', [id])).rows[0]; if (!ok) return res.status(404).json({ success: false });
+    await pool.query('INSERT INTO saved_sounds (user_email, sound_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [me, id]);
+    res.json({ success: true, saved: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+app.post('/api/admin/sounds', async (req, res) => {
+  try { const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query('SELECT id, title, artist, audio_url, duration, active, uses, created_at FROM sounds ORDER BY id DESC LIMIT 200');
+    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.title, artist: x.artist || '', url: x.audio_url, duration: x.duration, active: x.active, uses: x.uses })) });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+app.post('/api/admin/sounds/add', async (req, res) => {
+  try { const a = await adminGate(req, res); if (!a) return; const b = req.body || {};
+    const title = String(b.title || '').trim().slice(0, 100), artist = String(b.artist || '').trim().slice(0, 80), url = String(b.audioUrl || ''), dur = Math.min(Math.max(parseInt(b.duration, 10) || 30, 6), 600);
+    if (!title) return res.status(400).json({ success: false, error: 'Please write the song name.' });
+    if (!url.startsWith(storyMediaBase()) || /[\s"'<>`\\]/.test(url) || url.length > 500) return res.status(400).json({ success: false, error: 'Please upload the audio file first.' });
+    const r = await pool.query('INSERT INTO sounds (title, artist, audio_url, duration, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id', [title, artist || null, url, dur, a.adminEmail]);
+    audit(a.adminEmail, 'sound-add', String(r.rows[0].id), title); res.json({ success: true, id: r.rows[0].id });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+app.post('/api/admin/sounds/toggle', async (req, res) => {
+  try { const a = await adminGate(req, res); if (!a) return; const id = parseInt((req.body || {}).id, 10), on = (req.body || {}).active === true;
+    const r = await pool.query('UPDATE sounds SET active = $2 WHERE id = $1 RETURNING id', [id, on]); if (!r.rows[0]) return res.status(404).json({ success: false });
+    audit(a.adminEmail, on ? 'sound-on' : 'sound-off', String(id), ''); res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
 
 // ---- Live video (Cloudflare Stream; only approved Creators; not recorded) ----
 const LIVE_EMOJI = ['❤️', '😂', '😮', '😢', '👏', '🔥'];
