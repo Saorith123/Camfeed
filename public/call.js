@@ -120,7 +120,7 @@
   function getIce() {
     if (S.iceCache && Date.now() - S.iceAt < 10 * 60 * 1000) return Promise.resolve(S.iceCache);
     return api('/api/calls/ice').then(function (j) {
-      S.iceCache = (j && j.iceServers) || [{ urls: 'stun:stun.l.google.com:19302' }]; S.iceAt = Date.now(); return S.iceCache;
+      S.iceCache = (j && j.iceServers) || [{ urls: 'stun:stun.l.google.com:19302' }]; S.turn = !!(j && j.turn); S.iceAt = Date.now(); return S.iceCache;
     }).catch(function () { return [{ urls: 'stun:stun.l.google.com:19302' }]; });
   }
   function makePC(servers, kind) {
@@ -141,8 +141,8 @@
     pc.onconnectionstatechange = function () {
       var st = pc.connectionState;
       if (st === 'connected') { clearTimeout(dis); onConnected(); }
-      else if (st === 'disconnected') { setStatus('កំពុងតភ្ជាប់ឡើងវិញ…'); clearTimeout(dis); dis = setTimeout(function () { if (S.pc === pc && pc.connectionState !== 'connected') hangup(true, 'ការតភ្ជាប់ដាច់'); }, 9000); }
-      else if (st === 'failed') { hangup(true, 'ការតភ្ជាប់បរាជ័យ (បណ្ដាញមិនអនុញ្ញាត)'); }
+      else if (st === 'disconnected') { setStatus('កំពុងតភ្ជាប់ឡើងវិញ…'); clearTimeout(dis); dis = setTimeout(function () { if (S.pc === pc && pc.connectionState !== 'connected') hangup(true, 'ការតភ្ជាប់ដាច់ · TURN ' + (S.turn ? 'មាន' : 'គ្មាន')); }, 9000); }
+      else if (st === 'failed') { hangup(true, 'ការតភ្ជាប់បរាជ័យ · TURN ' + (S.turn ? 'មាន' : 'គ្មាន')); }
     };
     S.local.getTracks().forEach(function (t) { pc.addTrack(t, S.local); });
     return pc;
