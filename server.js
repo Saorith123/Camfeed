@@ -2278,6 +2278,38 @@ app.get('/api/settings/activity', async (req, res) => {
   }
 });
 
+// ---- "People you may know": people followed by (or following) the people I follow, most shared connections first
+app.get('/api/people-suggestions', async (req, res) => {
+  const me = req.authEmail; if (!me) return res.json({ success: true, people: [] });
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 20);
+  const sql = (withDismissed) => `
+    WITH mine AS (SELECT following_email AS e FROM follows WHERE follower_email = $1),
+    cand AS (
+      SELECT f.following_email AS cand_email, f.follower_email AS via FROM follows f WHERE f.follower_email IN (SELECT e FROM mine)
+      UNION
+      SELECT f.follower_email, f.following_email FROM follows f WHERE f.following_email IN (SELECT e FROM mine)
+    ),
+    m AS (SELECT cand_email, COUNT(DISTINCT via) AS mutual FROM cand WHERE cand_email <> $1 GROUP BY cand_email)
+    SELECT u.email, u.first_name, u.last_name, u.profile_pic, COALESCE(m.mutual, 0)::int AS mutual,
+           (SELECT COALESCE(json_agg(x.profile_pic), '[]'::json) FROM (SELECT DISTINCT mu.profile_pic FROM cand c2 JOIN users mu ON mu.email = c2.via WHERE c2.cand_email = u.email AND COALESCE(mu.profile_pic, '') <> '' LIMIT 3) x) AS mutual_pics
+    FROM users u LEFT JOIN m ON m.cand_email = u.email
+    WHERE u.email <> $1 AND COALESCE(u.is_banned, FALSE) = FALSE
+      AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = u.email)
+      AND u.email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
+      ${withDismissed ? 'AND u.email NOT IN (SELECT dismissed_email FROM dismissed_suggestions WHERE user_email = $1)' : ''}
+    ORDER BY (m.mutual IS NULL), m.mutual DESC NULLS LAST, RANDOM()
+    LIMIT ${limit}`;
+  try {
+    let r;
+    try { r = await pool.query(sql(true), [me]); }
+    catch (e) { if (e.code === '42P01') r = await pool.query(sql(false), [me]); else throw e; }
+    res.json({ success: true, people: r.rows });
+  } catch (err) {
+    console.error('people-suggestions:', err.message);
+    res.json({ success: true, people: [] });
+  }
+});
+
 app.post('/api/suggestions/dismiss', async (req, res) => {
   const email = req.authEmail;
   const targetEmail = String((req.body && req.body.targetEmail) || '').trim();

@@ -575,6 +575,22 @@
 
         /* YouTube-Style Sleek Modern Video Player Controls (Smooth Playback & Instant Audio Unlock) */
 
+
+        .pymk-block { background: #fff; margin: 8px 0; padding: 12px 0 8px; border-top: 8px solid #f0f2f5; border-bottom: 8px solid #f0f2f5; }
+        .pymk-head { display: flex; align-items: center; justify-content: space-between; padding: 0 14px 10px; }
+        .pymk-title { font-weight: 800; font-size: 17px; color: #050505; }
+        .pymk-x { background: none; border: 0; font-size: 20px; color: #65676b; cursor: pointer; padding: 4px 8px; }
+        .pymk-row { display: flex; gap: 10px; overflow-x: auto; padding: 0 14px 6px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+        .pymk-card { flex: 0 0 168px; scroll-snap-align: start; border: 1px solid #dddfe2; border-radius: 12px; overflow: hidden; background: #fff; }
+        .pymk-pic { width: 100%; height: 168px; object-fit: cover; display: block; background: #e4e6eb; cursor: pointer; }
+        .pymk-name { font-weight: 700; font-size: 15px; padding: 8px 10px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pymk-mutual { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: #65676b; padding: 3px 10px 8px; min-height: 22px; }
+        .pymk-mini { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; margin-right: -4px; border: 1px solid #fff; }
+        .pymk-btns { display: flex; flex-direction: column; gap: 6px; padding: 0 10px 10px; }
+        .pymk-add, .pymk-rm { border: 0; border-radius: 8px; padding: 9px; font-weight: 700; font-size: 14px; cursor: pointer; }
+        .pymk-add { background: #1877f2; color: #fff; } .pymk-add.done { background: #e4e6eb; color: #050505; }
+        .pymk-rm { background: #e4e6eb; color: #050505; }
+        .pymk-all { display: block; text-align: center; padding: 10px; font-weight: 700; color: #65676b; text-decoration: none; }
         /* Feed videos have no control bar: tap = open the Reels viewer; only a small volume button stays */
         .feed-video-controls-bar, .feed-video-center-play, .feed-video-wrap:hover .feed-video-controls-bar { display: none !important; }
         .feed-video-wrap .vg-skip { display: none !important; }
@@ -3951,6 +3967,74 @@
             }
             return { best, bestIdx };
         }
+
+
+        // ---------- "People you may know" block inside the feed (after the 5th post) ----------
+        let cachedPeople = [], cachedPeopleAt = 0, pymkHidden = false;
+        async function loadPeopleSuggestions(force) {
+            if (!force && Date.now() - cachedPeopleAt < 180000) return;
+            try {
+                const d = await (await fetch('/api/people-suggestions?limit=12')).json();
+                cachedPeople = (d && d.success && Array.isArray(d.people)) ? d.people : [];
+                cachedPeopleAt = Date.now();
+                ensurePeopleBlock();
+            } catch (e) { /* the feed works without it */ }
+        }
+        function pymkText() {
+            return (localStorage.getItem('camfeed_lang') || 'en') === 'km'
+                ? { title: 'មនុស្សដែលអ្នកអាចស្គាល់', follow: 'តាមដាន', following: 'កំពុងតាមដាន ✓', remove: 'លុបចេញ', all: 'មើលទាំងអស់', mutual: (n) => 'មិត្តរួម ' + n + ' នាក់', sug: 'ណែនាំសម្រាប់អ្នក' }
+                : { title: 'People you may know', follow: 'Follow', following: 'Following ✓', remove: 'Remove', all: 'See all', mutual: (n) => n + ' mutual friend' + (n === 1 ? '' : 's'), sug: 'Suggested for you' };
+        }
+        function ensurePeopleBlock() {
+            const box = document.getElementById('postsContainer');
+            if (!box || pymkHidden || !cachedPeople.length || document.getElementById('pymkBlock')) return;
+            const posts = box.querySelectorAll(':scope > .post-item');
+            if (posts.length < 5) return;
+            const tx = pymkText();
+            const wrap = document.createElement('div');
+            wrap.id = 'pymkBlock'; wrap.className = 'pymk-block';
+            const head = document.createElement('div'); head.className = 'pymk-head';
+            const h = document.createElement('div'); h.className = 'pymk-title'; h.textContent = '👥 ' + tx.title;
+            const x = document.createElement('button'); x.type = 'button'; x.className = 'pymk-x'; x.textContent = '✕';
+            x.addEventListener('click', () => { pymkHidden = true; wrap.remove(); });
+            head.appendChild(h); head.appendChild(x); wrap.appendChild(head);
+            const row = document.createElement('div'); row.className = 'pymk-row';
+            cachedPeople.forEach((p) => {
+                const card = document.createElement('div'); card.className = 'pymk-card';
+                const pic = document.createElement('img'); pic.className = 'pymk-pic'; pic.loading = 'lazy'; pic.src = p.profile_pic || 'https://via.placeholder.com/160';
+                pic.addEventListener('click', () => { window.location.href = 'profile.html?email=' + encodeURIComponent(p.email); });
+                const nm = document.createElement('div'); nm.className = 'pymk-name notranslate'; nm.setAttribute('translate', 'no'); nm.textContent = ((p.first_name || '') + ' ' + (p.last_name || '')).trim();
+                const mu = document.createElement('div'); mu.className = 'pymk-mutual';
+                if (p.mutual > 0) {
+                    (Array.isArray(p.mutual_pics) ? p.mutual_pics.slice(0, 2) : []).forEach((u) => { const a = document.createElement('img'); a.src = u; a.className = 'pymk-mini'; mu.appendChild(a); });
+                    mu.appendChild(document.createTextNode(tx.mutual(p.mutual)));
+                } else mu.textContent = tx.sug;
+                const bar = document.createElement('div'); bar.className = 'pymk-btns';
+                const add = document.createElement('button'); add.type = 'button'; add.className = 'pymk-add'; add.textContent = tx.follow;
+                add.addEventListener('click', async () => {
+                    if (add.disabled) return; add.disabled = true;
+                    try {
+                        const r = await (await fetch('/api/follow', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ followerEmail: currentUser.email, followingEmail: p.email, action: 'follow' }) })).json();
+                        if (r.success) { add.textContent = tx.following; add.classList.add('done'); rm.style.display = 'none'; } else add.disabled = false;
+                    } catch (e) { add.disabled = false; }
+                });
+                const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'pymk-rm'; rm.textContent = tx.remove;
+                rm.addEventListener('click', async () => {
+                    rm.disabled = true;
+                    try {
+                        const r = await (await fetch('/api/suggestions/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: currentUser.email, targetEmail: p.email }) })).json();
+                        if (r.success) { cachedPeople = cachedPeople.filter((q) => q.email !== p.email); card.remove(); if (!row.children.length) wrap.remove(); } else rm.disabled = false;
+                    } catch (e) { rm.disabled = false; }
+                });
+                bar.appendChild(add); bar.appendChild(rm);
+                card.appendChild(pic); card.appendChild(nm); card.appendChild(mu); card.appendChild(bar); row.appendChild(card);
+            });
+            wrap.appendChild(row);
+            const all = document.createElement('a'); all.className = 'pymk-all'; all.href = 'friends.html'; all.textContent = tx.all + ' ›'; wrap.appendChild(all);
+            posts[4].insertAdjacentElement('afterend', wrap);
+        }
+        { const _renderPostsBase = renderPosts; renderPosts = function (posts, containerId, append) { _renderPostsBase(posts, containerId, append); if (containerId === 'postsContainer') { if (!append) loadPeopleSuggestions(false); ensurePeopleBlock(); } }; }
+        setTimeout(() => loadPeopleSuggestions(true), 1500);
 
         function evaluateCenterFeedVideo() {
             if (typeof reelsOpen !== 'undefined' && reelsOpen) return;

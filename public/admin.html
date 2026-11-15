@@ -434,6 +434,26 @@
             });
         }
 
+        // show the real picture / video right inside the table (https links only)
+        function adminMediaPreview(p) {
+            const safe = (u) => /^https:\/\//i.test(String(u || '')) ? String(u) : '';
+            const one = (u, type) => {
+                const url = safe(u); if (!url) return '';
+                const isVid = type === 'video' || /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
+                return isVid
+                    ? `<video src="${esc(url)}" controls preload="metadata" playsinline style="max-width:260px; max-height:200px; border-radius:8px; background:#000; display:block; margin-top:6px;"></video>`
+                    : `<a href="${esc(url)}" target="_blank"><img src="${esc(url)}" loading="lazy" style="max-width:240px; max-height:200px; border-radius:8px; display:block; margin-top:6px; object-fit:cover;"></a>`;
+            };
+            const mu = String(p.media_url || '');
+            if (!mu) return '';
+            if (mu.trim().startsWith('[')) {
+                try { const items = JSON.parse(mu); if (Array.isArray(items)) return `<div style="display:flex; flex-wrap:wrap; gap:6px;">${items.slice(0, 6).map((it) => one(it.url, it.type)).join('')}</div>${items.length > 6 ? `<div style="font-size:12px;color:#65676b;">+${items.length - 6} more</div>` : ''}`; } catch (e) {}
+                return '';
+            }
+            if (p.media_type === 'styled_text') return '';
+            return one(mu, p.media_type);
+        }
+
         function renderPostsTable(posts) {
             const tbody = document.getElementById('postsTableBody');
             tbody.innerHTML = posts.map(p => `
@@ -444,7 +464,7 @@
                     </td>
                     <td>
                         <div style="max-width:340px; white-space:pre-wrap;">${esc(p.content || '[No caption]')}</div>
-                        ${p.media_url && !p.media_url.startsWith('[') ? `<a href="${p.media_url}" target="_blank" style="font-size:12px; color:#1877f2;">View ${esc(p.media_type)}</a>` : ''}
+                        ${adminMediaPreview(p)}
                     </td>
                     <td>#${esc(p.ai_category || 'General')} · 👁️ ${p.views_count || 0}</td>
                     <td>
