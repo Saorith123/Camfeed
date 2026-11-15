@@ -332,7 +332,7 @@
         var acts = el('td', {}, r.status === 'pending' ? [el('button', { class: 'btn-sm btn-green', text: 'Approve', onclick: function () { decide('approved', false); } }), el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { decide('rejected', true); } })]
           : [el('button', { class: 'btn-sm btn-gray', text: 'Reset to pending', onclick: function () { decide('pending', false); } })]);
         function stat(have, need) { return el('td', { text: Number(have).toLocaleString() + ' / ' + Number(need).toLocaleString(), style: have >= need ? 'color:#176f35;font-weight:700' : '' }); }
-        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(r) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: r.public_id || '' })]), stat(r.followers_count, c.followers), stat(r.total_views, c.views), stat(r.posts_count, c.posts), stat(r.age_days, c.ageDays), el('td', { text: money(r.balance) }),
+        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(r) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: r.public_id || '' }), r.message ? el('div', { style: 'font-size:12px;margin-top:4px;max-width:240px;white-space:normal', text: '“' + r.message + '”' }) : el('span')]), stat(r.followers_count, c.followers), stat(r.total_views, c.views), stat(r.posts_count, c.posts), stat(r.age_days, c.ageDays), el('td', { text: money(r.balance) }),
           el('td', {}, [statusBadge(r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: (r.decided_by ? 'by ' + r.decided_by + ' · ' : '') + (r.note || '') }), acts]);
       })));
     });

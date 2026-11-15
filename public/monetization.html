@@ -145,10 +145,13 @@ Object.assign(T.en, { mTopUp: '📱 Phone top-up card', mWingCash: '🟢 Wing ca
 Object.assign(T.km, { postsTitle: '📊 ទិន្នន័យប្រកាសរបស់ខ្ញុំ', pViews: 'ចំនួនមើល', pEarn: 'ប្រាក់ប៉ាន់ស្មាន', pEng: 'អន្តរកម្ម', pLikes: 'ចូលចិត្ត', pComments: 'មតិ', pShares: 'ចែករំលែក', pNone: 'មិនទាន់មានប្រកាស', pNote: 'ទទួលបានប្រាក់ពីចំនួនមើលថ្មីៗ (ក្រោយពេលអ្នកក្លាយជា Creator)។ ចំនួនប្រាក់ជាការប៉ាន់ស្មាន ហើយមានកម្រិតអតិបរមាក្នុងមួយថ្ងៃ។ ប្រាក់ត្រូវបញ្ចូលក្នុងកាបូបដោយស្វ័យប្រវត្តិ។', pRate: 'តម្លៃបច្ចុប្បន្ន៖ $' });
 Object.assign(T.en, { postsTitle: '📊 My post insights', pViews: 'Views', pEarn: 'Approximate earnings', pEng: 'Engagement', pLikes: 'Likes', pComments: 'Comments', pShares: 'Shares', pNone: 'No posts yet', pNote: 'You earn from new views after you became a Creator. Amounts are approximate and there is a daily limit. Earnings are added to your wallet automatically.', pRate: 'Current rate: $' });
 
-T.km.soon = '🎬 អ្នកអាចរកលុយតាមរយៈវីដេអូ ឬរូបភាពដែលអ្នកបង្ហោះ។ ប៉ុន្តែពេលនេះ CamFeed ផ្តល់សិទ្ធិនេះសម្រាប់តែអ្នកដែលទទួលបានការអញ្ជើញពីយើងប៉ុណ្ណោះ ព្រោះអ្នកប្រើប្រាស់នៅមិនទាន់ច្រើន។ នៅពេលមានអ្នកប្រើច្រើន យើងនឹងបើកឲ្យមនុស្សគ្រប់គ្នា។';
-T.en.soon = '🎬 You can earn money from the videos or photos you post. For now, CamFeed gives this right only to people we have invited, because we do not have many users yet. When more people join, we will open it to everyone.';
+T.km.soon = '🎬 អ្នកអាចរកលុយតាមរយៈវីដេអូ ឬរូបភាពដែលអ្នកបង្ហោះ។ ប៉ុន្តែពេលនេះ CamFeed ផ្តល់សិទ្ធិនេះសម្រាប់តែអ្នកដែលទទួលបានការអញ្ជើញពីយើងប៉ុណ្ណោះ។';
+T.en.soon = '🎬 You can earn money from the videos or photos you post. For now, CamFeed gives this right only to people we have invited.';
 T.km.approved = '🎉 អបអរសាទរ! CamFeed បានអញ្ជើញអ្នកឲ្យមានសិទ្ធិរកលុយ។ អ្នកអាចរកលុយពីវីដេអូ ឬរូបភាពដែលអ្នកបង្ហោះ ហើយប្រាក់ចូលកាបូបរបស់អ្នក។ សិទ្ធិនេះសម្រាប់តែអ្នកដែលទទួលបានការអញ្ជើញប៉ុណ្ណោះ។';
 T.en.approved = '🎉 Congratulations! CamFeed has invited you to earn money. You can earn from the videos or photos you post, and the money goes into your wallet. This right is only for invited members.';
+
+Object.assign(T.km, { reqLbl: 'សរសេរសំណើរបស់អ្នក (អ្នកជានរណា បង្ហោះមាតិកាអ្វី)', reqPh: 'ឧ. ខ្ញុំបង្ហោះវីដេអូកំប្លែង និងរូបភាពធ្វើម្ហូបរាល់ថ្ងៃ…', reqShort: 'សូមសរសេរសំណើខ្លីៗ (យ៉ាងតិច 10 តួអក្សរ)។' });
+Object.assign(T.en, { reqLbl: 'Write your request (who you are, what you post)', reqPh: 'e.g. I post funny videos and cooking photos every day…', reqShort: 'Please write a short request (at least 10 letters).' });
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
 var t = function (k) { return T[lang][k] !== undefined ? T[lang][k] : T.en[k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -187,16 +190,16 @@ function render() {
   $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
   var box = $('monetizationStatusContainer'); box.textContent = '';
-  if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));   // invited by an admin: works even while the public program is still "coming soon"
-  else if (!d.creatorProgramOpen) box.appendChild(el('div', { class: 'status-banner status-pending' }, t('soon')));
+  if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));   // invited by an admin
   else if (d.applicationStatus === 'pending') box.appendChild(el('div', { class: 'status-banner status-pending' }, t('pending')));
   else {
+    box.appendChild(el('div', { class: 'status-banner status-pending', style: 'margin-bottom:12px' }, t('soon')));
     if (d.applicationStatus === 'rejected') { var rb = el('div', { class: 'status-banner status-rejected', style: 'margin-bottom:12px' }, t('rejected') + (d.applicationNote ? ' ' + t('reason') + ' ' + d.applicationNote : '') + ' ' + t('again')); box.appendChild(rb); }
     var list = el('div', { class: 'criteria-list' }), c = d.criteria;
     [['cFollowers', d.followersCount, c.followers], ['cViews', d.totalViews, c.views], ['cPosts', d.postsCount, c.posts], ['cAge', d.accountAgeDays, c.ageDays]].forEach(function (x) {
       var ok = x[1] >= x[2]; var row = el('div', { class: 'criteria-item' }); row.appendChild(el('span', {}, t(x[0]) + ' ≥ ' + Number(x[2]).toLocaleString())); row.appendChild(el('span', { class: 'criteria-badge ' + (ok ? 'badge-pass' : 'badge-pending') }, Number(x[1]).toLocaleString() + ' / ' + Number(x[2]).toLocaleString())); list.appendChild(row);
     });
-    box.appendChild(list); var area = el('div', { style: 'margin-top:14px' }); var btn = el('button', { type: 'button', class: 'btn-primary', id: 'applyMonetizeBtn' }, t('apply')); btn.disabled = !d.eligible || d.applicationStatus === 'rejected' && false; btn.addEventListener('click', apply); area.appendChild(btn); box.appendChild(area);
+    box.appendChild(list); var area = el('div', { style: 'margin-top:14px' }); var btn = el('button', { type: 'button', class: 'btn-primary', id: 'applyMonetizeBtn' }, t('apply'));  btn.addEventListener('click', apply); area.appendChild(el('div', { class: 'mz-lbl' }, t('reqLbl'))); var ta = el('textarea', { class: 'mz-in', id: 'applyMsg', rows: '4', maxlength: '500', placeholder: t('reqPh') }); area.appendChild(ta); btn.style.marginTop = '10px'; area.appendChild(btn); box.appendChild(area);
   }
   var h = $('historyBox'); h.textContent = '';
   var rows = [];
@@ -265,7 +268,7 @@ async function loadPosts() {
   });
 }
 async function load() { var d = await api('/api/monetization/status?email=' + encodeURIComponent(currentUser.email)); if (d.success) { data = d; render(); loadPosts(); } else msg(false, d.error || t('net')); }
-async function apply() { if (!confirm(t('apply') + '?')) return; var b = $('applyMonetizeBtn'); b.disabled = true; b.textContent = t('applying'); var d = await api('/api/monetization/apply', {}); if (d.success) { msg(true, t('sent')); } else msg(false, d.error || t('net')); load(); }
+async function apply() { if ((($('applyMsg') || {}).value || '').trim().length < 10) return msg(false, t('reqShort')); if (!confirm(t('apply') + '?')) return; var b = $('applyMonetizeBtn'); b.disabled = true; b.textContent = t('applying'); var d = await api('/api/monetization/apply', { message: ($('applyMsg') || {}).value || '' }); if (d.success) { msg(true, t('sent')); } else msg(false, d.error || t('net')); load(); }
 $('copyBtn').addEventListener('click', function () { var i = $('refLinkInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copied')); });
 $('copyCodeBtn').addEventListener('click', function () { var i = $('refCodeInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copiedCode')); });
 $('withdrawBtn').addEventListener('click', function () {

@@ -333,6 +333,7 @@ pool.connect(async (err, client, release) => {
       await pool.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS ' + col).catch(() => {});
     }
     await pool.query('CREATE TABLE IF NOT EXISTS referrals (referred_email TEXT PRIMARY KEY, referrer_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+    await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS message TEXT').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_settings (key VARCHAR(40) PRIMARY KEY, value TEXT)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_earn (user_email TEXT PRIMARY KEY, carry_cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS post_earn (post_id INTEGER PRIMARY KEY, user_email TEXT NOT NULL, views_seen INTEGER NOT NULL DEFAULT 0, cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
@@ -3233,16 +3234,15 @@ app.get('/api/monetization/status', async (req, res) => {
 
 app.post('/api/monetization/apply', async (req, res) => {
   try {
-    if (process.env.CREATOR_PROGRAM_OPEN !== 'true') return res.status(403).json({ success: false, comingSoon: true, error: 'Earning money from videos is coming soon.' });
     const email = req.authEmail, rules = creatorRules();
     const cur = (await pool.query('SELECT status, decided_at FROM creator_applications WHERE user_email = $1', [email])).rows[0];
     if (cur && cur.status === 'approved') return res.status(409).json({ success: false, error: 'You are already in the Creator Program.' });
     if (cur && cur.status === 'pending') return res.status(409).json({ success: false, error: 'Your application is already waiting for review.' });
     if (cur && cur.status === 'rejected' && cur.decided_at && Date.now() - new Date(cur.decided_at).getTime() < 7 * 86400000) return res.status(429).json({ success: false, error: 'Please wait 7 days after a refusal before applying again.' });
-    const st = await creatorStats(email);
-    if (!meetsRules(st, rules)) return res.status(400).json({ success: false, error: 'You do not meet the requirements yet.', stats: st, criteria: rules });
-    await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note) VALUES ($1, 'pending', NOW(), NULL, NULL, NULL)
-      ON CONFLICT (user_email) DO UPDATE SET status = 'pending', requested_at = NOW(), decided_at = NULL, decided_by = NULL, note = NULL`, [email]);
+    const message = String((req.body || {}).message || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (message.length < 10) return res.status(400).json({ success: false, error: 'Please write a short request (at least 10 letters) so the admin knows you.' });
+    await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note, message) VALUES ($1, 'pending', NOW(), NULL, NULL, NULL, $2)
+      ON CONFLICT (user_email) DO UPDATE SET status = 'pending', requested_at = NOW(), decided_at = NULL, decided_by = NULL, note = NULL, message = $2`, [email, message]);
     res.json({ success: true });
   } catch (err) { console.error('[monetization] apply error:', err.message); res.status(500).json({ success: false, error: 'Could not send your application.' }); }
 });
@@ -3322,7 +3322,7 @@ app.post('/api/admin/monetization-requests', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
     const r = await pool.query(
-      `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, u.first_name, u.last_name, u.profile_pic, u.public_id,
+      `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, ca.message, u.first_name, u.last_name, u.profile_pic, u.public_id,
               (SELECT COUNT(*) FROM follows f WHERE f.following_email = ca.user_email) AS followers_count,
               (SELECT COALESCE(SUM(views_count), 0) FROM posts p WHERE p.user_email = ca.user_email) AS total_views,
               (SELECT COUNT(*) FROM posts p WHERE p.user_email = ca.user_email AND p.shared_post_id IS NULL) AS posts_count,
