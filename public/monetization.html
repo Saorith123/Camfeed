@@ -152,6 +152,11 @@ T.en.approved = '🎉 Congratulations! CamFeed has invited you to earn money. Yo
 
 Object.assign(T.km, { reqLbl: 'សរសេរសំណើរបស់អ្នក (អ្នកជានរណា បង្ហោះមាតិកាអ្វី)', reqPh: 'ឧ. ខ្ញុំបង្ហោះវីដេអូកំប្លែង និងរូបភាពធ្វើម្ហូបរាល់ថ្ងៃ…', reqShort: 'សូមសរសេរសំណើខ្លីៗ (យ៉ាងតិច 10 តួអក្សរ)។' });
 Object.assign(T.en, { reqLbl: 'Write your request (who you are, what you post)', reqPh: 'e.g. I post funny videos and cooking photos every day…', reqShort: 'Please write a short request (at least 10 letters).' });
+
+Object.assign(T.km, { notYet: 'អ្នកត្រូវបំពេញលក្ខខណ្ឌខាងលើឲ្យគ្រប់សិន ទើបអាចស្នើសុំបាន។' });
+Object.assign(T.en, { notYet: 'You must meet all the requirements above before you can apply.' });
+T.km.pending = '⏳ កំពុងត្រួតពិនិត្យសំណើរបស់អ្នក។ បើមិនទាន់មានការអនុម័តក្នុងរយៈពេល 15 ថ្ងៃ អ្នកអាចស្នើសុំម្តងទៀត។';
+T.en.pending = '⏳ Your request is being reviewed. If it is not approved within 15 days, you can apply again.';
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
 var t = function (k) { return T[lang][k] !== undefined ? T[lang][k] : T.en[k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -199,7 +204,7 @@ function render() {
     [['cFollowers', d.followersCount, c.followers], ['cViews', d.totalViews, c.views], ['cPosts', d.postsCount, c.posts], ['cAge', d.accountAgeDays, c.ageDays]].forEach(function (x) {
       var ok = x[1] >= x[2]; var row = el('div', { class: 'criteria-item' }); row.appendChild(el('span', {}, t(x[0]) + ' ≥ ' + Number(x[2]).toLocaleString())); row.appendChild(el('span', { class: 'criteria-badge ' + (ok ? 'badge-pass' : 'badge-pending') }, Number(x[1]).toLocaleString() + ' / ' + Number(x[2]).toLocaleString())); list.appendChild(row);
     });
-    box.appendChild(list); var area = el('div', { style: 'margin-top:14px' }); var btn = el('button', { type: 'button', class: 'btn-primary', id: 'applyMonetizeBtn' }, t('apply'));  btn.addEventListener('click', apply); area.appendChild(el('div', { class: 'mz-lbl' }, t('reqLbl'))); var ta = el('textarea', { class: 'mz-in', id: 'applyMsg', rows: '4', maxlength: '500', placeholder: t('reqPh') }); area.appendChild(ta); btn.style.marginTop = '10px'; area.appendChild(btn); box.appendChild(area);
+    box.appendChild(list); var area = el('div', { style: 'margin-top:14px' }); var btn = el('button', { type: 'button', class: 'btn-primary', id: 'applyMonetizeBtn' }, t('apply'));  btn.addEventListener('click', apply); if (d.eligible) area.appendChild(el('div', { class: 'mz-lbl' }, t('reqLbl'))); var ta = el(d.eligible ? 'textarea' : 'span', { class: 'mz-in', id: 'applyMsg', rows: '4', maxlength: '500', placeholder: t('reqPh') }); if (d.eligible) area.appendChild(ta); btn.style.marginTop = '10px'; btn.disabled = !d.eligible; if (!d.eligible) area.appendChild(el('div', { class: 'mz-note', style: 'margin-top:8px;color:#9b1229' }, t('notYet'))); area.appendChild(btn); box.appendChild(area);
   }
   var h = $('historyBox'); h.textContent = '';
   var rows = [];

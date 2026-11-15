@@ -3128,6 +3128,7 @@ async function creatorStats(email) {
   const x = r.rows[0] || {};
   return { followers: Number(x.followers) || 0, views: Number(x.views) || 0, posts: Number(x.posts) || 0, ageDays: Number(x.age_days) || 0 };
 }
+const expirePendingApps = () => pool.query("DELETE FROM creator_applications WHERE status = 'pending' AND requested_at < NOW() - INTERVAL '15 days'").catch(() => {});   // not approved within 15 days: back to normal, the person may ask again
 const meetsRules = (st, rules) => st.followers >= rules.followers && st.views >= rules.views && st.posts >= rules.posts && st.ageDays >= rules.ageDays;
 async function walletCents(email) {
   const r = await pool.query('SELECT COALESCE(SUM(amount_cents), 0) AS cents FROM wallet_ledger WHERE user_email = $1', [email]);
@@ -3206,6 +3207,7 @@ app.get('/api/monetization/status', async (req, res) => {
   try {
     const email = req.authEmail, rules = creatorRules();
     try { const open = (await pool.query("SELECT referred_email FROM referrals WHERE referrer_email = $1 AND status = 'progress' ORDER BY created_at DESC LIMIT 20", [email])).rows; await Promise.all(open.map((x) => evaluateReferral(x.referred_email).catch(() => {}))); } catch (e) { /* the page still opens */ }
+    await expirePendingApps();
     await syncViewEarnings(email).catch((e) => console.error('[earn] sync error:', e.message));
     const [st, cents, app_, refs, me, wd, led] = await Promise.all([
       creatorStats(email), walletCents(email),
@@ -3235,10 +3237,13 @@ app.get('/api/monetization/status', async (req, res) => {
 app.post('/api/monetization/apply', async (req, res) => {
   try {
     const email = req.authEmail, rules = creatorRules();
+    await expirePendingApps();
     const cur = (await pool.query('SELECT status, decided_at FROM creator_applications WHERE user_email = $1', [email])).rows[0];
     if (cur && cur.status === 'approved') return res.status(409).json({ success: false, error: 'You are already in the Creator Program.' });
     if (cur && cur.status === 'pending') return res.status(409).json({ success: false, error: 'Your application is already waiting for review.' });
     if (cur && cur.status === 'rejected' && cur.decided_at && Date.now() - new Date(cur.decided_at).getTime() < 7 * 86400000) return res.status(429).json({ success: false, error: 'Please wait 7 days after a refusal before applying again.' });
+    const st = await creatorStats(email);
+    if (!meetsRules(st, rules)) return res.status(400).json({ success: false, error: 'You do not meet the requirements yet.', stats: st, criteria: rules });
     const message = String((req.body || {}).message || '').replace(/\s+/g, ' ').trim().slice(0, 500);
     if (message.length < 10) return res.status(400).json({ success: false, error: 'Please write a short request (at least 10 letters) so the admin knows you.' });
     await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note, message) VALUES ($1, 'pending', NOW(), NULL, NULL, NULL, $2)
@@ -3278,7 +3283,7 @@ app.post('/api/monetization/withdraw', async (req, res) => {
 });
 
 
-// per-post numbers for the owner (like "Post details" on Facebook)
+// per-post numbers for the owner (Creator Dashboard / "Post details")
 app.get('/api/monetization/posts', async (req, res) => {
   try {
     const email = req.authEmail;
@@ -3287,8 +3292,13 @@ app.get('/api/monetization/posts', async (req, res) => {
       `SELECT p.id, p.content, p.media_type, p.media_url, p.privacy, p.created_at, COALESCE(p.views_count, 0) AS views, COALESCE(e.cents, 0) AS earn_cents,
               (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)::int AS likes, (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id)::int AS comments,
               (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id)::int AS shares
-       FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL ORDER BY p.created_at DESC LIMIT 30`, [email]);
-    res.json({ success: true, posts: r.rows.map((x) => ({ id: x.id, text: String(x.content || '').slice(0, 120), mediaType: x.media_type || '', mediaUrl: x.media_type === 'image' ? x.media_url : '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: Math.round(Number(x.earn_cents)) / 100, likes: x.likes, comments: x.comments, shares: x.shares })) });
+       FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL ORDER BY p.created_at DESC LIMIT 100`, [email]);
+    const me = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE email = $1', [email])).rows[0] || {};
+    const isCreator = (await pool.query("SELECT 1 FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows.length > 0;
+    const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents)) / 100 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
+    const week = Date.now() - 7 * 86400000;
+    res.json({ success: true, isCreator, name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
+      totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 100) / 100, wallet: (await walletCents(email)) / 100 } });
   } catch (err) { console.error('[monetization] posts error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 
@@ -3321,6 +3331,7 @@ app.post('/api/monetization/withdrawals/:id/reissue', async (req, res) => {
 app.post('/api/admin/monetization-requests', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
+    await expirePendingApps();
     const r = await pool.query(
       `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, ca.message, u.first_name, u.last_name, u.profile_pic, u.public_id,
               (SELECT COUNT(*) FROM follows f WHERE f.following_email = ca.user_email) AS followers_count,
