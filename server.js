@@ -22,6 +22,8 @@ const { createPhoneVerification, normalizePhone, phoneEmail, findAccountEmail, p
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
+// light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
+app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok'));
 app.use(security.securityHeaders);                 // no framing, no sniffing, CSP, no caching of API answers ...
 // small bodies everywhere (an attacker can not push megabytes into every route); posts may carry a video thumbnail
 const jsonSmall = express.json({ limit: '1mb' });
