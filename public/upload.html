@@ -576,7 +576,7 @@
                     <span id="lblPickVideos">វីដេអូ (Videos)</span>
                     <input type="file" id="videoInput" accept="video/*" multiple class="hidden" onchange="handleFilesSelected(event)">
                 </label>
-                <a id="liveBtn" href="live.html?host=1" class="picker-box-btn" style="display:none;grid-column:1/-1;border-color:#f5c2c9;background:#fff1f3;color:#e41e3f;text-decoration:none">
+                <a id="liveBtn" href="live.html?host=1" class="picker-box-btn" style="grid-column:1/-1;border-color:#f5c2c9;background:#fff1f3;color:#e41e3f;text-decoration:none">
                     <span style="font-size: 20px;">🔴</span>
                     <span id="lblPickLive">ផ្សាយផ្ទាល់ (Live Video)</span>
                 </a>
@@ -1442,8 +1442,6 @@
             }
         });
 
-            // Live is only for approved Creators: show the button only for them
-        fetch('/api/live/active').then(r => r.json()).then(d => { if (d && d.success && d.canGoLive) document.getElementById('liveBtn').style.display = 'flex'; }).catch(() => {});
     </script>
 </body>
 </html>

@@ -178,7 +178,11 @@
                     <input type="password" id="regPassword" name="new-password" autocomplete="new-password" placeholder="New password" required>
                     <span class="eye-icon" onclick="togglePassword('regPassword', this)">👁️</span>
                 </div>
-                <input type="text" id="regRef" inputmode="numeric" maxlength="15" autocomplete="off" placeholder="Referral number (optional)">
+                <div class="password-container">
+                    <input type="password" id="regPassword2" autocomplete="new-password" placeholder="Confirm password" required>
+                    <span class="eye-icon" onclick="togglePassword('regPassword2', this)">👁️</span>
+                </div>
+                <input type="text" id="regRef" maxlength="30" autocomplete="off" placeholder="Referral number (optional)">
 
                 <label id="lblDob">Date of birth</label>
                 <div class="row">
@@ -594,7 +598,7 @@
                 desc: (m) => `We sent a 6-digit code to ${m}. Check your inbox (and Spam), then enter it below.`,
                 verify: 'Verify', resend: 'Resend code', resendIn: (n) => `Resend code in ${n}s`, back: 'Back',
                 needEmail: 'Please enter a valid email address (for example name@gmail.com).',
-                shortPw: 'Password must be at least 6 characters.',
+                shortPw: 'Password must be at least 6 characters.', pwMismatch: 'The two passwords do not match.',
                 needHuman: 'Please complete the human verification first.',
                 sending: 'Sending code...', checking: 'Checking...', sent: 'A new code was sent.',
                 network: 'Server connection error', failed: 'Something went wrong. Please try again.',
@@ -614,7 +618,7 @@
                 desc: (m) => `យើងបានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ ${m}។ សូមពិនិត្យប្រអប់សំបុត្រ (និង Spam) រួចបញ្ចូលវាខាងក្រោម។`,
                 verify: 'ផ្ទៀងផ្ទាត់', resend: 'ផ្ញើលេខកូដម្តងទៀត', resendIn: (n) => `ផ្ញើម្តងទៀតក្នុង ${n} វិនាទី`, back: 'ត្រឡប់ក្រោយ',
                 needEmail: 'សូមបញ្ចូលអ៊ីមែលត្រឹមត្រូវ (ឧ. name@gmail.com)។',
-                shortPw: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច 6 តួអក្សរ។',
+                shortPw: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច 6 តួអក្សរ។', pwMismatch: 'ពាក្យសម្ងាត់ទាំងពីរមិនដូចគ្នាទេ។',
                 needHuman: 'សូមបញ្ជាក់ថាអ្នកជាមនុស្សជាមុនសិន។',
                 sending: 'កំពុងផ្ញើលេខកូដ...', checking: 'កំពុងពិនិត្យ...', sent: 'បានផ្ញើលេខកូដថ្មី។',
                 network: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', failed: 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។',
@@ -684,7 +688,7 @@
             const email = document.getElementById('regEmail').value.trim();
             const password = document.getElementById('regPassword').value;
             const t = vt();
-            { const rv = (document.getElementById('regRef') || {}).value; if (rv && rv.trim() && !/^\d{15}$/.test(rv.trim())) { msg.innerText = t.badRef; return; } }
+            // the referral box is optional: anything typed wrong is simply ignored (only a valid 15-digit number is used)
 
             const isPhone = identityMode === 'phone';                     // the selected tab decides: a phone number gets its code inside Telegram
             if (isPhone) {
@@ -693,6 +697,7 @@
                 if (!document.getElementById('country').value) { msg.innerText = t.pickCountryFirst; return; }
             } else if (!EMAIL_PATTERN.test(email)) { msg.innerText = t.needEmail; return; }
             if (password.length < 6) { msg.innerText = t.shortPw; return; }
+            if (password !== (document.getElementById('regPassword2') || {}).value) { msg.innerText = t.pwMismatch; return; }
             // user pressed Back from step 2 without changing the e-mail: it is already verified
             if (signupEmailToken && signupVerifiedEmail === email.toLowerCase()) { proceedToStep2(); return; }
             if (turnstileEnabled() && !getTurnstileToken()) { msg.innerText = t.needHuman; return; }
@@ -1129,33 +1134,40 @@
         }
 
         function previewAvatar(event) {
-            const file = event.target.files[0];
+            const input = event.target, file = input.files[0];
             if (file) {
-                document.getElementById('avatarPreviewImg').src = URL.createObjectURL(file);
-                document.getElementById('removeAvatarBtn').classList.remove('hidden');
+                openCropper(file, 1, true, 512, function (f) {
+                    if (!f) { input.value = ''; return; }
+                    croppedAvatarFile = f;
+                    document.getElementById('avatarPreviewImg').src = URL.createObjectURL(f);
+                    document.getElementById('removeAvatarBtn').classList.remove('hidden');
+                    input.value = '';
+                });
             }
         }
 
         function removeAvatarImage() {
-            document.getElementById('regProfileFile').value = '';
+            document.getElementById('regProfileFile').value = ''; croppedAvatarFile = null;
             document.getElementById('avatarPreviewImg').src = 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
             document.getElementById('removeAvatarBtn').classList.add('hidden');
         }
 
         function previewCover(event) {
-            const file = event.target.files[0];
-            if (file) {
+            const input = event.target, file0 = input.files[0];
+            if (file0) openCropper(file0, 2.7, false, 1350, function (file) {
+              if (!file) { input.value = ''; return; }
+              croppedCoverFile = file; input.value = '';
                 document.getElementById('coverPreviewImg').src = URL.createObjectURL(file);
                 document.getElementById('previewCoverContainer').style.display = 'block';
                 document.getElementById('coverPlaceholderText').style.display = 'none';
                 
                 const lang = localStorage.getItem('camfeed_lang') || 'en';
                 document.getElementById('coverUploadLabel').childNodes[0].nodeValue = (lang === 'km' ? "🖼️ ផ្លាស់ប្តូររូបគម្រប" : "🖼️ Change Cover Photo") + " ";
-            }
+            });
         }
 
         function removeCoverImage() {
-            document.getElementById('regCoverFile').value = '';
+            document.getElementById('regCoverFile').value = ''; croppedCoverFile = null;
             document.getElementById('coverPreviewImg').src = '';
             document.getElementById('previewCoverContainer').style.display = 'none';
             document.getElementById('coverPlaceholderText').style.display = 'block';
@@ -1203,8 +1215,8 @@
         }
 
         async function finalizeRegistration() {
-            const profileFile = document.getElementById('regProfileFile').files[0];
-            const coverFile = document.getElementById('regCoverFile').files[0];
+            const profileFile = croppedAvatarFile || document.getElementById('regProfileFile').files[0];
+            const coverFile = croppedCoverFile || document.getElementById('regCoverFile').files[0];
             const msg = document.getElementById('wizardMsg');
             const finishBtn = document.getElementById('btnFinishReg');
             const lang = localStorage.getItem('camfeed_lang') || 'en';
@@ -1325,6 +1337,49 @@
                 msg.innerText = 'Server connection error';
             }
         }
+    </script>
+    <div id="cropModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100000;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:14px;touch-action:none">
+        <div id="cropTitle" style="color:#fff;font-weight:700;font-size:16px"></div>
+        <div id="cropBox" style="position:relative;overflow:hidden;background:#222;border-radius:6px;touch-action:none;cursor:grab"><canvas id="cropCanvas" style="display:block"></canvas><div id="cropMask" style="position:absolute;inset:0;pointer-events:none"></div></div>
+        <input type="range" id="cropZoom" min="1" max="4" step="0.01" value="1" style="width:min(320px,86vw)">
+        <div style="display:flex;gap:10px"><button type="button" id="cropCancel" style="padding:10px 22px;border:0;border-radius:8px;background:#4e4f50;color:#fff;font-size:15px;font-weight:700"></button><button type="button" id="cropOk" style="padding:10px 26px;border:0;border-radius:8px;background:#1877f2;color:#fff;font-size:15px;font-weight:700"></button></div>
+    </div>
+    <script>
+    // simple photo cropper: drag to move, slider / pinch to zoom, then it makes a clean JPEG in the shape the platform needs
+    var croppedAvatarFile = null, croppedCoverFile = null;
+    function openCropper(file, aspect, circle, outW, done) {
+        var km = localStorage.getItem('camfeed_lang') !== 'en';
+        var m = document.getElementById('cropModal'), box = document.getElementById('cropBox'), cv = document.getElementById('cropCanvas'), z = document.getElementById('cropZoom'), mask = document.getElementById('cropMask');
+        var VW = Math.min(320, window.innerWidth - 32), VH = Math.round(VW / aspect); if (VH > window.innerHeight * 0.55) { VH = Math.round(window.innerHeight * 0.55); VW = Math.round(VH * aspect); }
+        cv.width = VW; cv.height = VH; box.style.width = VW + 'px'; box.style.height = VH + 'px'; box.style.borderRadius = circle ? '50%' : '6px';
+        mask.style.boxShadow = circle ? 'inset 0 0 0 2px rgba(255,255,255,.9)' : 'inset 0 0 0 2px rgba(255,255,255,.9)';
+        document.getElementById('cropTitle').textContent = circle ? (km ? 'កាត់រូបប្រូហ្វាល (អូសដើម្បីរំកិល)' : 'Crop profile photo (drag to move)') : (km ? 'កាត់រូបគម្រប (អូសដើម្បីរំកិល)' : 'Crop cover photo (drag to move)');
+        document.getElementById('cropCancel').textContent = km ? 'បោះបង់' : 'Cancel'; document.getElementById('cropOk').textContent = km ? 'ប្រើរូបនេះ' : 'Use photo';
+        var img = new Image(), url = URL.createObjectURL(file), base = 1, sc = 1, ox = 0, oy = 0;
+        function clamp() { var w = img.width * base * sc, h = img.height * base * sc; ox = Math.min(0, Math.max(VW - w, ox)); oy = Math.min(0, Math.max(VH - h, oy)); }
+        function draw() { var c = cv.getContext('2d'); c.fillStyle = '#222'; c.fillRect(0, 0, VW, VH); c.drawImage(img, ox, oy, img.width * base * sc, img.height * base * sc); }
+        function zoomTo(ns, cx, cy) { var ratio = ns / sc; ox = cx - (cx - ox) * ratio; oy = cy - (cy - oy) * ratio; sc = ns; clamp(); draw(); z.value = sc; }
+        img.onload = function () { base = Math.max(VW / img.width, VH / img.height); sc = 1; ox = (VW - img.width * base) / 2; oy = (VH - img.height * base) / 2; z.value = 1; draw(); m.style.display = 'flex'; };
+        img.onerror = function () { URL.revokeObjectURL(url); };
+        img.src = url;
+        z.oninput = function () { zoomTo(parseFloat(z.value), VW / 2, VH / 2); };
+        var pts = {}, lastD = 0, lx = 0, ly = 0;
+        box.onpointerdown = function (e) { box.setPointerCapture(e.pointerId); pts[e.pointerId] = e; lx = e.clientX; ly = e.clientY; lastD = 0; box.style.cursor = 'grabbing'; };
+        box.onpointermove = function (e) {
+            if (!pts[e.pointerId]) return; pts[e.pointerId] = e; var ids = Object.keys(pts);
+            if (ids.length >= 2) { var a = pts[ids[0]], b = pts[ids[1]], d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); if (lastD) zoomTo(Math.min(4, Math.max(1, sc * d / lastD)), VW / 2, VH / 2); lastD = d; return; }
+            ox += e.clientX - lx; oy += e.clientY - ly; lx = e.clientX; ly = e.clientY; clamp(); draw();
+        };
+        box.onpointerup = box.onpointercancel = function (e) { delete pts[e.pointerId]; lastD = 0; lx = e.clientX; ly = e.clientY; box.style.cursor = 'grab'; };
+        box.onwheel = function (e) { e.preventDefault(); var r = box.getBoundingClientRect(); zoomTo(Math.min(4, Math.max(1, sc * (e.deltaY < 0 ? 1.08 : 0.92))), e.clientX - r.left, e.clientY - r.top); };
+        function close() { m.style.display = 'none'; URL.revokeObjectURL(url); }
+        document.getElementById('cropCancel').onclick = function () { close(); done(null); };
+        document.getElementById('cropOk').onclick = function () {
+            var out = document.createElement('canvas'); out.width = outW; out.height = Math.round(outW / aspect); var f = out.width / VW, c = out.getContext('2d');
+            c.fillStyle = '#fff'; c.fillRect(0, 0, out.width, out.height); c.drawImage(img, ox * f, oy * f, img.width * base * sc * f, img.height * base * sc * f);
+            out.toBlob(function (b) { close(); done(b ? new File([b], (circle ? 'avatar' : 'cover') + '.jpg', { type: 'image/jpeg' }) : null); }, 'image/jpeg', 0.9);
+        };
+    }
     </script>
     <script>
     // after logging out: show the accounts used on this phone (tap one, log in with another, or create a new one)

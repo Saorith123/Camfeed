@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<script src="auth-client.js"></script>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<script src="pwa.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CamFeed Live</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans Khmer',sans-serif;overflow:hidden}
+#stage{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center}
+#vid{width:100%;height:100%;object-fit:contain;background:#000}#vid.cover{object-fit:cover}
+#frame{width:100%;height:100%;border:0;display:none}
+.top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:10px;right:10px;display:flex;align-items:center;gap:8px;z-index:5}
+.top img{width:38px;height:38px;border-radius:50%;object-fit:cover;background:#444}.who{flex:1;min-width:0;text-shadow:0 1px 3px #000}.who b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.who span{font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.pill{background:#e41e3f;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:800}.pill.eye{background:rgba(0,0,0,.55);font-weight:600}
+.x{background:rgba(0,0,0,.5);border:0;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer}
+#chat{position:absolute;left:10px;right:90px;bottom:calc(env(safe-area-inset-bottom,0px) + 70px);max-height:36%;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;z-index:5;pointer-events:none;
+ -webkit-mask-image:linear-gradient(transparent,#000 35%);mask-image:linear-gradient(transparent,#000 35%)}
+.cm{display:flex;gap:7px;align-items:flex-start;font-size:13.5px;text-shadow:0 1px 3px #000}.cm img{width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#444}.cm b{opacity:.85;margin-right:5px;font-weight:700}.cm span{word-break:break-word}
+.bar{position:absolute;left:0;right:0;bottom:0;padding:8px 10px calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;gap:8px;align-items:center;z-index:6;background:linear-gradient(transparent,rgba(0,0,0,.65))}
+.bar input{flex:1;min-width:0;border:1.5px solid rgba(255,255,255,.7);background:rgba(0,0,0,.4);color:#fff;border-radius:22px;padding:10px 14px;font-size:15px;outline:none}
+.bar button{border:0;border-radius:50%;width:42px;height:42px;font-size:22px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer;flex-shrink:0}
+#emo{position:absolute;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 70px);display:flex;flex-direction:column;gap:6px;z-index:6}#emo button{width:44px;height:44px;border-radius:50%;border:0;background:rgba(0,0,0,.45);font-size:24px;cursor:pointer}
+.fly{position:absolute;bottom:90px;font-size:32px;z-index:7;pointer-events:none;animation:fly 2.4s ease-out forwards}@keyframes fly{to{transform:translateY(-52vh) scale(1.3);opacity:0}}
+#msg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;z-index:8;background:rgba(0,0,0,.78);font-size:17px;gap:16px}#msg.on{display:flex}
+.btn{background:#1877f2;color:#fff;border:0;border-radius:10px;padding:12px 22px;font-size:16px;font-weight:700;cursor:pointer}.btn.red{background:#e41e3f}.btn.gray{background:rgba(255,255,255,.2)}
+#setup{position:absolute;left:0;right:0;bottom:0;padding:16px 14px calc(env(safe-area-inset-bottom,0px) + 16px);z-index:9;background:linear-gradient(transparent,rgba(0,0,0,.85) 30%);display:none;flex-direction:column;gap:10px}
+#setup input,#setup select{width:100%;border-radius:10px;border:0;padding:12px;font-size:15px}
+.tip{font-size:12.5px;opacity:.85;line-height:1.4}
+#req{position:absolute;inset:0;background:#f0f2f5;color:#050505;z-index:20;display:none;overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 16px) 16px 30px}
+#req h2{margin:6px 0 4px;font-size:19px}#req p{margin:0 0 12px;font-size:13.5px;color:#65676b;line-height:1.45}#req label{display:block;font-weight:700;font-size:13.5px;margin:12px 0 5px}
+#req input,#req select,#req textarea{width:100%;border:1px solid #ccd0d5;border-radius:10px;padding:11px 12px;font-size:15px;background:#fff;font-family:inherit}#req textarea{min-height:100px;resize:vertical}
+#req .err{color:#d93025;font-size:13px;min-height:18px;margin-top:8px}#req .box{background:#fff;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="stage"><video id="vid" playsinline autoplay muted></video><iframe id="frame" allow="autoplay; fullscreen" allowfullscreen></iframe></div>
+<div class="top" id="top" style="display:none"><img id="hostPic" alt=""><div class="who"><b id="hostName"></b><span id="liveTitle"></span></div><span class="pill" id="pillLive">LIVE</span><span class="pill eye" id="eye">👁 0</span><button class="x" id="xBtn" aria-label="close">✕</button></div>
+<div id="chat"></div>
+<div id="emo"></div>
+<div class="bar" id="bar" style="display:none"><input id="cIn" maxlength="200" autocomplete="off"><button id="cSend" aria-label="send">➤</button></div>
+<div id="setup">
+  <div style="display:flex;gap:8px"><input id="sTitle" maxlength="100" style="flex:1"><button class="btn gray" id="flip" style="padding:0 14px">🔄</button></div>
+  <select id="sPriv"></select>
+  <div class="tip" id="sTip"></div>
+  <button class="btn red" id="goBtn"></button>
+  <button class="btn gray" id="cancelBtn"></button>
+</div>
+<div id="req"><div id="reqBody"></div></div>
+<div id="msg"><div id="msgText"></div><button class="btn" id="msgBtn"></button></div>
+<script>
+(function () {
+  'use strict';
+  var user = null; try { user = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
+  if (!user || !user.email) { location.href = 'index.html'; return; }
+  var lang = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km';
+  var TX = {
+    km: { title: 'ចំណងជើង Live (ទុកទទេក៏បាន)', pub: '🌍 អ្នកតាមដានទាំងអស់', fr: '👥 មិត្តភក្តិប៉ុណ្ណោះ', tip: 'សូមទុកទូរសព្ទឲ្យមានអ៊ីនធឺណិតល្អ និងមិនបិទអេក្រង់។ Live មិនត្រូវបានរក្សាទុកទេ ហើយនឹងបិទដោយស្វ័យប្រវត្តិនៅពេលដល់ម៉ោងកំណត់។', go: '🔴 ចាប់ផ្តើម Live', cancel: 'បោះបង់', back: 'ត្រឡប់ក្រោយ', ended: 'Live នេះបានបញ្ចប់ហើយ', endedAdmin: 'Live នេះត្រូវបានបិទដោយក្រុម CamFeed', wait: 'កំពុងរង់ចាំអ្នកផ្សាយ…', full: 'Live នេះពេញហើយ សូមព្យាយាមម្តងទៀតបន្តិចក្រោយ', noCam: 'មិនអាចបើកកាមេរ៉ា/មីក្រូបានទេ។ សូមអនុញ្ញាតក្នុងការកំណត់ Browser។', err: 'មានបញ្ហា សូមព្យាយាមម្តងទៀត', say: 'សរសេរមតិ…', end: 'បញ្ចប់ Live?', endYes: 'បញ្ចប់', stop: 'បញ្ចប់', yours: 'Live របស់អ្នកបានបញ្ចប់', conn: 'កំពុងតភ្ជាប់…', lost: 'ការតភ្ជាប់ដាច់ កំពុងព្យាយាមម្តងទៀត…', min: ' នាទី', unsupported: 'Browser នេះមិនគាំទ្រការផ្សាយផ្ទាល់ទេ', notOn: 'Live មិនទាន់បើកទេ សូមរង់ចាំ', blocked: 'Live ត្រូវបានបិទសម្រាប់គណនីរបស់អ្នក',
+      rqTitle: '🔴 ស្នើសុំប្រើ Live', rqIntro: 'Live ត្រូវការការអនុម័តពី CamFeed ជាមុន (ឧ. អ្នកសារព័ត៌មាន ឬស្ថាប័ន)។ សូមបំពេញព័ត៌មានខាងក្រោម ហើយយើងនឹងពិនិត្យ។', rqPurpose: 'គោលបំណងនៃ Live', rqMsg: 'ប្រាប់យើងថាអ្នកនឹង Live អំពីអ្វី', rqMsgPh: 'ឧ. ខ្ញុំជាអ្នកសារព័ត៌មាន ចង់ផ្សាយព័ត៌មានផ្ទាល់ពីព្រឹត្តិការណ៍ក្នុងស្រុក…', rqChannel: 'ឈ្មោះ Live / ស្ថាប័ន (មិនបំពេញក៏បាន)', rqLink: 'តំណបញ្ជាក់ (Page, គេហទំព័រ) — មិនបំពេញក៏បាន', rqSend: 'ផ្ញើពាក្យសុំ', rqPending: '⏳ ពាក្យសុំរបស់អ្នកកំពុងរង់ចាំការត្រួតពិនិត្យ។ យើងនឹងជូនដំណឹងពេលមានលទ្ធផល។ (បើលើស ១៥ ថ្ងៃ ពាក្យសុំនឹងត្រឡប់ទៅដើម ហើយអ្នកអាចសុំម្តងទៀត។)', rqRejected: 'ពាក្យសុំមុនមិនត្រូវបានអនុម័ត៖ ', asCh: 'ផ្សាយក្នុងឈ្មោះ ' },
+    en: { title: 'Live title (optional)', pub: '🌍 All my followers', fr: '👥 Friends only', tip: 'Keep a good internet connection and keep the screen on. The live is not saved and stops automatically at the time limit.', go: '🔴 Go Live', cancel: 'Cancel', back: 'Go back', ended: 'This live has ended', endedAdmin: 'This live was stopped by the CamFeed team', wait: 'Waiting for the host…', full: 'This live is full. Please try again in a moment.', noCam: 'Cannot open the camera/microphone. Please allow it in the browser settings.', err: 'Something went wrong. Please try again.', say: 'Write a comment…', end: 'End the live?', endYes: 'End', stop: 'End', yours: 'Your live has ended', conn: 'Connecting…', lost: 'Connection lost, retrying…', min: ' minutes', unsupported: 'This browser cannot do live video', notOn: 'Live is not switched on yet', blocked: 'Live is turned off for your account',
+      rqTitle: '🔴 Request to use Live', rqIntro: 'Live needs approval from CamFeed first (for example journalists or organisations). Please fill in the form and we will review it.', rqPurpose: 'What is the Live for?', rqMsg: 'Tell us what you will broadcast', rqMsgPh: 'e.g. I am a journalist and want to report live from local events…', rqChannel: 'Live / organisation name (optional)', rqLink: 'Proof link (Page, website) — optional', rqSend: 'Send request', rqPending: '⏳ Your request is waiting for review. We will notify you. (After 15 days without an answer it resets and you can ask again.)', rqRejected: 'Your earlier request was not approved: ', asCh: 'Go live as ' }
+  };
+  var T = function (k) { return TX[lang][k]; };
+  var $ = function (id) { return document.getElementById(id); };
+  var qs = new URLSearchParams(location.search), liveId = parseInt(qs.get('id'), 10) || 0, hostMode = qs.get('host') === '1';
+  var DEF = "data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23555%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23999%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23999%22/%3E%3C/svg%3E";
+  function api(path, body) { var o = { method: body === undefined ? 'GET' : 'POST', headers: {} }; if (body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); } return fetch(path, o).then(function (r) { return r.json().then(function (j) { j._status = r.status; return j; }); }).catch(function () { return { success: false, error: T('err') }; }); }
+  function safe(u) { return /^https?:\/\//i.test(u || '') ? u : DEF; }
+  function show(text, btnText, onBtn) { $('msgText').textContent = text; $('msgBtn').textContent = btnText || T('back'); $('msgBtn').onclick = onBtn || goBack; $('msg').classList.add('on'); }
+  function hideMsg() { $('msg').classList.remove('on'); }
+  function goBack() { if (history.length > 1) history.back(); else location.href = 'feed.html'; }
+  $('xBtn').onclick = function () { if (hostMode) askEnd(); else leave(); };
+  function leave() { cleanup(); goBack(); }
+
+  var pc = null, polls = [], cmax = 0, rmax = 0, fed = false, wake = null, stream = null, facing = 'user', session = null, myLive = 0, stopped = false;
+  function every(fn, ms) { var h = setInterval(fn, ms); polls.push(h); return h; }
+  function cleanup() { stopped = true; polls.forEach(clearInterval); polls = []; try { if (pc) pc.close(); } catch (e) {} try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} try { if (wake) wake.release(); } catch (e) {} }
+  function keepAwake() { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (w) { wake = w; }).catch(function () {}); } catch (e) {} }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !stopped) keepAwake(); });
+
+  /* ---------- the chat + emoji overlay (same for host and viewers) ---------- */
+  var EM = ['❤️', '😂', '😮', '😢', '👏', '🔥'];
+  function addComment(c) {
+    var box = $('chat'), d = document.createElement('div'); d.className = 'cm';
+    var im = document.createElement('img'); im.src = safe(c.profile_pic); im.onerror = function () { im.src = DEF; };
+    var w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = c.name || ''; s.textContent = c.text; w.appendChild(b); w.appendChild(s);
+    d.appendChild(im); d.appendChild(w); box.appendChild(d); while (box.children.length > 30) box.removeChild(box.firstChild);
+  }
+  function fly(e) { var f = document.createElement('div'); f.className = 'fly'; f.textContent = e; f.style.right = (20 + Math.random() * 60) + 'px'; document.body.appendChild(f); setTimeout(function () { f.remove(); }, 2500); }
+  function pollFeed(onEnded) {
+    if (!liveId) return; var busy = false;
+    every(function () {
+      if (busy || document.hidden) return; busy = true;
+      api('/api/live/' + liveId + '/feed?c=' + cmax + '&r=' + rmax).then(function (d) {
+        busy = false; if (stopped) return;
+        if (d._status === 404) { onEnded(false); return; }
+        if (!d.success) return;
+        if (d.ended) { onEnded(d.byAdmin); return; }
+        $('eye').textContent = '👁 ' + d.viewers;
+        (d.comments || []).forEach(function (c) { cmax = Math.max(cmax, c.id); if (!c.mine) addComment(c); });
+        (d.reactions || []).forEach(function (r) { rmax = Math.max(rmax, r.id); if (fed) fly(r.emoji); });
+        fed = true; if (typeof d.on === 'boolean' && onFeedOn) onFeedOn(d.on);
+      });
+    }, 3000);
+  }
+  var onFeedOn = null;
+  function buildReact() {
+    var box = $('emo'); EM.forEach(function (e) { var b = document.createElement('button'); b.textContent = e; b.onclick = function () { fly(e); api('/api/live/' + liveId + '/react', { emoji: e }); }; box.appendChild(b); });
+  }
+  function buildComment() {
+    $('bar').style.display = 'flex'; $('cIn').placeholder = T('say');
+    function send() { var v = $('cIn').value.trim(); if (!v) return; $('cIn').value = ''; addComment({ name: user.first_name || '', profile_pic: user.profile_pic, text: v }); api('/api/live/' + liveId + '/comment', { text: v }).then(function (d) { if (d && d.id) cmax = Math.max(cmax, d.id - 0); }); }
+    $('cSend').onclick = send; $('cIn').onkeydown = function (e) { if (e.key === 'Enter') send(); };
+  }
+
+  /* ---------- viewer ---------- */
+  var whep = '', iframeUrl = '', playing = false, playTry = 0, playSession = null;
+  function playWhep() {
+    if (playing || stopped) return; playing = true;
+    var p = new RTCPeerConnection({ bundlePolicy: 'max-bundle' }), ms = new MediaStream(); pc = p;
+    p.addTransceiver('video', { direction: 'recvonly' }); p.addTransceiver('audio', { direction: 'recvonly' });
+    p.ontrack = function (e) { ms.addTrack(e.track); $('vid').srcObject = ms; var v = $('vid'); v.muted = true; v.play().catch(function () {}); };
+    p.onconnectionstatechange = function () { if (p.connectionState === 'failed' || p.connectionState === 'disconnected') { try { p.close(); } catch (e) {} playing = false; if (++playTry <= 4) setTimeout(playWhep, 2000); else fallbackFrame(); } };
+    p.createOffer().then(function (o) { return p.setLocalDescription(o); }).then(function () {
+      return new Promise(function (ok) { if (p.iceGatheringState === 'complete') return ok(); var t = setTimeout(ok, 1500); p.onicegatheringstatechange = function () { if (p.iceGatheringState === 'complete') { clearTimeout(t); ok(); } }; });
+    }).then(function () { return fetch(whep, { method: 'POST', headers: { 'Content-Type': 'application/sdp' }, body: p.localDescription.sdp }); })
+      .then(function (r) { if (!r.ok) throw new Error('whep ' + r.status); return r.text(); })
+      .then(function (ans) { return p.setRemoteDescription({ type: 'answer', sdp: ans }); })
+      .catch(function () { try { p.close(); } catch (e) {} playing = false; if (++playTry <= 4) setTimeout(playWhep, 2500); else fallbackFrame(); });
+  }
+  function fallbackFrame() { if (!iframeUrl || $('frame').src) return; $('vid').style.display = 'none'; $('frame').style.display = 'block'; $('frame').src = iframeUrl + '?autoplay=true&muted=true&controls=false'; }
+  function startViewer() {
+    api('/api/live/' + liveId).then(function (d) {
+      if (d._status === 429 || d.full) { show(T('full')); return; }
+      if (!d.success) { show(d.error || T('err')); return; }
+      if (d.ended) { show(T('ended')); return; }
+      if (d.mine) { goBack(); return; }
+      $('top').style.display = 'flex'; $('hostPic').src = safe(d.profile_pic); $('hostPic').onerror = function () { this.src = DEF; }; $('hostName').textContent = d.name; $('liveTitle').textContent = d.title; $('eye').textContent = '👁 ' + d.viewers;
+      whep = d.whepUrl; iframeUrl = d.iframeUrl; $('vid').classList.add('cover'); buildReact(); buildComment(); keepAwake();
+      if (!window.RTCPeerConnection) { fallbackFrame(); } else if (d.on) playWhep(); else show(T('wait'), T('back'));
+      onFeedOn = function (on) { if (on && window.RTCPeerConnection && !playing && !$('frame').src) { hideMsg(); playTry = 0; playWhep(); } if (!on && !playing) { /* still waiting */ } };
+      pollFeed(function (byAdmin) { cleanup(); show(byAdmin ? T('endedAdmin') : T('ended')); });
+      every(function () { $('vid').muted = $('vid').muted; }, 60000);
+      $('vid').addEventListener('click', function () { $('vid').muted = false; });
+    });
+  }
+
+  /* ---------- host ---------- */
+  function openCam() {
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 720 }, height: { ideal: 1280 }, frameRate: { ideal: 24, max: 30 } }, audio: { echoCancellation: true, noiseSuppression: true } }).then(function (s) { stream = s; $('vid').srcObject = s; $('vid').muted = true; $('vid').classList.add('cover'); $('vid').style.transform = facing === 'user' ? 'scaleX(-1)' : 'none'; });
+  }
+  function askEnd() { show(T('end'), T('endYes'), function () { endLive(); }); var c = document.createElement('button'); c.className = 'btn gray'; c.textContent = T('cancel'); c.onclick = function () { hideMsg(); c.remove(); }; $('msg').appendChild(c); }
+  function endLive() { var id = myLive; cleanup(); (id ? api('/api/live/' + id + '/end', {}) : Promise.resolve()).then(function () { $('msg').querySelectorAll('.btn.gray').forEach(function (b) { b.remove(); }); show(T('yours'), T('back')); }); }
+  var channelName = '';
+  function startHost() {
+    if (!navigator.mediaDevices || !window.RTCPeerConnection) { show(T('unsupported')); return; }
+    api('/api/live/access').then(function (a) {
+      if (!a || !a.success) { show(T('err')); return; }
+      if (!a.configured) { show(T('notOn')); return; }
+      if (a.status === 'blocked') { show(T('blocked')); return; }
+      if (a.canGoLive) { channelName = a.channelName || ''; setupCamera(); return; }
+      showRequest(a);
+    });
+  }
+  var PURPOSES = lang === 'en' ? [['news', 'News / journalism'], ['business', 'Business / selling'], ['event', 'Event / program'], ['education', 'Education'], ['other', 'Other']] : [['news', 'ព័ត៌មាន / អ្នកសារព័ត៌មាន'], ['business', 'អាជីវកម្ម / លក់ទំនិញ'], ['event', 'ព្រឹត្តិការណ៍ / កម្មវិធី'], ['education', 'ការអប់រំ'], ['other', 'ផ្សេងៗ']];
+  function showRequest(a) {
+    var box = $('reqBody'); box.textContent = ''; $('req').style.display = 'block';
+    function h(tag, txt, css) { var e = document.createElement(tag); if (txt) e.textContent = txt; if (css) e.style.cssText = css; return e; }
+    box.appendChild(h('h2', T('rqTitle')));
+    if (a.status === 'pending') { box.appendChild(h('div', T('rqPending'), '')).className = 'box'; var b0 = h('button', T('back'), 'margin-top:14px'); b0.className = 'btn'; b0.onclick = goBack; box.appendChild(b0); return; }
+    box.appendChild(h('p', T('rqIntro')));
+    if (a.status === 'rejected' && a.note) { var rj = h('div', T('rqRejected') + a.note, 'background:#fdecee;color:#9b1229;padding:10px 12px;border-radius:10px;font-size:13.5px;margin-bottom:6px'); box.appendChild(rj); }
+    box.appendChild(h('label', T('rqPurpose'))); var sel = document.createElement('select'); PURPOSES.forEach(function (x) { var o = document.createElement('option'); o.value = x[0]; o.textContent = x[1]; sel.appendChild(o); }); box.appendChild(sel);
+    box.appendChild(h('label', T('rqMsg'))); var ta = document.createElement('textarea'); ta.maxLength = 600; ta.placeholder = T('rqMsgPh'); box.appendChild(ta);
+    box.appendChild(h('label', T('rqChannel'))); var ch = document.createElement('input'); ch.maxLength = 40; ch.placeholder = 'CamNews'; box.appendChild(ch);
+    box.appendChild(h('label', T('rqLink'))); var lk = document.createElement('input'); lk.type = 'url'; lk.placeholder = 'https://'; box.appendChild(lk);
+    var er = h('div', '', ''); er.className = 'err'; box.appendChild(er);
+    var go = h('button', T('rqSend'), 'width:100%;margin-top:6px'); go.className = 'btn'; var bk = h('button', T('back'), 'width:100%;margin-top:10px;background:#e4e6eb;color:#050505'); bk.className = 'btn'; bk.style.background = '#e4e6eb'; bk.style.color = '#050505'; bk.onclick = goBack;
+    go.onclick = function () {
+      er.textContent = ''; go.disabled = true;
+      api('/api/live/request', { purpose: sel.value, message: ta.value, channelName: ch.value, link: lk.value }).then(function (d) { go.disabled = false; if (d.success) showRequest({ status: 'pending' }); else er.textContent = d.error || T('err'); });
+    };
+    box.appendChild(go); box.appendChild(bk);
+  }
+  function setupCamera() {
+    $('setup').style.display = 'flex'; $('sTitle').placeholder = T('title');
+    $('sPriv').innerHTML = '<option value="public">' + T('pub') + '</option><option value="friends">' + T('fr') + '</option>';
+    $('sTip').textContent = T('tip'); $('goBtn').textContent = T('go'); $('cancelBtn').textContent = T('cancel'); $('cancelBtn').onclick = function () { cleanup(); goBack(); };
+    openCam().catch(function () { show(T('noCam')); });
+    $('flip').onclick = function () { facing = facing === 'user' ? 'environment' : 'user'; openCam().catch(function () {}); };
+    $('goBtn').onclick = goLive;
+    if (channelName) { var lab = document.createElement('label'); lab.style.cssText = 'display:flex;gap:8px;align-items:center;font-size:14px'; var cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'asCh'; cb.checked = true; cb.style.width = 'auto'; lab.appendChild(cb); lab.appendChild(document.createTextNode(T('asCh') + channelName)); $('setup').insertBefore(lab, $('sTip')); }
+  }
+  function goLive() {
+    $('goBtn').disabled = true; $('goBtn').textContent = T('conn');
+    api('/api/live/start', { title: $('sTitle').value, privacy: $('sPriv').value, asChannel: !!($('asCh') && $('asCh').checked) }).then(function (d) {
+      if (!d.success) { $('goBtn').disabled = false; $('goBtn').textContent = T('go'); show(d.error || T('err')); return; }
+      myLive = liveId = d.id; $('sTip').textContent = '';
+      var p = new RTCPeerConnection({ bundlePolicy: 'max-bundle' }); pc = p;
+      stream.getTracks().forEach(function (t) { p.addTransceiver(t, { direction: 'sendonly', streams: [stream] }); });
+      // keep the picture sharp without flooding a mobile line
+      try { p.getSenders().forEach(function (s) { if (s.track && s.track.kind === 'video') { var pr = s.getParameters(); if (!pr.encodings || !pr.encodings.length) pr.encodings = [{}]; pr.encodings[0].maxBitrate = 1200000; s.setParameters(pr).catch(function () {}); } }); } catch (e) {}
+      return p.createOffer().then(function (o) { return p.setLocalDescription(o); }).then(function () {
+        return new Promise(function (ok) { if (p.iceGatheringState === 'complete') return ok(); var t = setTimeout(ok, 1500); p.onicegatheringstatechange = function () { if (p.iceGatheringState === 'complete') { clearTimeout(t); ok(); } }; });
+      }).then(function () { return fetch(d.whipUrl, { method: 'POST', headers: { 'Content-Type': 'application/sdp' }, body: p.localDescription.sdp }); })
+        .then(function (r) { if (!r.ok) throw new Error('whip ' + r.status); session = r.headers.get('Location'); return r.text(); })
+        .then(function (ans) { return p.setRemoteDescription({ type: 'answer', sdp: ans }); })
+        .then(function () { return api('/api/live/' + d.id + '/go', {}); })
+        .then(function () { onAir(d); })
+        .catch(function () { api('/api/live/' + d.id + '/end', {}); try { p.close(); } catch (e) {} $('goBtn').disabled = false; $('goBtn').textContent = T('go'); show(T('err')); });
+    });
+  }
+  function onAir(d) {
+    $('setup').style.display = 'none'; $('top').style.display = 'flex'; $('hostPic').src = safe(user.profile_pic); $('hostPic').onerror = function () { this.src = DEF; }; $('hostName').textContent = ($('asCh') && $('asCh').checked && channelName) ? channelName : ((user.first_name || '') + ' ' + (user.last_name || '')); $('liveTitle').textContent = $('sTitle').value;
+    $('xBtn').textContent = '■'; buildComment(); $('emo').style.display = 'none'; keepAwake();
+    pc.onconnectionstatechange = function () { if (pc && pc.connectionState === 'failed') show(T('lost'), T('endYes'), endLive); };
+    every(function () { api('/api/live/' + d.id + '/ping', {}).then(function (x) { if (x && x.ended) { cleanup(); show(x.byAdmin ? T('endedAdmin') : T('yours')); } else if (x && x.viewers !== undefined) $('eye').textContent = '👁 ' + x.viewers; }); }, 15000);
+    pollFeed(function (byAdmin) { cleanup(); show(byAdmin ? T('endedAdmin') : T('yours')); });
+    window.addEventListener('pagehide', function () { if (!stopped) { try { fetch('/api/live/' + d.id + '/end', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {} } });
+  }
+
+  $('cIn').placeholder = T('say'); $('msgBtn').textContent = T('back');
+  if (hostMode) startHost(); else if (liveId) startViewer(); else goBack();
+})();
+</script>
+</body>
+</html>

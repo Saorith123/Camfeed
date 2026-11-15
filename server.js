@@ -343,6 +343,8 @@ pool.connect(async (err, client, release) => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_live_comments ON live_comments (live_id, id)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS live_reactions (id SERIAL PRIMARY KEY, live_id INTEGER NOT NULL, user_email TEXT NOT NULL, emoji VARCHAR(8) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_live_reactions ON live_reactions (live_id, id)').catch(() => {});
+    await pool.query("CREATE TABLE IF NOT EXISTS live_requests (id SERIAL PRIMARY KEY, user_email TEXT NOT NULL UNIQUE, status VARCHAR(10) NOT NULL DEFAULT 'pending', purpose VARCHAR(20), message TEXT, link TEXT, channel_name TEXT, requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT, blocked BOOLEAN NOT NULL DEFAULT FALSE)").catch(() => {});
+    await pool.query('ALTER TABLE live_streams ADD COLUMN IF NOT EXISTS display_name TEXT').catch(() => {});
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS live_blocked BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories (expires_at)').catch(() => {});
@@ -3251,13 +3253,70 @@ async function canSeeLive(viewer, id) {
 const liveIsOn = (l) => l && l.status === 'live' && l.last_ping && (Date.now() - new Date(l.last_ping).getTime()) < LIVE_ALIVE_SECS * 1000;
 const viewerCount = async (id) => Number((await pool.query("SELECT COUNT(*) AS n FROM live_viewers WHERE live_id = $1 AND last_seen > NOW() - INTERVAL '25 seconds'", [id])).rows[0].n);
 
+const LIVE_PURPOSES = ['news', 'business', 'event', 'education', 'other'];
+// may this person go live? approved Live request OR approved Creator; either can be switched off by an admin
+async function liveAccess(email) {
+  const [lr, ca] = await Promise.all([
+    pool.query('SELECT status, blocked, channel_name, note FROM live_requests WHERE user_email = $1', [email]),
+    pool.query("SELECT live_blocked FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])]);
+  const a = lr.rows[0] || null, c = ca.rows[0] || null;
+  const blocked = !!((a && a.blocked) || (c && c.live_blocked));
+  const ok = !blocked && ((a && a.status === 'approved') || !!c);
+  return { ok, blocked, status: blocked ? 'blocked' : ok ? 'approved' : (a ? a.status : 'none'), channelName: (a && a.channel_name) || '', note: (a && a.status === 'rejected' && a.note) || '' };
+}
+app.get('/api/live/access', async (req, res) => {
+  try { const x = await liveAccess(req.authEmail); res.json({ success: true, configured: liveConfigured(), canGoLive: x.ok && liveConfigured(), status: x.status, channelName: x.channelName, note: x.note }); }
+  catch (err) { res.status(500).json({ success: false }); }
+});
+app.post('/api/live/request', async (req, res) => {
+  const me = req.authEmail, b = req.body || {};
+  try {
+    const purpose = LIVE_PURPOSES.includes(b.purpose) ? b.purpose : '';
+    const message = String(b.message || '').replace(/\r/g, '').trim().slice(0, 600), link = String(b.link || '').trim().slice(0, 200), channel = String(b.channelName || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!purpose) return res.status(400).json({ success: false, error: 'Please choose what the Live is for.' });
+    if (message.length < 20) return res.status(400).json({ success: false, error: 'Please write a little more (at least 20 letters) about what you will broadcast.' });
+    if (link && !/^https?:\/\/[^\s"'<>`\\]+$/i.test(link)) return res.status(400).json({ success: false, error: 'The link must start with http:// or https://' });
+    const cur = await liveAccess(me);
+    if (cur.ok || cur.blocked) return res.status(400).json({ success: false, error: cur.blocked ? 'Live is turned off for your account.' : 'You can already go live.' });
+    if (cur.status === 'pending') return res.status(400).json({ success: false, error: 'Your request is already waiting for review.' });
+    await pool.query(
+      `INSERT INTO live_requests (user_email, status, purpose, message, link, channel_name, requested_at, decided_at, decided_by, note) VALUES ($1,'pending',$2,$3,$4,$5,NOW(),NULL,NULL,NULL)
+       ON CONFLICT (user_email) DO UPDATE SET status = 'pending', purpose = $2, message = $3, link = $4, channel_name = $5, requested_at = NOW(), decided_at = NULL, decided_by = NULL, note = NULL`, [me, purpose, message, link || null, channel || null]);
+    // tell the admins (bell) — the Live tab in Admin also shows a red number
+    const who = (await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [me])).rows[0] || {};
+    const admins = await pool.query("SELECT email FROM users WHERE role IN ('admin', 'super_admin') AND COALESCE(is_banned, FALSE) = FALSE LIMIT 50");
+    for (const a of admins.rows) await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'admin_notice', $3, FALSE)", [a.email, me, `🔴 New Live request from ${`${who.first_name || ''} ${who.last_name || ''}`.trim() || 'a member'} (${purpose}). Open Admin → Live to review.`]).catch(() => {});
+    res.status(201).json({ success: true });
+  } catch (err) { console.error('[live] request error:', err.message); res.status(500).json({ success: false, error: 'Could not send your request.' }); }
+});
+app.post('/api/admin/live/requests', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const r = await pool.query(
+      `SELECT q.id, q.status, q.purpose, q.message, q.link, q.channel_name, q.requested_at, q.decided_at, q.decided_by, q.note, q.blocked, u.first_name, u.last_name, u.public_id
+       FROM live_requests q JOIN users u ON u.email = q.user_email ORDER BY (q.status = 'pending') DESC, q.requested_at DESC LIMIT 80`);
+    res.json({ success: true, pending: r.rows.filter((x) => x.status === 'pending').length, requests: r.rows.map((x) => ({ id: x.id, status: x.status, purpose: x.purpose, message: x.message, link: x.link || '', channelName: x.channel_name || '', requested_at: x.requested_at, decided_at: x.decided_at, note: x.note || '', blocked: x.blocked, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), public_id: x.public_id || '' })) });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+app.post('/api/admin/live/decide', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const id = parseInt((req.body || {}).id, 10), approve = (req.body || {}).approve === true, note = String((req.body || {}).note || '').trim().slice(0, 300);
+    if (!approve && !note) return res.status(400).json({ success: false, error: 'Please write the reason for refusing.' });
+    const r = await pool.query("UPDATE live_requests SET status = $2, decided_at = NOW(), decided_by = $3, note = $4 WHERE id = $1 AND status = 'pending' RETURNING user_email", [id, approve ? 'approved' : 'rejected', a.adminEmail, approve ? null : note]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'This request was already answered.' });
+    audit(a.adminEmail, approve ? 'live-approve' : 'live-reject', r.rows[0].user_email, note);
+    sendAdminNotice(a.adminEmail, r.rows[0].user_email, approve ? '✅ Your Live request was approved. You can now go live from the Upload page.' : '❌ Your Live request was not approved. Reason: ' + note + ' You may send a new request.').catch(() => {});
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
 app.post('/api/live/start', async (req, res) => {
   const me = req.authEmail, b = req.body || {};
   try {
     if (!liveConfigured()) return res.status(503).json({ success: false, error: 'Live is not switched on yet.' });
-    const ca = (await pool.query("SELECT live_blocked FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [me])).rows[0];
-    if (!ca) return res.status(403).json({ success: false, error: 'Live is only for approved Creators.' });
-    if (ca.live_blocked) return res.status(403).json({ success: false, error: 'Live is turned off for your account.' });
+    const acc = await liveAccess(me);
+    if (acc.blocked) return res.status(403).json({ success: false, error: 'Live is turned off for your account.' });
+    if (!acc.ok) return res.status(403).json({ success: false, error: 'Live needs approval first. Please send a request.', needRequest: true });
     const u = (await pool.query('SELECT is_banned FROM users WHERE email = $1', [me])).rows[0]; if (!u || u.is_banned) return res.status(403).json({ success: false, error: 'Not allowed.' });
     const old = await pool.query("SELECT id FROM live_streams WHERE host_email = $1 AND status <> 'ended'", [me]);
     for (const o of old.rows) await liveEnd(o.id, me, 'replaced');
@@ -3266,7 +3325,7 @@ app.post('/api/live/start', async (req, res) => {
     const whip = cf.webRTC && cf.webRTC.url; if (!cf.uid || !whip) throw new Error('Cloudflare gave no WebRTC address (is Stream WebRTC available on this account?)');
     const origin = cfHost(whip);
     const whep = (cf.webRTCPlayback && cf.webRTCPlayback.url) || `${origin}/${cf.uid}/webRTC/play`, iframe = `${origin}/${cf.uid}/iframe`;
-    const r = await pool.query('INSERT INTO live_streams (host_email, title, privacy, cf_uid, whip_url, whep_url, iframe_url, last_ping) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW()) RETURNING id', [me, title || null, privacy, cf.uid, whip, whep, iframe]);
+    const r = await pool.query('INSERT INTO live_streams (host_email, title, privacy, cf_uid, whip_url, whep_url, iframe_url, last_ping, display_name) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),$8) RETURNING id', [me, title || null, privacy, cf.uid, whip, whep, iframe, (b.asChannel === true && acc.channelName) ? acc.channelName : null]);
     res.status(201).json({ success: true, id: r.rows[0].id, whipUrl: whip, maxMinutes: LIVE_MAX_MINUTES() });
   } catch (err) { console.error('[live] start error:', err.message); res.status(500).json({ success: false, error: 'Could not start the live. Please try again.' }); }
 });
@@ -3303,13 +3362,13 @@ app.get('/api/live/active', async (req, res) => {
   const me = req.authEmail;
   try {
     const r = await pool.query(
-      `SELECT l.id, l.host_email, l.title, l.started_at, u.first_name, u.last_name, u.profile_pic FROM live_streams l JOIN users u ON u.email = l.host_email
+      `SELECT l.id, l.host_email, l.title, l.started_at, l.display_name, u.first_name, u.last_name, u.profile_pic FROM live_streams l JOIN users u ON u.email = l.host_email
        WHERE l.status = 'live' AND l.last_ping > NOW() - INTERVAL '${LIVE_ALIVE_SECS} seconds' AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('l.host_email', '$1')}
          AND (l.host_email = $1 OR (EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = l.host_email)
               AND (l.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = l.host_email AND f2.following_email = $1))))
        ORDER BY l.started_at DESC LIMIT 30`, [me]);
-    const cg = liveConfigured() ? (await pool.query("SELECT 1 FROM creator_applications WHERE user_email = $1 AND status = 'approved' AND live_blocked = FALSE", [me])).rows[0] : null;
-    res.json({ success: true, canGoLive: !!cg, lives: r.rows.map((x) => ({ id: x.id, host_email: x.host_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', title: x.title || '', mine: x.host_email === me })) });
+    const cg = liveConfigured() ? (await liveAccess(me)).ok : false;
+    res.json({ success: true, canGoLive: !!cg, lives: r.rows.map((x) => ({ id: x.id, host_email: x.host_email, name: x.display_name || `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', title: x.title || '', mine: x.host_email === me })) });
   } catch (err) { res.status(500).json({ success: false, lives: [] }); }
 });
 app.get('/api/live/:id', async (req, res) => {
@@ -3325,7 +3384,7 @@ app.get('/api/live/:id', async (req, res) => {
       const ins = await pool.query('INSERT INTO live_viewers (live_id, viewer_email) VALUES ($1, $2) ON CONFLICT (live_id, viewer_email) DO UPDATE SET last_seen = NOW() RETURNING (xmax = 0) AS fresh', [id, me]);
       if (ins.rows[0] && ins.rows[0].fresh) pool.query('UPDATE live_streams SET total_viewers = total_viewers + 1 WHERE id = $1', [id]).catch(() => {});
     }
-    res.json({ success: true, ended: false, mine, on: liveIsOn(l), name: `${l.first_name || ''} ${l.last_name || ''}`.trim(), profile_pic: l.profile_pic || '', host_email: l.host_email, title: l.title || '', whepUrl: l.whep_url, iframeUrl: l.iframe_url, viewers: await viewerCount(id), emoji: LIVE_EMOJI });
+    res.json({ success: true, ended: false, mine, on: liveIsOn(l), name: l.display_name || `${l.first_name || ''} ${l.last_name || ''}`.trim(), profile_pic: l.profile_pic || '', host_email: l.host_email, title: l.title || '', whepUrl: l.whep_url, iframeUrl: l.iframe_url, viewers: await viewerCount(id), emoji: LIVE_EMOJI });
   } catch (err) { console.error('[live] info error:', err.message); res.status(500).json({ success: false, error: 'Could not open the live.' }); }
 });
 app.get('/api/live/:id/feed', async (req, res) => {
@@ -3371,10 +3430,10 @@ app.post('/api/admin/live', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
     const r = await pool.query(
-      `SELECT l.id, l.host_email, l.title, l.status, l.started_at, l.last_ping, l.ended_at, l.ended_by, l.end_reason, l.peak, l.total_viewers, u.first_name, u.last_name, COALESCE(ca.live_blocked, FALSE) AS live_blocked
-       FROM live_streams l JOIN users u ON u.email = l.host_email LEFT JOIN creator_applications ca ON ca.user_email = l.host_email
+      `SELECT l.id, l.host_email, l.title, l.status, l.started_at, l.last_ping, l.ended_at, l.ended_by, l.end_reason, l.peak, l.total_viewers, u.first_name, u.last_name, (COALESCE(ca.live_blocked, FALSE) OR COALESCE(lq.blocked, FALSE)) AS live_blocked, l.display_name
+       FROM live_streams l JOIN users u ON u.email = l.host_email LEFT JOIN creator_applications ca ON ca.user_email = l.host_email LEFT JOIN live_requests lq ON lq.user_email = l.host_email
        WHERE l.status <> 'ended' OR l.ended_at > NOW() - INTERVAL '3 days' ORDER BY (l.status <> 'ended') DESC, l.id DESC LIMIT 60`);
-    res.json({ success: true, configured: liveConfigured(), maxViewers: LIVE_MAX_VIEWERS(), maxMinutes: LIVE_MAX_MINUTES(), lives: r.rows.map((x) => ({ id: x.id, host_email: x.host_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), title: x.title || '', status: x.status, started_at: x.started_at, last_ping: x.last_ping, ended_at: x.ended_at, ended_by: x.ended_by, end_reason: x.end_reason, peak: x.peak, total: x.total_viewers, live_blocked: x.live_blocked })) });
+    res.json({ success: true, configured: liveConfigured(), maxViewers: LIVE_MAX_VIEWERS(), maxMinutes: LIVE_MAX_MINUTES(), lives: r.rows.map((x) => ({ id: x.id, host_email: x.host_email, name: x.display_name || `${x.first_name || ''} ${x.last_name || ''}`.trim(), title: x.title || '', status: x.status, started_at: x.started_at, last_ping: x.last_ping, ended_at: x.ended_at, ended_by: x.ended_by, end_reason: x.end_reason, peak: x.peak, total: x.total_viewers, live_blocked: x.live_blocked })) });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 app.post('/api/admin/live/stop', async (req, res) => {
@@ -3382,7 +3441,7 @@ app.post('/api/admin/live/stop', async (req, res) => {
     const a = await adminGate(req, res); if (!a) return;
     const id = parseInt((req.body || {}).id, 10), reason = String((req.body || {}).reason || '').trim().slice(0, 200), block = (req.body || {}).block === true;
     const row = id && await liveEnd(id, a.adminEmail, reason || 'admin'); if (!row) return res.status(404).json({ success: false, error: 'This live is already over.' });
-    if (block) await pool.query('UPDATE creator_applications SET live_blocked = TRUE WHERE user_email = $1', [row.host_email]);
+    if (block) { await pool.query('UPDATE creator_applications SET live_blocked = TRUE WHERE user_email = $1', [row.host_email]); await pool.query('UPDATE live_requests SET blocked = TRUE WHERE user_email = $1', [row.host_email]); }
     audit(a.adminEmail, 'stop-live', row.host_email, reason + (block ? ' (live blocked)' : ''));
     sendAdminNotice(a.adminEmail, row.host_email, 'Your live video was stopped by the CamFeed team.' + (reason ? ' Reason: ' + reason : '') + (block ? ' Live is now turned off for your account.' : '')).catch(() => {});
     res.json({ success: true });
@@ -3393,8 +3452,8 @@ app.post('/api/admin/live/allow', async (req, res) => {
     const a = await adminGate(req, res); if (!a) return;
     const lid = parseInt((req.body || {}).id, 10), blocked = (req.body || {}).blocked === true;
     const email = lid ? ((await pool.query('SELECT host_email FROM live_streams WHERE id = $1', [lid])).rows[0] || {}).host_email : null;
-    const u = await pool.query('UPDATE creator_applications SET live_blocked = $2 WHERE user_email = $1 RETURNING user_email', [email, blocked]);
-    if (!u.rows[0]) return res.status(404).json({ success: false, error: 'Not a Creator.' });
+    const u1 = await pool.query('UPDATE creator_applications SET live_blocked = $2 WHERE user_email = $1 RETURNING user_email', [email, blocked]), u2 = await pool.query('UPDATE live_requests SET blocked = $2 WHERE user_email = $1 RETURNING user_email', [email, blocked]);
+    if (!u1.rows[0] && !u2.rows[0]) return res.status(404).json({ success: false, error: 'Not found.' });
     audit(a.adminEmail, blocked ? 'live-block' : 'live-allow', email, ''); res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false }); }
 });
@@ -3405,6 +3464,7 @@ async function sweepLives() {
         (status = 'live' AND last_ping < NOW() - INTERVAL '75 seconds') OR (status = 'created' AND created_at < NOW() - INTERVAL '3 minutes')
         OR (started_at IS NOT NULL AND started_at < NOW() - make_interval(mins => $1)))`, [LIVE_MAX_MINUTES()]);
     for (const x of d.rows) await liveEnd(x.id, null, 'timeout');
+    await pool.query("DELETE FROM live_requests WHERE status = 'pending' AND requested_at < NOW() - INTERVAL '15 days' AND blocked = FALSE").catch(() => {});
     await pool.query("DELETE FROM live_comments WHERE created_at < NOW() - INTERVAL '2 days'").catch(() => {});
     await pool.query("DELETE FROM live_reactions WHERE created_at < NOW() - INTERVAL '2 days'").catch(() => {});
     await pool.query("DELETE FROM live_viewers WHERE last_seen < NOW() - INTERVAL '1 day'").catch(() => {});

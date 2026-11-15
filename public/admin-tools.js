@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
+  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
 
   // ---------- helpers ----------
   function el(tag, props, kids) {
@@ -421,6 +421,46 @@
 
 
   // ---------- Sponsored ads (local advertising) ----------
+  function setLiveBadge(n) { var b = document.getElementById('tabBtn-live'); if (!b) return; b.textContent = '🔴 Live' + (n > 0 ? '  (' + n + ')' : ''); }
+  function loadLiveAdmin() {
+    var p = document.getElementById('panel-live'); if (!p) return; p.textContent = '';
+    var out = el('div'), reqBox = el('div'), box = el('div'); p.appendChild(out); p.appendChild(reqBox); p.appendChild(box); box.appendChild(empty('Loading…'));
+    var PURP = { news: 'News / journalism', business: 'Business', event: 'Event', education: 'Education', other: 'Other' };
+    adm('/api/admin/live/requests', {}).then(function (q) {
+      reqBox.textContent = ''; if (!q.success) return;
+      setLiveBadge(q.pending);
+      reqBox.appendChild(el('div', { style: 'font-weight:800;margin:4px 0 8px', text: '📝 Live requests (' + q.pending + ' waiting)' }));
+      var shown = q.requests.filter(function (r) { return r.status === 'pending'; });
+      if (!shown.length) reqBox.appendChild(empty('No requests waiting.'));
+      shown.forEach(function (r) {
+        var ok = el('button', { class: 'btn-sm btn-blue', text: 'Approve', onclick: function () { adm('/api/admin/live/decide', { id: r.id, approve: true }).then(function (x) { msg(out, x.success, x.success ? '✅ Approved' : '❌ ' + (x.error || 'Failed')); loadLiveAdmin(); }); } });
+        var no = el('button', { class: 'btn-sm btn-red', text: 'Refuse', onclick: function () { var why = prompt('Reason for refusing (the person will see it):', ''); if (!why) return; adm('/api/admin/live/decide', { id: r.id, approve: false, note: why }).then(function (x) { msg(out, x.success, x.success ? '✅ Refused' : '❌ ' + (x.error || 'Failed')); loadLiveAdmin(); }); } });
+        reqBox.appendChild(el('div', { style: 'background:#fffaf0;border:1px solid #f5d9a8;border-radius:10px;padding:10px 12px;margin-bottom:8px' }, [
+          el('div', { style: 'font-weight:700', text: r.name + (r.public_id ? ' · ID ' + r.public_id : '') + ' — ' + (PURP[r.purpose] || r.purpose) }),
+          el('div', { style: 'font-size:13.5px;margin:4px 0;white-space:pre-wrap', text: r.message }),
+          el('div', { style: 'font-size:12.5px;color:#65676b', text: (r.channelName ? 'Name to show: ' + r.channelName + ' · ' : '') + (r.link ? 'Link: ' + r.link + ' · ' : '') + 'sent ' + ago(r.requested_at) }),
+          el('div', { style: 'margin-top:8px' }, [ok, no])]));
+      });
+    });
+    adm('/api/admin/live', {}).then(function (d) {
+      box.textContent = ''; if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
+      p.insertBefore(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: (d.configured ? '✅ Live is switched on.' : '⚠️ Live is OFF: add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_TOKEN in Render.') + ' Max ' + d.maxViewers + ' viewers per live, max ' + d.maxMinutes + ' minutes. Lives are never recorded. Only approved Creators can go live.' }), out);
+      if (!d.lives.length) { box.appendChild(empty('No lives yet.')); return; }
+      d.lives.forEach(function (l) {
+        var on = l.status !== 'ended';
+        var stop = el('button', { class: 'btn-sm btn-red', text: 'Stop', onclick: function () {
+          var why = prompt('Reason (the Creator will see it):', ''); if (why === null) return;
+          var blk = confirm('Also turn Live OFF for this Creator? (OK = yes, Cancel = only stop this live)');
+          adm('/api/admin/live/stop', { id: l.id, reason: why, block: blk }).then(function (x) { msg(out, x.success, x.success ? '✅ Stopped' : '❌ ' + (x.error || 'Failed')); loadLiveAdmin(); }); } });
+        var allow = el('button', { class: 'btn-sm btn-blue', text: l.live_blocked ? 'Allow Live again' : 'Block Live', onclick: function () {
+          adm('/api/admin/live/allow', { id: l.id, blocked: !l.live_blocked }).then(function (x) { msg(out, x.success, x.success ? '✅ Saved' : '❌ ' + (x.error || 'Failed')); loadLiveAdmin(); }); } });
+        box.appendChild(el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:10px;padding:10px 12px;margin-bottom:8px' }, [
+          el('div', { style: 'font-weight:700', text: (on ? '🔴 ' : '⚪ ') + nm({ first_name: l.name }) + (l.title ? ' — ' + l.title : '') + (l.live_blocked ? ' (Live blocked)' : '') }),
+          el('div', { style: 'font-size:12.5px;color:#65676b;margin:3px 0 8px', text: (on ? 'On air since ' + fmt(l.started_at) : 'Ended ' + ago(l.ended_at) + (l.ended_by ? ' · stopped by admin' : '') + (l.end_reason ? ' · ' + l.end_reason : '')) + ' · peak ' + l.peak + ' · ' + l.total + ' people watched' }),
+          el('div', { style: 'display:flex;gap:8px' }, (on ? [stop, allow] : [allow]))]));
+      });
+    });
+  }
   function loadAdsAdmin() {
     var p = document.getElementById('panel-ads'); if (!p) return;
     p.textContent = '';
@@ -514,8 +554,10 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin();
+    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin();
   };
   window.onAdminUnlocked = function () { switchAdminTab('overview'); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
+  function pollLiveBadge() { try { if (typeof savedAdminKey !== 'undefined' && savedAdminKey && document.getElementById('tabBtn-live')) adm('/api/admin/live/requests', {}).then(function (q) { if (q && q.success) setLiveBadge(q.pending); }); } catch (e) {} }
+  setTimeout(pollLiveBadge, 4000); setInterval(pollLiveBadge, 60000);
 })();
