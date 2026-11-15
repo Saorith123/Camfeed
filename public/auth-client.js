@@ -178,5 +178,18 @@
     try { window.addEventListener('storage', function (e) { if (e.key === 'camfeed_theme') apply(e.newValue); }); } catch (e) {}   // another tab changed it
   })();
 
-  window.CamAuth = { getToken: getToken, setToken: setToken, useAccount: useAccount, forgetAccount: forgetAccount, logout: function () { clearSession(); window.location.href = 'index.html'; } };
+  window.CamAuth = { getToken: getToken, setToken: setToken, useAccount: useAccount, forgetAccount: forgetAccount, logout: function () {
+    var u = readJson(USER_KEY, null);
+    try { fetch('/api/logout', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {}   // ends this device's login on the server
+    try {
+      if (u && u.email) {                                   // stay in the "recent accounts" list (name + picture only), but the login is forgotten
+        var list = readJson(SAVED_KEY, []); if (!Array.isArray(list)) list = [];
+        var i = list.findIndex(function (a) { return a && a.email === u.email; });
+        if (i === -1) list.unshift(u); else list[i] = Object.assign({}, list[i], u);
+        localStorage.setItem(SAVED_KEY, JSON.stringify(list.slice(0, 5)));
+        forgetAccount(u.email);
+      }
+    } catch (e) {}
+    clearSession(); window.location.href = 'index.html';
+  } };
 })();

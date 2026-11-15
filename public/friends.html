@@ -610,7 +610,8 @@
         }
 
         function logout() {
-            localStorage.removeItem('camfeed_user');
+            if (window.CamAuth && CamAuth.logout) { CamAuth.logout(); return; }
+            localStorage.removeItem('camfeed_user'); localStorage.removeItem('camfeed_token');
             window.location.href = 'index.html';
         }
     </script>

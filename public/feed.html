@@ -1471,7 +1471,7 @@
             <div class="modal-body">
                 <p style="font-size: 13px; color: #65676b; margin: 0;">ចូលគណនីមួយទៀតដើម្បីរក្សាទុក (អាចរក្សាទុកបានរហូតដល់ 5 គណនី និងប្តូរទៅវិញទៅមកភ្លាមៗដោយមិនបាច់ Log Out)៖</p>
                 <input type="text" id="quickAddEmailInput" placeholder="អ៊ីមែល ឬលេខទូរសព្ទ (Email / Phone)">
-                <input type="password" id="quickAddPassInput" placeholder="ពាក្យសម្ងាត់ (Password)" onkeypress="if(event.key==='Enter') submitQuickAddAccount()">
+                <div style="position:relative"><input type="password" id="quickAddPassInput" placeholder="ពាក្យសម្ងាត់ (Password)" style="width:100%;padding-right:44px;box-sizing:border-box" onkeypress="if(event.key==='Enter') submitQuickAddAccount()"><span onclick="(function(i,e){var h=i.type==='password';i.type=h?'text':'password';e.textContent=h?'🙈':'👁️';})(document.getElementById('quickAddPassInput'),this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;user-select:none">👁️</span></div>
                 <div id="quickAddErrorMsg" style="color: #fa383e; font-size: 12.5px; font-weight: 600; text-align: center;"></div>
                 <button type="button" id="quickAddSubmitBtn" class="btn-primary" onclick="submitQuickAddAccount()">ចូល និងរក្សាទុកគណនី</button>
             </div>
@@ -4427,17 +4427,8 @@
         }
 
         function logout() {
-            const currentEmail = (currentUser?.email || '').trim().toLowerCase();
-            const remaining = getSavedAccounts().filter(a => (a.email || '').trim().toLowerCase() !== currentEmail);
-            persistSavedAccounts(remaining);
-
-            if (remaining.length > 0) {
-                localStorage.setItem('camfeed_user', JSON.stringify(remaining[0]));
-                window.location.reload();
-            } else {
-                localStorage.removeItem('camfeed_user');
-                window.location.href = 'index.html';
-            }
+            if (window.CamAuth && CamAuth.logout) { CamAuth.logout(); return; }
+            localStorage.removeItem('camfeed_user'); localStorage.removeItem('camfeed_token'); window.location.href = 'index.html';
         }
     
         // Site-Wide Real-Time Online / Offline Presence Broadcast (Active on all CamFeed pages)

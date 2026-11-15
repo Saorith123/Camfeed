@@ -120,6 +120,15 @@
             <div class="logo-tagline" id="logoTagline">Connect with friends and the world around you on CamFeed.</div>
         </div>
 
+        <!-- RECENT ACCOUNTS (shown after logging out, like Facebook) -->
+        <div class="card hidden" id="recentCard">
+            <div id="recentTitle" style="font-size:17px;font-weight:700;margin-bottom:10px;text-align:center"></div>
+            <div id="recentList"></div>
+            <button type="button" class="btn-primary" id="recentOther" style="margin-top:12px"></button>
+            <div class="divider"></div>
+            <button type="button" class="btn-create" id="recentCreate"></button>
+        </div>
+
         <!-- LOGIN VIEW -->
         <div class="card" id="loginCard">
             <form onsubmit="event.preventDefault(); loginUser();">
@@ -1316,6 +1325,41 @@
                 msg.innerText = 'Server connection error';
             }
         }
+    </script>
+    <script>
+    // after logging out: show the accounts used on this phone (tap one, log in with another, or create a new one)
+    (function () {
+        var km = localStorage.getItem('camfeed_lang') !== 'en';
+        var X = km ? { title: 'ជ្រើសគណនីដើម្បីចូល', other: 'ចូលគណនីផ្សេង', create: 'បង្កើតគណនីថ្មី', remove: 'ដកចេញពីឧបករណ៍នេះ?', as: 'ចូលជា ' } : { title: 'Choose an account to log in', other: 'Log in to another account', create: 'Create new account', remove: 'Remove from this device?', as: 'Log in as ' };
+        var list = []; try { list = JSON.parse(localStorage.getItem('camfeed_saved_accounts_v1') || '[]').filter(function (a) { return a && a.email && (a.first_name || a.last_name); }); } catch (e) {}
+        if (!list.length || /[?&]new=1/.test(location.search) || localStorage.getItem('camfeed_user')) return;
+        var card = document.getElementById('recentCard'), loginCard = document.getElementById('loginCard');
+        var DEF = "data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E";
+        function save(l) { try { localStorage.setItem('camfeed_saved_accounts_v1', JSON.stringify(l)); } catch (e) {} }
+        function render() {
+            var box = document.getElementById('recentList'); box.textContent = '';
+            list.forEach(function (a) {
+                var row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;border:1px solid #dddfe2;border-radius:10px;margin-bottom:8px;cursor:pointer';
+                var im = document.createElement('img'); im.src = /^https?:\/\//i.test(a.profile_pic || '') ? a.profile_pic : DEF; im.onerror = function () { im.src = DEF; }; im.style.cssText = 'width:48px;height:48px;border-radius:50%;object-fit:cover';
+                var nm = document.createElement('div'); nm.style.cssText = 'flex:1;font-weight:700;font-size:15.5px'; nm.textContent = ((a.first_name || '') + ' ' + (a.last_name || '')).trim();
+                var x = document.createElement('span'); x.textContent = '✕'; x.style.cssText = 'color:#8a8d91;font-size:18px;padding:4px 8px'; x.onclick = function (ev) { ev.stopPropagation(); if (!confirm(X.remove)) return; try { CamAuth.forgetAccount(a.email); } catch (e) {} list = list.filter(function (z) { return z.email !== a.email; }); save(list); if (!list.length) { showForm(); } else render(); };
+                row.appendChild(im); row.appendChild(nm); row.appendChild(x);
+                row.onclick = function () {
+                    if (window.CamAuth && CamAuth.useAccount && CamAuth.useAccount(a.email)) { localStorage.setItem('camfeed_user', JSON.stringify(a)); window.location.href = NEXT_URL; return; }
+                    showForm(a);
+                };
+                box.appendChild(row);
+            });
+        }
+        function showForm(a) {
+            card.classList.add('hidden'); loginCard.classList.remove('hidden');
+            if (a) { var em = document.getElementById('loginEmail'); em.value = a.contact_mail || ''; var m = document.getElementById('loginMsg'); m.style.color = '#1877f2'; m.innerText = X.as + ((a.first_name || '') + ' ' + (a.last_name || '')).trim(); (a.contact_mail ? document.getElementById('loginPassword') : em).focus(); }
+        }
+        document.getElementById('recentTitle').textContent = X.title; document.getElementById('recentOther').textContent = X.other; document.getElementById('recentCreate').textContent = X.create;
+        document.getElementById('recentOther').onclick = function () { showForm(); };
+        document.getElementById('recentCreate').onclick = function () { card.classList.add('hidden'); showRegisterForm(); };
+        loginCard.classList.add('hidden'); card.classList.remove('hidden'); render();
+    })();
     </script>
     <script>
     // an invitation link (…/index.html?ref=<15-digit code>) is remembered until the new account is created
