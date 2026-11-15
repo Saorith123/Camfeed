@@ -317,8 +317,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     res.json({ success: true });
   });
 
-  app.get('/api/calls/:id', (req, res) => {
-    const me = norm(req.authEmail); const c = calls.get(req.params.id);
+  app.get('/api/calls/:callId', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
     if (!involved(c, me)) return res.status(404).json({ success: false });
     c.seen[me] = Date.now();
     const role = c.caller === me ? 'caller' : 'callee';
@@ -328,8 +328,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       ice: c.ice[other].slice(since), icTotal: c.ice[other].length, answeredAt: c.answeredAt });
   });
 
-  app.post('/api/calls/:id/answer', (req, res) => {
-    const me = norm(req.authEmail); const c = calls.get(req.params.id);
+  app.post('/api/calls/:callId/answer', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
     const answer = (req.body || {}).answer;
     if (!c) return res.status(404).json({ success: false, why: 'ans-notfound' });
     if (c.callee !== me) return res.status(400).json({ success: false, why: 'ans-notcallee' });
@@ -339,8 +339,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     res.json({ success: true });
   });
 
-  app.post('/api/calls/:id/ice', (req, res) => {
-    const me = norm(req.authEmail); const c = calls.get(req.params.id);
+  app.post('/api/calls/:callId/ice', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
     const cand = (req.body || {}).candidate;
     if (!involved(c, me) || !live(c) || !cand || typeof cand !== 'object') return res.status(400).json({ success: false });
     const arr = c.ice[c.caller === me ? 'caller' : 'callee'];
@@ -348,8 +348,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     res.json({ success: true });
   });
 
-  app.post('/api/calls/:id/end', (req, res) => {
-    const me = norm(req.authEmail); const c = calls.get(req.params.id);
+  app.post('/api/calls/:callId/end', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
     if (!involved(c, me)) return res.status(404).json({ success: false });
     if (live(c)) {
       c.why = (c.caller === me ? 'caller:' : 'callee:') + String((req.body || {}).why || '').slice(0, 60);
