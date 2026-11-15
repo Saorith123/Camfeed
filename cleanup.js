@@ -116,12 +116,13 @@ function createCleanup({ pool, cloudinary, deleteR2 }) {
     const ids0 = (postIds || []).map(Number).filter(Number.isInteger);
     if (!ids0.length) return [];
     const found = await client.query(
-      'SELECT id, media_type, media_url FROM posts WHERE id = ANY($1::int[]) OR shared_post_id = ANY($1::int[])', [ids0]);
+      'SELECT id, media_type, media_url, thumb_url FROM posts WHERE id = ANY($1::int[]) OR shared_post_id = ANY($1::int[])', [ids0]);
     const ids = found.rows.map(r => r.id);
     if (!ids.length) return [];
     const urls = [];
     found.rows.forEach(r => {
       if (r.media_url && !NON_FILE_POST_TYPES.has(r.media_type)) urls.push(...extractMediaUrls(r.media_url));
+      if (r.thumb_url) urls.push(r.thumb_url);
     });
     await client.query('DELETE FROM likes WHERE post_id = ANY($1::int[])', [ids]);
     await client.query('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ANY($1::int[]))', [ids]);

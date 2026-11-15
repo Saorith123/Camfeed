@@ -786,8 +786,14 @@
                 const excludeParam = (appendReels && loadedReelVideoIds.size > 0)
                     ? `&excludeIds=${Array.from(loadedReelVideoIds).join(',')}`
                     : '';
-                const res = await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos&limit=10&offset=0${excludeParam}`);
+                // opened from a profile: only that person's videos (newest first), page by page; no endless wrap-around
+                const scope = new URLSearchParams(window.location.search).get('profile');
+                if (scope && appendReels && window.__scopeDone) { isLoadingMoreReels = false; return; }
+                const res = scope
+                    ? await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&profileEmail=${encodeURIComponent(scope)}&type=videos&limit=10&offset=${window.__scopeOffset || 0}`)
+                    : await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos&limit=10&offset=0${excludeParam}`);
                 const data = await res.json();
+                if (scope && data && data.success && Array.isArray(data.posts)) { window.__scopeOffset = (window.__scopeOffset || 0) + data.posts.length; if (!data.hasMore || data.posts.length === 0) window.__scopeDone = true; }
 
                 let videoItems = [];
                 const seenOriginalIds = new Set();
@@ -855,7 +861,8 @@
                     }
                 } else {
                     videoItems = videoItems.filter(v => !loadedReelVideoIds.has(String(v.id)) && !loadedReelVideoIds.has(String(v.wrapperPostId)));
-                    if (videoItems.length === 0 && loadedReelVideoIds.size > 0) {
+                    if (videoItems.length === 0 && scope && !window.__scopeDone) { isLoadingMoreReels = false; return loadVideosFeed(true); }
+                    if (videoItems.length === 0 && loadedReelVideoIds.size > 0 && !scope) {
                         loadedReelVideoIds.clear();
                         isLoadingMoreReels = false;
                         return loadVideosFeed(true);
@@ -879,7 +886,7 @@
 
                     return `
                         <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
-                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
+                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" ${/^https:\/\//.test(video.thumb_url || '') ? `poster="${video.thumb_url}"` : ''} class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
                                 onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="reelHideLoading('${uid}')" onprogress="updateReelBuffer('${uid}')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
                                 ontimeupdate="updateReelProgress('${uid}')"
                                 onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerHTML=YT_REEL_SVG.pause;"

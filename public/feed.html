@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="call.js" defer></script>
     <script src="video-priority.js"></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
@@ -2531,7 +2532,7 @@
                 <div class="feed-video-wrap" id="vwrap-${uid}" style="aspect-ratio: ${initialAspect};"
                      onmousemove="revealFeedVideoControls('${uid}')"
                      onclick="handleFeedVideoSurfaceTap('${uid}', event)">
-                    <video id="vid-${uid}" src="${cleanUrl}" data-video-src="${cleanUrl}" class="${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="${preloadAttr}"
+                    <video id="vid-${uid}" src="${cleanUrl}" data-video-src="${cleanUrl}" class="${extraClass}" data-post-id="${postId}" ${(window.CamThumbs && /^https:\/\//.test(window.CamThumbs[postId] || '')) ? `poster="${window.CamThumbs[postId]}"` : ''} muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="${preloadAttr}"
                         onloadedmetadata="adjustVideoContainerAspect('${uid}')"
                         onloadeddata="fvHideLoading('${uid}'); updateFeedVideoClock('${uid}')"
                         onprogress="updateFeedVideoBuffer('${uid}')"
@@ -3056,6 +3057,7 @@
         })();
 
         function renderPosts(posts, containerId, append = false) {
+            window.CamThumbs = window.CamThumbs || {}; (posts || []).forEach((q) => { if (q && q.thumb_url) window.CamThumbs[q.id] = q.thumb_url; });
             const container = document.getElementById(containerId);
             if (!container) return;
             if (!append) container.innerHTML = '';

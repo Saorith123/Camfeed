@@ -3,6 +3,7 @@
 <head>
     <script src="auth-client.js"></script>
     <script src="pin-map.js" defer></script>
+    <script src="call.js" defer></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -456,6 +457,23 @@
             background-image: radial-gradient(#cbd5e1 0.65px, transparent 0.65px);
             background-size: 18px 18px;
         }
+        .cf-new-group-btn { flex: none; border: none; background: #eef2ff; color: #4f46e5; font-weight: 800; font-size: 15px; height: 40px; padding: 0 12px; border-radius: 12px; cursor: pointer; margin-left: 8px; }
+        .cf-sidebar-head { display: flex; align-items: center; }
+        .cf-sidebar-head .cf-search-wrap { flex: 1; min-width: 0; }
+        .cf-sender-name { font-size: 11.5px; font-weight: 800; color: #64748b; margin: 0 0 2px 6px; }
+        .cf-group-pic { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; background: #e2e8f0; cursor: pointer; display: block; margin: 0 auto; }
+        .cs-member { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; font-weight: 700; }
+        .cs-member img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #e2e8f0; }
+        .cs-member .nm { flex: 1; min-width: 0; }
+        .cs-member .tag { font-size: 11px; background: #eef2ff; color: #4f46e5; border-radius: 8px; padding: 2px 7px; }
+        .cs-member button { border: none; background: #fee2e2; color: #dc2626; font-weight: 800; border-radius: 9px; padding: 4px 9px; cursor: pointer; }
+        .cs-input { width: 100%; box-sizing: border-box; border: 2px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; font-size: 15px; font-family: inherit; }
+        .cs-pick { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid #f1f5f9; cursor: pointer; font-weight: 700; font-size: 14px; }
+        .cs-pick img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; background: #e2e8f0; }
+        .cs-pick input { width: 20px; height: 20px; margin-left: auto; }
+        .cs-btn { width: 100%; margin-top: 14px; border: none; border-radius: 14px; padding: 13px; font-size: 15px; font-weight: 800; cursor: pointer; background: linear-gradient(135deg,#4f46e5,#7c3aed); color: #fff; }
+        .cs-btn.danger { background: #fee2e2; color: #dc2626; }
+        .cs-btn[disabled] { opacity: .5; }
         .cf-empty-box {
             flex: 1;
             display: flex;
@@ -516,7 +534,7 @@
             white-space: pre-wrap;
         }
         .cf-msg-row.sent .cf-bubble {
-            background: var(--cf-primary-grad);
+            background: var(--sent-bg, var(--cf-primary-grad));
             color: #ffffff;
             border-radius: 18px 18px 4px 18px;
         }
@@ -526,6 +544,46 @@
             border: 1px solid var(--cf-border);
             border-radius: 18px 18px 18px 4px;
         }
+
+        /* ---- chat extras: reply, reactions, system notes, call pills, settings ---- */
+        .cf-sys-note { align-self: center; max-width: 86%; text-align: center; font-size: 12px; font-weight: 700; color: #475569; background: rgba(255,255,255,.82); padding: 5px 12px; border-radius: 12px; }
+        .cf-call-pill { align-self: center; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--cf-border); border-radius: 16px; padding: 8px 14px; font-size: 13px; font-weight: 700; color: #0f172a; box-shadow: 0 2px 8px rgba(15,23,42,.06); }
+        .cf-call-pill.missed { color: #dc2626; }
+        .cf-call-pill button { border: none; background: #eef2ff; color: #4f46e5; font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 10px; cursor: pointer; }
+        .cf-reply-quote { max-width: 260px; display: flex; flex-direction: column; font-size: 12px; background: rgba(255,255,255,.92); border-left: 3px solid #6366f1; border-radius: 10px; padding: 5px 9px; margin-bottom: 3px; cursor: pointer; color: #334155; }
+        .cf-reply-quote b { font-size: 11.5px; color: #4f46e5; }
+        .cf-reply-quote span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cf-react-row { display: flex; gap: 4px; margin-top: -6px; position: relative; z-index: 1; flex-wrap: wrap; }
+        .cf-react-chip { border: 1px solid #e2e8f0; background: #fff; border-radius: 12px; padding: 1px 7px; font-size: 13px; cursor: pointer; box-shadow: 0 1px 4px rgba(15,23,42,.1); }
+        .cf-react-chip.me { background: #eef2ff; border-color: #a5b4fc; }
+        .cf-react-pick { display: flex; gap: 2px; padding: 4px 4px 6px; border-bottom: 1px solid #f1f5f9; margin-bottom: 4px; }
+        .cf-react-pick button { font-size: 20px !important; padding: 2px 4px !important; width: auto !important; }
+        .cf-msg-row.flash .cf-bubble, .cf-msg-row.flash .cf-media-card { outline: 3px solid #fbbf24; }
+        .cf-reply-bar { display: none; align-items: center; gap: 10px; padding: 8px 14px; background: #f1f5f9; border-top: 1px solid var(--cf-border); font-size: 13px; }
+        .cf-reply-bar .rb-txt { flex: 1; min-width: 0; border-left: 3px solid #6366f1; padding-left: 8px; }
+        .cf-reply-bar .rb-txt b { display: block; font-size: 12px; color: #4f46e5; }
+        .cf-reply-bar .rb-txt span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #475569; }
+        .cf-reply-bar button { border: none; background: none; font-size: 20px; cursor: pointer; }
+        .cs-overlay { display: none; position: fixed; inset: 0; z-index: 2500; background: rgba(15,23,42,.55); align-items: flex-end; justify-content: center; }
+        .cs-overlay.open { display: flex; }
+        .cs-sheet { background: #fff; width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; border-radius: 22px 22px 0 0; padding: 16px 18px 26px; }
+        @media (min-width: 769px) { .cs-overlay { align-items: center; } .cs-sheet { border-radius: 22px; } }
+        .cs-head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 17px; margin-bottom: 8px; }
+        .cs-head button { border: none; background: none; font-size: 24px; cursor: pointer; }
+        .cs-sec { margin-top: 16px; }
+        .cs-sec h4 { margin: 0 0 8px; font-size: 14px; color: #0f172a; }
+        .cs-sec small { display: block; color: #64748b; font-size: 12px; margin-top: 6px; line-height: 1.4; }
+        .cs-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .cs-sw { width: 46px; height: 46px; border-radius: 12px; border: 3px solid transparent; cursor: pointer; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #64748b; background-color: #f1f5f9; }
+        .cs-sw.on { border-color: #4f46e5; }
+        .cs-em { width: 42px; height: 42px; border-radius: 12px; border: 2px solid transparent; background: #f8fafc; font-size: 22px; cursor: pointer; }
+        .cs-em.on { border-color: #4f46e5; background: #eef2ff; }
+        .cs-chip { padding: 8px 12px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+        .cs-chip.on { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; }
+        .cs-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; }
+        .cs-switch { width: 46px; height: 26px; border-radius: 13px; background: #cbd5e1; position: relative; cursor: pointer; border: none; }
+        .cs-switch::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #fff; top: 3px; left: 3px; transition: left .15s; }
+        .cs-switch.on { background: #4f46e5; } .cs-switch.on::after { left: 23px; }
 
         /* Deleted Message Tombstone Trace */
         .cf-bubble-deleted {
@@ -1307,6 +1365,7 @@
                     <span class="cf-search-icon">🔍</span>
                     <input type="text" id="searchContactInput" placeholder="ស្វែងរកអ្នកជជែក (Search)..." oninput="handleSearch(this.value)">
                 </div>
+                <button type="button" class="cf-new-group-btn" onclick="openGroupPicker('create')" title="បង្កើតក្រុមឆាត">👥＋</button>
             </div>
             <div class="cf-contacts-scroll" id="contactsList">
                 <div style="padding: 24px; text-align: center; color: #64748b; font-size: 13.5px;">កំពុងផ្ទុកបញ្ជីជជែក...</div>
@@ -1318,11 +1377,11 @@
             <div class="cf-chat-header" id="chatHeader">
                 <div class="cf-header-left">
                     <button class="cf-mobile-back" onclick="showContactsMobile()" title="Back">←</button>
-                    <div class="cf-header-avatar" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                    <div class="cf-header-avatar" onclick="openHeaderTarget()">
                         <img src="data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E" id="activeChatAvatar">
                         <span class="cf-status-ring" id="activeChatOnlineDot"></span>
                     </div>
-                    <div class="cf-header-info" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
+                    <div class="cf-header-info" onclick="openHeaderTarget()">
                         <div class="cf-header-name notranslate" translate="no" id="activeChatName">ជ្រើសរើសការជជែក</div>
                         <div class="cf-presence-badge offline" id="activeChatPresenceBadge">
                             <span class="cf-presence-dot"></span>
@@ -1332,9 +1391,10 @@
                 </div>
 
                 <div class="cf-header-tools">
-                    <button class="cf-tool-circle" onclick="alert('មុខងារហៅជាសំឡេង (Audio Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Audio Call">📞</button>
-                    <button class="cf-tool-circle" onclick="alert('មុខងារហៅជាវីដេអូ (Video Call) នឹងដាក់ឱ្យប្រើប្រាស់ឆាប់ៗនេះ!')" title="Video Call">📹</button>
-                    <button class="cf-tool-circle" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)" title="Profile Info">👤</button>
+                    <button class="cf-tool-circle" id="hdrCallA" onclick="startChatCall('audio')" title="ហៅសំឡេង">📞</button>
+                    <button class="cf-tool-circle" id="hdrCallV" onclick="startChatCall('video')" title="ហៅវីដេអូ">📹</button>
+                    <button class="cf-tool-circle" onclick="openChatSettings()" title="ការកំណត់ឆាត">⚙️</button>
+                    <button class="cf-tool-circle" id="hdrProfile" onclick="openHeaderTarget()" title="Profile Info">👤</button>
                 </div>
             </div>
 
@@ -1486,6 +1546,7 @@
                 </div>
             </div>
 
+            <div class="cf-reply-bar" id="replyBar"><div class="rb-txt"><b id="replyBarName"></b><span id="replyBarText"></span></div><button type="button" onclick="cancelReply()" title="បោះបង់">✕</button></div>
             <!-- Bottom Input Composer -->
             <div class="cf-composer-dock" id="chatInputBar" style="display: none;">
                 <input type="file" id="chatCameraInput" accept="image/*,video/*" capture="environment" style="display: none;" onchange="sendMediaMessage(this)">
@@ -1506,6 +1567,16 @@
             </div>
         </div>
     </div>
+
+    <!-- Chat settings sheet -->
+    <div class="cs-overlay" id="chatSettingsModal" onclick="if(event.target===this)closeChatSettings()">
+        <div class="cs-sheet" id="chatSettingsBody"></div>
+    </div>
+    <div class="cs-overlay" id="groupPickModal" onclick="if(event.target===this)closeGroupPicker()">
+        <div class="cs-sheet" id="groupPickBody"></div>
+    </div>
+    <input type="file" id="groupPicInput" accept="image/*" style="display:none" onchange="uploadGroupPic(this)">
+    <input type="file" id="chatBgInput" accept="image/*" style="display:none" onchange="uploadChatBg(this)">
 
     <!-- Interactive Photo Editor Modal -->
     <div id="photoEditorModal" class="photo-editor-overlay">
@@ -2044,6 +2115,7 @@
         }
 
         function updateHeaderPresenceUI(isOnline) {
+            if (activeFriend && activeFriend.is_group) return;
             const dotEl = document.getElementById('activeChatOnlineDot');
             const badgeEl = document.getElementById('activeChatPresenceBadge');
             const statusEl = document.getElementById('activeChatStatus');
@@ -2058,7 +2130,7 @@
         }
 
         async function verifySingleUserPresence(targetEmail) {
-            if (!targetEmail || !currentUser) return false;
+            if (!targetEmail || !currentUser || String(targetEmail).startsWith('group:')) return false;
             try {
                 const res = await fetch(`/api/user-profile?email=${encodeURIComponent(targetEmail)}&viewerEmail=${encodeURIComponent(currentUser.email)}`);
                 const data = await res.json();
@@ -2156,6 +2228,21 @@
                     } catch (e) {}
                 }
 
+                let groupRows = [];
+                try {
+                    const gr = await fetch('/api/groups');
+                    const gd = await gr.json();
+                    if (gd.success && Array.isArray(gd.groups)) {
+                        groupRows = gd.groups.map(g => {
+                            const open = activeFriend && activeFriend.is_group && activeFriend.group_id === g.id;
+                            let prev = g.last_message || '';
+                            if (g.last_type === 'system') prev = '👥 ' + prev.replace(/^[^\s]+\s/, '');
+                            else if (g.last_sender_name) prev = g.last_sender_name + ': ' + formatSidebarPreview(prev);
+                            return { email: 'group:' + g.id, is_group: true, group_id: g.id, first_name: g.name, last_name: '', profile_pic: g.pic || '',
+                                members_count: g.members_count, last_message: prev, last_time: g.last_time, unread_count: open ? 0 : g.unread_count };
+                        });
+                    }
+                } catch (e) {}
                 if (data.success && Array.isArray(data.conversations)) {
                     allConversations = data.conversations.map(c => {
                         const se = (c.email || '').toLowerCase();
@@ -2168,6 +2255,7 @@
                     await Promise.all(
                         allConversations.slice(0, 12).map(c => verifySingleUserPresence(c.email))
                     );
+                    allConversations = allConversations.concat(groupRows).sort((x, y) => new Date(y.last_time || 0) - new Date(x.last_time || 0));
 
                     const searchVal = (document.getElementById('searchContactInput')?.value || '').trim();
                     if (!searchVal) renderContacts(allConversations);
@@ -2229,6 +2317,7 @@
             if (rawMsg === DELETED_MARKER) return '🚫 សារត្រូវបានលុប';
             if (rawMsg.startsWith(EDITED_PREFIX)) return rawMsg.slice(EDITED_PREFIX.length);
             if (rawMsg.startsWith('STICKER_EMOJI:') || rawMsg === '[Sticker]') return '💟 Sticker';
+            if (rawMsg.startsWith('CALL:')) { const q = rawMsg.split(':'); return (q[2] === 'video' ? '📹 ' : '📞 ') + (q[1] === 'ended' ? 'ការហៅ' : 'ខកខាន/បោះបង់ការហៅ'); }
             return rawMsg;
         }
 
@@ -2251,21 +2340,24 @@
                     first_name: person.first_name,
                     last_name: person.last_name,
                     profile_pic: person.profile_pic,
-                    last_active: person.last_active
+                    last_active: person.last_active,
+                    is_group: person.is_group || undefined,
+                    group_id: person.group_id || undefined,
+                    members_count: person.members_count || undefined
                 }).replace(/'/g, "&#39;");
 
                 return `
                     <div class="cf-contact-card ${isActive} ${unreadClass}" data-email="${emailKey}" onclick='openChat(${safeData})'>
                         <div class="cf-avatar-box">
                             <img src="${avatar}">
-                            <span class="cf-status-ring ${online ? 'online' : ''}"></span>
+                            ${person.is_group ? '' : `<span class="cf-status-ring ${online ? 'online' : ''}"></span>`}
                         </div>
                         <div class="cf-contact-meta">
                             <div class="cf-contact-top">
                                 <div class="cf-contact-name notranslate" translate="no">${person.first_name || ''} ${person.last_name || ''}</div>
                                 <div style="display:flex; align-items:center; gap:5px;">
                                     ${unreadNum > 0 ? `<span class="cf-unread-pill">${unreadNum}</span>` : ''}
-                                    <span class="cf-contact-state-tag ${online ? 'online' : 'offline'}">${online ? 'Online' : 'Offline'}</span>
+                                    ${person.is_group ? `<span class="cf-contact-state-tag online" style="background:#eef2ff;color:#4f46e5">👥 ${person.members_count || ''}</span>` : `<span class="cf-contact-state-tag ${online ? 'online' : 'offline'}">${online ? 'Online' : 'Offline'}</span>`}
                                 </div>
                             </div>
                             <div class="cf-contact-preview notranslate" translate="no">${escapeHtml(subtitle)}</div>
@@ -2284,9 +2376,12 @@
                 (c.email || '').trim().toLowerCase() === se ? { ...c, unread_count: 0 } : c
             );
             cancelEditMessage();
+            cancelReply();
+            applyChatSettings(null);
             document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
             document.getElementById('activeChatAvatar').src = friend.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
             updateHeaderPresenceUI(verifiedOnlineMap[se] || false);
+            setGroupHeader(!!friend.is_group);
             document.getElementById('chatInputBar').style.display = 'flex';
             refreshActiveFriendStatus();
 
@@ -2336,8 +2431,9 @@
                 const data = await res.json();
                 if (data.success && Array.isArray(data.messages)) {
                     cachedServerMessages = data.messages;
+                    applyChatSettings(data.settings);
                     const overrides = JSON.stringify(getLocalOverrides());
-                    const sig = data.messages.map(m => `${m.id}:${m.is_read}:${m.message}:${m.media_url}`).join('|') + '||' + pendingOutgoingMessages.length + '||' + overrides;
+                    const sig = data.messages.map(m => `${m.id}:${m.is_read}:${m.message}:${m.media_url}:${JSON.stringify(m.reactions || [])}`).join('|') + '||' + pendingOutgoingMessages.length + '||' + overrides + '||' + JSON.stringify(data.settings || {});
                     if (sig !== lastMessagesSignature || forceScroll) {
                         lastMessagesSignature = sig;
                         renderMessages(data.messages, forceScroll);
@@ -2370,6 +2466,319 @@
             }
         });
 
+        // =========================================================================
+        // CHAT EXTRAS: settings (background / quick emoji / colour / auto-delete / mute), reply, reactions, calls
+        // =========================================================================
+        let chatQuick = '👍';
+        let chatSettings = { bg: '', emoji: '', theme: '', ttl_hours: 0, muted: false, maxMonths: 12 };
+        let lastSettingsSig = '';
+        let replyingTo = null;
+        const BG_PRESETS = {
+            g1: 'linear-gradient(160deg,#e0f2fe,#fce7f3)', g2: 'linear-gradient(160deg,#fef3c7,#fde68a)',
+            g3: 'linear-gradient(160deg,#dcfce7,#cffafe)', g4: 'linear-gradient(160deg,#ede9fe,#fae8ff)',
+            g5: 'linear-gradient(160deg,#fed7aa,#fecdd3)', g6: 'linear-gradient(160deg,#0f172a,#312e81)',
+            g7: 'linear-gradient(160deg,#bae6fd,#a5b4fc)', g8: 'linear-gradient(160deg,#bbf7d0,#86efac)',
+            g9: 'linear-gradient(160deg,#f1f5f9,#e2e8f0)'
+        };
+        const THEME_GRADS = {
+            blue: 'linear-gradient(135deg,#2563eb,#3b82f6)', green: 'linear-gradient(135deg,#16a34a,#22c55e)',
+            rose: 'linear-gradient(135deg,#e11d48,#f43f5e)', orange: 'linear-gradient(135deg,#ea580c,#f97316)',
+            purple: 'linear-gradient(135deg,#7c3aed,#a855f7)', teal: 'linear-gradient(135deg,#0d9488,#14b8a6)',
+            dark: 'linear-gradient(135deg,#1e293b,#475569)'
+        };
+        const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢','🔥','🎉','😍','🙏','💯','😎','🥰','👏','😘','🤝','💪'];
+        const TTL_LABELS = [[0,'បិទ'],[24,'២៤ ម៉ោង'],[168,'៧ ថ្ងៃ'],[720,'១ ខែ'],[4380,'៦ ខែ'],[8760,'១២ ខែ']];
+
+        function isBigEmoji(t) {
+            return !!t && t.length <= 16 && /^\p{Extended_Pictographic}(?:‍\p{Extended_Pictographic}|️|\p{Emoji_Modifier})*$/u.test(t);
+        }
+        function previewOfMsg(m) {
+            if (m.message_type === 'image') return '📷 រូបភាព';
+            if (m.message_type === 'video') return '🎥 វីដេអូ';
+            if (m.message_type === 'audio') return '🎙️ សារសំឡេង';
+            if (m.message_type === 'location') return '📍 ទីតាំង';
+            let t = String(m.message || '');
+            if (t === DELETED_MARKER) return 'សារត្រូវបានលុប';
+            if (t.startsWith(EDITED_PREFIX)) t = t.slice(EDITED_PREFIX.length);
+            if (t.startsWith('STICKER_EMOJI:')) return t.slice(14);
+            return t.slice(0, 80);
+        }
+        function reactionsHtml(m) {
+            const rs = m.reactions || [];
+            if (!rs.length) return '';
+            const me = String(currentUser.email || '').toLowerCase();
+            const g = {};
+            rs.forEach(r => { g[r.e] = g[r.e] || { n: 0, me: false }; g[r.e].n++; if (r.u === me) g[r.e].me = true; });
+            return '<div class="cf-react-row">' + Object.keys(g).map(e => `<button type="button" class="cf-react-chip ${g[e].me ? 'me' : ''}" onclick="reactToMessage(${m.id}, '${e}')">${e}${g[e].n > 1 ? ' ' + g[e].n : ''}</button>`).join('') + '</div>';
+        }
+        function callPillHtml(m, isSent) {
+            const q = String(m.message || '').split(':');
+            const result = q[1] || 'ended', kind = q[2] === 'video' ? 'video' : 'audio', secs = parseInt(q[3], 10) || 0;
+            const icon = kind === 'video' ? '📹' : '📞';
+            let label, missed = false;
+            if (result === 'ended') { const mm = Math.floor(secs / 60), ss = secs % 60; label = (kind === 'video' ? 'ការហៅវីដេអូ' : 'ការហៅសំឡេង') + ' · ' + (mm < 10 ? '0' : '') + mm + ':' + (ss < 10 ? '0' : '') + ss; }
+            else if (result === 'missed') { label = isSent ? 'គ្មានអ្នកទទួល' : 'ខកខានការហៅ'; missed = !isSent; }
+            else if (result === 'cancelled') { label = isSent ? 'អ្នកបានបោះបង់ការហៅ' : 'ខកខានការហៅ'; missed = !isSent; }
+            else if (result === 'declined') { label = isSent ? 'ការហៅត្រូវបានបដិសេធ' : 'អ្នកបានបដិសេធការហៅ'; }
+            else label = 'ការហៅ';
+            return `<div class="cf-call-pill ${missed ? 'missed' : ''}"><span>${icon}</span><span>${label}</span><button type="button" onclick="startChatCall('${kind}')">ហៅម្ដងទៀត</button></div>`;
+        }
+        function startChatCall(kind) {
+            if (!activeFriend || activeFriend.is_group) return;
+            if (!window.CamCall) { alert('មុខងារហៅកំពុងផ្ទុក សូមព្យាយាមម្ដងទៀត'); return; }
+            CamCall.start(activeFriend.email, kind, `${activeFriend.first_name || ''} ${activeFriend.last_name || ''}`.trim(), activeFriend.profile_pic || '');
+        }
+
+        function startReply(id) {
+            const m = cachedServerMessages.find(x => x.id === id);
+            if (!m) return;
+            replyingTo = m;
+            document.getElementById('replyBarName').innerText = 'ឆ្លើយតបទៅ ' + (m.sender_email === currentUser.email ? 'ខ្លួនអ្នក' : (m.sender_name || (activeFriend ? activeFriend.first_name || '' : '')));
+            document.getElementById('replyBarText').innerText = previewOfMsg(m);
+            document.getElementById('replyBar').style.display = 'flex';
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            const inp = document.getElementById('messageTextInput'); if (inp) inp.focus();
+        }
+        function cancelReply() {
+            replyingTo = null;
+            const b = document.getElementById('replyBar'); if (b) b.style.display = 'none';
+        }
+        function jumpToMsg(id) {
+            const row = document.getElementById('msg-row-' + id);
+            if (!row) return;
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.classList.add('flash'); setTimeout(() => row.classList.remove('flash'), 1400);
+        }
+        async function reactToMessage(id, emoji) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            try {
+                await fetch('/api/messages/' + id + '/react', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ emoji }) });
+                await fetchMessages(false);
+            } catch (e) {}
+        }
+
+        // =========================================================================
+        // GROUP CHATS (a group is shown like a contact whose email is "group:<id>")
+        // =========================================================================
+        const DEFAULT_AVATAR = 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
+        let groupInfo = null;
+        let groupPickMode = 'create';
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = function (input, init) {
+            try {
+                const url = typeof input === 'string' ? input : (input && input.url) || '';
+                const method = String((init && init.method) || 'GET').toUpperCase();
+                const g = (activeFriend && activeFriend.is_group) ? activeFriend.group_id : null;
+                let body = null;
+                if (init && typeof init.body === 'string') { try { body = JSON.parse(init.body); } catch (e) {} }
+                if (url.startsWith('/api/messages?') && /user2=group%3A/i.test(url)) return _origFetch('/api/groups/' + url.match(/group%3A(\d+)/i)[1] + '/messages', init);
+                if (method === 'POST' && url === '/api/messages' && body && String(body.receiver || '').startsWith('group:')) return _origFetch('/api/groups/' + body.receiver.slice(6) + '/messages', init);
+                if (url === '/api/mark-read' && body && String(body.senderEmail || '').startsWith('group:')) return _origFetch('/api/groups/' + body.senderEmail.slice(6) + '/read', init);
+                if (g) {
+                    const x = /^\/api\/messages\/(\d+)(\/react)?$/.exec(url);
+                    if (x) return _origFetch('/api/groups/' + g + '/messages/' + x[1] + (x[2] || ''), init);
+                }
+            } catch (e) {}
+            return _origFetch(input, init);
+        };
+
+        function openHeaderTarget() {
+            if (!activeFriend) return;
+            if (activeFriend.is_group) openChatSettings();
+            else window.location.href = 'profile.html?email=' + encodeURIComponent(activeFriend.email);
+        }
+        function setGroupHeader(isG) {
+            ['hdrCallA', 'hdrCallV', 'hdrProfile'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = isG ? 'none' : ''; });
+            const badge = document.getElementById('activeChatPresenceBadge'), dot = document.getElementById('activeChatOnlineDot');
+            if (isG) {
+                if (dot) dot.style.display = 'none';
+                if (badge) { badge.classList.remove('offline'); badge.classList.add('online'); }
+                const st = document.getElementById('activeChatStatus');
+                if (st) st.innerText = '👥 ' + (activeFriend.members_count || '') + ' សមាជិក';
+            } else if (dot) dot.style.display = '';
+        }
+        async function loadGroupInfo() {
+            try {
+                const r = await fetch('/api/groups/' + activeFriend.group_id);
+                const d = await r.json();
+                groupInfo = d.success ? d : null;
+                if (groupInfo) {
+                    activeFriend.members_count = groupInfo.members.length;
+                    document.getElementById('activeChatName').innerText = groupInfo.group.name;
+                    activeFriend.first_name = groupInfo.group.name;
+                    setGroupHeader(true);
+                }
+            } catch (e) { groupInfo = null; }
+        }
+        function groupSectionHtml() {
+            if (!groupInfo) return '<div class="cs-sec">មិនអាចផ្ទុកព័ត៌មានក្រុមបានទេ</div>';
+            const admin = groupInfo.myRole === 'admin', me = String(currentUser.email).toLowerCase();
+            const members = groupInfo.members.map(m => `
+                <div class="cs-member"><img src="${m.profile_pic || DEFAULT_AVATAR}"><div class="nm notranslate" translate="no">${escapeHtml((m.first_name || '') + ' ' + (m.last_name || ''))}${m.email === me ? ' (អ្នក)' : ''}</div>
+                ${m.role === 'admin' ? '<span class="tag">អ្នកគ្រប់គ្រង</span>' : ''}
+                ${admin && m.email !== me ? `<button type="button" onclick="removeGroupMember('${escapeHtml(m.email)}')">ដកចេញ</button>` : ''}</div>`).join('');
+            return `
+                <div class="cs-sec" style="text-align:center">
+                    <img class="cf-group-pic" src="${groupInfo.group.pic || DEFAULT_AVATAR}" ${admin ? `onclick="document.getElementById('groupPicInput').click()"` : ''}>
+                    ${admin ? '<small>ចុចលើរូបដើម្បីប្តូររូបក្រុម</small>' : ''}
+                    ${admin ? `<div style="display:flex;gap:8px;margin-top:10px"><input class="cs-input" id="groupNameInput" maxlength="60" value="${escapeHtml(groupInfo.group.name)}"><button type="button" class="cs-chip on" onclick="saveGroupName()">រក្សាទុក</button></div>` : `<h3 style="margin:10px 0 0">${escapeHtml(groupInfo.group.name)}</h3>`}
+                </div>
+                <div class="cs-sec"><h4>👥 សមាជិក (${groupInfo.members.length}/${groupInfo.maxMembers})</h4>${members}
+                    ${admin ? `<button type="button" class="cs-btn" style="margin-top:10px" onclick="openGroupPicker('add')">＋ បន្ថែមសមាជិក</button>` : ''}</div>`;
+        }
+        function groupFooterHtml() {
+            const admin = groupInfo && groupInfo.myRole === 'admin';
+            return `<div class="cs-sec"><button type="button" class="cs-btn danger" onclick="leaveGroup()">🚪 ចាកចេញពីក្រុម</button>
+                ${admin ? `<button type="button" class="cs-btn danger" onclick="deleteGroup()">🗑️ លុបក្រុមទាំងមូល</button>` : ''}</div>`;
+        }
+        async function groupPost(path, body) {
+            const r = await fetch('/api/groups/' + activeFriend.group_id + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+            return r.json().catch(() => ({}));
+        }
+        async function refreshGroupUI() { await loadGroupInfo(); renderChatSettings(); await fetchMessages(true); loadConversations(); }
+        async function saveGroupName() {
+            const v = (document.getElementById('groupNameInput').value || '').trim();
+            if (!v) return;
+            const d = await groupPost('/update', { name: v });
+            if (!d.success) return alert('រក្សាទុកមិនបាន');
+            await refreshGroupUI();
+        }
+        async function uploadGroupPic(input) {
+            const file = input.files && input.files[0]; input.value = '';
+            if (!file) return;
+            try {
+                const blob = await compressChatImage(file);
+                const url = await uploadChatMediaToR2(blob, 'group-pic-' + Date.now() + '.jpg');
+                const d = await groupPost('/update', { pic: url });
+                if (!d.success) throw new Error();
+                activeFriend.profile_pic = url; document.getElementById('activeChatAvatar').src = url;
+                await refreshGroupUI();
+            } catch (e) { alert('ផ្ទុករូបឡើងមិនបាន'); }
+        }
+        async function removeGroupMember(email) {
+            if (!confirm('ដកសមាជិកនេះចេញពីក្រុម?')) return;
+            const d = await groupPost('/remove', { email });
+            if (!d.success) return alert('ដកមិនបាន');
+            await refreshGroupUI();
+        }
+        function exitGroupView() {
+            closeChatSettings(); if (pollInterval) clearInterval(pollInterval);
+            activeFriend = null; groupInfo = null; setGroupHeader(false);
+            document.getElementById('chatPanel').classList.add('hidden');
+            document.getElementById('chatInputBar').style.display = 'none';
+            if (window.innerWidth <= 768) { document.getElementById('contactsPanel').classList.remove('hidden'); document.getElementById('mainTopNav').classList.remove('chat-open-hide'); }
+            loadConversations();
+        }
+        async function leaveGroup() {
+            if (!confirm('ចាកចេញពីក្រុមនេះ?')) return;
+            const d = await groupPost('/leave', {});
+            if (d.success) exitGroupView(); else alert('ចាកចេញមិនបាន');
+        }
+        async function deleteGroup() {
+            if (!confirm('លុបក្រុមនេះ និងសារទាំងអស់? មិនអាចយកមកវិញបានទេ។')) return;
+            const d = await groupPost('/delete', {});
+            if (d.success) exitGroupView(); else alert('លុបមិនបាន');
+        }
+        function openGroupPicker(mode) {
+            groupPickMode = mode;
+            const existing = new Set(mode === 'add' && groupInfo ? groupInfo.members.map(m => m.email) : []);
+            const friends = allConversations.filter(c => !c.is_group && c.email && !existing.has(String(c.email).toLowerCase()));
+            const list = friends.map(c => `<label class="cs-pick"><img src="${c.profile_pic || DEFAULT_AVATAR}"><span class="notranslate" translate="no">${escapeHtml((c.first_name || '') + ' ' + (c.last_name || ''))}</span><input type="checkbox" value="${escapeHtml(c.email)}"></label>`).join('');
+            document.getElementById('groupPickBody').innerHTML = `
+                <div class="cs-head"><span>${mode === 'create' ? '👥 បង្កើតក្រុមឆាតថ្មី' : '＋ បន្ថែមសមាជិក'}</span><button type="button" onclick="closeGroupPicker()">✕</button></div>
+                ${mode === 'create' ? '<input class="cs-input" id="newGroupName" maxlength="60" placeholder="ឈ្មោះក្រុម">' : ''}
+                <div class="cs-sec"><h4>ជ្រើសរើសមិត្ត</h4>${list || '<small>មិនមានមិត្តដែលអាចជ្រើសបានទេ។ សូមជជែកជាមួយនរណាម្នាក់សិន។</small>'}</div>
+                <button type="button" class="cs-btn" id="groupPickSubmit" onclick="submitGroupPicker()">${mode === 'create' ? 'បង្កើតក្រុម' : 'បន្ថែម'}</button>`;
+            document.getElementById('groupPickModal').classList.add('open');
+        }
+        function closeGroupPicker() { document.getElementById('groupPickModal').classList.remove('open'); }
+        async function submitGroupPicker() {
+            const emails = Array.from(document.querySelectorAll('#groupPickBody input[type=checkbox]:checked')).map(i => i.value);
+            if (!emails.length) return alert('សូមជ្រើសរើសសមាជិកយ៉ាងហោចណាស់ ១ នាក់');
+            const btn = document.getElementById('groupPickSubmit'); btn.disabled = true;
+            try {
+                if (groupPickMode === 'create') {
+                    const name = (document.getElementById('newGroupName').value || '').trim();
+                    if (!name) { btn.disabled = false; return alert('សូមដាក់ឈ្មោះក្រុម'); }
+                    const r = await fetch('/api/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, members: emails }) });
+                    const d = await r.json();
+                    if (!d.success) { btn.disabled = false; return alert('បង្កើតក្រុមមិនបាន'); }
+                    closeGroupPicker();
+                    await loadConversations();
+                    const g = allConversations.find(c => c.is_group && c.group_id === d.group.id);
+                    if (g) openChat(g);
+                } else {
+                    const d = await groupPost('/members', { emails });
+                    closeGroupPicker();
+                    if (!d.success) alert('បន្ថែមមិនបាន (ក្រុមអាចពេញ)'); else await refreshGroupUI();
+                }
+            } catch (e) { btn.disabled = false; alert('មានបញ្ហាបណ្ដាញ'); }
+        }
+
+        function applyChatSettings(s) {
+            const next = s || { bg: '', emoji: '', theme: '', ttl_hours: 0, muted: false, maxMonths: 12 };
+            const sig = JSON.stringify(next);
+            if (sig === lastSettingsSig) return;
+            lastSettingsSig = sig; chatSettings = next;
+            const box = document.getElementById('chatMessages');
+            const bg = next.bg || '';
+            if (!bg) { box.style.backgroundImage = ''; box.style.backgroundSize = ''; box.style.backgroundPosition = ''; }
+            else if (BG_PRESETS[bg]) { box.style.backgroundImage = BG_PRESETS[bg]; box.style.backgroundSize = 'cover'; box.style.backgroundPosition = 'center'; }
+            else { box.style.backgroundImage = `url("${bg.replace(/"/g, '')}")`; box.style.backgroundSize = 'cover'; box.style.backgroundPosition = 'center'; }
+            if (THEME_GRADS[next.theme]) box.style.setProperty('--sent-bg', THEME_GRADS[next.theme]); else box.style.removeProperty('--sent-bg');
+            chatQuick = next.emoji || '👍';
+            updateSendOrThumbIcon();
+            if (document.getElementById('chatSettingsModal').classList.contains('open')) renderChatSettings();
+        }
+        async function openChatSettings() {
+            if (!activeFriend) return;
+            if (activeFriend.is_group) await loadGroupInfo();
+            renderChatSettings();
+            document.getElementById('chatSettingsModal').classList.add('open');
+        }
+        function closeChatSettings() { document.getElementById('chatSettingsModal').classList.remove('open'); }
+        function renderChatSettings() {
+            const s = chatSettings, maxH = (s.maxMonths || 12) * 730;
+            const bgs = Object.keys(BG_PRESETS).map(k => `<div class="cs-sw ${s.bg === k ? 'on' : ''}" style="background-image:${BG_PRESETS[k]}" onclick="saveChatSetting({bg:'${k}'})"></div>`).join('');
+            const customOn = s.bg && !BG_PRESETS[s.bg];
+            const ems = QUICK_EMOJIS.map(e => `<button type="button" class="cs-em ${(s.emoji || '👍') === e ? 'on' : ''}" onclick="saveChatSetting({emoji:'${e}'})">${e}</button>`).join('');
+            const ths = Object.keys(THEME_GRADS).map(k => `<div class="cs-sw ${s.theme === k ? 'on' : ''}" style="background-image:${THEME_GRADS[k]}" onclick="saveChatSetting({theme:'${k}'})"></div>`).join('');
+            const ttls = TTL_LABELS.filter(x => x[0] <= maxH).map(x => `<button type="button" class="cs-chip ${(s.ttl_hours || 0) === x[0] ? 'on' : ''}" onclick="saveChatSetting({ttl_hours:${x[0]}})">${x[1]}</button>`).join('');
+            const name = activeFriend ? `${activeFriend.first_name || ''} ${activeFriend.last_name || ''}`.trim() : '';
+            const isG = !!(activeFriend && activeFriend.is_group);
+            document.getElementById('chatSettingsBody').innerHTML = `
+                <div class="cs-head"><span>⚙️ ${isG ? 'ការកំណត់ក្រុម' : 'ការកំណត់ឆាតជាមួយ ' + escapeHtml(name)}</span><button type="button" onclick="closeChatSettings()">✕</button></div>
+                ${isG ? groupSectionHtml() : ''}
+                <div class="cs-sec"><h4>🖼️ ផ្ទៃខាងក្រោយឆាត</h4>
+                    <div class="cs-grid"><div class="cs-sw ${!s.bg ? 'on' : ''}" onclick="saveChatSetting({bg:''})">∅</div>${bgs}
+                    <div class="cs-sw ${customOn ? 'on' : ''}" style="${customOn ? `background-image:url('${s.bg.replace(/'/g, '')}')` : ''}" onclick="document.getElementById('chatBgInput').click()">${customOn ? '' : '＋'}</div></div>
+                    <small>ចុច ＋ ដើម្បីដាក់រូបរបស់អ្នកផ្ទាល់។ ការប្តូរនេះមើលឃើញដោយអ្នកទាំងពីរ។</small></div>
+                <div class="cs-sec"><h4>😊 អ៊ីម៉ូជីរហ័ស (ជំនួស 👍)</h4><div class="cs-grid">${ems}</div></div>
+                <div class="cs-sec"><h4>🎨 ពណ៌ពពុះសារ</h4><div class="cs-grid"><div class="cs-sw ${!s.theme ? 'on' : ''}" onclick="saveChatSetting({theme:''})">∅</div>${ths}</div></div>
+                <div class="cs-sec"><h4>⏳ លុបសារស្វ័យប្រវត្តិ</h4><div class="cs-grid">${ttls}</div>
+                    <small>សារថ្មីចាប់ពីពេលកំណត់នឹងត្រូវលុបបន្ទាប់ពីរយៈពេលដែលបានជ្រើស (រួមទាំងរូប/វីដេអូ)។ ទោះមិនកំណត់ក៏ដោយ ប្រព័ន្ធលុបសារចាស់ជាង ${s.maxMonths || 12} ខែដោយស្វ័យប្រវត្តិ។</small></div>
+                <div class="cs-sec"><div class="cs-row"><span>🔕 បិទសំឡេងជូនដំណឹងឆាតនេះ</span><button type="button" class="cs-switch ${s.muted ? 'on' : ''}" onclick="saveChatSetting({muted:${!s.muted}})"></button></div></div>
+                ${isG ? groupFooterHtml() : `<div class="cs-sec"><button type="button" class="cs-chip" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">👤 មើលប្រូហ្វាល</button></div>`}`;
+        }
+        async function saveChatSetting(patch) {
+            if (!activeFriend) return;
+            try {
+                const res = await fetch('/api/chat-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ peer: activeFriend.email }, patch)) });
+                const data = await res.json();
+                if (data.success) { applyChatSettings(data.settings); await fetchMessages(true); loadConversations(); }
+                else alert('រក្សាទុកមិនបាន៖ ' + (data.error || ''));
+            } catch (e) { alert('មានបញ្ហាបណ្ដាញ'); }
+        }
+        async function uploadChatBg(input) {
+            const file = input.files && input.files[0]; input.value = '';
+            if (!file || !activeFriend) return;
+            try {
+                const blob = await compressChatImage(file);
+                const url = await uploadChatMediaToR2(blob, 'chat-bg-' + Date.now() + '.jpg');
+                await saveChatSetting({ bg: url });
+            } catch (e) { alert('ផ្ទុករូបឡើងមិនបាន'); }
+        }
+
         function renderMessages(messages, forceScroll) {
             const box = document.getElementById('chatMessages');
             const activePending = activeFriend ? pendingOutgoingMessages.filter(p => p.receiverEmail === activeFriend.email) : [];
@@ -2384,7 +2793,7 @@
             let lastTimeGroup = '';
             let lastSeenSentMsgId = null;
             messages.forEach(m => {
-                if (m.sender_email === currentUser.email && (m.is_read === true || m.is_read === 1 || m.is_read === 't')) {
+                if (m.message_type !== 'call' && m.message_type !== 'system' && m.sender_email === currentUser.email && (m.is_read === true || m.is_read === 1 || m.is_read === 't')) {
                     lastSeenSentMsgId = m.id;
                 }
             });
@@ -2402,12 +2811,17 @@
                     lastTimeGroup = timeStr;
                 }
 
+                if (m.message_type === 'system') return `${timeDividerHtml}<div class="cf-sys-note">${escapeHtml(m.message || '')}</div>`;
+                if (m.message_type === 'call' || String(m.message || '').startsWith('CALL:')) return `${timeDividerHtml}${callPillHtml(m, isSent)}`;
+
                 const ov = overrides[m.id] || {};
                 const rawMsg = ov.deleted ? DELETED_MARKER : (ov.editedText !== undefined ? EDITED_PREFIX + ov.editedText : (m.message || ''));
                 const isDeleted = ov.deleted || m.is_deleted === true || rawMsg === DELETED_MARKER;
 
+                const rowAvatar = (activeFriend && activeFriend.is_group) ? (m.sender_pic || DEFAULT_AVATAR) : friendAvatar;
+                const senderLbl = (activeFriend && activeFriend.is_group && !isSent) ? `<div class="cf-sender-name">${escapeHtml(m.sender_name || '')}</div>` : '';
                 if (isDeleted) {
-                    const leftAv = !isSent ? `<img src="${friendAvatar}" class="cf-msg-avatar">` : '';
+                    const leftAv = !isSent ? `<img src="${rowAvatar}" class="cf-msg-avatar">` : '';
                     return `
                         ${timeDividerHtml}
                         <div class="cf-msg-row ${rowClass}">
@@ -2431,10 +2845,12 @@
                 const isVideo = !ov.deleted && m.media_url && (m.message_type === 'video' || (m.media_url.match(/\.(mp4|webm|mov|m4v)$/i) && m.message_type !== 'audio'));
                 const isAudio = !ov.deleted && m.media_url && (m.message_type === 'audio' || displayText === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
                 const isLocation = !ov.deleted && !m.media_url && (m.message_type === 'location' || displayText.includes('📍 ទីតាំងរបស់ខ្ញុំ'));
-                const isTextOnly = !m.media_url && displayText && displayText !== '👍' && !displayText.startsWith('STICKER_EMOJI:');
+                const isTextOnly = !m.media_url && displayText && !isBigEmoji(displayText) && !displayText.startsWith('STICKER_EMOJI:');
 
                 const canDl = !ov.deleted && m.media_url && !isAudio && m.media_type !== 'sticker' && m.message_type !== 'sticker';
                 const menuItems = `
+                    <div class="cf-react-pick">${['❤️','😂','😮','😢','😡','👍'].map(e => `<button type="button" onclick="reactToMessage(${m.id}, '${e}')">${e}</button>`).join('')}</div>
+                    <button type="button" onclick="startReply(${m.id})">↩️ ឆ្លើយតប (Reply)</button>
                     ${canDl ? `<button type="button" onclick="downloadChatMediaFile('${m.media_url}', ${isVideo ? 'true' : 'false'}, event)">⬇️ ទាញយក (Save)</button>` : ''}
                     <button type="button" onclick="openForwardModal(${m.id}, '${encodeURIComponent(displayText)}', '${encodeURIComponent(m.media_url || '')}', '${m.message_type || 'text'}')">↪️ បញ្ជូនបន្ត (Forward)</button>
                     ${(isSent && isTextOnly) ? `<button type="button" onclick="startEditMessage(${m.id}, '${encodeURIComponent(displayText)}')">✏️ កែប្រែ (Edit)</button>` : ''}
@@ -2485,8 +2901,8 @@
                     bodyHtml = isVideo
                         ? `<div class="cf-media-card">${dlBtnHtml}<video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
                         : `<div class="cf-media-card">${dlBtnHtml}<img src="${m.media_url}" onclick="openPhotoLightbox('${m.media_url}')"></div>`;
-                } else if (displayText === '👍') {
-                    bodyHtml = `<div class="big-thumb-sticker">👍</div>`;
+                } else if (isBigEmoji(displayText)) {
+                    bodyHtml = `<div class="big-thumb-sticker">${escapeHtml(displayText)}</div>`;
                 } else if (displayText) {
                     bodyHtml = `<div class="cf-bubble notranslate" translate="no">${linkify(displayText)}${isEdited ? '<span class="cf-edited-tag">(បានកែ)</span>' : ''}</div>`;
                 }
@@ -2495,15 +2911,21 @@
                     ? `<div class="cf-msg-footer"><span>✓✓ បានឃើញ (Seen)</span></div>`
                     : (isSent ? `<div class="cf-msg-footer"><span>✓ បានផ្ញើ</span></div>` : '');
 
-                const leftAvatarHtml = !isSent ? `<img src="${friendAvatar}" class="cf-msg-avatar">` : '';
+                const leftAvatarHtml = !isSent ? `<img src="${rowAvatar}" class="cf-msg-avatar">` : '';
+                let replyHtml = '';
+                if (m.reply_to) {
+                    const o = messages.find(x => x.id === m.reply_to);
+                    const who = o ? (o.sender_email === currentUser.email ? 'អ្នក' : (o.sender_name || (activeFriend ? (activeFriend.first_name || '') : ''))) : 'សារដើម';
+                    replyHtml = `<div class="cf-reply-quote" onclick="jumpToMsg(${m.reply_to})"><b>${escapeHtml(who)}</b><span>${o ? escapeHtml(previewOfMsg(o)) : 'សារត្រូវបានលុប'}</span></div>`;
+                }
 
                 return `
                     ${timeDividerHtml}
-                    <div class="cf-msg-row ${rowClass}">
+                    <div class="cf-msg-row ${rowClass}" id="msg-row-${m.id}">
                         ${leftAvatarHtml}
                         ${isSent ? actionsHtml : ''}
                         <div class="cf-msg-stack">
-                            ${bodyHtml}
+                            ${senderLbl}${replyHtml}${bodyHtml}${reactionsHtml(m)}
                             ${seenFooter}
                         </div>
                         ${!isSent ? actionsHtml : ''}
@@ -2652,7 +3074,7 @@
             } else if (val.length > 0) {
                 lbl.innerText = 'Send ➤';
             } else {
-                lbl.innerText = '👍';
+                lbl.innerText = chatQuick;
             }
         }
 
@@ -2669,7 +3091,7 @@
             if (text.length > 0) {
                 sendTextMessage(text);
             } else {
-                sendTextMessage('👍');
+                sendTextMessage(chatQuick);
             }
         }
 
@@ -2937,6 +3359,8 @@
             if (!text || !activeFriend) return;
 
             const targetEmail = activeFriend.email;
+            const replyId = replyingTo ? replyingTo.id : null;
+            cancelReply();
             input.value = '';
             autoResizeComposerTextarea(input);
             updateSendOrThumbIcon();
@@ -2958,7 +3382,8 @@
                     body: JSON.stringify({
                         sender: currentUser.email,
                         receiver: targetEmail,
-                        message: text
+                        message: text,
+                        reply_to: replyId || undefined
                     })
                 });
                 const data = await res.json();
@@ -3420,7 +3845,7 @@
                 message_type: msgType || 'text'
             };
             const listEl = document.getElementById('forwardContactsList');
-            listEl.innerHTML = allConversations.map(c => `
+            listEl.innerHTML = allConversations.filter(c => !c.is_group).map(c => `
                 <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         <img src="${c.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:40px; height:40px; border-radius:12px; object-fit:cover;">

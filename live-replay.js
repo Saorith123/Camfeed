@@ -69,7 +69,8 @@ module.exports = function createLiveReplay(deps) {
       const url = publicBase() + '/' + key;
       const title = String(row.title || '').trim();
       const content = '🔴 Live' + (title ? ' · ' + title : '');
-      const p = await pool.query("INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, 'video', $3, $4) RETURNING id", [row.host_email, content, url, row.privacy === 'friends' ? 'friends' : 'public']);
+      let thumb = null; try { thumb = deps.makeThumb ? await deps.makeThumb(final) : null; } catch (e) {}
+      const p = await pool.query("INSERT INTO posts (user_email, content, media_type, media_url, privacy, thumb_url) VALUES ($1, $2, 'video', $3, $4, $5) RETURNING id", [row.host_email, content, url, row.privacy === 'friends' ? 'friends' : 'public', thumb]);
       // the chat of the live becomes the comments of the saved video (like Facebook)
       try {
         await pool.query("INSERT INTO comments (post_id, user_email, content, created_at) SELECT $2, user_email, body, created_at FROM live_comments WHERE live_id = $1 ORDER BY id LIMIT 5000", [row.id, p.rows[0].id]);

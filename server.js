@@ -351,6 +351,7 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS overlays TEXT').catch(() => {});
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
+    await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumb_url TEXT').catch(() => {});
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS sounds_post_uq ON sounds (post_id) WHERE post_id IS NOT NULL').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories (expires_at)').catch(() => {});
@@ -732,6 +733,54 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Create Post
+// ---- video thumbnails: a small picture (JPEG, ~30-60 KB) kept next to every video post so the feed shows it at once ----
+let _r2Client = null;
+async function r2PutBuffer(key, buf, type) {
+  const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+  if (!_r2Client) _r2Client = new S3Client({ region: 'auto', endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`, credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY } });
+  await _r2Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage', Key: key, Body: buf, ContentType: type }));
+  return String(process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/+$/, '') + '/' + key;
+}
+const thumbsReady = () => !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY);
+const thumbKey = () => 'thumbs/' + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.jpg';
+async function thumbFromBase64(dataUrl) {                                   // the picture the phone already made for the AI check
+  try {
+    const m = /^data:image\/jpeg;base64,([A-Za-z0-9+\/=]+)$/.exec(String(dataUrl || '')); if (!m || !thumbsReady()) return null;
+    const buf = Buffer.from(m[1], 'base64'); if (buf.length < 500 || buf.length > 250 * 1024) return null;
+    return await r2PutBuffer(thumbKey(), buf, 'image/jpeg');
+  } catch (e) { return null; }
+}
+async function makeVideoThumb(src) {                                        // src: a file path or an https address of a video; one frame via ffmpeg
+  if (!thumbsReady()) return null;
+  const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
+  const out = path.join(os.tmpdir(), 'camfeed-th-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.jpg');
+  let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
+  try {
+    for (const ss of ['1', '0']) {
+      try {
+        await new Promise((ok, no) => execFile(bin, ['-y', '-ss', ss, '-i', src, '-frames:v', '1', '-vf', "scale='min(480,iw)':-2", '-q:v', '7', out], { timeout: 40000 }, (e) => e ? no(e) : ok()));
+        if (fs.existsSync(out) && fs.statSync(out).size > 500) break;
+      } catch (e) { /* try the first frame */ }
+    }
+    if (!fs.existsSync(out)) return null;
+    const buf = fs.readFileSync(out); if (buf.length < 500 || buf.length > 250 * 1024) return null;
+    return await r2PutBuffer(thumbKey(), buf, 'image/jpeg');
+  } catch (e) { return null; } finally { try { fs.unlinkSync(out); } catch (e) {} }
+}
+let thumbBusy = false;
+async function backfillThumbs() {                                           // old videos get their picture a few at a time, in the background
+  if (thumbBusy || !thumbsReady()) return; thumbBusy = true;
+  try {
+    const rows = (await pool.query("SELECT id, media_type, media_url FROM posts WHERE thumb_url IS NULL AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') ORDER BY id DESC LIMIT 2")).rows;
+    for (const row of rows) {
+      const v = pubMedia(row).video;
+      const t = v ? await makeVideoThumb(v) : null;
+      await pool.query('UPDATE posts SET thumb_url = $2 WHERE id = $1', [row.id, t || '']).catch(() => {});     // '' = tried, do not try again
+    }
+  } catch (e) { console.error('[thumbs] backfill:', e.message); } finally { thumbBusy = false; }
+}
+setTimeout(() => { backfillThumbs(); setInterval(backfillThumbs, 90 * 1000); }, 60 * 1000);
+
 app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -760,11 +809,12 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     const aiResult = await classifyPostWithGemini(content, mediaType, thumbnailBase64);
 
     const query = `
-      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, media_aspect) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, media_aspect, thumb_url) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect]);
+    const thumbUrl = mediaType === 'video' ? await thumbFromBase64(thumbnailBase64) : null;
+    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl]);
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1820,7 +1870,11 @@ app.get('/api/chat-notifications', async (req, res) => {
       WHERE m.receiver_email = $1 AND m.is_read = FALSE
       ORDER BY m.created_at DESC
     `;
-    const result = await pool.query(query, [email]);
+    let result;
+    try {
+      result = await pool.query(query.replace("WHERE m.receiver_email = $1 AND m.is_read = FALSE",
+        "WHERE m.receiver_email = $1 AND m.is_read = FALSE AND NOT EXISTS (SELECT 1 FROM chat_mutes cm WHERE cm.user_email = LOWER(m.receiver_email) AND cm.peer_email = LOWER(m.sender_email))"), [email]);
+    } catch (e) { result = await pool.query(query, [email]); }
     res.json({ success: true, unreadMessages: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1849,7 +1903,13 @@ app.get('/api/messages', async (req, res) => {
       ORDER BY created_at ASC
     `;
     const result = await pool.query(query, [user1, user2]);
-    res.json({ success: true, messages: result.rows });
+    let reactions = {}, settings = null;
+    try {
+      reactions = await chatExtras.reactionsFor(result.rows.map((r) => r.id));
+      settings = await chatExtras.settingsFor(user1, user2);
+    } catch (e) { /* extras are optional; chat still loads */ }
+    result.rows.forEach((r) => { r.reactions = reactions[r.id] || []; });
+    res.json({ success: true, messages: result.rows, settings });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1884,6 +1944,8 @@ app.post('/api/presence/offline', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase() });
 
 // Send Chat Message
 app.post('/api/messages', (req, res, next) => {
@@ -1951,12 +2013,19 @@ app.post('/api/messages', (req, res, next) => {
 
     const message = req.body.message || defaultMsg;
 
+    await chatExtras.ensureSchema();
+    let replyTo = parseInt(req.body.reply_to, 10) || null;
+    if (replyTo) {
+      const rr = await pool.query('SELECT 1 FROM messages WHERE id = $1 AND ((LOWER(sender_email)=LOWER($2) AND LOWER(receiver_email)=LOWER($3)) OR (LOWER(sender_email)=LOWER($3) AND LOWER(receiver_email)=LOWER($2)))', [replyTo, sender, receiver]);
+      if (!rr.rows.length) replyTo = null;
+    }
+    if (['system', 'call'].includes(messageType)) messageType = 'text';   // only the server may write these
     const query = `
-      INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read) 
-      VALUES ($1, $2, $3, $4, $5, FALSE) 
+      INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read, reply_to) 
+      VALUES ($1, $2, $3, $4, $5, FALSE, $6) 
       RETURNING *
     `;
-    const result = await pool.query(query, [sender, receiver, message, mediaUrl, messageType]);
+    const result = await pool.query(query, [sender, receiver, message, mediaUrl, messageType, replyTo]);
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
     console.error("Error saving message in DB:", err);
@@ -3341,6 +3410,7 @@ async function cfStream(method, path, body) {
 const cfHost = (u) => { try { return new URL(u).origin; } catch (e) { return ''; } };
 const liveReplay = require('./live-replay')({
   pool, cf: cfStream, publicBase: () => String(process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/+$/, ''),
+  makeThumb: (file) => makeVideoThumb(file),
   ffmpegBin: (() => { try { return require('ffmpeg-static') || 'ffmpeg'; } catch (e) { return 'ffmpeg'; } })(),
   putFile: async (key, file, type) => {
     const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3'), fs = require('fs');

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="call.js" defer></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -409,6 +410,17 @@
         /* Smooth videos: light placeholder (never black), reserved space so the page does not jump, fade-in when the first frame is ready */
         video.sv { width: 100%; aspect-ratio: 9 / 16; max-height: 78vh; object-fit: cover; background: #e4e6eb; display: block; opacity: 0; transition: opacity .22s ease; }
         video.sv.vid-ready { opacity: 1; }
+        video.sv[poster] { opacity: 1; }
+        /* phones: posts go edge to edge like the feed (video and photos fill the screen width, no side borders) */
+        @media (max-width: 700px) {
+            .content-area { padding-left: 0 !important; padding-right: 0 !important; }
+            .post-card { border-radius: 0; padding: 12px 0 8px 0; }
+            .post-card > *:not(.feed-video-wrap):not(.post-media):not(.carousel-wrapper) { padding-left: 14px; padding-right: 14px; }
+            .post-card .feed-video-wrap:not(.embedded-shared-media .feed-video-wrap) { width: 100%; margin-left: 0; margin-right: 0; border-radius: 0; }
+        }
+        #reelsOverlay { position: fixed; inset: 0; z-index: 99999; background: #000; display: none; }
+        #reelsOverlay.open { display: block; }
+        #reelsOverlay iframe { width: 100%; height: 100%; border: 0; display: block; background: #000; }
         .see-translation-btn {
             background: none;
             border: none;
@@ -1216,11 +1228,49 @@
             }
         }
 
+        // Tap a video on a profile: the same full-screen player as the Videos page, but swiping shows only THIS profile's videos
+        let profReelsOpen = false, profReelsOrigin = null;
+        function openProfileReels(postId, vidEl) {
+            if (profReelsOpen || !postId) return;
+            profReelsOpen = true; profReelsOrigin = vidEl || null;
+            const resumeAt = (vidEl && vidEl.currentTime > 0.5) ? Math.floor(vidEl.currentTime * 10) / 10 : 0;
+            document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} });
+            let ov = document.getElementById('reelsOverlay');
+            if (!ov) { ov = document.createElement('div'); ov.id = 'reelsOverlay'; document.body.appendChild(ov); }
+            ov.innerHTML = '<iframe allow="autoplay; fullscreen" src="videos.html?post=' + encodeURIComponent(postId) + '&embed=1&profile=' + encodeURIComponent(profileEmail || '') + (resumeAt ? '&t=' + resumeAt : '') + '"></iframe>';
+            ov.classList.add('open');
+            document.documentElement.style.overflow = 'hidden';
+            try { history.pushState({ reels: 1 }, ''); } catch (e) {}
+        }
+        function closeProfileReels(fromPop) {
+            if (!profReelsOpen) return;
+            profReelsOpen = false;
+            const ov = document.getElementById('reelsOverlay');
+            if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
+            document.documentElement.style.overflow = '';
+            if (!fromPop) { try { if (history.state && history.state.reels) history.back(); } catch (e) {} }
+        }
+        window.addEventListener('message', (e) => {
+            if (e.origin !== location.origin || !e.data || e.data.camfeed !== 'close-reels') return;
+            try {
+                const t = Number(e.data.time) || 0, pid = String(e.data.postId || '');
+                let target = profReelsOrigin && document.contains(profReelsOrigin) && (!pid || String(profReelsOrigin.dataset.postId) === pid) ? profReelsOrigin : null;
+                if (!target && pid) target = document.querySelector('video[data-post-id="' + pid + '"]');
+                if (target) {
+                    if (t > 0.5) { try { target.currentTime = t; } catch (err) {} }
+                    const w = target.closest('.feed-video-wrap') || target; w.scrollIntoView({ block: 'center' });
+                }
+            } catch (err) {}
+            closeProfileReels(false);
+        });
+        window.addEventListener('popstate', () => { if (profReelsOpen) closeProfileReels(true); });
+
         function handleProfileVideoSurfaceTap(uid, event) {
             if (event) event.stopPropagation();
             const wrap = document.getElementById(`pvwrap-${uid}`);
             const vid = document.getElementById(`pvid-${uid}`);
             if (!wrap || !vid) return;
+            if (vid.dataset.postId) { openProfileReels(vid.dataset.postId, vid); return; }
             if (!vid.paused && !wrap.classList.contains('controls-visible') && window.matchMedia('(pointer: coarse)').matches) {
                 revealProfileVideoControls(uid);
                 return;
@@ -1382,7 +1432,7 @@
                 <div class="feed-video-wrap" id="pvwrap-${uid}" style="aspect-ratio: ${initialAspect};"
                      onmousemove="revealProfileVideoControls('${uid}')"
                      onclick="handleProfileVideoSurfaceTap('${uid}', event)">
-                    <video id="pvid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="sv ${extraClass}" data-post-id="${postId}" muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
+                    <video id="pvid-${uid}" src="${frameUrl}" data-video-src="${frameUrl}" class="sv ${extraClass}" data-post-id="${postId}" ${(window.CamThumbs && /^https:\/\//.test(window.CamThumbs[postId] || '')) ? `poster="${window.CamThumbs[postId]}"` : ''} muted loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="metadata"
                         onloadedmetadata="adjustProfileVideoAspect('${uid}')"
                         onloadeddata="this.classList.add('vid-ready'); updateProfileVideoClock('${uid}')"
                         onprogress="updateProfileVideoBuffer('${uid}')"
@@ -1610,6 +1660,7 @@
                             return;
                         }
                         content.innerHTML = '';
+                        window.CamThumbs = window.CamThumbs || {}; userPosts.forEach(q => { if (q && q.thumb_url) window.CamThumbs[q.id] = q.thumb_url; });
                         userPosts.forEach(post => {
                             const count = parseInt(post.likes_count) || 0;
                             const viewsCount = parseInt(post.views_count) || 0;
