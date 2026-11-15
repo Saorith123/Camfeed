@@ -157,6 +157,8 @@ Object.assign(T.km, { notYet: 'អ្នកត្រូវបំពេញលក�
 Object.assign(T.en, { notYet: 'You must meet all the requirements above before you can apply.' });
 T.km.pending = '⏳ កំពុងត្រួតពិនិត្យសំណើរបស់អ្នក។ បើមិនទាន់មានការអនុម័តក្នុងរយៈពេល 15 ថ្ងៃ អ្នកអាចស្នើសុំម្តងទៀត។';
 T.en.pending = '⏳ Your request is being reviewed. If it is not approved within 15 days, you can apply again.';
+
+T.km.suspended = '⚠️ សិទ្ធិរកលុយរបស់អ្នកត្រូវបានផ្អាកជាបណ្តោះអាសន្ន។ ប្រាក់ក្នុងកាបូបនៅដដែល។'; T.en.suspended = '⚠️ Your earning is paused for now. Your wallet money is safe.';
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
 var t = function (k) { return T[lang][k] !== undefined ? T[lang][k] : T.en[k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -195,7 +197,8 @@ function render() {
   $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
   var box = $('monetizationStatusContainer'); box.textContent = '';
-  if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));   // invited by an admin
+  if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));
+  if (d.applicationStatus === 'approved' && d.earningSuspended) box.appendChild(el('div', { class: 'status-banner status-rejected', style: 'margin-top:10px' }, t('suspended') + (d.suspendReason ? ' ' + d.suspendReason : '')));   // invited by an admin
   else if (d.applicationStatus === 'pending') box.appendChild(el('div', { class: 'status-banner status-pending' }, t('pending')));
   else {
     box.appendChild(el('div', { class: 'status-banner status-pending', style: 'margin-bottom:12px' }, t('soon')));

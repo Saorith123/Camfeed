@@ -334,6 +334,7 @@ pool.connect(async (err, client, release) => {
     }
     await pool.query('CREATE TABLE IF NOT EXISTS referrals (referred_email TEXT PRIMARY KEY, referrer_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS message TEXT').catch(() => {});
+    await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS earn_suspended BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS suspend_reason TEXT').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_settings (key VARCHAR(40) PRIMARY KEY, value TEXT)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_earn (user_email TEXT PRIMARY KEY, carry_cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS post_earn (post_id INTEGER PRIMARY KEY, user_email TEXT NOT NULL, views_seen INTEGER NOT NULL DEFAULT 0, cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
@@ -3092,7 +3093,7 @@ async function earnSettings() {
 }
 async function syncViewEarnings(email) {
   const cfg = await earnSettings(); if (!(cfg.rpm > 0)) return 0;
-  const ok = (await pool.query("SELECT decided_at FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0]; if (!ok) return 0;
+  const ok = (await pool.query("SELECT decided_at FROM creator_applications WHERE user_email = $1 AND status = 'approved' AND earn_suspended = FALSE", [email])).rows[0]; if (!ok) return 0;
   const st = (await pool.query("SELECT value FROM creator_settings WHERE key = 'earn_start'")).rows[0];
   const since = Math.max(ok.decided_at ? new Date(ok.decided_at).getTime() : 0, st ? Number(st.value) || 0 : 0);   // posts made after this moment are paid from their very first view
   const posts = (await pool.query("SELECT p.id, p.created_at, COALESCE(p.views_count, 0) AS views, e.views_seen FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
@@ -3211,7 +3212,7 @@ app.get('/api/monetization/status', async (req, res) => {
     await syncViewEarnings(email).catch((e) => console.error('[earn] sync error:', e.message));
     const [st, cents, app_, refs, me, wd, led] = await Promise.all([
       creatorStats(email), walletCents(email),
-      pool.query('SELECT status, decided_at, note FROM creator_applications WHERE user_email = $1', [email]),
+      pool.query('SELECT status, decided_at, note, earn_suspended, suspend_reason FROM creator_applications WHERE user_email = $1', [email]),
       pool.query('SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1', [email]),
       pool.query('SELECT public_id FROM users WHERE email = $1', [email]),
       pool.query('SELECT id, amount_cents, method, account_name, account_number, status, created_at, decided_at, note, (payout_code IS NOT NULL) AS has_code, code_issued_at, code_viewed_at, reissue_requested_at, reissue_count FROM withdrawal_requests WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 20', [email]),
@@ -3227,7 +3228,7 @@ app.get('/api/monetization/status', async (req, res) => {
       referralRules: { reward: rr.rewardCents / 100, days: rr.days, posts: rr.posts, windowDays: rr.windowDays }, referralEarned: earned / 100,
       referrals: invited.map((x) => { const done = Math.min(steps, (x.days_done || 0) + (x.posts_done || 0)); return { name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), status: x.status, daysDone: x.days_done || 0, postsDone: x.posts_done || 0, joined: x.created_at, note: x.status === 'review' || x.status === 'rejected' ? '' : '', progress: x.status === 'rewarded' ? rr.rewardCents / 100 : (x.status === 'progress' ? Math.round(rr.rewardCents * done / steps) / 100 : 0), reward: rr.rewardCents / 100 }; }),
       followersCount: st.followers, totalViews: st.views, postsCount: st.posts, accountAgeDays: st.ageDays,
-      applicationStatus: a ? a.status : null, applicationNote: a && a.status === 'rejected' ? (a.note || '') : '', eligible: meetsRules(st, rules),
+      earningSuspended: !!(a && a.earn_suspended), suspendReason: a && a.earn_suspended ? (a.suspend_reason || '') : '', applicationStatus: a ? a.status : null, applicationNote: a && a.status === 'rejected' ? (a.note || '') : '', eligible: meetsRules(st, rules),
       criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100, payPerView: (await earnSettings()).rpm,
       withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, accountName: w.account_name || '', accountNumber: w.account_number || '', status: w.status, created_at: w.created_at, decided_at: w.decided_at, note: w.note || '', hasCode: !!w.has_code, usesCode: CODE_METHODS.includes(w.method), codeIssuedAt: w.code_issued_at, codeSeen: !!w.code_viewed_at, reissuePending: !!w.reissue_requested_at, reissueLeft: Math.max(0, 3 - (w.reissue_count || 0)) })),
       ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at })) });
@@ -3294,10 +3295,10 @@ app.get('/api/monetization/posts', async (req, res) => {
               (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id)::int AS shares
        FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL ORDER BY p.created_at DESC LIMIT 100`, [email]);
     const me = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE email = $1', [email])).rows[0] || {};
-    const isCreator = (await pool.query("SELECT 1 FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows.length > 0;
+    const ca = (await pool.query("SELECT earn_suspended, suspend_reason FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0], isCreator = !!ca, suspended = !!(ca && ca.earn_suspended);
     const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents)) / 100 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
     const week = Date.now() - 7 * 86400000;
-    res.json({ success: true, isCreator, name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
+    res.json({ success: true, isCreator, suspended, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
       totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 100) / 100, wallet: (await walletCents(email)) / 100 } });
   } catch (err) { console.error('[monetization] posts error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
@@ -3333,7 +3334,7 @@ app.post('/api/admin/monetization-requests', async (req, res) => {
     const a = await adminGate(req, res); if (!a) return;
     await expirePendingApps();
     const r = await pool.query(
-      `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, ca.message, u.first_name, u.last_name, u.profile_pic, u.public_id,
+      `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, ca.message, ca.earn_suspended, ca.suspend_reason, u.first_name, u.last_name, u.profile_pic, u.public_id,
               (SELECT COUNT(*) FROM follows f WHERE f.following_email = ca.user_email) AS followers_count,
               (SELECT COALESCE(SUM(views_count), 0) FROM posts p WHERE p.user_email = ca.user_email) AS total_views,
               (SELECT COUNT(*) FROM posts p WHERE p.user_email = ca.user_email AND p.shared_post_id IS NULL) AS posts_count,
@@ -3438,6 +3439,24 @@ app.post('/api/admin/withdrawals/reissue', async (req, res) => {
     await sendAdminNotice(a.adminEmail, upd.rows[0].user_email, '🔑 កូដថ្មីរបស់អ្នកត្រៀមរួចរាល់ហើយ។ សូមចុចដើម្បីមើលកូដ។', 'wallet_notice').catch((e) => console.error('[withdraw] notice error:', e.message));
     res.json({ success: true });
   } catch (err) { console.error('[admin] reissue error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+// the admin stops (or restores) a creator's earning, e.g. when the views are not real
+app.post('/api/admin/creator-earning', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can do this.' });
+    const u = await resolveIdentifier(b.identifier || b.targetEmail); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
+    const suspend = b.suspend !== false, reason = String(b.reason || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (suspend && !reason) return res.status(400).json({ success: false, error: 'Please write the reason.' });
+    const upd = await pool.query("UPDATE creator_applications SET earn_suspended = $2, suspend_reason = $3 WHERE user_email = $1 AND status = 'approved' RETURNING user_email", [u.email, suspend, suspend ? reason : null]);
+    if (!upd.rows.length) return res.status(404).json({ success: false, error: 'This person is not an approved Creator.' });
+    if (!suspend) await pool.query('UPDATE post_earn SET views_seen = p.v FROM (SELECT id, COALESCE(views_count, 0) AS v FROM posts WHERE user_email = $1) p WHERE post_earn.post_id = p.id', [u.email]).catch(() => {});   // views made while stopped are never paid later
+    audit(a.adminEmail, suspend ? 'creator-earning-stop' : 'creator-earning-resume', u.email, reason);
+    await sendAdminNotice(a.adminEmail, u.email, suspend ? '⚠️ សិទ្ធិរកលុយរបស់អ្នកត្រូវបានផ្អាកជាបណ្តោះអាសន្ន៖ ' + reason + '។ ប្រាក់ដែលមានស្រាប់ក្នុងកាបូបនៅដដែល។' : '✅ សិទ្ធិរកលុយរបស់អ្នកត្រូវបានស្តារឡើងវិញ។', 'wallet_notice').catch(() => {});
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] creator earning error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
 app.post('/api/admin/creator-rate', async (req, res) => {
