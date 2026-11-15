@@ -52,7 +52,19 @@
 .sc.mine .scn{color:#050505;text-shadow:none;text-align:center;bottom:5px;font-size:12px}.sc.mine .scp{position:absolute;left:50%;top:80px;transform:translateX(-50%);width:34px;height:34px;border-radius:50%;background:#1877f2;color:#fff;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;border:3px solid #fff;z-index:3;line-height:1}\
 .sc.live{background:linear-gradient(160deg,#e41e3f,#ff7a45)}.sc.live .sca{border-color:#fff}.sc .lv{position:absolute;right:6px;top:8px;background:#e41e3f;color:#fff;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:5px;z-index:2;border:1.5px solid #fff}.sc.golive{background:linear-gradient(160deg,#fff1f3,#ffd9de)}.sc.golive:after{display:none}.sc.golive .gi{position:absolute;left:0;right:0;top:34px;text-align:center;font-size:38px}.sc.golive .scn{color:#e41e3f;text-shadow:none;text-align:center}\
 .st-stage .st-bg{position:absolute!important;inset:0;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;object-fit:cover!important;filter:blur(28px) brightness(.72);transform:scale(1.25);z-index:0;pointer-events:none}\
-.st-stage .st-main{position:relative;z-index:1}\
+.st-stage .st-main{position:relative;z-index:1;width:100%;height:100%;object-fit:contain}\
+.ov-layer{position:absolute;pointer-events:none;z-index:2}\
+.ov-i{position:absolute;text-align:center;user-select:none;-webkit-user-select:none}\
+.ov-emoji{line-height:1;white-space:nowrap}\
+.ov-text{font-weight:800;line-height:1.2;padding:.12em .4em;border-radius:.3em;width:max-content;max-width:calc(var(--ovw,300px)*.9);white-space:pre-wrap;word-break:break-word}\
+.ov-image img{width:100%;display:block;pointer-events:none;border-radius:6px}\
+.ov-live{pointer-events:auto;touch-action:none;cursor:grab}\
+.ov-live.sel{outline:2px dashed #fff;outline-offset:3px;box-shadow:0 0 0 1px rgba(0,0,0,.45)}\
+.stm-tools,.stm-selbar{display:flex;gap:6px;margin-bottom:8px}\
+.stm-tools button,.stm-selbar button{flex:1;border:0;border-radius:10px;padding:8px 4px;background:#e4e6eb;color:#050505;font-weight:700;font-size:13px;cursor:pointer}\
+.stm-selbar{display:none}.stm-selbar.on{display:flex}.stm-selbar button.d{background:#fde8e8}\
+.stm-epan{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-height:132px;overflow:auto;background:#f0f2f5;border-radius:10px;padding:6px;margin-bottom:8px}.stm-epan span{font-size:24px;text-align:center;cursor:pointer;padding:2px}\
+.stm-ted{background:#f0f2f5;border-radius:10px;padding:8px;margin-bottom:8px}.stm-ted small{display:block;color:#65676b;font-size:12px;margin:4px 0 0}.stm-ted .sw{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #bbb;cursor:pointer;display:inline-block;margin:3px;vertical-align:middle;font-size:12px;text-align:center;line-height:22px;color:#e53935;font-weight:800}.stm-ted .sw.on{box-shadow:0 0 0 3px #1877f2}.stm-ted .ok{margin-top:6px;width:100%;border:0;border-radius:8px;padding:8px;background:#1877f2;color:#fff;font-weight:700;cursor:pointer}\
 .st-snd{position:absolute;top:calc(env(safe-area-inset-top,0px) + 72px);left:12px;z-index:3;background:rgba(0,0,0,.45);color:#fff;border-radius:16px;padding:4px 10px;font-size:12.5px;max-width:70%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 #sndPick{position:fixed;inset:0;background:#fff;z-index:100003;display:none;flex-direction:column;color:#050505}#sndPick.on{display:flex}\
 .sp-top{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px 8px}.sp-top button{border:0;background:#e4e6eb;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer}.sp-top input{flex:1;border:0;background:#e4e6eb;border-radius:20px;padding:10px 14px;font-size:15px;outline:none;min-width:0}\
@@ -121,6 +133,27 @@
     if (v) { pausedAt = performance.now(); if (curVideo) try { curVideo.pause(); } catch (e) {} if (curAudio) try { curAudio.pause(); } catch (e) {} }
     else { started += performance.now() - pausedAt; if (curVideo) try { curVideo.play(); } catch (e) {} if (curAudio) try { curAudio.play(); } catch (e) {} }
   }
+  function ovStyle(d, o) {
+    d.style.left = (o.x * 100) + '%'; d.style.top = (o.y * 100) + '%'; d.style.transform = 'translate(-50%,-50%) rotate(' + (o.r || 0) + 'deg)';
+    var k = 'calc(var(--ovw,300px)*' + o.s + ')'; if (o.type === 'image') d.style.width = k; else d.style.fontSize = k;
+  }
+  function ovNode(o) {
+    var d = el('div', 'ov-i ov-' + o.type);
+    if (o.type === 'emoji') d.textContent = o.e;
+    else if (o.type === 'text') { d.textContent = o.t; d.style.color = o.c || '#fff'; if (o.bg) d.style.background = o.bg; }
+    else { var im = el('img'); im.src = o.url || safe(o.u); im.alt = ''; im.draggable = false; d.appendChild(im); }
+    ovStyle(d, o); return d;
+  }
+  function fitOv(box, media, layer) {
+    function go() {
+      var nw = media.naturalWidth || media.videoWidth, nh = media.naturalHeight || media.videoHeight, cw = box.clientWidth, ch = box.clientHeight;
+      if (!nw || !nh || !cw || !ch) return;
+      var sc = Math.min(cw / nw, ch / nh), w = nw * sc, h = nh * sc;
+      layer.style.left = (cw - w) / 2 + 'px'; layer.style.top = (ch - h) / 2 + 'px'; layer.style.width = w + 'px'; layer.style.height = h + 'px'; layer.style.setProperty('--ovw', w + 'px');
+    }
+    media.addEventListener('load', go); media.addEventListener('loadedmetadata', go); go();
+    if (window.ResizeObserver) new ResizeObserver(go).observe(box); else window.addEventListener('resize', go);
+  }
   function showStory() {
     stopTimer(); stopAudio(); if (curVideo) { try { curVideo.pause(); } catch (e) {} curVideo = null; }
     var g = groups[gi], s = g.stories[si]; view.textContent = ''; paused = false; elapsedBefore = 0; sheetOpen = false;
@@ -137,6 +170,7 @@
       var pl = v.play(); if (pl && pl.catch) pl.catch(function () { v.muted = true; v.play().catch(function () {}); });
       stage.appendChild(v); started = performance.now();
     } else { var bgEl = el('img', 'st-bg'); bgEl.src = safe(s.mediaUrl); bgEl.alt = ''; stage.appendChild(bgEl); var imgEl = el('img', 'st-main'); imgEl.src = safe(s.mediaUrl); imgEl.draggable = false; stage.appendChild(imgEl); dur = 5000; started = performance.now(); }
+    if (s.overlays && s.overlays.length && s.mediaType !== 'text') { var mainEl = stage.querySelector('.st-main'), ly = el('div', 'ov-layer'); s.overlays.forEach(function (o) { ly.appendChild(ovNode(o)); }); stage.appendChild(ly); if (mainEl) fitOv(stage, mainEl, ly); }
     if (s.caption && s.mediaType !== 'text') { var c = el('div', 'st-cap'); c.appendChild(el('span', '', s.caption)); view.appendChild(c); }
     if (s.sound && s.sound.url) { view.appendChild(el('div', 'st-snd', '🎵 ' + s.sound.title + (s.sound.artist ? ' · ' + s.sound.artist : ''))); startSound(s.sound); }
     var l = el('div', 'st-tap l'), r = el('div', 'st-tap r'); l.onclick = prev; r.onclick = next; view.appendChild(l); view.appendChild(r);
@@ -233,11 +267,82 @@
   function openMaker() {
     if (!mk) { mk = el('div'); mk.id = 'stMake'; document.body.appendChild(mk); mk.addEventListener('click', function (e) { if (e.target === mk) closeMaker(); }); }
     mk.textContent = ''; mk.classList.add('on');
-    var st = { mode: 'media', file: null, bg: 'blue', objUrl: '' };
+    var st = { mode: 'media', file: null, bg: 'blue', objUrl: '', ov: [], sel: null };
     var box = el('div', 'stm-box'); mk.appendChild(box);
     var tabs = el('div', 'stm-tabs'); var tm = el('button', 'on', t('photo')), tt = el('button', '', t('textcard')); tabs.appendChild(tm); tabs.appendChild(tt); box.appendChild(tabs);
     var prev = el('div', 'stm-prev'); box.appendChild(prev);
     var file = el('input'); file.type = 'file'; file.accept = 'image/*,video/*'; file.style.display = 'none'; box.appendChild(file);
+    var layer = null;
+    var tools = el('div', 'stm-tools'); box.appendChild(tools); tools.style.display = 'none';
+    var bEmo = el('button', '', '😀 ' + L2('អីម៉ូជី', 'Emoji')), bImg = el('button', '', '🖼️ ' + L2('រូប', 'Image')), bTxt = el('button', '', 'Aa ' + L2('អត្ថបទ', 'Text')), bChg = el('button', '', '🔄');
+    [bEmo, bImg, bTxt, bChg].forEach(function (b) { tools.appendChild(b); });
+    var selbar = el('div', 'stm-selbar'); box.appendChild(selbar);
+    var ovPanel = el('div'); box.appendChild(ovPanel);
+    var ifile = el('input'); ifile.type = 'file'; ifile.accept = 'image/*'; ifile.style.display = 'none'; box.appendChild(ifile);
+    var EMO = '😀😂🥰😍😎🤩😢😡👍👏🙏💪🔥❤️💕💯🎉🎂🎁🌸🌴☀️🌙⭐✨🏆⚽🍜🍕☕🚗✈️🏝️🇰🇭🛕🐘🐶🐱🦋🌈📍🎵💬✅❌⚠️🆕'.match(/\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic})*|\p{Regional_Indicator}{2}/gu) || [];
+    var TC = ['#ffffff', '#000000', '#ffeb3b', '#e53935', '#1e88e5', '#43a047', '#ff9800', '#e91e63'], BC = ['', '#000000', '#ffffff', '#ffeb3b', '#e53935', '#1e88e5', '#43a047'];
+    function clamp(v, a, b) { return Math.min(Math.max(v, a), b); }
+    function drawOv() {
+      if (!layer) return; layer.textContent = '';
+      st.ov.forEach(function (o) { var n = ovNode(o); n.classList.add('ov-live'); if (o === st.sel) n.classList.add('sel'); wire(n, o); o._n = n; layer.appendChild(n); });
+      paintSel();
+    }
+    function select(o) { st.sel = o; st.ov.forEach(function (q) { if (q._n) q._n.classList.toggle('sel', q === o); }); paintSel(); }
+    function paintSel() {
+      selbar.textContent = ''; selbar.classList.toggle('on', !!st.sel); var o = st.sel; if (!o) return;
+      function b(txt, cls, fn) { var x = el('button', cls || '', txt); x.onclick = fn; selbar.appendChild(x); }
+      function upd() { if (o._n) ovStyle(o._n, o); }
+      b('−', '', function () { o.s = clamp(o.s * 0.88, 0.03, 1.2); upd(); }); b('+', '', function () { o.s = clamp(o.s * 1.14, 0.03, 1.2); upd(); });
+      b('⟳', '', function () { o.r = ((o.r || 0) + 15) % 360; upd(); });
+      if (o.type === 'text') b('✏️', '', function () { openText(o); });
+      b('🗑', 'd', function () { st.ov = st.ov.filter(function (q) { return q !== o; }); st.sel = null; ovPanel.textContent = ''; drawOv(); });
+    }
+    function wire(n, o) {
+      var pts = {}, g = {};
+      function base() { var ids = Object.keys(pts); if (!ids.length) return; g = { ox: o.x, oy: o.y, os: o.s, or: o.r || 0 }; var a = pts[ids[0]]; if (ids.length >= 2) { var c = pts[ids[1]]; g.d = Math.hypot(a.x - c.x, a.y - c.y) || 1; g.a = Math.atan2(c.y - a.y, c.x - a.x); g.cx = (a.x + c.x) / 2; g.cy = (a.y + c.y) / 2; } else { g.cx = a.x; g.cy = a.y; } }
+      n.addEventListener('pointerdown', function (e) { e.stopPropagation(); e.preventDefault(); if (st.sel !== o) select(o); try { n.setPointerCapture(e.pointerId); } catch (x) {} pts[e.pointerId] = { x: e.clientX, y: e.clientY }; base(); });
+      n.addEventListener('pointermove', function (e) {
+        if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY }; var ids = Object.keys(pts), R = layer.getBoundingClientRect(); if (!R.width) return;
+        if (ids.length >= 2) { var a = pts[ids[0]], c = pts[ids[1]], mx = (a.x + c.x) / 2, my = (a.y + c.y) / 2; o.s = clamp(g.os * Math.hypot(a.x - c.x, a.y - c.y) / g.d, 0.03, 1.2); o.r = g.or + (Math.atan2(c.y - a.y, c.x - a.x) - g.a) * 180 / Math.PI; o.x = clamp(g.ox + (mx - g.cx) / R.width, 0, 1); o.y = clamp(g.oy + (my - g.cy) / R.height, 0, 1); }
+        else { var p = pts[ids[0]]; o.x = clamp(g.ox + (p.x - g.cx) / R.width, 0, 1); o.y = clamp(g.oy + (p.y - g.cy) / R.height, 0, 1); }
+        ovStyle(n, o);
+      });
+      function up(e) { delete pts[e.pointerId]; base(); }
+      n.addEventListener('pointerup', up); n.addEventListener('pointercancel', up);
+      n.addEventListener('click', function (e) { e.stopPropagation(); });
+      n.addEventListener('wheel', function (e) { e.preventDefault(); o.s = clamp(o.s * (e.deltaY < 0 ? 1.08 : 0.92), 0.03, 1.2); ovStyle(n, o); }, { passive: false });
+    }
+    function addOv(o) { if (st.ov.length >= 20) { msg.textContent = L2('ច្រើនពេកហើយ (អតិបរមា ២០)', 'Too many (max 20)'); return null; } msg.textContent = ''; Object.assign(o, { x: 0.5, y: 0.5, r: 0 }); st.ov.push(o); drawOv(); select(o); return o; }
+    bEmo.onclick = function () {
+      if (ovPanel.firstChild && ovPanel.firstChild.className === 'stm-epan') { ovPanel.textContent = ''; return; }
+      ovPanel.textContent = ''; var g = el('div', 'stm-epan'); EMO.forEach(function (em) { var sp = el('span', '', em); sp.onclick = function () { addOv({ type: 'emoji', e: em, s: 0.18 }); ovPanel.textContent = ''; }; g.appendChild(sp); }); ovPanel.appendChild(g);
+    };
+    bImg.onclick = function () { ifile.value = ''; ifile.click(); };
+    ifile.onchange = function () {
+      var f = ifile.files[0]; if (!f || f.type.indexOf('image') !== 0) return; var u = URL.createObjectURL(f), im = new Image();
+      im.onload = function () {
+        var sc = Math.min(1, 800 / Math.max(im.naturalWidth, im.naturalHeight)), cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(im.naturalWidth * sc)); cv.height = Math.max(1, Math.round(im.naturalHeight * sc)); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u);
+        var png = /png|webp|gif/.test(f.type); cv.toBlob(function (bl) { if (!bl) { msg.textContent = t('fail'); return; } addOv({ type: 'image', blob: bl, url: URL.createObjectURL(bl), s: 0.4 }); }, png ? 'image/png' : 'image/jpeg', 0.88);
+      };
+      im.onerror = function () { URL.revokeObjectURL(u); msg.textContent = t('bad'); }; im.src = u;
+    };
+    function openText(o) {
+      ovPanel.textContent = ''; var w = el('div', 'stm-ted'); ovPanel.appendChild(w);
+      var inp = el('input', 'stm-in'); inp.maxLength = 120; inp.placeholder = L2('សរសេរអត្ថបទ...', 'Type text...'); inp.value = o.t || ''; w.appendChild(inp);
+      function refresh() { if (o._n) { var nn = ovNode(o); nn.className = o._n.className; wire(nn, o); o._n.replaceWith(nn); o._n = nn; } }
+      inp.oninput = function () { o.t = inp.value; refresh(); };
+      function row(label, list, key) {
+        w.appendChild(el('small', '', label)); var rw = el('div');
+        list.forEach(function (c) { var i = el('span', 'sw' + ((o[key] || '') === c ? ' on' : ''), c ? '' : '⦸'); if (c) i.style.background = c; i.onclick = function () { o[key] = c; Array.prototype.forEach.call(rw.children, function (x) { x.classList.remove('on'); }); i.classList.add('on'); refresh(); }; rw.appendChild(i); });
+        w.appendChild(rw);
+      }
+      row(L2('ពណ៌អក្សរ', 'Text color'), TC, 'c'); row(L2('ពណ៌ផ្ទៃក្រោយអក្សរ', 'Text background'), BC, 'bg');
+      var ok = el('button', 'ok', 'OK'); ok.onclick = function () { if (!(o.t || '').trim()) { st.ov = st.ov.filter(function (q) { return q !== o; }); st.sel = null; drawOv(); } ovPanel.textContent = ''; }; w.appendChild(ok);
+      setTimeout(function () { inp.focus(); }, 50);
+    }
+    bTxt.onclick = function () { var o = addOv({ type: 'text', t: '', c: '#ffffff', bg: '#000000', s: 0.08 }); if (o) openText(o); };
+    bChg.onclick = function () { file.click(); };
+
     var bgs = el('div', 'stm-bgs'); Object.keys(BG).forEach(function (k) { var i = el('i'); i.style.background = BG[k]; if (k === st.bg) i.className = 'on'; i.onclick = function () { st.bg = k; Array.prototype.forEach.call(bgs.children, function (c) { c.className = ''; }); i.className = 'on'; paintPrev(); }; bgs.appendChild(i); });
     var cap = el('input', 'stm-in'); cap.maxLength = 200; cap.placeholder = t('cap'); box.appendChild(cap);
     var sndRow = el('div', 'stm-snd'); function paintSnd() { sndRow.textContent = ''; if (st.sound) { sndRow.appendChild(el('span', '', '🎵')); sndRow.appendChild(el('b', '', st.sound.title + (st.sound.artist ? ' · ' + st.sound.artist : ''))); var xx = el('span', 'x', '✕'); xx.onclick = function (e) { e.stopPropagation(); st.sound = null; paintSnd(); }; sndRow.appendChild(xx); } else { sndRow.appendChild(el('span', '', '🎵')); sndRow.appendChild(el('b', '', L2('បន្ថែមសំឡេង (Music)', 'Add music'))); sndRow.appendChild(el('span', 'x', '›')); } }
@@ -248,12 +353,12 @@
     var ta = null;
     function paintPrev() {
       prev.textContent = ''; prev.style.background = '#e4e6eb';
-      if (st.mode === 'text') { prev.style.background = BG[st.bg]; ta = el('textarea'); ta.maxLength = 200; ta.placeholder = t('textPh'); prev.appendChild(ta); cap.style.display = 'none'; }
-      else { cap.style.display = ''; if (st.file) { if (st.objUrl) URL.revokeObjectURL(st.objUrl); st.objUrl = URL.createObjectURL(st.file); var m = st.file.type.indexOf('video') === 0 ? el('video') : el('img'); m.src = st.objUrl; if (m.tagName === 'VIDEO') { m.muted = true; m.controls = true; m.playsInline = true; } prev.appendChild(m); } else prev.appendChild(el('div', '', '📷 ' + t('pick'))); }
+      if (st.mode === 'text') { prev.style.background = BG[st.bg]; ta = el('textarea'); ta.maxLength = 200; ta.placeholder = t('textPh'); prev.appendChild(ta); cap.style.display = 'none'; layer = null; tools.style.display = 'none'; selbar.classList.remove('on'); ovPanel.textContent = ''; }
+      else { cap.style.display = ''; if (st.file) { if (st.objUrl) URL.revokeObjectURL(st.objUrl); st.objUrl = URL.createObjectURL(st.file); var m = st.file.type.indexOf('video') === 0 ? el('video') : el('img'); m.src = st.objUrl; if (m.tagName === 'VIDEO') { m.muted = true; m.controls = true; m.playsInline = true; } prev.appendChild(m); layer = el('div', 'ov-layer'); prev.appendChild(layer); fitOv(prev, m, layer); drawOv(); } else { layer = null; prev.appendChild(el('div', '', '📷 ' + t('pick'))); } tools.style.display = st.file ? '' : 'none'; if (!st.file) { selbar.classList.remove('on'); ovPanel.textContent = ''; } }
     }
     function setMode(m) { st.mode = m; tm.className = m === 'media' ? 'on' : ''; tt.className = m === 'text' ? 'on' : ''; if (m === 'text') { box.insertBefore(bgs, cap); } else if (bgs.parentNode) bgs.remove(); paintPrev(); }
     tm.onclick = function () { setMode('media'); }; tt.onclick = function () { setMode('text'); };
-    prev.onclick = function (e) { if (st.mode === 'media' && e.target.tagName !== 'VIDEO') file.click(); };
+    prev.onclick = function (e) { if (st.mode !== 'media') return; if (!st.file) { file.click(); return; } if (st.sel) { select(null); } };
     file.onchange = function () {
       msg.textContent = ''; var f = file.files[0]; if (!f) return;
       if (f.type.indexOf('video') === 0) { var tmp = document.createElement('video'); tmp.preload = 'metadata'; tmp.onloadedmetadata = function () { URL.revokeObjectURL(tmp.src); if (tmp.duration > 30.5) { msg.textContent = t('long'); file.value = ''; st.file = null; paintPrev(); } else { st.file = f; paintPrev(); } }; tmp.onerror = function () { st.file = f; paintPrev(); }; tmp.src = URL.createObjectURL(f); }
@@ -267,7 +372,12 @@
       else {
         if (!st.file) { msg.textContent = t('bad'); return; }
         share.disabled = true; cancel.disabled = true; share.textContent = t('uploading');
-        try { var fd = new FormData(); fd.append('user_email', user.email); fd.append('file', st.file); var up = await fetch('/api/videos/upload-direct', { method: 'POST', body: fd }); var ud = await up.json(); if (!up.ok || !ud.publicUrl) throw new Error(ud.error || 'upload'); body.mediaType = ud.type === 'video' ? 'video' : 'image'; body.mediaUrl = ud.publicUrl; body.caption = cap.value.trim(); }
+        try { var fd = new FormData(); fd.append('user_email', user.email); fd.append('file', st.file); var up = await fetch('/api/videos/upload-direct', { method: 'POST', body: fd }); var ud = await up.json(); if (!up.ok || !ud.publicUrl) throw new Error(ud.error || 'upload'); body.mediaType = ud.type === 'video' ? 'video' : 'image'; body.mediaUrl = ud.publicUrl; body.caption = cap.value.trim();
+          var ovs = []; for (var oi = 0; oi < st.ov.length; oi++) { var q = st.ov[oi], base = { x: +q.x.toFixed(4), y: +q.y.toFixed(4), s: +q.s.toFixed(4), r: Math.round(q.r || 0) };
+            if (q.type === 'emoji') ovs.push(Object.assign({ type: 'emoji', e: q.e }, base));
+            else if (q.type === 'text') { if (q.t && q.t.trim()) ovs.push(Object.assign({ type: 'text', t: q.t.trim(), c: q.c || '#ffffff', bg: q.bg || '' }, base)); }
+            else { var fd2 = new FormData(); fd2.append('user_email', user.email); fd2.append('file', new File([q.blob], q.blob.type === 'image/png' ? 'sticker.png' : 'sticker.jpg', { type: q.blob.type })); var up2 = await fetch('/api/videos/upload-direct', { method: 'POST', body: fd2 }); var ud2 = await up2.json(); if (!up2.ok || !ud2.publicUrl) throw new Error('upload'); ovs.push(Object.assign({ type: 'image', u: ud2.publicUrl }, base)); } }
+          if (ovs.length) body.overlays = ovs; }
         catch (e) { share.disabled = false; cancel.disabled = false; share.textContent = t('share'); msg.textContent = t('fail'); return; }
       }
       var d = await api('/api/stories', { method: 'POST', body: body });

@@ -2205,6 +2205,7 @@
 
         async function downloadChatMediaFile(url, isVideo, event) {
             if (event) event.stopPropagation();
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
             const ext = isVideo ? 'mp4' : 'jpg';
             const fileName = `CamFeed-${Date.now()}.${ext}`;
             try {
@@ -2432,7 +2433,9 @@
                 const isLocation = !ov.deleted && !m.media_url && (m.message_type === 'location' || displayText.includes('📍 ទីតាំងរបស់ខ្ញុំ'));
                 const isTextOnly = !m.media_url && displayText && displayText !== '👍' && !displayText.startsWith('STICKER_EMOJI:');
 
+                const canDl = !ov.deleted && m.media_url && !isAudio && m.media_type !== 'sticker' && m.message_type !== 'sticker';
                 const menuItems = `
+                    ${canDl ? `<button type="button" onclick="downloadChatMediaFile('${m.media_url}', ${isVideo ? 'true' : 'false'}, event)">⬇️ ទាញយក (Save)</button>` : ''}
                     <button type="button" onclick="openForwardModal(${m.id}, '${encodeURIComponent(displayText)}', '${encodeURIComponent(m.media_url || '')}', '${m.message_type || 'text'}')">↪️ បញ្ជូនបន្ត (Forward)</button>
                     ${(isSent && isTextOnly) ? `<button type="button" onclick="startEditMessage(${m.id}, '${encodeURIComponent(displayText)}')">✏️ កែប្រែ (Edit)</button>` : ''}
                     ${isSent ? `<button type="button" class="danger" onclick="deleteSentMessage(${m.id})">🗑️ លុប (Delete)</button>` : ''}
@@ -2478,7 +2481,7 @@
                     const emChar = displayText.replace('STICKER_EMOJI:', '');
                     bodyHtml = `<div class="cf-sent-sticker-emoji">${escapeHtml(emChar)}</div>`;
                 } else if (m.media_url) {
-                    const dlBtnHtml = `<button type="button" class="cf-media-dl-btn" onclick="downloadChatMediaFile('${m.media_url}', ${isVideo ? 'true' : 'false'}, event)" title="ទាញយក (Download)">⬇️</button>`;
+                    const dlBtnHtml = '';
                     bodyHtml = isVideo
                         ? `<div class="cf-media-card">${dlBtnHtml}<video src="${m.media_url}" controls playsinline webkit-playsinline preload="metadata"></video></div>`
                         : `<div class="cf-media-card">${dlBtnHtml}<img src="${m.media_url}" onclick="openPhotoLightbox('${m.media_url}')"></div>`;

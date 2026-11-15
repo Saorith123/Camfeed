@@ -349,6 +349,9 @@ pool.connect(async (err, client, release) => {
     await pool.query("CREATE TABLE IF NOT EXISTS sounds (id SERIAL PRIMARY KEY, title TEXT NOT NULL, artist TEXT, audio_url TEXT NOT NULL, cover_url TEXT, duration INTEGER NOT NULL DEFAULT 30, active BOOLEAN NOT NULL DEFAULT TRUE, uses INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())").catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS saved_sounds (user_email TEXT NOT NULL, sound_id INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, sound_id))').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
+    await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS overlays TEXT').catch(() => {});
+    await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS sounds_post_uq ON sounds (post_id) WHERE post_id IS NOT NULL').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories (expires_at)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS story_views (story_id INTEGER NOT NULL, viewer_email TEXT NOT NULL, viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (story_id, viewer_email))').catch(() => {});
@@ -3087,6 +3090,28 @@ app.post('/api/admin/ad-requests/activate', async (req, res) => {          // mo
 // Monetization (Creator Program): rules, wallet (a ledger of cents), withdrawals paid BY HAND, referrals.
 // No money moves automatically: bonuses are added by a Super Admin and withdrawals are paid by the owner (ABA / Wing / KHQR).
 // ---------------------------------------------------------------------------
+// stickers on a story (emoji, small pictures, text): kept as a small list, checked and cleaned here
+const OV_EMOJI = /^[\p{Extended_Pictographic}\u200d\ufe0f\u20e3\p{Emoji_Modifier}\u{1F1E6}-\u{1F1FF}]{1,12}$/u;
+const OV_COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([0-9 ,.]{5,30}\))$/;
+function cleanOverlays(raw, mediaBase) {
+  let arr = raw; if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch (e) { return []; } }
+  if (!Array.isArray(arr)) return [];
+  const num = (v, lo, hi, d) => { v = Number(v); return Number.isFinite(v) ? Math.min(Math.max(v, lo), hi) : d; };
+  const out = [];
+  for (const o of arr.slice(0, 20)) {
+    if (!o || typeof o !== 'object') continue;
+    const base = { x: num(o.x, 0, 1, 0.5), y: num(o.y, 0, 1, 0.5), s: num(o.s, 0.03, 1.2, 0.15), r: num(o.r, -360, 360, 0) };
+    if (o.type === 'emoji') { const e = String(o.e || ''); if (!OV_EMOJI.test(e)) continue; out.push(Object.assign({ type: 'emoji', e }, base)); }
+    else if (o.type === 'text') {
+      const t = String(o.t || '').replace(/\r/g, '').trim().slice(0, 120); if (!t) continue;
+      out.push(Object.assign({ type: 'text', t, c: OV_COLOR.test(String(o.c || '')) ? o.c : '#ffffff', bg: OV_COLOR.test(String(o.bg || '')) ? o.bg : '' }, base));
+    } else if (o.type === 'image') {
+      const u = String(o.u || ''); if (!u.startsWith(mediaBase) || /[\s"'<>`\\]/.test(u) || u.length > 500) continue;
+      out.push(Object.assign({ type: 'image', u }, base));
+    }
+  }
+  return out;
+}
 // ---- Stories: a picture, a short video or a text card that disappears after 24 hours ----
 const STORY_HOURS = 24, STORY_EMOJI = ['❤️', '😂', '😮', '😢', '👏', '🔥'], STORY_BG = ['blue', 'pink', 'green', 'orange', 'purple', 'dark'];
 const storyMediaBase = () => String(process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/+$/, '') + '/';
@@ -3118,7 +3143,7 @@ app.post('/api/stories', async (req, res) => {
       if (!sd) return res.status(400).json({ success: false, error: 'This sound is not available any more. Please choose another.' });
       soundId = sd.id; sLen = Math.min(Math.max(parseInt(b.soundLen, 10) || 15, 5), 30); sStart = Math.min(Math.max(parseInt(b.soundStart, 10) || 0, 0), Math.max(0, sd.duration - 5));
     }
-    const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at, sound_id, sound_start, sound_len) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours', $7, $8, $9) RETURNING id", [email, type, url, caption || null, bg, privacy, soundId, sStart, sLen]);
+    const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at, sound_id, sound_start, sound_len, overlays) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours', $7, $8, $9, $10) RETURNING id", [email, type, url, caption || null, bg, privacy, soundId, sStart, sLen, type === 'text' ? null : (cleanOverlays(b.overlays, storyMediaBase()).length ? JSON.stringify(cleanOverlays(b.overlays, storyMediaBase())) : null)]);
     if (soundId) pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [soundId]).catch(() => {});
     res.status(201).json({ success: true, id: r.rows[0].id });
   } catch (err) { console.error('[story] create error:', err.message); res.status(500).json({ success: false, error: 'Could not post your story.' }); }
@@ -3131,7 +3156,7 @@ app.get('/api/stories/feed', async (req, res) => {
       `SELECT s.id, s.user_email, s.media_type, s.media_url, s.caption, s.bg, s.privacy, s.created_at, s.expires_at, u.first_name, u.last_name, u.profile_pic,
               (v.story_id IS NOT NULL) AS seen, rx.emoji AS my_reaction,
               (SELECT COUNT(*) FROM story_views sv WHERE sv.story_id = s.id)::int AS views, (SELECT COUNT(*) FROM story_reactions sr WHERE sr.story_id = s.id)::int AS reactions,
-              sd.id AS snd_id, sd.title AS snd_title, sd.artist AS snd_artist, sd.audio_url AS snd_url, s.sound_start, s.sound_len
+              sd.id AS snd_id, sd.title AS snd_title, sd.artist AS snd_artist, sd.audio_url AS snd_url, s.sound_start, s.sound_len, s.overlays
        FROM stories s JOIN users u ON u.email = s.user_email
        LEFT JOIN sounds sd ON sd.id = s.sound_id AND sd.active = TRUE
        LEFT JOIN story_views v ON v.story_id = s.id AND v.viewer_email = $1
@@ -3145,7 +3170,7 @@ app.get('/api/stories/feed', async (req, res) => {
       let g = groups.get(x.user_email);
       if (!g) { g = { user_email: x.user_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', mine: x.user_email === me, allSeen: true, latest: 0, stories: [] }; groups.set(x.user_email, g); }
       const mine = x.user_email === me;
-      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', sound: x.snd_id ? { id: x.snd_id, title: x.snd_title, artist: x.snd_artist || '', url: x.snd_url, start: x.sound_start, len: x.sound_len } : null, views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
+      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', overlays: x.overlays ? cleanOverlays(x.overlays, storyMediaBase()) : [], sound: x.snd_id ? { id: x.snd_id, title: x.snd_title, artist: x.snd_artist || '', url: x.snd_url, start: x.sound_start, len: x.sound_len } : null, views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
       if (!x.seen && !mine) g.allSeen = false;
       g.latest = Math.max(g.latest, new Date(x.created_at).getTime());
     }
@@ -3235,7 +3260,7 @@ app.get('/api/sounds', async (req, res) => {
     const r = await pool.query(
       `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, (ss.sound_id IS NOT NULL) AS saved
        FROM sounds sd LEFT JOIN saved_sounds ss ON ss.sound_id = sd.id AND ss.user_email = $1
-       WHERE sd.active = TRUE AND ($2 = '' OR sd.title ILIKE '%' || $2 || '%' OR COALESCE(sd.artist, '') ILIKE '%' || $2 || '%')
+       WHERE sd.active = TRUE AND (sd.post_id IS NULL OR ss.sound_id IS NOT NULL) AND ($2 = '' OR sd.title ILIKE '%' || $2 || '%' OR COALESCE(sd.artist, '') ILIKE '%' || $2 || '%')
          AND ($3 = 'all' OR ss.sound_id IS NOT NULL)
        ORDER BY (CASE WHEN $3 = 'saved' THEN ss.created_at ELSE sd.created_at END) DESC, sd.uses DESC, sd.id DESC LIMIT 80`, [me, likeEsc(q), tab]);
     res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.title, artist: x.artist || '', url: x.audio_url, cover: x.cover_url || '', duration: x.duration, uses: x.uses, saved: !!x.saved })) });
@@ -3250,6 +3275,26 @@ app.post('/api/sounds/:id/save', async (req, res) => {
     if (have >= 200) return res.status(400).json({ success: false, error: 'You can save up to 200 sounds.' });
     const ok = (await pool.query('SELECT 1 FROM sounds WHERE id = $1 AND active = TRUE', [id])).rows[0]; if (!ok) return res.status(404).json({ success: false });
     await pool.query('INSERT INTO saved_sounds (user_email, sound_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [me, id]);
+    res.json({ success: true, saved: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+// "Save sound" from a video's ⋮ menu: the video's own audio becomes a sound in the person's saved list
+app.post('/api/sounds/from-post/:postId', async (req, res) => {
+  try {
+    const me = req.authEmail, pid = parseInt(req.params.postId, 10); if (!me || !pid) return res.status(400).json({ success: false });
+    const row = (await pool.query("SELECT p.id, p.user_email, p.media_type, p.media_url, p.privacy, u.first_name, u.last_name FROM posts p JOIN users u ON u.email = p.user_email WHERE p.id = $1", [pid])).rows[0];
+    if (!row || (row.privacy && row.privacy !== 'public' && row.user_email !== me)) return res.status(404).json({ success: false });
+    const v = pubMedia(row).video; if (!v) return res.status(400).json({ success: false, error: 'No video.' });
+    let sd = (await pool.query('SELECT id FROM sounds WHERE post_id = $1', [pid])).rows[0];
+    if (!sd) {
+      const nm = (String(row.first_name || '') + ' ' + String(row.last_name || '')).trim().slice(0, 60) || 'CamFeed';
+      sd = (await pool.query("INSERT INTO sounds (title, artist, audio_url, duration, created_by, post_id) VALUES ($1, $2, $3, 30, $4, $5) ON CONFLICT (post_id) WHERE post_id IS NOT NULL DO UPDATE SET audio_url = EXCLUDED.audio_url RETURNING id", ['សំឡេងដើម · ' + nm, nm, v, row.user_email, pid])).rows[0];
+    }
+    const ex = (await pool.query('SELECT 1 FROM saved_sounds WHERE user_email = $1 AND sound_id = $2', [me, sd.id])).rows[0];
+    if (ex) return res.json({ success: true, saved: true, already: true });
+    const have = Number((await pool.query('SELECT COUNT(*) AS n FROM saved_sounds WHERE user_email = $1', [me])).rows[0].n);
+    if (have >= 200) return res.status(400).json({ success: false, error: 'You can save up to 200 sounds.' });
+    await pool.query('INSERT INTO saved_sounds (user_email, sound_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [me, sd.id]);
     res.json({ success: true, saved: true });
   } catch (err) { res.status(500).json({ success: false }); }
 });
@@ -3847,6 +3892,40 @@ app.post('/api/admin/wallet/credit', async (req, res) => {
     }
     res.json({ success: true, name: `${u.first_name || ''} ${u.last_name || ''}`.trim(), balance: (await walletCents(u.email)) / 100 });
   } catch (err) { console.error('[admin] wallet error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+// One place that shows everything waiting for an admin: withdrawals, creator applications, reports, ads, live requests
+app.post('/api/admin/inbox', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const q = (sql) => pool.query(sql).catch(() => ({ rows: [] }));
+    const [wd, ri, cr, rp, ad, lv] = await Promise.all([
+      q("SELECT w.id, w.amount_cents, w.method, w.created_at AS at, u.first_name, u.last_name FROM withdrawal_requests w JOIN users u ON u.email = w.user_email WHERE w.status = 'pending' ORDER BY w.created_at DESC LIMIT 15"),
+      q("SELECT w.id, w.reissue_requested_at AS at, u.first_name, u.last_name FROM withdrawal_requests w JOIN users u ON u.email = w.user_email WHERE w.status = 'paid' AND w.reissue_requested_at IS NOT NULL ORDER BY w.reissue_requested_at DESC LIMIT 15"),
+      q("SELECT ca.user_email AS id, ca.requested_at AS at, u.first_name, u.last_name FROM creator_applications ca JOIN users u ON u.email = ca.user_email WHERE ca.status = 'pending' ORDER BY ca.requested_at DESC LIMIT 15"),
+      q("SELECT r.id, r.target_type, r.reason, r.created_at::timestamptz AS at FROM reports r WHERE r.status = 'pending' ORDER BY r.created_at DESC LIMIT 15"),
+      q("SELECT ar.id, ar.business_name, ar.created_at AS at FROM ad_requests ar WHERE ar.status = 'pending' ORDER BY ar.created_at DESC LIMIT 15"),
+      q("SELECT lr.id, lr.purpose, lr.requested_at AS at, u.first_name, u.last_name FROM live_requests lr JOIN users u ON u.email = lr.user_email WHERE lr.status = 'pending' ORDER BY lr.requested_at DESC LIMIT 15")]);
+    const cnt = async (sql) => { try { return Number((await pool.query(sql)).rows[0].n); } catch (e) { return 0; } };
+    const counts = {
+      withdrawals: await cnt("SELECT COUNT(*) AS n FROM withdrawal_requests WHERE status = 'pending'"),
+      reissue: await cnt("SELECT COUNT(*) AS n FROM withdrawal_requests WHERE status = 'paid' AND reissue_requested_at IS NOT NULL"),
+      creators: await cnt("SELECT COUNT(*) AS n FROM creator_applications WHERE status = 'pending'"),
+      reports: await cnt("SELECT COUNT(*) AS n FROM reports WHERE status = 'pending'"),
+      ads: await cnt("SELECT COUNT(*) AS n FROM ad_requests WHERE status = 'pending'"),
+      live: await cnt("SELECT COUNT(*) AS n FROM live_requests WHERE status = 'pending'")
+    };
+    const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
+    const items = [].concat(
+      wd.rows.map((x) => ({ kind: 'withdrawal', tab: 'monetization', title: nm(x) + ' · $' + (x.amount_cents / 100).toFixed(2), sub: 'Withdrawal request (' + x.method + ')', at: x.at })),
+      ri.rows.map((x) => ({ kind: 'reissue', tab: 'monetization', title: nm(x), sub: 'Asked for a new payout code', at: x.at })),
+      cr.rows.map((x) => ({ kind: 'creator', tab: 'monetization', title: nm(x), sub: 'Creator (monetization) application', at: x.at })),
+      rp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: String(x.target_type || 'report'), sub: String(x.reason || '').slice(0, 90), at: x.at })),
+      ad.rows.map((x) => ({ kind: 'ad', tab: 'ads', title: String(x.business_name || 'Ad'), sub: 'Advertising request', at: x.at })),
+      lv.rows.map((x) => ({ kind: 'live', tab: 'live', title: nm(x), sub: 'Live video request' + (x.purpose ? ' (' + x.purpose + ')' : ''), at: x.at }))
+    ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
+    res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
+  } catch (err) { console.error('[admin] inbox error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 
 app.post('/api/admin/withdrawals', async (req, res) => {

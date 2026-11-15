@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
 
   // ---------- helpers ----------
   function el(tag, props, kids) {
@@ -102,7 +102,7 @@
       dash.appendChild(el('div', { class: 'panel', id: 'panel-' + t[0], style: 'display:none' }));
     });
     // keep the order: Overview, Users, Content, (existing: Monetization, Reports, All Users, Posts, Accounts), Activity Log, System
-    var order = ['overview', 'umanage', 'content', 'monetization', 'ads', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
+    var order = ['inbox', 'overview', 'umanage', 'content', 'monetization', 'ads', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
     order.forEach(function (id) { var b = document.getElementById('tabBtn-' + id); if (b) bar.appendChild(b); });
     var panels = {}; order.forEach(function (id) { panels[id] = document.getElementById('panel-' + id); });
     order.forEach(function (id) { if (panels[id]) dash.appendChild(panels[id]); });
@@ -581,12 +581,48 @@
   }
   window.loadAdsAdmin = loadAdsAdmin;
 
+  // ---------- Inbox: everything waiting for an admin, in one place ----------
+  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴' };
+  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox' };
+  var lastTotal = -1, baseTitle = document.title;
+  function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
+  function applyInbox(d) {
+    var c = d.counts;
+    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', c.reports); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live);
+    document.title = (d.total > 0 ? '(' + d.total + ') ' : '') + baseTitle;
+    var ib = document.getElementById('tabBtn-inbox'); if (ib) ib.style.color = d.total > 0 ? '#e41e3f' : '';
+    if (lastTotal >= 0 && d.total > lastTotal) { try { var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05; o.start(); o.stop(ac.currentTime + 0.18); } catch (e) {} }
+    lastTotal = d.total;
+  }
+  function loadInbox() {
+    var p = document.getElementById('panel-inbox'); if (!p) return; p.textContent = ''; p.appendChild(empty('Loading…'));
+    adm('/api/admin/inbox').then(function (d) {
+      p.textContent = '';
+      if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
+      applyInbox(d); var c = d.counts;
+      p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live']];
+      p.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px' }, chips.map(function (x) {
+        return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
+      })));
+      if (!d.items.length) { p.appendChild(empty('✅ Nothing is waiting. All requests are handled.')); return; }
+      d.items.forEach(function (it) {
+        p.appendChild(el('div', { style: 'display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e4e6eb;border-radius:10px;margin-bottom:8px;background:#fff' }, [
+          el('div', { style: 'font-size:22px', text: KIND[it.kind] || '🔔' }),
+          el('div', { style: 'flex:1;min-width:0' }, [el('div', { style: 'font-weight:700;font-size:14px', text: it.title }), el('div', { style: 'font-size:12px;color:#65676b', text: it.sub + ' · ' + ago(it.at) })]),
+          el('button', { class: 'btn-sm', text: 'Open', onclick: function () { switchAdminTab(it.tab); } })]));
+      });
+    });
+  }
+  function pollInbox() { try { if (typeof savedAdminKey !== 'undefined' && savedAdminKey && document.getElementById('tabBtn-inbox')) adm('/api/admin/inbox', {}).then(function (d) { if (d && d.success) applyInbox(d); }); } catch (e) {} }
+
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin();
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin();
   };
-  window.onAdminUnlocked = function () { switchAdminTab('overview'); };
+  window.onAdminUnlocked = function () { switchAdminTab('inbox'); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
-  function pollLiveBadge() { try { if (typeof savedAdminKey !== 'undefined' && savedAdminKey && document.getElementById('tabBtn-live')) adm('/api/admin/live/requests', {}).then(function (q) { if (q && q.success) setLiveBadge(q.pending); }); } catch (e) {} }
-  setTimeout(pollLiveBadge, 4000); setInterval(pollLiveBadge, 60000);
+  function pollLiveBadge() { return; }
+  function _oldPollLive() { try { if (typeof savedAdminKey !== 'undefined' && savedAdminKey && document.getElementById('tabBtn-live')) adm('/api/admin/live/requests', {}).then(function (q) { if (q && q.success) setLiveBadge(q.pending); }); } catch (e) {} }
+  setTimeout(pollInbox, 3000); setInterval(pollInbox, 60000);
 })();

@@ -965,6 +965,7 @@
                                     <button class="action-icon-btn" style="width:40px; height:40px; font-size:18px;" onclick="toggleVideoOptions(event, '${uid}')">⋮</button>
                                     <div class="video-options-dropdown" id="videoOptions-${uid}" onclick="event.stopPropagation()">
                                         ${isOwn ? `<button onclick="deleteOwnVideo(${video.id}, '${uid}')" style="color:#fa383e;">🗑️ លុបវីដេអូនេះ</button>` : ''}
+                                        <button onclick="saveVideoSound(${video.id}, '${uid}')">🎵 រក្សាទុកសំឡេង (Save sound)</button>
                                         <button onclick="openReportModal(${video.id})" style="color:#d93025;">🚩 រាយការណ៍វីដេអូ</button>
                                     </div>
                                 </div>
@@ -1486,6 +1487,15 @@
             });
             const menu = document.getElementById(`videoOptions-${uid}`);
             if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function saveVideoSound(postId, uid) {
+            const menu = document.getElementById(`videoOptions-${uid}`); if (menu) menu.style.display = 'none';
+            try {
+                const res = await fetch(`/api/sounds/from-post/${postId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const d = await res.json();
+                alert(d.success ? (d.already ? 'សំឡេងនេះបានរក្សាទុករួចហើយ ✅' : 'បានរក្សាទុកសំឡេង ✅ — ប្រើក្នុង Story > បន្ថែមសំឡេង > Saved') : (d.error || 'រក្សាទុកមិនបាន'));
+            } catch (e) { alert('រក្សាទុកមិនបាន'); }
         }
 
         async function deleteOwnVideo(postId, uid) {
