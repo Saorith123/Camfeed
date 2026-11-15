@@ -966,6 +966,15 @@
                     container.insertAdjacentHTML('beforeend', newReelsHtml);
                 } else {
                     container.innerHTML = newReelsHtml;
+                    // opened from the feed: the first video continues from where the feed player was
+                    const resumeAt = parseFloat(urlParams.get('t'));
+                    if (resumeAt > 0) {
+                        const fv = container.querySelector('video.reel-video');
+                        if (fv) {
+                            const seek = () => { try { if (!fv.duration || resumeAt < fv.duration - 1) fv.currentTime = resumeAt; } catch (e) {} };
+                            if (fv.readyState >= 1) seek(); else fv.addEventListener('loadedmetadata', seek, { once: true });
+                        }
+                    }
                 }
 
                 initReelsAutoplayAndViews();

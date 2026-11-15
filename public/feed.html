@@ -2441,13 +2441,14 @@
 
         // ---- tap on a feed video = open the Reels viewer (videos.html) over the feed; Back closes it and the feed is untouched ----
         let reelsOpen = false;
-        function openReelsViewer(postId) {
+        function openReelsViewer(postId, vidEl) {
             if (reelsOpen || !postId) return;
             reelsOpen = true;
+            const resumeAt = (vidEl && vidEl.currentTime > 0.5) ? Math.floor(vidEl.currentTime * 10) / 10 : 0;   // the Reels viewer continues from here, not from the start
             document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} });
             let ov = document.getElementById('reelsOverlay');
             if (!ov) { ov = document.createElement('div'); ov.id = 'reelsOverlay'; document.body.appendChild(ov); }
-            ov.innerHTML = '<iframe allow="autoplay; fullscreen" src="videos.html?post=' + encodeURIComponent(postId) + '&embed=1"></iframe>';
+            ov.innerHTML = '<iframe allow="autoplay; fullscreen" src="videos.html?post=' + encodeURIComponent(postId) + '&embed=1' + (resumeAt ? '&t=' + resumeAt : '') + '"></iframe>';
             ov.classList.add('open');
             document.documentElement.style.overflow = 'hidden';
             try { history.pushState({ reels: 1 }, ''); } catch (e) {}
@@ -2469,7 +2470,7 @@
             const vid = document.getElementById(`vid-${uid}`);
             if (!vid) return;
             if (!iosAudioSessionUnlocked) unlockIosAudioOnGesture();
-            openReelsViewer(vid.dataset.postId);
+            openReelsViewer(vid.dataset.postId, vid);
         }
 
         function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video', mediaAspect = '', isPriority = false) {
