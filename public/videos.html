@@ -804,7 +804,7 @@
                             const creatorEmail = isSharedWrapper ? (p.orig_author_email || p.user_email) : p.user_email;
                             const creatorFirst = isSharedWrapper ? (p.orig_first_name || '') : (p.first_name || '');
                             const creatorLast = isSharedWrapper ? (p.orig_last_name || '') : (p.last_name || '');
-                            const creatorPic = isSharedWrapper ? (p.orig_profile_pic || 'https://via.placeholder.com/42') : (p.profile_pic || 'https://via.placeholder.com/42');
+                            const creatorPic = isSharedWrapper ? (p.orig_profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E') : (p.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E');
                             const originalCaption = isSharedWrapper ? (p.orig_content || '') : (p.content || '');
 
                             return {
@@ -1414,7 +1414,7 @@
                     listContainer.innerHTML = data.reactors.map(r => `
                         <div class="reactor-row">
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="goPage('profile.html?email=${encodeURIComponent(r.email)}')">
-                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <img src="${r.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px;">${esc(r.first_name)} ${esc(r.last_name)}</div>
                                     <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
@@ -1448,7 +1448,7 @@
                     listContainer.innerHTML = data.sharers.map(s => `
                         <div class="reactor-row">
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="goPage('profile.html?email=${encodeURIComponent(s.email)}')">
-                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <img src="${s.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px;">${esc(s.first_name)} ${esc(s.last_name)}</div>
                                     <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${timeAgo(s.shared_at)}</div>
@@ -1650,7 +1650,7 @@
                         return `
                             <div class="comment-container" id="comment-${c.id}" style="flex-direction:column; gap:2px;">
                                 <div style="display:flex; gap:10px; width:100%; align-items:flex-start;">
-                                    <img src="${c.profile_pic || 'https://via.placeholder.com/34'}" class="comment-avatar" onclick="goPage('profile.html?email=${encodeURIComponent(c.user_email)}')">
+                                    <img src="${c.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" class="comment-avatar" onclick="goPage('profile.html?email=${encodeURIComponent(c.user_email)}')">
                                     <div class="comment-content-wrapper">
                                         <div class="comment-bubble">
                                             <span class="comment-author notranslate" translate="no" onclick="goPage('profile.html?email=${encodeURIComponent(c.user_email)}')">${esc(c.first_name)} ${esc(c.last_name)} ${replyBadge}</span>

@@ -335,6 +335,11 @@ pool.connect(async (err, client, release) => {
     await pool.query('CREATE TABLE IF NOT EXISTS referrals (referred_email TEXT PRIMARY KEY, referrer_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS message TEXT').catch(() => {});
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS earn_suspended BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS suspend_reason TEXT').catch(() => {});
+    await pool.query("CREATE TABLE IF NOT EXISTS stories (id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, media_type VARCHAR(10) NOT NULL, media_url TEXT, caption TEXT, bg VARCHAR(20), privacy VARCHAR(10) NOT NULL DEFAULT 'public', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL)").catch(() => {});
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories (expires_at)').catch(() => {});
+    await pool.query('CREATE TABLE IF NOT EXISTS story_views (story_id INTEGER NOT NULL, viewer_email TEXT NOT NULL, viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (story_id, viewer_email))').catch(() => {});
+    await pool.query('CREATE TABLE IF NOT EXISTS story_reactions (story_id INTEGER NOT NULL, viewer_email TEXT NOT NULL, emoji VARCHAR(12) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (story_id, viewer_email))').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_settings (key VARCHAR(40) PRIMARY KEY, value TEXT)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_earn (user_email TEXT PRIMARY KEY, carry_cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS post_earn (post_id INTEGER PRIMARY KEY, user_email TEXT NOT NULL, views_seen INTEGER NOT NULL DEFAULT 0, cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
@@ -3065,6 +3070,138 @@ app.post('/api/admin/ad-requests/activate', async (req, res) => {          // mo
 // Monetization (Creator Program): rules, wallet (a ledger of cents), withdrawals paid BY HAND, referrals.
 // No money moves automatically: bonuses are added by a Super Admin and withdrawals are paid by the owner (ABA / Wing / KHQR).
 // ---------------------------------------------------------------------------
+// ---- Stories: a picture, a short video or a text card that disappears after 24 hours ----
+const STORY_HOURS = 24, STORY_EMOJI = ['❤️', '😂', '😮', '😢', '👏', '🔥'], STORY_BG = ['blue', 'pink', 'green', 'orange', 'purple', 'dark'];
+const storyMediaBase = () => String(process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/+$/, '') + '/';
+const NOT_BLOCKED = (a, b) => `NOT EXISTS (SELECT 1 FROM blocked_users bl WHERE (bl.blocker_email = ${a} AND bl.blocked_email = ${b}) OR (bl.blocker_email = ${b} AND bl.blocked_email = ${a}))`;
+// can `viewer` see story `s`? (own stories, or the author is followed and — for "friends only" — follows back)
+async function canSeeStory(viewer, id) {
+  const r = await pool.query(
+    `SELECT s.*, u.first_name, u.last_name FROM stories s JOIN users u ON u.email = s.user_email
+     WHERE s.id = $1 AND s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$2')}
+       AND (s.user_email = $2 OR (EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = s.user_email)
+            AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = s.user_email AND f2.following_email = $2))))`, [id, viewer]);
+  return r.rows[0] || null;
+}
+app.post('/api/stories', async (req, res) => {
+  const b = req.body || {}, email = req.authEmail;
+  try {
+    const type = ['image', 'video', 'text'].includes(b.mediaType) ? b.mediaType : '';
+    if (!type) return res.status(400).json({ success: false, error: 'Please choose a picture, a video or write a text.' });
+    const caption = String(b.caption || '').replace(/\r/g, '').trim().slice(0, 200);
+    let url = null;
+    if (type === 'text') { if (!caption) return res.status(400).json({ success: false, error: 'Please write something.' }); }
+    else { url = String(b.mediaUrl || ''); if (!url.startsWith(storyMediaBase()) || /[\s"'<>`\\]/.test(url) || url.length > 500) return res.status(400).json({ success: false, error: 'Invalid file.' }); }
+    const bg = STORY_BG.includes(b.bg) ? b.bg : 'blue', privacy = b.privacy === 'friends' ? 'friends' : 'public';
+    const active = Number((await pool.query('SELECT COUNT(*) AS n FROM stories WHERE user_email = $1 AND expires_at > NOW()', [email])).rows[0].n);
+    if (active >= 30) return res.status(429).json({ success: false, error: 'You already have 30 stories today. Please wait until some of them disappear.' });
+    const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours') RETURNING id", [email, type, url, caption || null, bg, privacy]);
+    res.status(201).json({ success: true, id: r.rows[0].id });
+  } catch (err) { console.error('[story] create error:', err.message); res.status(500).json({ success: false, error: 'Could not post your story.' }); }
+});
+
+app.get('/api/stories/feed', async (req, res) => {
+  const me = req.authEmail;
+  try {
+    const r = await pool.query(
+      `SELECT s.id, s.user_email, s.media_type, s.media_url, s.caption, s.bg, s.privacy, s.created_at, s.expires_at, u.first_name, u.last_name, u.profile_pic,
+              (v.story_id IS NOT NULL) AS seen, rx.emoji AS my_reaction,
+              (SELECT COUNT(*) FROM story_views sv WHERE sv.story_id = s.id)::int AS views, (SELECT COUNT(*) FROM story_reactions sr WHERE sr.story_id = s.id)::int AS reactions
+       FROM stories s JOIN users u ON u.email = s.user_email
+       LEFT JOIN story_views v ON v.story_id = s.id AND v.viewer_email = $1
+       LEFT JOIN story_reactions rx ON rx.story_id = s.id AND rx.viewer_email = $1
+       WHERE s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$1')}
+         AND (s.user_email = $1 OR (EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = s.user_email)
+              AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = s.user_email AND f2.following_email = $1))))
+       ORDER BY s.created_at ASC LIMIT 400`, [me]);
+    const groups = new Map();
+    for (const x of r.rows) {
+      let g = groups.get(x.user_email);
+      if (!g) { g = { user_email: x.user_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', mine: x.user_email === me, allSeen: true, latest: 0, stories: [] }; groups.set(x.user_email, g); }
+      const mine = x.user_email === me;
+      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
+      if (!x.seen && !mine) g.allSeen = false;
+      g.latest = Math.max(g.latest, new Date(x.created_at).getTime());
+    }
+    const list = [...groups.values()].sort((a, b) => (b.mine - a.mine) || (a.allSeen - b.allSeen) || (b.latest - a.latest));
+    res.json({ success: true, groups: list });
+  } catch (err) { console.error('[story] feed error:', err.message); res.status(500).json({ success: false, error: 'Could not load stories.' }); }
+});
+
+app.post('/api/stories/:id/view', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail; if (!id) return res.json({ success: false });
+    const st = await canSeeStory(me, id); if (!st) return res.status(404).json({ success: false });
+    if (st.user_email !== me) await pool.query('INSERT INTO story_views (story_id, viewer_email) VALUES ($1, $2) ON CONFLICT DO NOTHING', [id, me]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+app.get('/api/stories/:id/viewers', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail;
+    const st = (await pool.query('SELECT user_email FROM stories WHERE id = $1', [id])).rows[0];
+    if (!st || st.user_email !== me) return res.status(404).json({ success: false });
+    const r = await pool.query(
+      `SELECT v.viewer_email AS user_email, v.viewed_at, u.first_name, u.last_name, u.profile_pic, rx.emoji
+       FROM story_views v JOIN users u ON u.email = v.viewer_email LEFT JOIN story_reactions rx ON rx.story_id = v.story_id AND rx.viewer_email = v.viewer_email
+       WHERE v.story_id = $1 ORDER BY v.viewed_at DESC LIMIT 200`, [id]);
+    res.json({ success: true, viewers: r.rows.map((x) => ({ user_email: x.user_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', viewed_at: x.viewed_at, emoji: x.emoji || '' })) });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+app.post('/api/stories/:id/react', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail, emoji = String((req.body || {}).emoji || '');
+    if (!STORY_EMOJI.includes(emoji)) return res.status(400).json({ success: false, error: 'Invalid reaction.' });
+    const st = await canSeeStory(me, id); if (!st) return res.status(404).json({ success: false });
+    if (st.user_email === me) return res.status(400).json({ success: false, error: 'You cannot react to your own story.' });
+    const r = await pool.query('INSERT INTO story_reactions (story_id, viewer_email, emoji) VALUES ($1, $2, $3) ON CONFLICT (story_id, viewer_email) DO UPDATE SET emoji = $3 RETURNING (xmax = 0) AS fresh', [id, me, emoji]);
+    if (r.rows[0] && r.rows[0].fresh) {
+      const who = (await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [me])).rows[0] || {};
+      await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'story_reaction', $3, FALSE)", [st.user_email, me, `${who.first_name || ''} ${who.last_name || ''}`.trim() + ' បានប្រតិកម្ម ' + emoji + ' ទៅលើរឿង (Story) របស់អ្នក។']).catch(() => {});
+    }
+    res.json({ success: true });
+  } catch (err) { console.error('[story] react error:', err.message); res.status(500).json({ success: false }); }
+});
+
+app.post('/api/stories/:id/reply', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail, text = String((req.body || {}).text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+    if (!text) return res.status(400).json({ success: false, error: 'Please write a message.' });
+    const st = await canSeeStory(me, id); if (!st) return res.status(404).json({ success: false });
+    if (st.user_email === me) return res.status(400).json({ success: false, error: 'You cannot reply to your own story.' });
+    await pool.query("INSERT INTO messages (sender_email, receiver_email, message, message_type, is_read) VALUES ($1, $2, $3, 'text', FALSE)", [me, st.user_email, '↩️ ឆ្លើយតបទៅរឿង (Story)៖ ' + text]);
+    res.json({ success: true });
+  } catch (err) { console.error('[story] reply error:', err.message); res.status(500).json({ success: false }); }
+});
+
+app.delete('/api/stories/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail;
+    const d = await pool.query('DELETE FROM stories WHERE id = $1 AND user_email = $2 RETURNING media_url', [id, me]);
+    if (!d.rows.length) return res.status(404).json({ success: false });
+    await pool.query('DELETE FROM story_views WHERE story_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM story_reactions WHERE story_id = $1', [id]).catch(() => {});
+    if (d.rows[0].media_url) cleanup.purgeMediaUrls([d.rows[0].media_url]).catch(() => {});
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// every hour: remove stories that have run out (the row, the views and the file in storage)
+async function sweepStories() {
+  try {
+    const d = await pool.query("DELETE FROM stories WHERE expires_at < NOW() - INTERVAL '5 minutes' RETURNING id, media_url");
+    if (!d.rows.length) return;
+    const ids = d.rows.map((x) => x.id);
+    await pool.query('DELETE FROM story_views WHERE story_id = ANY($1::int[])', [ids]).catch(() => {});
+    await pool.query('DELETE FROM story_reactions WHERE story_id = ANY($1::int[])', [ids]).catch(() => {});
+    const urls = d.rows.map((x) => x.media_url).filter(Boolean);
+    if (urls.length) await cleanup.purgeMediaUrls(urls).catch(() => {});
+  } catch (err) { console.error('[story] sweep error:', err.message); }
+}
+setTimeout(sweepStories, 2 * 60 * 1000); setInterval(sweepStories, 60 * 60 * 1000);
+
 // ---- payout codes (top-up PIN / Wing cash-out code): kept sealed (AES-256-GCM) and shown only to the owner ----
 const PAYOUT_METHODS = ['TopUp', 'WingCash', 'ABA', 'ACLEDA', 'Wing', 'KHQR', 'Other'], CODE_METHODS = ['TopUp', 'WingCash'], CARRIERS = ['Cellcard', 'Smart', 'Metfone'];
 const payoutKey = () => { const k = process.env.PAYOUT_CODE_KEY || process.env.JWT_SECRET || ''; return String(k).length >= 16 ? require('crypto').createHash('sha256').update('camfeed-payout|' + k).digest() : null; };

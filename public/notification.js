@@ -53,7 +53,7 @@ async function loadNotifications() {
 
                     return `
                         <div class="notification-item" style="${bgStyle}" onclick="${clickAction}; event.stopPropagation();">
-                            <img src="${n.profile_pic || 'https://via.placeholder.com/38'}"
+                            <img src="${n.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}"
                                  class="notif-avatar"
                                  title="ចុចដើម្បីមើល Profile របស់ ${esc(n.first_name || '')}"
                                  style="width:38px; height:38px; border-radius:50%; object-fit:cover; flex-shrink:0;"

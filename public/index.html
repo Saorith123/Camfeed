@@ -307,7 +307,7 @@
                 <label id="lblProfilePic" style="font-weight: bold; margin-bottom: 5px;">Profile Picture</label>
                 <div class="upload-section">
                     <div class="preview-avatar-container">
-                        <img id="avatarPreviewImg" class="preview-avatar" src="https://via.placeholder.com/90">
+                        <img id="avatarPreviewImg" class="preview-avatar" src="data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E">
                         <button type="button" id="removeAvatarBtn" class="remove-media-btn hidden" onclick="removeAvatarImage()" title="Remove">×</button>
                     </div>
                     <label class="file-upload-label" id="avatarUploadLabel">
@@ -1129,7 +1129,7 @@
 
         function removeAvatarImage() {
             document.getElementById('regProfileFile').value = '';
-            document.getElementById('avatarPreviewImg').src = 'https://via.placeholder.com/90';
+            document.getElementById('avatarPreviewImg').src = 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
             document.getElementById('removeAvatarBtn').classList.add('hidden');
         }
 

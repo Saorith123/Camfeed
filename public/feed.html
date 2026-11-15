@@ -1136,6 +1136,7 @@
         .sponsored-badge { font-size: 11px; background: #e7f3ff; color: #1877f2; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
     </style>
     <script src="timeago.js"></script>
+    <script src="stories.js" defer></script>
 </head>
 <body>
 
@@ -1209,7 +1210,7 @@
                 </div>
 
                 <a class="user-profile-link" href="profile.html" title="My Profile">
-                    <img id="navUserAvatar" src="https://via.placeholder.com/38" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                    <img id="navUserAvatar" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';" src="data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                 </a>
             </div>
         </div>
@@ -1239,7 +1240,7 @@
             <div class="modal-body" style="gap: 10px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <img id="composerUserAvatar" src="https://via.placeholder.com/40" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                        <img id="composerUserAvatar" src="data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                         <div>
                             <div id="composerUserName" class="notranslate" translate="no" style="font-weight:700; font-size:14.5px; color:#050505;">User</div>
                             <select id="composerPostPrivacy" style="width:auto; padding:3px 9px; font-size:12px; margin:2px 0 0 0; border-radius:8px; background:#f0f2f5; font-weight:700;">
@@ -1452,7 +1453,7 @@
                     <button type="button" onclick="cancelSheetReplyTarget()" style="background:none; border:none; color:#fa383e; font-weight:800; cursor:pointer;">✕</button>
                 </div>
                 <div class="comment-sheet-input-row">
-                    <img src="https://via.placeholder.com/34" id="commentSheetUserAvatar" class="comment-sheet-avatar">
+                    <img src="data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E" id="commentSheetUserAvatar" class="comment-sheet-avatar">
                     <input type="text" id="commentSheetInput" class="comment-sheet-input" placeholder="សរសេរមតិយោបល់របស់អ្នក..." onkeydown="if(event.key==='Enter' && !event.isComposing){ event.preventDefault(); submitCommentFromSheet(); }">
                     <button type="button" id="commentSheetSendBtn" class="comment-sheet-send-btn" onclick="submitCommentFromSheet()">ផ្ញើ</button>
                 </div>
@@ -1753,13 +1754,13 @@
             container.innerHTML = list.map(acc => {
                 const isCurrent = (acc.email || '').trim().toLowerCase() === activeEmail;
                 const fullName = `${acc.first_name || ''} ${acc.last_name || ''}`.trim() || acc.contact_mail || 'CamFeed';
-                const pic = acc.profile_pic || 'https://via.placeholder.com/32';
+                const pic = acc.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
                 const safeEmail = (acc.email || '').replace(/'/g, "\\'");
 
                 return `
                     <div class="saved-acc-row ${isCurrent ? 'is-current' : ''}" onclick="switchToSavedAccount('${safeEmail}')">
                         <div class="saved-acc-left">
-                            <img src="${pic}" onerror="this.onerror=null;this.src='https://via.placeholder.com/32';" class="saved-acc-avatar">
+                            <img src="${pic}" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';" class="saved-acc-avatar">
                             <div class="saved-acc-info">
                                 <div class="saved-acc-name notranslate" translate="no">${fullName}</div>
                                 <div class="saved-acc-sub notranslate" translate="no">${acc.contact_mail || ''}</div>
@@ -1874,6 +1875,17 @@
             window.location.href = 'index.html';
         } else {
             syncCurrentUserIntoSavedAccounts(currentUser);
+            // the phone may hold an old copy of the account: ask the server for the current picture (the Profile page already does this)
+            fetch(`/api/user-profile?email=${encodeURIComponent(currentUser.email)}&viewerEmail=${encodeURIComponent(currentUser.email)}`).then(r => r.json()).then(d => {
+                if (!d || !d.success || !d.user) return;
+                const fresh = d.user.profile_pic || '';
+                if (fresh && fresh !== currentUser.profile_pic) {
+                    currentUser.profile_pic = fresh;
+                    try { localStorage.setItem('camfeed_user', JSON.stringify(currentUser)); } catch (e) {}
+                    const a = document.getElementById('navUserAvatar'); if (a) a.src = fresh;
+                    const c = document.getElementById('composerUserAvatar'); if (c) c.src = fresh;
+                }
+            }).catch(() => {});
             if (currentUser.profile_pic) {
                 const navAv = document.getElementById('navUserAvatar');
                 if (navAv) navAv.src = currentUser.profile_pic;
@@ -2096,7 +2108,7 @@
                         html += matchedUsers.map(u => `
                             <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f0f2f5;">
                                 <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
-                                    <img src="${u.profile_pic || 'https://via.placeholder.com/48'}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">
+                                    <img src="${u.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:48px; height:48px; border-radius:50%; object-fit:cover;">
                                     <div>
                                         <div style="font-weight:700; font-size:14.5px; color:#050505;">${esc(u.first_name)} ${esc(u.last_name)}</div>
                                         <div style="font-size:12px; color:#65676b;">👤 People on CamFeed</div>
@@ -2131,7 +2143,7 @@
                         return `
                             <div onclick="openInstantPostModal(${p.id}, 0)" style="border:1px solid #e4e6eb; border-radius:10px; overflow:hidden; margin-top:12px; cursor:pointer; background:#fff;">
                                 <div style="display:flex; align-items:center; gap:10px; padding:10px 12px;">
-                                    <img src="${p.profile_pic || 'https://via.placeholder.com/36'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                                    <img src="${p.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
                                     <div>
                                         <div style="font-weight:700; font-size:14px;">${esc(p.first_name)} ${esc(p.last_name)}</div>
                                         <div style="font-size:11px; color:#65676b;">${isVid ? '🎬 Video' : (srcUrl ? '🖼️ Photo' : '📝 Post')} · ${timeAgo(p.created_at)}</div>
@@ -2232,7 +2244,7 @@
 
                 body.innerHTML = `
                     <div style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #f0f2f5;">
-                        <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
+                        <img src="${post.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                         <div>
                             <div style="font-weight:700; font-size:14.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${esc(post.first_name)} ${esc(post.last_name)}</div>
                             <div style="font-size:11px; color:#65676b;"><span data-ts="${post.created_at}" title="${fullDateTime(post.created_at)}">${dateStr}</span> · 🌐</div>
@@ -2280,7 +2292,7 @@
 
             return `
                 <div id="modal-comment-row-${c.id}" style="display:flex; gap:8px; align-items:flex-start; ${isHighlighted ? 'background:#e7f3ff; padding:6px; border-radius:12px; border:1px solid #1877f2;' : ''}">
-                    <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; cursor:pointer; flex-shrink:0;" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
+                    <img src="${c.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; cursor:pointer; flex-shrink:0;" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
                     <div style="flex:1;">
                         <div style="background:#fff; padding:8px 12px; border-radius:14px; border:1px solid #e4e6eb;">
                             <div style="font-weight:700; font-size:12.5px; color:#050505; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">
@@ -2811,7 +2823,7 @@
                         <div class="embedded-shared-card" style="cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(sp.email)}'">
                             ${sp.cover_pic ? `<img src="${sp.cover_pic}" style="width:100%; height:130px; object-fit:cover; display:block;">` : ''}
                             <div class="embedded-shared-info" style="display:flex; align-items:center; gap:12px;">
-                                <img src="${sp.profile_pic || 'https://via.placeholder.com/52'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
+                                <img src="${sp.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:52px; height:52px; border-radius:50%; object-fit:cover; border:2px solid #1877f2;">
                                 <div>
                                     <div style="font-weight:700; font-size:15px; color:#050505;">${esc(sp.name)}</div>
                                     <div style="font-size:12.5px; color:#65676b;">${esc(sp.bio || 'View Profile on CamFeed')}</div>
@@ -2837,7 +2849,7 @@
                         <div class="embedded-shared-card" style="margin: 0 12px 8px 12px; border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden;">
                             <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
                                 <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
-                                    <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
+                                    <img src="${post.orig_profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                     <div>
                                         <div class="embedded-shared-author notranslate" translate="no">${esc(origAuthor)}</div>
                                         <div class="embedded-shared-time">${origDate} · 🌐</div>
@@ -2865,7 +2877,7 @@
                     <div class="embedded-shared-card" style="margin: 0 12px 8px 12px; border: 1px solid #dddfe2; border-radius: 10px; overflow: hidden;">
                         <div class="embedded-shared-info" style="padding: 10px 12px 8px 12px;">
                             <div class="embedded-shared-author-row" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.orig_author_email)}'">
-                                <img src="${post.orig_profile_pic || 'https://via.placeholder.com/36'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
+                                <img src="${post.orig_profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" class="embedded-shared-avatar" style="width:36px; height:36px;">
                                 <div>
                                     <div class="embedded-shared-author notranslate" translate="no">${esc(origAuthor)}</div>
                                     <div class="embedded-shared-time">${origDate} · 🌐</div>
@@ -3081,7 +3093,7 @@
                 div.innerHTML = `
                     <div class="post-header" style="padding: 0 14px;">
                         <div class="post-header-left">
-                            <img src="${post.profile_pic || 'https://via.placeholder.com/40'}" onerror="this.onerror=null;this.src='https://via.placeholder.com/40';" class="avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
+                            <img src="${post.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';" class="avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">
                             <div style="flex:1; min-width:0;">
                                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                                     <div class="post-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(post.user_email)}'">${esc(post.first_name)} ${esc(post.last_name)}</div>
@@ -3627,7 +3639,7 @@
                     listContainer.innerHTML = data.reactors.map(r => `
                         <div class="reactor-row">
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(r.email)}'">
-                                <img src="${r.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <img src="${r.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px; color:#050505;">${esc(r.first_name)} ${esc(r.last_name)}</div>
                                     <div style="font-size:12px; color:#65676b;">${r.reaction_type || '👍'} Reaction</div>
@@ -3671,7 +3683,7 @@
                     listContainer.innerHTML = data.sharers.map(s => `
                         <div class="reactor-row">
                             <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(s.email)}'">
-                                <img src="${s.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                                <img src="${s.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
                                 <div>
                                     <div style="font-weight:bold; font-size:14px; color:#050505;">${esc(s.first_name)} ${esc(s.last_name)}</div>
                                     <div style="font-size:11.5px; color:#65676b;">↗️ Shared · ${timeAgo(s.shared_at)}</div>
@@ -4003,7 +4015,7 @@
             const row = document.createElement('div'); row.className = 'pymk-row';
             cachedPeople.forEach((p) => {
                 const card = document.createElement('div'); card.className = 'pymk-card';
-                const pic = document.createElement('img'); pic.className = 'pymk-pic'; pic.loading = 'lazy'; pic.src = p.profile_pic || 'https://via.placeholder.com/160';
+                const pic = document.createElement('img'); pic.className = 'pymk-pic'; pic.loading = 'lazy'; pic.src = p.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
                 pic.addEventListener('click', () => { window.location.href = 'profile.html?email=' + encodeURIComponent(p.email); });
                 const nm = document.createElement('div'); nm.className = 'pymk-name notranslate'; nm.setAttribute('translate', 'no'); nm.textContent = ((p.first_name || '') + ' ' + (p.last_name || '')).trim();
                 const mu = document.createElement('div'); mu.className = 'pymk-mutual';
@@ -4240,7 +4252,7 @@
                         return `
                             <div class="comment-container ${isReply ? 'is-reply' : ''}" id="comment-${c.id}" style="flex-direction:column; gap:2px; margin-bottom:4px;">
                                 <div style="display:flex; gap:8px; width:100%; align-items:flex-start;">
-                                    <img src="${c.profile_pic || 'https://via.placeholder.com/32'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'" title="View Profile">
+                                    <img src="${c.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" class="comment-avatar" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'" title="View Profile">
                                     <div class="comment-content-wrapper" style="flex:1;">
                                         <div style="flex: 1;">
                                             <span class="comment-author notranslate" translate="no" onclick="window.location.href='profile.html?email=${encodeURIComponent(c.user_email)}'">${esc(c.first_name)} ${esc(c.last_name)} ${replyBadge}</span>

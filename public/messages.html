@@ -1319,7 +1319,7 @@
                 <div class="cf-header-left">
                     <button class="cf-mobile-back" onclick="showContactsMobile()" title="Back">←</button>
                     <div class="cf-header-avatar" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
-                        <img src="https://via.placeholder.com/42" id="activeChatAvatar">
+                        <img src="data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E" id="activeChatAvatar">
                         <span class="cf-status-ring" id="activeChatOnlineDot"></span>
                     </div>
                     <div class="cf-header-info" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">
@@ -2242,7 +2242,7 @@
                 const isActive = activeFriend && (activeFriend.email || '').trim().toLowerCase() === emailKey ? 'active' : '';
                 const unreadNum = isActive ? 0 : (parseInt(person.unread_count) || 0);
                 const unreadClass = unreadNum > 0 ? 'is-unread' : '';
-                const avatar = person.profile_pic || 'https://via.placeholder.com/48';
+                const avatar = person.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
                 const subtitle = formatSidebarPreview(person.last_message || person.email);
                 const online = (emailKey in verifiedOnlineMap) ? verifiedOnlineMap[emailKey] : false;
                 const safeData = JSON.stringify({
@@ -2284,7 +2284,7 @@
             );
             cancelEditMessage();
             document.getElementById('activeChatName').innerText = `${friend.first_name || ''} ${friend.last_name || ''}`;
-            document.getElementById('activeChatAvatar').src = friend.profile_pic || 'https://via.placeholder.com/42';
+            document.getElementById('activeChatAvatar').src = friend.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
             updateHeaderPresenceUI(verifiedOnlineMap[se] || false);
             document.getElementById('chatInputBar').style.display = 'flex';
             refreshActiveFriendStatus();
@@ -2379,7 +2379,7 @@
             }
 
             const wasAtBottom = forceScroll || (box.scrollHeight - box.scrollTop <= box.clientHeight + 100);
-            const friendAvatar = (activeFriend && activeFriend.profile_pic) ? activeFriend.profile_pic : 'https://via.placeholder.com/30';
+            const friendAvatar = (activeFriend && activeFriend.profile_pic) ? activeFriend.profile_pic : 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E';
             let lastTimeGroup = '';
             let lastSeenSentMsgId = null;
             messages.forEach(m => {
@@ -3420,7 +3420,7 @@
             listEl.innerHTML = allConversations.map(c => `
                 <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 4px; border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${c.profile_pic || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:12px; object-fit:cover;">
+                        <img src="${c.profile_pic || 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E'}" style="width:40px; height:40px; border-radius:12px; object-fit:cover;">
                         <div class="notranslate" translate="no" style="font-weight:700; font-size:14px;">${esc(c.first_name || '')} ${esc(c.last_name || '')}</div>
                     </div>
                     <button type="button" onclick="confirmForwardTo(decodeURIComponent('${ea(c.email)}'), this)" class="cf-send-pill-btn" style="height:32px; padding:0 14px; font-size:12.5px;">Send</button>
