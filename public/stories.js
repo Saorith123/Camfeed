@@ -296,7 +296,7 @@
   }
   function openMaker() {
     if (!mk) { mk = el('div'); mk.id = 'stMake'; document.body.appendChild(mk); mk.addEventListener('click', function (e) { if (e.target === mk) closeMaker(); }); }
-    mk.textContent = ''; mk.classList.add('on');
+    mk.textContent = ''; mk.classList.add('on'); try { window.CamPause && window.CamPause.hold('story'); } catch (e) {}
     var st = { mode: 'media', file: null, bg: 'blue', objUrl: '', ov: [], sel: null };
     var box = el('div', 'stm-box'); mk.appendChild(box);
     var tabs = el('div', 'stm-tabs'); var tm = el('button', 'on', t('photo')), tt = el('button', '', t('textcard')); tabs.appendChild(tm); tabs.appendChild(tt); box.appendChild(tabs);
@@ -416,7 +416,7 @@
     };
     paintPrev();
   }
-  function closeMaker() { if (mk) { mk.classList.remove('on'); mk.textContent = ''; } }
+  function closeMaker() { if (mk) { mk.classList.remove('on'); mk.textContent = ''; } try { window.CamPause && window.CamPause.release('story'); } catch (e) {} }
 
   function init() {
     var anchor = document.getElementById('postsContainer'); if (!anchor || document.getElementById('storyBar')) return;

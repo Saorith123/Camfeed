@@ -1,3 +1,19 @@
+/* While a call rings / is running, or while a post / story is being made, nothing else may play sound or video. */
+(function () {
+  'use strict';
+  if (window.CamPause || window.self !== window.top) return;
+  var held = {}, n = 0, orig = HTMLMediaElement.prototype.play, OK = '#ccUI,#feedCreatePostModal,#stMake';
+  function exempt(m) { try { return !!(m.closest && m.closest(OK)); } catch (e) { return false; } }
+  HTMLMediaElement.prototype.play = function () {
+    if (n > 0 && !exempt(this)) { try { this.pause(); } catch (e) {} return Promise.resolve(); }
+    return orig.apply(this, arguments);
+  };
+  function pauseAll() { try { document.querySelectorAll('video,audio').forEach(function (m) { if (!exempt(m) && !m.paused) { try { m.pause(); } catch (e) {} } }); } catch (e) {} }
+  window.CamPause = {
+    hold: function (k) { if (!held[k]) { held[k] = 1; n++; } pauseAll(); },
+    release: function (k) { if (held[k]) { delete held[k]; n--; } }
+  };
+})();
 /* CamFeed voice / video calls (1-to-1, WebRTC). Load on any page: it rings when someone calls. */
 (function () {
   'use strict';
@@ -7,7 +23,7 @@
   if (!me || !me.email) return;
 
   var S = { call: null, pc: null, local: null, remote: null, incoming: null, poll: null, tick: null, t0: 0,
-    iceCache: null, iceAt: 0, pendingIce: [], remoteIce: [], answerSet: false, facing: 'user', ac: null, ring: null, wake: null, ended: false };
+    iceCache: null, iceAt: 0, pendingIce: [], remoteIce: [], answerSet: false, rawVid: null, facing: 'user', ac: null, ring: null, wake: null, ended: false };
   var DEF_PIC = 'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23475569%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%2394a3b8%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%2394a3b8%22/%3E%3C/svg%3E';
 
   var css = document.createElement('style');
@@ -19,6 +35,8 @@
 #ccLocal{position:absolute;right:14px;top:calc(env(safe-area-inset-top,0px) + 14px);width:104px;height:150px;object-fit:cover;border-radius:14px;border:2px solid rgba(255,255,255,.7);background:#1e293b;z-index:3;transform:scaleX(-1);box-shadow:0 6px 20px rgba(0,0,0,.4)}\
 #ccLocal.back{transform:none}\
 #ccLocal.hide{display:none}\
+#ccMe{position:absolute;right:14px;top:calc(env(safe-area-inset-top,0px) + 14px);width:104px;height:150px;object-fit:cover;border-radius:14px;border:2px solid rgba(255,255,255,.7);background:#1e293b;z-index:3;display:none}\
+#ccMe.show{display:block}\
 #ccInfo{position:relative;z-index:2;margin-top:calc(env(safe-area-inset-top,0px) + 56px);text-align:center;padding:0 20px;text-shadow:0 2px 10px rgba(0,0,0,.6)}\
 #ccInfo img{width:112px;height:112px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.35);background:#334155}\
 #ccName{font-size:24px;font-weight:800;margin-top:12px}\
@@ -36,6 +54,17 @@
 .ccLbl{font-size:11px;text-align:center;margin-top:6px;opacity:.85}\
 .ccCol{display:flex;flex-direction:column;align-items:center}\
 @keyframes ccPulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%{box-shadow:0 0 0 18px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}\
+#ccFxPanel{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 128px);z-index:6;background:rgba(15,23,42,.92);border-radius:16px;padding:12px 14px;display:none}\
+#ccFxPanel.show{display:block}\
+#ccFxPanel label{display:flex;align-items:center;gap:10px;font-size:13px;margin:8px 0}\
+#ccFxPanel label span{width:52px}\
+#ccFxPanel input[type=range]{flex:1}\
+.ccFxRow{display:flex;gap:8px;flex-wrap:wrap}\
+.ccFxRow button{border:none;border-radius:999px;padding:7px 12px;font-size:13px;background:rgba(255,255,255,.18);color:#fff;cursor:pointer}\
+.ccFxRow button.on{background:#fff;color:#0f172a;font-weight:700}\
+#ccAsk{position:absolute;left:16px;right:16px;top:30%;z-index:7;background:#0f172aef;border-radius:18px;padding:18px;text-align:center;display:none}\
+#ccAsk.show{display:block}\
+#ccAsk .ccFxRow{justify-content:center;margin-top:12px}\
 #ccToast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:2147483100;display:none;max-width:86vw;text-align:center}';
   document.head.appendChild(css);
 
@@ -44,20 +73,30 @@
   function buildUI() {
     if (ui) return ui;
     ui = document.createElement('div'); ui.id = 'ccUI';
-    ui.innerHTML = '<video id="ccRemote" autoplay playsinline></video><video id="ccLocal" autoplay playsinline muted class="hide"></video>' +
+    ui.innerHTML = '<img id="ccMe" alt=""><video id="ccRemote" autoplay playsinline></video><video id="ccLocal" autoplay playsinline muted class="hide"></video>' +
       '<div id="ccInfo"><img id="ccPic" alt=""><div id="ccName"></div><div id="ccStatus"></div></div><div style="flex:1"></div>' +
       '<div id="ccBar">' +
       '<div class="ccCol"><button class="ccBtn" id="ccMic" type="button">🎤</button><div class="ccLbl">មីក្រូ</div></div>' +
-      '<div class="ccCol" id="ccCamWrap"><button class="ccBtn" id="ccCam" type="button">📹</button><div class="ccLbl">កាមេរ៉ា</div></div>' +
+      '<div class="ccCol" id="ccCamWrap"><button class="ccBtn" id="ccCam" type="button">📹</button><div class="ccLbl" id="ccCamLbl">កាមេរ៉ា</div></div>' +
       '<div class="ccCol" id="ccFlipWrap"><button class="ccBtn" id="ccFlip" type="button">🔄</button><div class="ccLbl">ប្ដូរកាមេរ៉ា</div></div>' +
+      '<div class="ccCol" id="ccFxWrap" style="display:none"><button class="ccBtn" id="ccFx" type="button">✨</button><div class="ccLbl">ស្មូតមុខ</div></div>' +
       '<div class="ccCol"><button class="ccBtn red" id="ccEnd" type="button">📞</button><div class="ccLbl" id="ccEndLbl">បញ្ចប់</div></div>' +
       '<div class="ccCol" id="ccAccWrap" style="display:none"><button class="ccBtn green" id="ccAcc" type="button">📞</button><div class="ccLbl">ទទួល</div></div>' +
-      '</div>';
+      '</div>' +
+      '<div id="ccFxPanel"><div class="ccFxRow"><button type="button" id="ccFxOn"></button><button type="button" data-p="20,8">ស្រាល</button><button type="button" data-p="35,15">ធម្មជាតិ</button><button type="button" data-p="60,25">ខ្លាំង</button></div>' +
+      '<label><span>ស្មូត</span><input type="range" min="0" max="100" id="ccFxS"></label><label><span>ភ្លឺ</span><input type="range" min="0" max="100" id="ccFxB"></label></div>' +
+      '<div id="ccAsk"><div id="ccAskTxt" style="font-size:16px;font-weight:700"></div><div class="ccFxRow"><button type="button" id="ccAskNo">បដិសេធ</button><button type="button" id="ccAskView">មើលគេតែម្ខាង</button><button type="button" id="ccAskYes" class="on">បើកទាំងពីរ</button></div></div>' +
+      '<video id="ccBeautySrc" playsinline muted style="position:absolute;width:2px;height:2px;opacity:0;pointer-events:none"></video>';
     document.body.appendChild(ui);
     var t = document.createElement('div'); t.id = 'ccToast'; document.body.appendChild(t);
     el('ccMic').onclick = toggleMic; el('ccCam').onclick = toggleCam; el('ccFlip').onclick = flipCam;
     el('ccEnd').onclick = function () { hangup(true); };
     el('ccAcc').onclick = accept;
+    el('ccFx').onclick = function () { el('ccFxPanel').classList.toggle('show'); fxPaint(); };
+    el('ccFxOn').onclick = function () { B.on = !B.on; fxSave(); fxApply(); fxPaint(); };
+    el('ccFxS').oninput = function () { B.smooth = +this.value; if (!B.on) { B.on = true; fxApply(); } fxSave(); fxPaint(); };
+    el('ccFxB').oninput = function () { B.bright = +this.value; if (!B.on) { B.on = true; fxApply(); } fxSave(); fxPaint(); };
+    Array.prototype.forEach.call(ui.querySelectorAll('#ccFxPanel [data-p]'), function (b) { b.onclick = function () { var q = b.getAttribute('data-p').split(','); B.smooth = +q[0]; B.bright = +q[1]; var was = B.on; B.on = true; fxSave(); if (!was) fxApply(); fxPaint(); }; });
     return ui;
   }
   function toast(msg) {
@@ -102,6 +141,55 @@
       if (incoming) { try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} }
     }
     beep(); S.ring = setInterval(beep, incoming ? 1800 : 3000);
+  }
+
+  // ---------- face smoothing (soft-focus + brightness, runs on the phone before sending) ----------
+  var B = { on: false, smooth: 35, bright: 15, cv: null, ctx: null, sm: null, sctx: null, timer: null, out: null };
+  try { var sv = JSON.parse(localStorage.getItem('camfeed_beauty') || 'null'); if (sv) { B.on = !!sv.on; B.smooth = +sv.s || 0; B.bright = +sv.b || 0; } } catch (e) {}
+  function fxSave() { try { localStorage.setItem('camfeed_beauty', JSON.stringify({ on: B.on, s: B.smooth, b: B.bright })); } catch (e) {} }
+  function fxPaint() {
+    var on = el('ccFxOn'); if (!on) return;
+    on.textContent = B.on ? '✨ បើក' : 'បិទ'; on.className = B.on ? 'on' : '';
+    el('ccFxS').value = B.smooth; el('ccFxB').value = B.bright;
+    Array.prototype.forEach.call(ui.querySelectorAll('#ccFxPanel [data-p]'), function (b) { var q = b.getAttribute('data-p').split(','); b.className = (B.on && +q[0] === B.smooth && +q[1] === B.bright) ? 'on' : ''; });
+  }
+  function fxFrame() {
+    var v = el('ccBeautySrc'); if (!v || v.readyState < 2 || !v.videoWidth) return;
+    var w = v.videoWidth, h = v.videoHeight;
+    if (B.cv.width !== w || B.cv.height !== h) { B.cv.width = w; B.cv.height = h; B.sm.width = Math.max(2, Math.round(w / 3)); B.sm.height = Math.max(2, Math.round(h / 3)); }
+    var c = B.ctx; c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.drawImage(v, 0, 0, w, h);
+    if (B.smooth > 0) { B.sctx.drawImage(v, 0, 0, B.sm.width, B.sm.height); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.globalAlpha = B.smooth / 100 * 0.55; c.drawImage(B.sm, 0, 0, w, h); }
+    if (B.bright > 0) { c.globalAlpha = B.bright / 100 * 0.2; c.globalCompositeOperation = 'screen'; c.fillStyle = '#ffe9df'; c.fillRect(0, 0, w, h); }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  }
+  function fxStart() {
+    if (B.out && B.out.readyState === 'live') return B.out;
+    buildUI();
+    if (!B.cv) { B.cv = document.createElement('canvas'); B.ctx = B.cv.getContext('2d'); B.sm = document.createElement('canvas'); B.sctx = B.sm.getContext('2d'); }
+    var v = el('ccBeautySrc'); v.srcObject = new MediaStream([S.rawVid]); var p = v.play(); if (p && p.catch) p.catch(function () {});
+    B.cv.width = 640; B.cv.height = 360;
+    try { B.out = B.cv.captureStream(24).getVideoTracks()[0]; } catch (e) { B.out = null; }
+    clearInterval(B.timer); B.timer = setInterval(fxFrame, 42);
+    return B.out;
+  }
+  function fxStop() { clearInterval(B.timer); B.timer = null; try { B.out && B.out.stop(); } catch (e) {} B.out = null; var v = el('ccBeautySrc'); if (v) v.srcObject = null; }
+  // put the right video track (smoothed or plain) into S.local and, if a call is connected, into the sender
+  function fxApply() {
+    if (!S.local || !S.rawVid) return;
+    var want = (B.on && fxStart()) || S.rawVid;
+    if (!B.on) fxStop();
+    var cur = S.local.getVideoTracks()[0], was = cur ? cur.enabled : true;
+    if (cur !== want) {
+      if (cur) S.local.removeTrack(cur); S.local.addTrack(want); want.enabled = was;
+      var sender = S.pc && S.pc.getSenders().find(function (x) { return x.track && x.track.kind === 'video'; });
+      if (sender) sender.replaceTrack(want).catch(function () {});
+      var lv = el('ccLocal'); if (lv) { lv.srcObject = S.local; var p = lv.play(); if (p && p.catch) p.catch(function () {}); }
+    }
+  }
+  function haveVideo() { return !!(S.local && S.local.getVideoTracks().length); }
+  function adoptCamera(stream) {            // a fresh camera stream: keep the raw track, show smoothed one if wanted
+    S.rawVid = stream.getVideoTracks()[0] || null;
+    if (S.rawVid && B.on) fxApply();
   }
 
   // ---------- media + peer ----------
@@ -162,8 +250,11 @@
     el('ccInfo').classList.remove('mini');
     el('ccRemote').classList.add('off');
     var vid = kind === 'video';
-    el('ccCamWrap').style.display = vid && mode !== 'ring' ? '' : 'none';
+    el('ccCamWrap').style.display = mode !== 'ring' ? '' : 'none';
+    el('ccCamLbl').textContent = vid ? 'កាមេរ៉ា' : 'បើកវីដេអូ';
     el('ccFlipWrap').style.display = vid && mode !== 'ring' ? '' : 'none';
+    el('ccFxWrap').style.display = vid && mode !== 'ring' ? '' : 'none';
+    el('ccFxPanel').classList.remove('show'); el('ccAsk').classList.remove('show'); el('ccMe').classList.remove('show');
     el('ccMic').parentNode.style.display = mode === 'ring' ? 'none' : '';
     el('ccAccWrap').style.display = mode === 'ring' ? '' : 'none';
     el('ccEndLbl').textContent = mode === 'ring' ? 'បដិសេធ' : 'បញ្ចប់';
@@ -178,6 +269,8 @@
   function cleanup(msg) {
     stopTone(); clearInterval(S.poll); clearInterval(S.tick); S.poll = null; S.tick = null;
     try { S.local && S.local.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+    try { S.rawVid && S.rawVid.stop(); } catch (e) {} S.rawVid = null; fxStop();
+    try { window.CamPause && window.CamPause.release('call'); } catch (e) {}
     try { S.pc && S.pc.close(); } catch (e) {}
     try { S.wake && S.wake.release(); } catch (e) {}
     S.local = null; S.pc = null; S.call = null; S.incoming = null; S.t0 = 0; S.wake = null; S.answerSet = false;
@@ -198,11 +291,12 @@
     if (S.call || S.incoming) { toast('កំពុងមានការហៅមួយរួចហើយ'); return; }
     if (!window.RTCPeerConnection) { toast('browser នេះមិនគាំទ្រការហៅទេ'); return; }
     kind = kind === 'video' ? 'video' : 'audio';
-    var call = S.call = { id: null, role: 'caller', peer: peer, kind: kind, icIdx: 0 };   // reserve the slot immediately
+    try { window.CamPause && window.CamPause.hold('call'); } catch (e) {}
+    var call = S.call = { id: null, role: 'caller', peer: peer, kind: kind, icIdx: 0, peerName: name };   // reserve the slot immediately
     S.ended = false; S.facing = 'user';
     getMedia(kind).then(function (stream) {
       if (S.call !== call) { stream.getTracks().forEach(function (t) { t.stop(); }); return null; }
-      S.local = stream;
+      S.local = stream; adoptCamera(stream);
       showCallUI(name, pic, kind, 'out');
       setStatus('កំពុងហៅ…'); startTone(false);
       return getIce().then(function (servers) {
@@ -225,6 +319,7 @@
   // ---------- incoming ----------
   function showIncoming(inc) {
     S.incoming = inc; S.ended = false;
+    try { window.CamPause && window.CamPause.hold('call'); } catch (e) {}
     showCallUI(inc.name || inc.from_email, inc.pic, inc.kind, 'ring');
     setStatus(inc.kind === 'video' ? 'ការហៅវីដេអូចូល…' : 'ការហៅសំឡេងចូល…');
     startTone(true);
@@ -234,8 +329,8 @@
     var inc = S.incoming; if (!inc) return;
     stopTone(); S.facing = 'user'; S.dismissed[inc.id] = Date.now();
     getMedia(inc.kind).then(function (stream) {
-      S.local = stream;
-      S.call = { id: inc.id, role: 'callee', peer: inc.from_email, kind: inc.kind, icIdx: 0 };
+      S.local = stream; adoptCamera(stream);
+      S.call = { id: inc.id, role: 'callee', peer: inc.from_email, kind: inc.kind, icIdx: 0, peerName: inc.name };
       S.incoming = null;
       showCallUI(inc.name || inc.from_email, inc.pic, inc.kind, 'out');
       setStatus('កំពុងតភ្ជាប់…');
@@ -254,6 +349,75 @@
       apiRetry('/api/calls/' + inc.id + '/end', 'POST', {}, 5);
       S.call = null; cleanupSilent(); toast(e && e.name ? mediaError(e) : 'ទទួលការហៅមិនបាន សូមព្យាយាមម្ដងទៀត');
     });
+  }
+
+
+  // ---------- switch an audio call to video (the other person must agree) ----------
+  function getVideoOnly() {
+    return navigator.mediaDevices.getUserMedia({ video: { facingMode: S.facing, width: { ideal: 960 }, height: { ideal: 540 } }, audio: false });
+  }
+  function requestVideo() {
+    var c = S.call; if (!c || !c.id || c.vstate) return;
+    c.vstate = 'asking'; toast('កំពុងសុំបើកវីដេអូ… រង់ចាំគេយល់ព្រម');
+    apiRetry('/api/calls/' + c.id + '/video', 'POST', { step: 'request' }, 3).then(function (j) { if (!j.success) { c.vstate = ''; toast('សុំបើកវីដេអូមិនបាន'); } });
+  }
+  function videoOn() {
+    if (S.call) S.call.kind = 'video';
+    var mine = haveVideo();
+    if (mine) { var lv = el('ccLocal'); lv.srcObject = S.local; lv.classList.remove('hide'); var p = lv.play(); if (p && p.catch) p.catch(function () {}); }
+    el('ccCamWrap').style.display = ''; el('ccCamLbl').textContent = mine ? 'កាមេរ៉ា' : 'បើកកាមេរ៉ាខ្ញុំ'; el('ccCam').textContent = '📹'; el('ccCam').classList.remove('off');
+    el('ccFlipWrap').style.display = mine ? '' : 'none'; el('ccFxWrap').style.display = mine ? '' : 'none';
+  }
+  function addMyCamera() {      // returns a promise: my camera is now part of the peer connection
+    if (haveVideo()) return Promise.resolve();
+    return getVideoOnly().then(function (st) {
+      var raw = st.getVideoTracks()[0]; S.rawVid = raw; S.local.addTrack(raw); S.pc.addTrack(raw, S.local);
+      if (B.on) fxApply();
+    });
+  }
+  function postCam(on) { var c = S.call; if (c && c.id) api('/api/calls/' + c.id + '/cam', 'POST', { on: !!on }); }
+  function applyPeerCam(off) {
+    var rv = el('ccRemote'), info = el('ccInfo'), hasV = !!(S.remote && S.remote.getVideoTracks().length);
+    if (off) { rv.classList.add('off'); info.classList.remove('mini'); }
+    else if (hasV) { rv.classList.remove('off'); info.classList.add('mini'); }
+  }
+  function askPrompt(c, who) {
+    var box = el('ccAsk'); el('ccAskTxt').textContent = (who || 'គេ') + ' ចង់បើកវីដេអូ។ តើអ្នកយល់ព្រមទេ?';
+    box.classList.add('show');
+    function answer(withCam) {
+      box.classList.remove('show');
+      (withCam ? addMyCamera() : Promise.resolve()).then(function () { videoOn(); return apiRetry('/api/calls/' + c.id + '/video', 'POST', { step: 'accept' }, 3); })
+        .then(function () { if (withCam) postCam(true); })
+        .catch(function (e) { c.vprompt = false; apiRetry('/api/calls/' + c.id + '/video', 'POST', { step: 'decline' }, 3); toast(mediaError(e)); });
+    }
+    el('ccAskNo').onclick = function () { box.classList.remove('show'); c.vprompt = false; apiRetry('/api/calls/' + c.id + '/video', 'POST', { step: 'decline' }, 3); };
+    el('ccAskView').onclick = function () { answer(false); };
+    el('ccAskYes').onclick = function () { answer(true); };
+  }
+  function handleVideoNeg(c, j) {
+    if (!S.pc) return;
+    var v = j.v;
+    if (v && !v.mine && v.state === 'asked' && !c.vprompt) { c.vprompt = true; askPrompt(c, S.call && c.peerName); }
+    if ((!v || v.state !== 'asked') && c.vprompt && !(v && !v.mine)) { c.vprompt = false; el('ccAsk').classList.remove('show'); }
+    if (v && v.mine && v.state === 'no' && c.vstate === 'asking') { c.vstate = ''; toast('គេបដិសេធការបើកវីដេអូ'); }
+    if (v && v.mine && v.state === 'ok' && c.vstate === 'asking') {          // they agreed: I add my camera and send the new offer
+      c.vstate = 'negotiating';
+      addMyCamera().then(function () { return S.pc.createOffer(); }).then(function (o) { return S.pc.setLocalDescription(o); })
+        .then(function () { return apiRetry('/api/calls/' + c.id + '/neg', 'POST', { offer: JSON.stringify(S.pc.localDescription) }, 3); })
+        .then(function (r) { if (!r.success) throw new Error('neg'); videoOn(); postCam(true); })
+        .catch(function (e) { c.vstate = ''; toast(e && e.name ? mediaError(e) : 'បើកវីដេអូមិនបាន'); });
+    }
+    var n = j.neg;
+    if (n && n.offer && c.negDone !== n.seq) {                               // I am the one who agreed: answer their offer
+      c.negDone = n.seq;
+      S.pc.setRemoteDescription(JSON.parse(n.offer)).then(function () { return S.pc.createAnswer(); }).then(function (a) { return S.pc.setLocalDescription(a); })
+        .then(function () { return apiRetry('/api/calls/' + c.id + '/neg', 'POST', { answer: JSON.stringify(S.pc.localDescription) }, 3); })
+        .then(function () { c.vprompt = false; videoOn(); }).catch(function () { toast('បើកវីដេអូមិនបាន'); });
+    }
+    if (n && n.answer && c.vstate === 'negotiating' && c.ansDone !== n.seq) {
+      c.ansDone = n.seq;
+      S.pc.setRemoteDescription(JSON.parse(n.answer)).then(function () { c.vstate = ''; }).catch(function () { c.vstate = ''; toast('បើកវីដេអូមិនបាន'); });
+    }
   }
 
   // ---------- in-call polling ----------
@@ -280,6 +444,8 @@
         }).catch(function (e) { hangup(true, 'ការតភ្ជាប់បរាជ័យ sdp:' + ((e && (e.name || e.message)) || '')); });
       }
       if (j.ice && j.ice.length) { addRemoteIce(j.ice); c.icIdx = j.icTotal; }
+      if (j.status === 'accepted') applyPeerCam(j.peerCam === false);
+      if (j.status === 'accepted' && S.answerSet) { try { handleVideoNeg(c, j); } catch (e) { console.error('[call] video', e); } }
       if (j.status !== 'ringing' && j.status !== 'accepted') {
         var m = { declined: 'គេបានបដិសេធការហៅ', missed: 'គ្មានអ្នកទទួល', cancelled: 'ការហៅត្រូវបានបោះបង់', ended: 'ការហៅបានបញ្ចប់' }[j.status];
         hangup(false, m + (j.why ? ' [' + j.why + ']' : ''));
@@ -293,18 +459,25 @@
     t.enabled = !t.enabled; el('ccMic').classList.toggle('off', !t.enabled); el('ccMic').textContent = t.enabled ? '🎤' : '🔇';
   }
   function toggleCam() {
-    if (!S.local) return; var t = S.local.getVideoTracks()[0]; if (!t) return;
+    if (!S.local) return; var t = S.local.getVideoTracks()[0]; if (!t) { requestVideo(); return; }
     t.enabled = !t.enabled; el('ccCam').classList.toggle('off', !t.enabled); el('ccCam').textContent = t.enabled ? '📹' : '🚫';
+    var me2 = el('ccMe'); me2.src = (me.profile_pic || me.profilePic || DEF_PIC); me2.classList.toggle('show', !t.enabled); el('ccLocal').classList.toggle('hide', !t.enabled);
+    postCam(t.enabled);
   }
   function flipCam() {
     if (!S.local || !S.pc) return;
     var next = S.facing === 'user' ? 'environment' : 'user';
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: next } }, audio: false }).then(function (ns) {
-      var nt = ns.getVideoTracks()[0], old = S.local.getVideoTracks()[0];
-      var sender = S.pc.getSenders().find(function (s) { return s.track && s.track.kind === 'video'; });
-      if (sender) sender.replaceTrack(nt);
-      if (old) { S.local.removeTrack(old); old.stop(); }
-      S.local.addTrack(nt); S.facing = next;
+      var nt = ns.getVideoTracks()[0], oldRaw = S.rawVid;
+      S.facing = next; S.rawVid = nt;
+      if (B.on && B.out) { var bv = el('ccBeautySrc'); bv.srcObject = new MediaStream([nt]); var bp = bv.play(); if (bp && bp.catch) bp.catch(function () {}); }
+      else {
+        var old = S.local.getVideoTracks()[0], sender = S.pc.getSenders().find(function (s) { return s.track && s.track.kind === 'video'; });
+        if (sender) sender.replaceTrack(nt);
+        if (old) S.local.removeTrack(old);
+        S.local.addTrack(nt);
+      }
+      if (oldRaw) oldRaw.stop();
       var lv = el('ccLocal'); lv.srcObject = S.local; lv.classList.toggle('back', next === 'environment');
     }).catch(function () { toast('មិនអាចប្ដូរកាមេរ៉ាបានទេ'); });
   }

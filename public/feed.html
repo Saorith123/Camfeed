@@ -4578,11 +4578,13 @@
                 if (nm) nm.innerText = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim();
             }
             initComposerStylePickers();
+            try { window.CamPause && window.CamPause.hold('compose'); } catch (e) {}
             document.getElementById('feedCreatePostModal').style.display = 'flex';
         }
 
         function closeFeedCreatePostModal() {
             document.getElementById('feedCreatePostModal').style.display = 'none';
+            try { window.CamPause && window.CamPause.release('compose'); } catch (e) {}
         }
 
         function handleComposerFilesSelected(event) {

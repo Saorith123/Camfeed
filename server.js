@@ -3195,8 +3195,8 @@ async function canSeeStory(viewer, id) {
   const r = await pool.query(
     `SELECT s.*, u.first_name, u.last_name FROM stories s JOIN users u ON u.email = s.user_email
      WHERE s.id = $1 AND s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$2')}
-       AND (s.user_email = $2 OR (EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = s.user_email)
-            AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = s.user_email AND f2.following_email = $2))))`, [id, viewer]);
+       AND (s.user_email = $2 OR (EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = LOWER($2) AND LOWER(f.following_email) = LOWER(s.user_email))
+            AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE LOWER(f2.follower_email) = LOWER(s.user_email) AND LOWER(f2.following_email) = LOWER($2)))))`, [id, viewer]);
   return r.rows[0] || null;
 }
 app.post('/api/stories', async (req, res) => {
@@ -3236,8 +3236,8 @@ app.get('/api/stories/feed', async (req, res) => {
        LEFT JOIN story_views v ON v.story_id = s.id AND v.viewer_email = $1
        LEFT JOIN story_reactions rx ON rx.story_id = s.id AND rx.viewer_email = $1
        WHERE s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$1')}
-         AND (s.user_email = $1 OR (EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = s.user_email)
-              AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_email = s.user_email AND f2.following_email = $1))))
+         AND (s.user_email = $1 OR (EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = LOWER($1) AND LOWER(f.following_email) = LOWER(s.user_email))
+              AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE LOWER(f2.follower_email) = LOWER(s.user_email) AND LOWER(f2.following_email) = LOWER($1)))))
        ORDER BY s.created_at ASC LIMIT 400`, [me]);
     const groups = new Map();
     for (const x of r.rows) {

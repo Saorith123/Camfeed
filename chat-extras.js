@@ -324,7 +324,12 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const role = c.caller === me ? 'caller' : 'callee';
     const other = role === 'caller' ? 'callee' : 'caller';
     const since = Math.max(0, parseInt(req.query.ic, 10) || 0);
-    res.json({ success: true, status: c.status, why: c.why || '', kind: c.kind, answer: role === 'caller' ? c.answer : null,
+    const neg = {};
+    if (c.negOffer && c.negBy !== me) neg.offer = c.negOffer;            // the other side wants to renegotiate (adds video)
+    if (c.negAns && c.negBy === me) neg.answer = c.negAns;
+    const peerCam = c.cam && c.cam[other] !== undefined ? c.cam[other] : null;
+    res.json({ success: true, status: c.status, why: c.why || '', kind: c.kind, peerCam,
+      v: c.v ? { by: c.v.by === c.caller ? 'caller' : 'callee', mine: c.v.by === me, state: c.v.state } : null, neg: Object.keys(neg).length ? Object.assign(neg, { seq: c.negSeq || 0 }) : null, answer: role === 'caller' ? c.answer : null,
       ice: c.ice[other].slice(since), icTotal: c.ice[other].length, answeredAt: c.answeredAt });
   });
 
@@ -345,6 +350,34 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     if (!involved(c, me) || !live(c) || !cand || typeof cand !== 'object') return res.status(400).json({ success: false });
     const arr = c.ice[c.caller === me ? 'caller' : 'callee'];
     if (arr.length < 80) arr.push(cand);
+    res.json({ success: true });
+  });
+
+  // switch an audio call to video: ask -> other side accepts -> asker sends a new offer -> other side answers
+  app.post('/api/calls/:callId/video', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
+    if (!involved(c, me) || c.status !== 'accepted') return res.status(400).json({ success: false, why: 'vid-state' });
+    const step = (req.body || {}).step;
+    if (step === 'request') { if (c.v && c.v.state === 'asked') return res.status(400).json({ success: false, why: 'vid-pending' }); c.v = { by: me, state: 'asked' }; c.negOffer = null; c.negAns = null; }
+    else if (step === 'accept' && c.v && c.v.by !== me && c.v.state === 'asked') { c.v.state = 'ok'; c.kind = 'video'; }
+    else if (step === 'decline' && c.v && c.v.by !== me && c.v.state === 'asked') c.v.state = 'no';
+    else if (step === 'cancel' && c.v && c.v.by === me) c.v = null;
+    else return res.status(400).json({ success: false, why: 'vid-step' });
+    res.json({ success: true });
+  });
+  app.post('/api/calls/:callId/neg', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId); const b = req.body || {};
+    if (!involved(c, me) || c.status !== 'accepted') return res.status(400).json({ success: false });
+    if (typeof b.offer === 'string' && b.offer.length < 60000 && c.v && c.v.by === me && c.v.state === 'ok') { c.negOffer = b.offer; c.negAns = null; c.negBy = me; c.negSeq = (c.negSeq || 0) + 1; return res.json({ success: true }); }
+    if (typeof b.answer === 'string' && b.answer.length < 60000 && c.negOffer && c.negBy !== me) { c.negAns = b.answer; c.negOffer = null; return res.json({ success: true }); }
+    res.status(400).json({ success: false });
+  });
+
+  // camera on/off of one side (so the other side shows the profile picture instead of a black screen)
+  app.post('/api/calls/:callId/cam', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
+    if (!involved(c, me) || !live(c)) return res.status(400).json({ success: false });
+    c.cam = c.cam || {}; c.cam[c.caller === me ? 'caller' : 'callee'] = (req.body || {}).on !== false;
     res.json({ success: true });
   });
 
