@@ -57,6 +57,7 @@
     if (box) {
       var uid = uidOf(box);
       if (box.classList.contains('reel-item') && typeof toggleReelPlayPause === 'function') toggleReelPlayPause(uid, null);
+      else if (typeof openReelsViewer === 'function') { var fv = videoOf(box); openReelsViewer(fv && fv.dataset.postId); }   // feed: one tap opens the Reels viewer
       else if (typeof toggleFeedVideoPlayPause === 'function') toggleFeedVideoPlayPause(uid, null);
       return;
     }

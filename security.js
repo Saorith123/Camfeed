@@ -182,7 +182,7 @@ function idParam(req, res, next, value) {
 // ---------------------------------------------------------------- headers
 function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');   // our own pages may frame each other (the Reels viewer opens over the feed)
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(), payment=(), usb=()');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000');
@@ -196,10 +196,10 @@ function securityHeaders(req, res, next) {
     `img-src 'self' data: blob: ${media} https://via.placeholder.com https://tile.openstreetmap.org https://www.gstatic.com https://translate.google.com https://translate.googleapis.com`,
     `media-src 'self' blob: ${media}`,
     `connect-src 'self' ${media} https://*.r2.cloudflarestorage.com https://translate.googleapis.com`,
-    'frame-src https://challenges.cloudflare.com https://translate.google.com',
+    "frame-src 'self' https://challenges.cloudflare.com https://translate.google.com",
     "worker-src 'self'", "manifest-src 'self'"
   ].join('; ');
-  const always = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
+  const always = "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
   if (String(process.env.CSP_ENFORCE || '').toLowerCase() === 'true') {
     res.setHeader('Content-Security-Policy', always + '; ' + full + '; report-uri /api/csp-report');
   } else {

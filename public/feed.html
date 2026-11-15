@@ -574,6 +574,15 @@
         .post-content { font-size: 15px; color: #1c1e21; white-space: pre-wrap; margin-bottom: 10px; padding: 0 14px; }
 
         /* YouTube-Style Sleek Modern Video Player Controls (Smooth Playback & Instant Audio Unlock) */
+
+        /* Feed videos have no control bar: tap = open the Reels viewer; only a small volume button stays */
+        .feed-video-controls-bar, .feed-video-center-play, .feed-video-wrap:hover .feed-video-controls-bar { display: none !important; }
+        .feed-video-wrap .vg-skip { display: none !important; }
+        .feed-video-mini-mute { position: absolute; right: 12px; bottom: 12px; z-index: 6; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+        .feed-video-mini-mute svg { width: 22px; height: 22px; fill: #fff; }
+        #reelsOverlay { position: fixed; inset: 0; z-index: 99999; background: #000; display: none; }
+        #reelsOverlay.open { display: block; }
+        #reelsOverlay iframe { width: 100%; height: 100%; border: 0; display: block; background: #000; }
         .feed-video-wrap {
             position: relative;
             width: 100%;
@@ -2430,23 +2439,37 @@
             }
         }
 
+        // ---- tap on a feed video = open the Reels viewer (videos.html) over the feed; Back closes it and the feed is untouched ----
+        let reelsOpen = false;
+        function openReelsViewer(postId) {
+            if (reelsOpen || !postId) return;
+            reelsOpen = true;
+            document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} });
+            let ov = document.getElementById('reelsOverlay');
+            if (!ov) { ov = document.createElement('div'); ov.id = 'reelsOverlay'; document.body.appendChild(ov); }
+            ov.innerHTML = '<iframe allow="autoplay; fullscreen" src="videos.html?post=' + encodeURIComponent(postId) + '&embed=1"></iframe>';
+            ov.classList.add('open');
+            document.documentElement.style.overflow = 'hidden';
+            try { history.pushState({ reels: 1 }, ''); } catch (e) {}
+        }
+        function closeReelsViewer(fromPop) {
+            if (!reelsOpen) return;
+            reelsOpen = false;
+            const ov = document.getElementById('reelsOverlay');
+            if (ov) { ov.classList.remove('open'); ov.innerHTML = ''; }
+            document.documentElement.style.overflow = '';
+            if (!fromPop) { try { if (history.state && history.state.reels) history.back(); } catch (e) {} }
+            setTimeout(() => { try { evaluateCenterFeedVideo(); } catch (e) {} }, 150);
+        }
+        window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.camfeed === 'close-reels') closeReelsViewer(false); });
+        window.addEventListener('popstate', () => { if (reelsOpen) closeReelsViewer(true); });
+
         function handleFeedVideoSurfaceTap(uid, event) {
             if (event) event.stopPropagation();
-            const wrap = document.getElementById(`vwrap-${uid}`);
             const vid = document.getElementById(`vid-${uid}`);
-            if (!wrap || !vid) return;
-
-            // Ensure audio is unlocked on user tap
-            if (!iosAudioSessionUnlocked) {
-                unlockIosAudioOnGesture();
-            }
-
-            if (!vid.paused && !wrap.classList.contains('controls-visible') && window.matchMedia('(pointer: coarse)').matches) {
-                revealFeedVideoControls(uid);
-                return;
-            }
-            toggleFeedVideoPlayPause(uid, event);
-            revealFeedVideoControls(uid);
+            if (!vid) return;
+            if (!iosAudioSessionUnlocked) unlockIosAudioOnGesture();
+            openReelsViewer(vid.dataset.postId);
         }
 
         function buildInlineVideoTag(videoUrl, postId, extraClass = 'post-media autoplay-video', mediaAspect = '', isPriority = false) {
@@ -2471,6 +2494,7 @@
                         onpause="document.getElementById('vwrap-${uid}')?.classList.add('is-paused'); const b=document.getElementById('vplay-${uid}'); if(b) b.innerHTML=YT_SVG.play;"></video>
 
                     <div class="feed-video-spinner"></div>
+                    <button type="button" class="feed-video-mini-mute feed-mute-btn" onclick="toggleSingleFeedVideoMute(event)" aria-label="Mute / Unmute">${globalVideoUnmuted ? YT_SVG.volOn : YT_SVG.volOff}</button>
 
                     <button type="button" class="feed-video-center-play" onclick="toggleFeedVideoPlayPause('${uid}', event)" aria-label="Play">
                         <svg viewBox="0 0 24 24" style="width:28px; height:28px; fill:#fff; margin-left:3px;"><path d="M8 5v14l11-7z"/></svg>
@@ -3914,6 +3938,7 @@
         }
 
         function evaluateCenterFeedVideo() {
+            if (typeof reelsOpen !== 'undefined' && reelsOpen) return;
             const videos = Array.from(document.querySelectorAll('.autoplay-video'));
             if (videos.length === 0) return;
             const vh = window.innerHeight || document.documentElement.clientHeight || 800;
@@ -5089,5 +5114,30 @@
         }, true);
 
     </script>
+<script>
+/* Keep the screen awake while a video is playing (Screen Wake Lock API) */
+(function () {
+    var lock = null;
+    function anyPlaying() {
+        var v = document.getElementsByTagName('video');
+        for (var i = 0; i < v.length; i++) { if (!v[i].paused && !v[i].ended && v[i].readyState > 2) return true; }
+        return false;
+    }
+    async function acquire() {
+        try {
+            if (!('wakeLock' in navigator) || lock || document.visibilityState !== 'visible') return;
+            lock = await navigator.wakeLock.request('screen');
+            lock.addEventListener('release', function () { lock = null; });
+        } catch (e) { lock = null; }
+    }
+    function release() { try { if (lock) { lock.release(); } } catch (e) {} lock = null; }
+    function sync() { if (anyPlaying()) acquire(); else release(); }
+    ['play', 'playing', 'pause', 'ended', 'emptied'].forEach(function (ev) {
+        document.addEventListener(ev, function () { setTimeout(sync, 50); }, true);
+    });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') sync(); else release(); });
+    setInterval(sync, 15000);
+})();
+</script>
 </body>
 </html>
