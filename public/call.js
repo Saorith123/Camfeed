@@ -67,10 +67,20 @@
   function setStatus(s) { var n = el('ccStatus'); if (n) n.textContent = s; }
   function fmt(sec) { var m = Math.floor(sec / 60), s = sec % 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s; }
 
+  // always resolves: {success, ..., _status} (_status 0 = network error)
   function api(path, method, body) {
     return fetch(path, { method: method || 'GET', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
-      .then(function (r) { return r.json().catch(function () { return {}; }); });
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j = (j && typeof j === 'object') ? j : {}; j._status = r.status; return j; }); })
+      .catch(function () { return { success: false, _status: 0 }; });
   }
+  function transient(j) { return j._status === 0 || j._status === 429 || j._status >= 500; }
+  function apiRetry(path, method, body, tries) {
+    return api(path, method, body).then(function (j) {
+      if (transient(j) && tries > 1) return new Promise(function (ok) { setTimeout(ok, 1200); }).then(function () { return apiRetry(path, method, body, tries - 1); });
+      return j;
+    });
+  }
+  S.dismissed = {};
 
   // ---------- ringing sounds ----------
   function stopTone() { if (S.ring) { clearInterval(S.ring); S.ring = null; } try { navigator.vibrate && navigator.vibrate(0); } catch (e) {} }
@@ -125,7 +135,7 @@
     pc.onicecandidate = function (e) {
       if (!e.candidate) return;
       var c = e.candidate.toJSON ? e.candidate.toJSON() : e.candidate;
-      if (S.call && S.call.id) api('/api/calls/' + S.call.id + '/ice', 'POST', { candidate: c }); else S.pendingIce.push(c);
+      if (S.call && S.call.id) apiRetry('/api/calls/' + S.call.id + '/ice', 'POST', { candidate: c }, 3); else S.pendingIce.push(c);
     };
     var dis = null;
     pc.onconnectionstatechange = function () {
@@ -178,7 +188,8 @@
   function hangup(notify, msg) {
     if (S.ended) return; S.ended = true;
     var id = (S.call && S.call.id) || (S.incoming && S.incoming.id);
-    if (notify && id) api('/api/calls/' + id + '/end', 'POST', {});
+    if (id) S.dismissed[id] = Date.now();
+    if (notify && id) apiRetry('/api/calls/' + id + '/end', 'POST', {}, 5);
     cleanup(msg);
   }
 
@@ -187,25 +198,27 @@
     if (S.call || S.incoming) { toast('កំពុងមានការហៅមួយរួចហើយ'); return; }
     if (!window.RTCPeerConnection) { toast('browser នេះមិនគាំទ្រការហៅទេ'); return; }
     kind = kind === 'video' ? 'video' : 'audio';
-    S.call = { id: null, role: 'caller', peer: peer, kind: kind, icIdx: 0 };   // reserve the slot immediately
+    var call = S.call = { id: null, role: 'caller', peer: peer, kind: kind, icIdx: 0 };   // reserve the slot immediately
     S.ended = false; S.facing = 'user';
     getMedia(kind).then(function (stream) {
+      if (S.call !== call) { stream.getTracks().forEach(function (t) { t.stop(); }); return null; }
       S.local = stream;
       showCallUI(name, pic, kind, 'out');
       setStatus('កំពុងហៅ…'); startTone(false);
       return getIce().then(function (servers) {
         var pc = makePC(servers, kind);
         return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); }).then(function () {
-          return api('/api/calls/start', 'POST', { peer_email: peer, kind: kind, offer: JSON.stringify(pc.localDescription) });
+          return apiRetry('/api/calls/start', 'POST', { peer_email: peer, kind: kind, offer: JSON.stringify(pc.localDescription) }, 3);
         });
       });
     }).then(function (j) {
       if (!j) return;
-      if (!j.success) { hangup(false, j.code === 'chat_restricted' ? j.error : j.error === 'busy' ? 'គេកំពុងនិយាយទូរស័ព្ទជាមួយអ្នកផ្សេង' : j.error === 'blocked' ? 'មិនអាចហៅអ្នកប្រើនេះបានទេ' : 'ហៅមិនបាន សូមព្យាយាមម្ដងទៀត'); return; }
+      if (S.call !== call) { if (j.success && j.id) apiRetry('/api/calls/' + j.id + '/end', 'POST', {}, 5); return; }   // caller gave up before the id arrived
+      if (!j.success) { hangup(false, j.code === 'chat_restricted' ? j.error : j.error === 'busy' ? 'គេកំពុងនិយាយទូរស័ព្ទជាមួយអ្នកផ្សេង' : j.error === 'blocked' ? 'មិនអាចហៅអ្នកប្រើនេះបានទេ' : j._status === 401 ? 'សូមចូលគណនីម្ដងទៀត' : 'ហៅមិនបាន សូមព្យាយាមម្ដងទៀត (កូដ ' + j._status + ')'); return; }
       S.call.id = j.id;
-      S.pendingIce.forEach(function (c) { api('/api/calls/' + j.id + '/ice', 'POST', { candidate: c }); }); S.pendingIce = [];
+      S.pendingIce.forEach(function (c) { apiRetry('/api/calls/' + j.id + '/ice', 'POST', { candidate: c }, 3); }); S.pendingIce = [];
       S.poll = setInterval(pollCall, 1000);
-    }).catch(function (e) { S.call = null; cleanupSilent(); toast(mediaError(e)); });
+    }).catch(function (e) { console.error('[call]', e); S.call = null; cleanupSilent(); toast(e && e.name ? mediaError(e) : 'ហៅមិនបាន សូមព្យាយាមម្ដងទៀត'); });
   }
   function cleanupSilent() { S.ended = true; cleanup(); }
 
@@ -219,7 +232,7 @@
   }
   function accept() {
     var inc = S.incoming; if (!inc) return;
-    stopTone(); S.facing = 'user';
+    stopTone(); S.facing = 'user'; S.dismissed[inc.id] = Date.now();
     getMedia(inc.kind).then(function (stream) {
       S.local = stream;
       S.call = { id: inc.id, role: 'callee', peer: inc.from_email, kind: inc.kind, icIdx: 0 };
@@ -230,15 +243,16 @@
         var pc = makePC(servers, inc.kind);
         return pc.setRemoteDescription(JSON.parse(inc.offer)).then(function () { S.answerSet = true; return pc.createAnswer(); })
           .then(function (a) { return pc.setLocalDescription(a); })
-          .then(function () { return api('/api/calls/' + inc.id + '/answer', 'POST', { answer: JSON.stringify(pc.localDescription) }); });
+          .then(function () { return apiRetry('/api/calls/' + inc.id + '/answer', 'POST', { answer: JSON.stringify(pc.localDescription) }, 3); });
       });
     }).then(function (j) {
       if (!j) return;
-      if (!j.success) { hangup(false, 'ការហៅបានបញ្ចប់ហើយ'); return; }
+      if (!j.success) { hangup(true, transient(j) ? 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត (កូដ ' + j._status + ')' : 'ការហៅបានបញ្ចប់ហើយ'); return; }
       S.poll = setInterval(pollCall, 1000);
     }).catch(function (e) {
-      var id = inc.id; api('/api/calls/' + id + '/end', 'POST', {});
-      S.call = null; cleanupSilent(); toast(mediaError(e));
+      console.error('[call]', e);
+      apiRetry('/api/calls/' + inc.id + '/end', 'POST', {}, 5);
+      S.call = null; cleanupSilent(); toast(e && e.name ? mediaError(e) : 'ទទួលការហៅមិនបាន សូមព្យាយាមម្ដងទៀត');
     });
   }
 
@@ -252,7 +266,13 @@
     var c = S.call; if (!c || !c.id || !S.pc) return;
     api('/api/calls/' + c.id + '?ic=' + c.icIdx).then(function (j) {
       if (!S.call || S.call.id !== c.id) return;
-      if (!j.success) { hangup(false, 'ការហៅបានបញ្ចប់'); return; }
+      if (!j.success) {
+        if (j._status === 404) { hangup(false, 'ការហៅបានបញ្ចប់'); return; }
+        c.fails = (c.fails || 0) + 1;                       // network hiccup / rate limit: keep the call, only give up after ~25 s
+        if (c.fails > 25) hangup(true, 'ការតភ្ជាប់ដាច់');
+        return;
+      }
+      c.fails = 0;
       if (j.status === 'accepted' && c.role === 'caller' && !S.answerSet && j.answer) {
         stopTone(); setStatus('កំពុងតភ្ជាប់…');
         S.pc.setRemoteDescription(JSON.parse(j.answer)).then(function () {
@@ -297,13 +317,15 @@
     if (document.hidden && !S.incoming) { schedulePoll(8000); return; }
     api('/api/calls/poll').then(function (j) {
       if (S.call) return;
-      var inc = j && j.incoming;
+      if (!j || !j.success) return;                           // errors never close a ringing screen
+      var inc = j.incoming;
+      if (inc && S.dismissed[inc.id]) inc = null;
       if (inc && !S.incoming) showIncoming(inc);
       else if (!inc && S.incoming) { S.ended = true; var nm = S.incoming.name; cleanup('ខកខានការហៅពី ' + (nm || '')); try { document.title = document.title.replace(/^📞 /, ''); } catch (e) {} }
     }).catch(function () {}).then(function () { schedulePoll(S.incoming ? 1500 : 4000); });
   }
   document.addEventListener('visibilitychange', function () { if (!document.hidden && !S.call) schedulePoll(200); });
-  window.addEventListener('beforeunload', function () { var id = S.call && S.call.id; if (id) { try { navigator.sendBeacon('/api/calls/' + id + '/end', new Blob(['{}'], { type: 'application/json' })); } catch (e) {} } });
+  window.addEventListener('beforeunload', function () { var id = (S.call && S.call.id) || (S.incoming && S.incoming.id); if (id) { try { navigator.sendBeacon('/api/calls/' + id + '/end', new Blob(['{}'], { type: 'application/json' })); } catch (e) {} } });
 
   window.CamCall = { start: start, busy: function () { return !!(S.call || S.incoming); } };
   schedulePoll(2500);

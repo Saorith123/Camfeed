@@ -239,9 +239,13 @@ function createRateLimits(makeLimiter) {
   const chatting = makeLimiter(600, TEN);          // chat messages
   const tooMany = (res) => { res.setHeader('Retry-After', '60'); return res.status(429).json({ success: false, error: 'Too many requests. Please slow down and try again in a minute.', errorKm: 'សំណើច្រើនពេក។ សូមរង់ចាំមួយភ្លែត ហើយព្យាយាមម្តងទៀត។' }); };
   const CREATE_RE = /^\/api\/(posts|posts\/share|comments|users\/report|comments\/report|posts\/\d+\/report|follow|block)$/;
-  function network(req, res, next) { if (perNetwork.isLimited(req.ip)) return tooMany(res); perNetwork.hit(req.ip); next(); }
+  // call signalling polls every second: it has its own generous per-person limit and must never be blocked by the general limits
+  const callingOnly = makeLimiter(4000, TEN);
+  const isCall = (req) => /^\/api\/calls(\/|\?|$)/.test(String(req.originalUrl || req.url));
+  function network(req, res, next) { if (isCall(req)) return next(); if (perNetwork.isLimited(req.ip)) return tooMany(res); perNetwork.hit(req.ip); next(); }
   function person(req, res, next) {
     const who = req.authEmail; if (!who) return next();
+    if (isCall(req)) { if (callingOnly.isLimited(who)) return tooMany(res); callingOnly.hit(who); return next(); }
     if (perPerson.isLimited(who)) return tooMany(res); perPerson.hit(who);
     if (req.method === 'POST') {
       const p = String(req.originalUrl || req.url).split('?')[0];
