@@ -195,8 +195,8 @@ function securityHeaders(req, res, next) {
     "font-src 'self' https://fonts.gstatic.com data:",
     `img-src 'self' data: blob: ${media} https://via.placeholder.com https://tile.openstreetmap.org https://www.gstatic.com https://translate.google.com https://translate.googleapis.com`,
     `media-src 'self' blob: ${media}`,
-    `connect-src 'self' ${media} https://*.r2.cloudflarestorage.com https://translate.googleapis.com`,
-    "frame-src 'self' https://challenges.cloudflare.com https://translate.google.com",
+    `connect-src 'self' ${media} https://*.r2.cloudflarestorage.com https://*.cloudflarestream.com https://translate.googleapis.com`,
+    "frame-src 'self' https://challenges.cloudflare.com https://translate.google.com https://*.cloudflarestream.com",
     "worker-src 'self'", "manifest-src 'self'"
   ].join('; ');
   const always = "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";

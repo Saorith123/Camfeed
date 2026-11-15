@@ -13,7 +13,7 @@
   var BG = { blue: 'linear-gradient(135deg,#1877f2,#00c6ff)', pink: 'linear-gradient(135deg,#ff5f9e,#ff9a5a)', green: 'linear-gradient(135deg,#11998e,#38ef7d)', orange: 'linear-gradient(135deg,#f7971e,#ffd200)', purple: 'linear-gradient(135deg,#654ea3,#eaafc8)', dark: 'linear-gradient(135deg,#232526,#414345)' };
   var EMOJI = ['❤️', '😂', '😮', '😢', '👏', '🔥'];
   var DEFAULT_PIC = "data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23dfe3ea%22/%3E%3Ccircle cx=%2250%22 cy=%2238%22 r=%2218%22 fill=%22%23aab1bd%22/%3E%3Cellipse cx=%2250%22 cy=%2286%22 rx=%2232%22 ry=%2226%22 fill=%22%23aab1bd%22/%3E%3C/svg%3E";
-  var groups = [], bar = null;
+  var groups = [], bar = null, lives = [], canGoLive = false;
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
   function safe(u) { return /^https?:\/\//i.test(u || '') ? u : ''; }
@@ -23,7 +23,7 @@
   var css = document.createElement('style');
   css.textContent = '\
 #storyBar{display:flex;gap:10px;overflow-x:auto;padding:10px 12px;background:#fff;margin:8px 0;border-radius:12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}#storyBar::-webkit-scrollbar{display:none}\
-.sb-item{flex:0 0 auto;width:74px;text-align:center;cursor:pointer}.sb-ring{width:68px;height:68px;border-radius:50%;padding:3px;margin:0 auto;background:linear-gradient(135deg,#1877f2,#e91e63,#ff9800)}.sb-ring.seen{background:#c9ccd1}.sb-ring.add{background:#e4e6eb;position:relative}\
+.sb-item{flex:0 0 auto;width:74px;text-align:center;cursor:pointer}.sb-ring{width:68px;height:68px;border-radius:50%;padding:3px;margin:0 auto;background:linear-gradient(135deg,#1877f2,#e91e63,#ff9800)}.sb-ring.seen{background:#c9ccd1}.sb-ring.live{background:linear-gradient(135deg,#e41e3f,#ff5a36)}.sb-ring.add{background:#e4e6eb;position:relative}\
 .sb-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid #fff;background:#e4e6eb;display:block}.sb-plus{position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:#1877f2;color:#fff;font-weight:800;font-size:18px;line-height:23px;border:2px solid #fff}\
 .sb-name{font-size:11.5px;margin-top:5px;color:#050505;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 #stView{position:fixed;inset:0;background:#000;z-index:100000;display:none;flex-direction:column;touch-action:pan-y;user-select:none;-webkit-user-select:none}#stView.on{display:flex}\
@@ -54,13 +54,21 @@
     add.onclick = function () { if (mineG) openViewer(groups.indexOf(mineG)); else openMaker(); };
     bar.appendChild(add);
     if (mineG) { var plus = el('div', 'sb-item'); var pr = el('div', 'sb-ring add'); pr.appendChild(el('div', '', '')); pr.firstChild.style.cssText = 'width:100%;height:100%;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;color:#1877f2;font-weight:800'; pr.firstChild.textContent = '+'; plus.appendChild(pr); plus.appendChild(el('div', 'sb-name', t('create'))); plus.onclick = openMaker; bar.appendChild(plus); }
+    if (canGoLive && !lives.some(function (l) { return l.mine; })) { var gl = el('div', 'sb-item'); var gr = el('div', 'sb-ring live'); var gi2 = el('div', '', '🔴'); gi2.style.cssText = 'width:100%;height:100%;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px'; gr.appendChild(gi2); gl.appendChild(gr); gl.appendChild(el('div', 'sb-name', lang === 'en' ? 'Go Live' : 'ផ្សាយផ្ទាល់')); gl.onclick = function () { location.href = 'live.html?host=1'; }; bar.appendChild(gl); }
+    lives.forEach(function (l) {
+      var it = el('div', 'sb-item'); var rg = ring(l.profile_pic, 'live'); rg.style.position = 'relative'; var bd = el('div', '', 'LIVE'); bd.style.cssText = 'position:absolute;left:50%;bottom:-3px;transform:translateX(-50%);background:#e41e3f;color:#fff;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:5px;border:2px solid #fff'; rg.appendChild(bd);
+      it.appendChild(rg); it.appendChild(el('div', 'sb-name', l.mine ? (lang === 'en' ? 'Your live' : 'Live របស់អ្នក') : (l.name || '').split(' ')[0]));
+      it.onclick = function () { location.href = 'live.html?id=' + l.id; }; bar.appendChild(it);
+    });
     groups.forEach(function (g, idx) {
       if (g.mine) return;
       var it = el('div', 'sb-item'); it.appendChild(ring(g.profile_pic, g.allSeen ? 'seen' : '')); it.appendChild(el('div', 'sb-name', (g.name || '').split(' ')[0]));
       it.onclick = function () { openViewer(idx); }; bar.appendChild(it);
     });
   }
-  function load() { return api('/api/stories/feed').then(function (d) { if (d.success) { groups = d.groups || []; renderBar(); } }); }
+  function loadLives() { return api('/api/live/active').then(function (d) { if (d && d.success) { lives = d.lives || []; canGoLive = !!d.canGoLive; renderBar(); } }).catch(function () {}); }
+  function load() { loadLives(); return api('/api/stories/feed').then(function (d) { if (d.success) { groups = d.groups || []; renderBar(); } }); }
+  setInterval(function () { if (!document.hidden) loadLives(); }, 30000);
 
   /* ---------- the viewer ---------- */
   var view = null, gi = 0, si = 0, timer = null, started = 0, dur = 5000, paused = false, pausedAt = 0, elapsedBefore = 0, curVideo = null, sheetOpen = false;

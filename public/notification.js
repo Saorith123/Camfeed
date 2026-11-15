@@ -45,6 +45,14 @@ async function loadNotifications() {
                             </div>
                         </div>`;
                     }
+                    if (n.type === 'live') {
+                        return `
+                        <div class="notification-item" style="${isUnread ? 'background-color: #ffe9ec; font-weight: 600;' : 'background-color: #ffffff;'}" onclick="markNoticeRead(${n.id}, 'live.html?id=${parseInt(n.comment_id, 10) || 0}'); event.stopPropagation();">
+                            <div style="width:38px; height:38px; border-radius:50%; background:#e41e3f; color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; font-weight:800;">LIVE</div>
+                            <div style="flex: 1;"><div style="color: #050505; line-height: 1.35;">${esc(n.message)}</div>
+                                <div style="font-size: 10.5px; color: #90949c; margin-top: 3px;">${window.timeAgo ? timeAgo(n.created_at) : new Date(n.created_at).toLocaleString()} ${isUnread ? '· ថ្មី' : ''}</div></div>
+                        </div>`;
+                    }
                     const bgStyle = isUnread ? 'background-color: #e7f3ff; font-weight: 600;' : 'background-color: #ffffff;';
                     const mediaType = n.post_media_type || '';
                     const clickAction = n.post_id
