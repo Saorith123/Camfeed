@@ -81,6 +81,7 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 
 <section class="view" id="v-home">
 <div class="profile-card"><div class="avatar" id="avatar">?</div><div class="p-info"><p class="p-name" id="pName">…</p><p class="p-sub" id="pSub"></p><a class="btn small outline" id="viewProfileBtn" href="profile.html" data-i18n="viewProfile">មើលប្រវត្តិរូប</a></div></div>
+<div class="group" id="personalRows" style="margin-bottom:18px"></div>
 <div class="group-title" data-i18n="g_settings">ការកំណត់ និងឯកជនភាព</div><div class="group" id="homeRows"></div>
 <div class="group-title" data-i18n="g_help">ជំនួយ និងគោលការណ៍</div><div class="group" id="helpRows"></div>
 <div class="group-title"></div><div class="group" id="endRows"></div>
@@ -286,6 +287,7 @@ function buildRow(r){
 function fillRows(id,rows){const box=$(id);if(!box)return;box.textContent='';rows.forEach((r)=>box.appendChild(buildRow(r)));}
 const mailto=(subject)=>'mailto:support@camfeedkh.com?subject='+encodeURIComponent(subject);
 function renderAllRows(){
+  fillRows('personalRows',[{ic:'👤',t:'lg_details',s:'lg_details_s',go:'details'}]);
   fillRows('homeRows',[
     {ic:'🔳',t:'qr_t',s:'qr_s',href:'qr.html'},
     {ic:'🌙',t:'dark_t',s:'dark_s',sw:{get:()=>window.CamTheme&&CamTheme.get()==='dark',set:async(on)=>{if(window.CamTheme)CamTheme.set(on?'dark':'light');return true;}}},
@@ -293,7 +295,7 @@ function renderAllRows(){
     {ic:'🔐',t:'nav_login',s:'nav_login_s',go:'login'},{ic:'🔒',t:'nav_privacy',s:'nav_privacy_s',go:'privacy'},{ic:'🔔',t:'nav_notifications',s:'nav_notifications_s',go:'notifications'},
     {ic:'🚫',t:'nav_blocking',s:'nav_blocking_s',go:'blocking'},{ic:'🕘',t:'nav_activity',s:'nav_activity_s',go:'activity'},{ic:'📦',t:'nav_data',s:'nav_data_s',go:'data'}]);
   fillRows('loginRows',[
-    {ic:'👤',t:'lg_details',s:'lg_details_s',go:'details'},{ic:'✏️',t:'lg_name',s:()=>fullName()+' · '+t('lg_name_s'),go:'name'},
+    {ic:'✏️',t:'lg_name',s:()=>fullName()+' · '+t('lg_name_s'),go:'name'},
     {ic:'📱',t:'lg_contact',s:()=>me.contact_mail||'—',go:'contact'},{ic:'🔑',t:'lg_pw',s:'lg_pw_s',go:'password'},
     {ic:'🔐',t:'lg_2fa',s:'lg_2fa_s',go:'twofa',soon:true},{ic:'💻',t:'lg_devices',s:'lg_devices_s',go:'devices'}]);
   fillRows('activityRows',[
@@ -308,17 +310,18 @@ function renderAllRows(){
 
 // ---------------------------------------------------------------- views
 const VIEWS={home:'v-home',login:'v-login',details:'v-details',name:'v-name',contact:'v-contact',password:'v-password',twofa:'v-twofa',devices:'v-devices',privacy:'v-privacy',notifications:'v-notifications',blocking:'v-blocking',activity:'v-activity','activity-reactions':'v-activitylist','activity-shares':'v-activitylist','activity-comments':'v-activitylist','activity-posts':'v-activitylist',data:'v-data',install:'v-install',about:'v-about'};
-const PARENT={login:'home',details:'login',name:'login',contact:'login',password:'login',twofa:'login',devices:'login',privacy:'home',notifications:'home',blocking:'home',activity:'home','activity-reactions':'activity','activity-shares':'activity','activity-comments':'activity','activity-posts':'activity',data:'home',install:'home',about:'home'};
+const PARENT={login:'home',details:'home',name:'login',contact:'login',password:'login',twofa:'login',devices:'login',privacy:'home',notifications:'home',blocking:'home',activity:'home','activity-reactions':'activity','activity-shares':'activity','activity-comments':'activity','activity-posts':'activity',data:'home',install:'home',about:'home'};
 const TITLE_KEY={home:'v_home',login:'v_login',details:'v_details',name:'v_name',contact:'v_contact',password:'v_password',twofa:'v_twofa',devices:'v_devices',privacy:'v_privacy',notifications:'v_notifications',blocking:'v_blocking',activity:'v_activity','activity-reactions':'ac_reactions','activity-shares':'ac_shares','activity-comments':'ac_comments','activity-posts':'ac_posts',data:'v_data',install:'v_install',about:'v_about'};
 let current='home';
-function go(name){if(location.hash==='#'+name)show(name);else location.hash='#'+name;}
+function depth(){return (history.state&&history.state.d)||0;}
+function go(name){if(location.hash==='#'+name){show(name);return;}history.pushState({d:depth()+1},'','#'+name);show(name);}
 function show(name){if(!VIEWS[name])name='home';current=name;
 document.querySelectorAll('.view').forEach((v)=>v.classList.toggle('active',v.id===VIEWS[name]));
 $('viewTitle').textContent=t(TITLE_KEY[name]);window.scrollTo({top:0});
 if(name==='privacy')renderPrivacy();if(name==='blocking')loadBlocked();if(name==='notifications')loadNotifications();if(name==='devices')loadSessions();
 if(name.indexOf('activity-')===0)openActivity(name.slice(9));if(name==='install')renderInstall();}
-window.addEventListener('hashchange',()=>show(location.hash.replace('#','')||'home'));
-$('backBtn').addEventListener('click',()=>{if(current==='home'){if(document.referrer&&document.referrer.indexOf(location.origin)===0&&history.length>1)history.back();else location.href='feed.html';}else go(PARENT[current]||'home');});
+window.addEventListener('popstate',()=>show(location.hash.replace('#','')||'home'));
+$('backBtn').addEventListener('click',()=>{if(current==='home'){if(document.referrer&&document.referrer.indexOf(location.origin)===0&&history.length>1)history.back();else location.href='feed.html';}else if(depth()>0)history.back();else{const par=PARENT[current]||'home';history.replaceState({d:0},'','#'+par);show(par);}});
 $('tf_check_link')&&0;
 
 // ---------------------------------------------------------------- language
@@ -463,7 +466,7 @@ function doLogout(){if(window.CamAuth&&CamAuth.logout)CamAuth.logout();else{loca
 
 // ---------------------------------------------------------------- start
 $('firstName').value=me.first_name||'';$('lastName').value=me.last_name||'';
-applyLang();show(location.hash.replace('#','')||'home');
+history.replaceState({d:0},'',location.hash||'#home');applyLang();show(location.hash.replace('#','')||'home');
 (async function loadMe(){const r=await api('/api/user-profile?email='+encodeURIComponent(currentUser.email)+'&viewerEmail='+encodeURIComponent(currentUser.email));
 if(r.ok&&r.data.user){const u=r.data.user;me=Object.assign({},me,u);if(u.contact_mail)currentUser.contact_mail=u.contact_mail;activeOn=u.show_active_status!==false;
 PRIVACY.forEach((p)=>{privacy[p.key]=u[p.key]==='private'?'private':'public';});privacyReady=true;
