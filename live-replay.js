@@ -72,9 +72,9 @@ module.exports = function createLiveReplay(deps) {
       const p = await pool.query("INSERT INTO posts (user_email, content, media_type, media_url, privacy) VALUES ($1, $2, 'video', $3, $4) RETURNING id", [row.host_email, content, url, row.privacy === 'friends' ? 'friends' : 'public']);
       // the chat of the live becomes the comments of the saved video (like Facebook)
       try {
-        await pool.query("INSERT INTO comments (post_id, user_email, content, created_at) SELECT $2, user_email, body, created_at FROM live_comments WHERE live_id = $1 ORDER BY id LIMIT 500", [row.id, p.rows[0].id]);
+        await pool.query("INSERT INTO comments (post_id, user_email, content, created_at) SELECT $2, user_email, body, created_at FROM live_comments WHERE live_id = $1 ORDER BY id LIMIT 5000", [row.id, p.rows[0].id]);
       } catch (e1) {
-        try { await pool.query("INSERT INTO comments (post_id, user_email, content) SELECT $2, user_email, body FROM live_comments WHERE live_id = $1 ORDER BY id LIMIT 500", [row.id, p.rows[0].id]); } catch (e2) { console.error('[live-replay] comments copy:', e2.message); }
+        try { await pool.query("INSERT INTO comments (post_id, user_email, content) SELECT $2, user_email, body FROM live_comments WHERE live_id = $1 ORDER BY id LIMIT 5000", [row.id, p.rows[0].id]); } catch (e2) { console.error('[live-replay] comments copy:', e2.message); }
       }
       await pool.query("UPDATE live_streams SET replay_status = 'done', replay_post_id = $2 WHERE id = $1", [row.id, p.rows[0].id]);
       await cleanStream(row, video.uid);

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="video-priority.js"></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -3898,6 +3899,7 @@
             if (!activeVid || !nextVid || nextVid.dataset.deepPreload === '1') return;
             const triggerNext = () => {
                 if (activeCenterFeedVideo !== activeVid || nextVid.dataset.deepPreload === '1') return;
+                if (window.CamNet && CamNet.busy) { window.addEventListener('camnet:free', () => triggerNext(), { once: true }); return; }
                 hydrateVideoSource(nextVid);
                 nextVid.dataset.deepPreload = '1';
                 nextVid.preload = 'auto';
@@ -4054,6 +4056,7 @@
         { const _renderPostsBase = renderPosts; renderPosts = function (posts, containerId, append) { _renderPostsBase(posts, containerId, append); if (containerId === 'postsContainer') { if (!append) loadPeopleSuggestions(false); ensurePeopleBlock(); } }; }
         setTimeout(() => loadPeopleSuggestions(true), 1500);
 
+        ['camnet:busy', 'camnet:free'].forEach((n) => window.addEventListener(n, () => { try { evaluateCenterFeedVideo(); } catch (e) {} }));
         function evaluateCenterFeedVideo() {
             if (typeof reelsOpen !== 'undefined' && reelsOpen) return;
             const videos = Array.from(document.querySelectorAll('.autoplay-video'));
@@ -4076,7 +4079,7 @@
             videos.forEach((v, idx) => {
                 if (v === bestVideo) return;
                 const d = bestIdx < 0 ? Infinity : idx - bestIdx;
-                if (d >= -FEED_KEEP_BEHIND && d <= FEED_PRELOAD_AHEAD) {
+                if (!(window.CamNet && CamNet.busy) && d >= -FEED_KEEP_BEHIND && d <= FEED_PRELOAD_AHEAD) {
                     if (!v.paused) v.pause();
                     v.muted = true;
                     hydrateVideoSource(v);

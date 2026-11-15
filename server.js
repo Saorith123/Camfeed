@@ -3242,12 +3242,13 @@ app.delete('/api/stories/:id', async (req, res) => {
 // every hour: remove stories that have run out (the row, the views and the file in storage)
 async function sweepStories() {
   try {
-    const d = await pool.query("DELETE FROM stories WHERE expires_at < NOW() - INTERVAL '5 minutes' RETURNING id, media_url");
+    const d = await pool.query("DELETE FROM stories WHERE expires_at < NOW() - INTERVAL '5 minutes' RETURNING id, media_url, overlays");
     if (!d.rows.length) return;
     const ids = d.rows.map((x) => x.id);
     await pool.query('DELETE FROM story_views WHERE story_id = ANY($1::int[])', [ids]).catch(() => {});
     await pool.query('DELETE FROM story_reactions WHERE story_id = ANY($1::int[])', [ids]).catch(() => {});
     const urls = d.rows.map((x) => x.media_url).filter(Boolean);
+    for (const x of d.rows) { try { for (const o of JSON.parse(x.overlays || '[]')) if (o && o.type === 'image' && o.u) urls.push(o.u); } catch (e) {} }   // sticker pictures go too
     if (urls.length) await cleanup.purgeMediaUrls(urls).catch(() => {});
   } catch (err) { console.error('[story] sweep error:', err.message); }
 }

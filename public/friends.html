@@ -130,7 +130,13 @@
         .avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; background: #ccc; }
         .user-name { font-weight: bold; color: #050505; font-size: 15.5px; margin-bottom: 3px; }
         
-        .user-actions { display: flex; gap: 8px; }
+        /* name on top, buttons underneath at equal width: tidy on every phone, whatever the language/button text length */
+        .user-card { flex-wrap: wrap; row-gap: 10px; }
+        .user-info-left { flex: 1 1 100%; min-width: 0; }
+        .user-info-left > div { min-width: 0; overflow-wrap: anywhere; }
+        .user-actions { display: flex; gap: 8px; flex: 1 1 100%; padding-left: 76px; }
+        .user-actions > button { flex: 1 1 0; min-width: 0; padding-left: 8px !important; padding-right: 8px !important; white-space: normal; line-height: 1.25; }
+        @media (max-width: 380px) { .user-actions { padding-left: 0; } }
         .btn-follow { padding: 8px 15px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13.5px; }
         .btn-follow:hover { background: #166fe5; }
         .btn-follow-back { background: #31a24c !important; }

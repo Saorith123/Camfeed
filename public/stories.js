@@ -264,6 +264,36 @@
 
   /* ---------- the maker ---------- */
   var mk = null;
+  // same small, fast format as normal posts: photos <= 1080 wide, videos re-encoded to 720p; then sent straight to R2 (no server memory/time limit)
+  async function prepareStoryFile(f, onPct) {
+    try {
+      if (f.type.indexOf('video') === 0 || /\.(mp4|mov|m4v|webm)$/i.test(f.name || '')) {
+        var c = window.smartCompressVideoFile ? await window.smartCompressVideoFile(f, onPct) : f;
+        return (window.CamFaststart && c) ? await window.CamFaststart.ensureFastStart(c).catch(function () { return c; }) : c;
+      }
+      return window.smartCompressImageFile ? await window.smartCompressImageFile(f) : f;
+    } catch (e) { return f; }
+  }
+  function putStoryFile(file, onPct) {
+    return new Promise(async function (resolve, reject) {
+      var isVid = (file.type || '').indexOf('video') === 0 || /\.(mp4|mov|m4v|webm)$/i.test(file.name || '');
+      try {
+        var ur = await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: user.email, file_name: file.name || (isVid ? 'story.mp4' : 'story.jpg'), content_type: file.type || (isVid ? 'video/mp4' : 'image/jpeg') }) });
+        var ud = await ur.json();
+        if (ur.ok && ud.uploadUrl) {
+          var x = new XMLHttpRequest(); x.open('PUT', ud.uploadUrl, true); x.setRequestHeader('Content-Type', file.type || (isVid ? 'video/mp4' : 'image/jpeg'));
+          x.upload.onprogress = function (e) { if (e.lengthComputable && onPct) onPct(e.loaded / e.total * 100); };
+          x.onload = function () { if (x.status >= 200 && x.status < 300) resolve({ url: ud.publicUrl, type: isVid ? 'video' : 'image' }); else direct(); };
+          x.onerror = direct; x.send(file); return;
+        }
+      } catch (e) {}
+      direct();
+      function direct() {
+        var fd = new FormData(); fd.append('user_email', user.email); fd.append('file', file);
+        fetch('/api/videos/upload-direct', { method: 'POST', body: fd }).then(function (r) { return r.json().then(function (d) { if (!r.ok || !d.publicUrl) throw new Error(d.error || 'upload'); resolve({ url: d.publicUrl, type: d.type === 'video' ? 'video' : 'image' }); }); }).catch(reject);
+      }
+    });
+  }
   function openMaker() {
     if (!mk) { mk = el('div'); mk.id = 'stMake'; document.body.appendChild(mk); mk.addEventListener('click', function (e) { if (e.target === mk) closeMaker(); }); }
     mk.textContent = ''; mk.classList.add('on');
@@ -372,11 +402,11 @@
       else {
         if (!st.file) { msg.textContent = t('bad'); return; }
         share.disabled = true; cancel.disabled = true; share.textContent = t('uploading');
-        try { var fd = new FormData(); fd.append('user_email', user.email); fd.append('file', st.file); var up = await fetch('/api/videos/upload-direct', { method: 'POST', body: fd }); var ud = await up.json(); if (!up.ok || !ud.publicUrl) throw new Error(ud.error || 'upload'); body.mediaType = ud.type === 'video' ? 'video' : 'image'; body.mediaUrl = ud.publicUrl; body.caption = cap.value.trim();
+        try { var pf = await prepareStoryFile(st.file, function (p) { share.textContent = '⚙️ ' + Math.round(p) + '%'; }); share.textContent = t('uploading'); var ud = await putStoryFile(pf, function (p) { share.textContent = '☁️ ' + Math.round(p) + '%'; }); body.mediaType = ud.type; body.mediaUrl = ud.url; body.caption = cap.value.trim();
           var ovs = []; for (var oi = 0; oi < st.ov.length; oi++) { var q = st.ov[oi], base = { x: +q.x.toFixed(4), y: +q.y.toFixed(4), s: +q.s.toFixed(4), r: Math.round(q.r || 0) };
             if (q.type === 'emoji') ovs.push(Object.assign({ type: 'emoji', e: q.e }, base));
             else if (q.type === 'text') { if (q.t && q.t.trim()) ovs.push(Object.assign({ type: 'text', t: q.t.trim(), c: q.c || '#ffffff', bg: q.bg || '' }, base)); }
-            else { var fd2 = new FormData(); fd2.append('user_email', user.email); fd2.append('file', new File([q.blob], q.blob.type === 'image/png' ? 'sticker.png' : 'sticker.jpg', { type: q.blob.type })); var up2 = await fetch('/api/videos/upload-direct', { method: 'POST', body: fd2 }); var ud2 = await up2.json(); if (!up2.ok || !ud2.publicUrl) throw new Error('upload'); ovs.push(Object.assign({ type: 'image', u: ud2.publicUrl }, base)); } }
+            else { var ud2 = await putStoryFile(new File([q.blob], q.blob.type === 'image/png' ? 'sticker.png' : 'sticker.jpg', { type: q.blob.type })); ovs.push(Object.assign({ type: 'image', u: ud2.url }, base)); } }
           if (ovs.length) body.overlays = ovs; }
         catch (e) { share.disabled = false; cancel.disabled = false; share.textContent = t('share'); msg.textContent = t('fail'); return; }
       }
