@@ -3299,19 +3299,55 @@ app.delete('/api/admin/users/:targetEmail', async (req, res) => {
   }
 });
 
+// ---- a notice from the CamFeed team: shows in the person's notification bell (never the admin's own name)
+const noticeText = (kind, what, reason, note) => {
+  const head = kind === 'removed' ? `🚫 CamFeed៖ ${what}របស់អ្នកត្រូវបានលុប។` : kind === 'warning' ? `⚠️ CamFeed៖ ការព្រមាន — ${what}របស់អ្នកខុសលក្ខខណ្ឌ។` : '📢 CamFeed៖';
+  return [head, reason ? `មូលហេតុ៖ ${reason}` : '', note || ''].filter(Boolean).join(' ').slice(0, 700);
+};
+const mediaWord = (t) => (t === 'video' ? 'វីដេអូ' : t === 'image' ? 'រូបភាព' : 'ប្រកាស');
+async function sendAdminNotice(adminEmail, toEmail, text) {
+  await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'admin_notice', $3, FALSE)", [toEmail, adminEmail, text]);
+}
+
 app.delete('/api/admin/posts/:postId', async (req, res) => {
   const { postId } = req.params;
   const { adminEmail, adminKey } = req.body;
+  const reason = String((req.body || {}).reason || '').trim().slice(0, 300), note = String((req.body || {}).note || '').trim().slice(0, 400), notify = (req.body || {}).notify === true;
   try {
     const auth = await verifyAdminAccess(adminEmail, adminKey);
     if (!auth.allowed) return res.status(403).json({ success: false, error: auth.error });
 
+    let owner = null;
+    if (notify) owner = (await pool.query('SELECT user_email, media_type FROM posts WHERE id = $1', [postId])).rows[0] || null;
     await cleanup.deletePostCompletely(postId); // also marks its reports as resolved_deleted
-    audit(adminEmail, 'delete-post', postId, '');
-    res.json({ success: true });
+    audit(adminEmail, 'delete-post', postId, reason);
+    let notified = false;
+    if (owner && owner.user_email) { try { await sendAdminNotice(String(adminEmail).trim(), owner.user_email, noticeText('removed', mediaWord(owner.media_type), reason, note)); notified = true; } catch (e) { /* the post is deleted anyway */ } }
+    res.json({ success: true, notified });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// warn / message the owner of a post (or any person) without deleting anything
+app.post('/api/admin/notice', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const b = req.body || {};
+    const reason = String(b.reason || '').trim().slice(0, 300), note = String(b.note || '').trim().slice(0, 400);
+    if (!reason && !note) return res.status(400).json({ success: false, error: 'Write a reason or a message.' });
+    let to = String(b.targetEmail || '').trim(), what = 'ប្រកាស';
+    if (b.postId) {
+      const p = (await pool.query('SELECT user_email, media_type FROM posts WHERE id = $1', [parseInt(b.postId, 10) || 0])).rows[0];
+      if (!p) return res.status(404).json({ success: false, error: 'Post not found.' });
+      to = p.user_email; what = mediaWord(p.media_type);
+    }
+    if (!to) return res.status(400).json({ success: false, error: 'Who should receive it?' });
+    const kind = b.kind === 'warning' ? 'warning' : 'message';
+    await sendAdminNotice(a.adminEmail, to, noticeText(kind, what, reason, note));
+    audit(a.adminEmail, 'admin-notice-' + kind, to, reason || note);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
 app.post('/api/admin/reports/:reportId/status', async (req, res) => {

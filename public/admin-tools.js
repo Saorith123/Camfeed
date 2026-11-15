@@ -36,6 +36,54 @@
     return el('table', {}, [thead, el('tbody', {}, rows)]);
   }
 
+
+  // ---------- delete / warn a post: choose a reason and tell the owner (shows in their notification bell) ----------
+  var REASONS = [
+    'ខុសលក្ខខណ្ឌប្រើប្រាស់ (Violates our Terms)',
+    'មាតិកាអាសអាភាស (Nudity / sexual content)',
+    'អំពើហិង្សា ឬគ្រោះថ្នាក់ (Violence / harmful content)',
+    'បោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ (Scam / fake news)',
+    'ជេរប្រមាថ ឬរំលោភបំពាន (Harassment / hate speech)',
+    'ស្ប៉ាម ឬផ្សាយពាណិជ្ជកម្មមិនត្រឹមត្រូវ (Spam / unwanted ads)',
+    'រំលោភសិទ្ធិអ្នកដទៃ (Copyright / stolen content)',
+    'ផ្សេងៗ (Other) — សរសេរក្នុងប្រអប់ខាងក្រោម'
+  ];
+  window.adminPostDialog = function (postId, onDone) {
+    var old = document.getElementById('atPostDlg'); if (old) old.remove();
+    var action = el('select', { style: 'width:100%;padding:9px;margin:6px 0 12px;border:1px solid #ccd0d5;border-radius:8px;font-size:14px' }, [
+      el('option', { value: 'delete', text: '🗑 Delete the post/video (and tell the owner)' }),
+      el('option', { value: 'warning', text: '⚠️ Only send a warning (keep the post)' })
+    ]);
+    var reason = el('select', { style: 'width:100%;padding:9px;margin:6px 0 12px;border:1px solid #ccd0d5;border-radius:8px;font-size:14px' }, REASONS.map(function (r) { return el('option', { value: r, text: r }); }));
+    var note = el('textarea', { rows: '3', maxlength: '400', placeholder: 'Extra message to the owner (optional)…', style: 'width:100%;padding:9px;border:1px solid #ccd0d5;border-radius:8px;font-size:14px;box-sizing:border-box' });
+    var notify = el('input', { type: 'checkbox', checked: 'checked' });
+    var status = el('div', { style: 'margin:10px 0;font-size:13px;color:#b3261e' });
+    var go = el('button', { class: 'btn-sm btn-red', style: 'padding:10px 18px;font-size:14px', text: 'Confirm' });
+    var cancel = el('button', { class: 'btn-sm btn-gray', style: 'padding:10px 18px;font-size:14px;margin-left:8px', text: 'Cancel' });
+    var ov = el('div', { id: 'atPostDlg', class: 'at-modal' }, [el('div', { class: 'at-card', style: 'max-width:480px' }, [
+      el('h3', { style: 'margin:0 0 10px', text: 'Post/Video #' + postId }),
+      el('label', { style: 'font-weight:700;font-size:13px', text: 'What do you want to do?' }), action,
+      el('label', { style: 'font-weight:700;font-size:13px', text: 'Reason' }), reason,
+      el('label', { style: 'font-weight:700;font-size:13px', text: 'Message to the owner' }), note,
+      el('label', { style: 'display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13.5px' }, [notify, document.createTextNode('Send a notification to the owner (they see it in the 🔔 bell)')]),
+      status, el('div', {}, [go, cancel])
+    ])]);
+    function close() { ov.remove(); }
+    cancel.addEventListener('click', close);
+    action.addEventListener('change', function () { go.textContent = action.value === 'delete' ? 'Delete' : 'Send warning'; notify.disabled = action.value !== 'delete'; if (action.value !== 'delete') notify.checked = true; });
+    action.dispatchEvent(new Event('change'));
+    go.addEventListener('click', function () {
+      var isDel = action.value === 'delete';
+      if (isDel && !confirm('Delete Post/Video #' + postId + ' for ever?')) return;
+      go.disabled = true; status.textContent = '';
+      var rs = reason.value.indexOf('ផ្សេងៗ') === 0 ? '' : reason.value;
+      var p = isDel ? adm('/api/admin/posts/' + encodeURIComponent(postId), { reason: rs, note: note.value.trim(), notify: notify.checked }, 'DELETE')
+                    : adm('/api/admin/notice', { postId: postId, kind: 'warning', reason: rs, note: note.value.trim() });
+      p.then(function (r) { go.disabled = false; if (!r.success) { status.textContent = r.error || 'Could not do it.'; return; } close(); if (onDone) onDone(r, isDel); });
+    });
+    document.body.appendChild(ov);
+  };
+
   var css = el('style', { text: '.at-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px}' +
     '.at-card{background:#fff;border-radius:14px;max-width:760px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.35)}' +
     '.at-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.at-in{width:100%;padding:9px 11px;border:1px solid #ccd0d5;border-radius:8px;font-size:14px;background:#fff}' +
@@ -205,6 +253,7 @@
       items.forEach(function (x) {
         var who = (x.first_name || '') + ' ' + (x.last_name || ''); var tr;
         function del() {
+          if (posts) { window.adminPostDialog(x.id, function (r, isDel) { if (isDel) tr.remove(); else alert('Warning sent.'); }); return; }
           if (!confirm('Delete this ' + (posts ? 'post' : 'comment (and its replies)') + ' for ever?')) return;
           (posts ? adm('/api/admin/posts/' + encodeURIComponent(x.id), {}, 'DELETE') : adm('/api/admin/comments/delete', { commentId: x.id })).then(function (r) { if (r.success) tr.remove(); else alert(r.error || 'Could not delete.'); });
         }

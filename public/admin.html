@@ -489,16 +489,9 @@
             else alert(data.error);
         }
 
-        async function adminDeletePost(postId) {
-            if (!confirm(`Delete Post/Video #${postId} permanently?`)) return;
-            const res = await fetch(`/api/admin/posts/${postId}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminEmail: currentUser.email, adminKey: savedAdminKey })
-            });
-            const data = await res.json();
-            if (data.success) unlockAdmin();
-            else alert(data.error);
+        function adminDeletePost(postId) {
+            // opens the dialog: choose delete or warning, pick a reason, and tell the owner
+            window.adminPostDialog(postId, function (r, isDel) { if (isDel) unlockAdmin(); else alert('Warning sent to the owner.'); });
         }
 
         async function adminDismissReport(reportId) {
