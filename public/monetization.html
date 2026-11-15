@@ -144,6 +144,11 @@ Object.assign(T.en, { mTopUp: '📱 Phone top-up card', mWingCash: '🟢 Wing ca
 
 Object.assign(T.km, { postsTitle: '📊 ទិន្នន័យប្រកាសរបស់ខ្ញុំ', pViews: 'ចំនួនមើល', pEarn: 'ប្រាក់ប៉ាន់ស្មាន', pEng: 'អន្តរកម្ម', pLikes: 'ចូលចិត្ត', pComments: 'មតិ', pShares: 'ចែករំលែក', pNone: 'មិនទាន់មានប្រកាស', pNote: 'ទទួលបានប្រាក់ពីចំនួនមើលថ្មីៗ (ក្រោយពេលអ្នកក្លាយជា Creator)។ ចំនួនប្រាក់ជាការប៉ាន់ស្មាន ហើយមានកម្រិតអតិបរមាក្នុងមួយថ្ងៃ។ ប្រាក់ត្រូវបញ្ចូលក្នុងកាបូបដោយស្វ័យប្រវត្តិ។', pRate: 'តម្លៃបច្ចុប្បន្ន៖ $' });
 Object.assign(T.en, { postsTitle: '📊 My post insights', pViews: 'Views', pEarn: 'Approximate earnings', pEng: 'Engagement', pLikes: 'Likes', pComments: 'Comments', pShares: 'Shares', pNone: 'No posts yet', pNote: 'You earn from new views after you became a Creator. Amounts are approximate and there is a daily limit. Earnings are added to your wallet automatically.', pRate: 'Current rate: $' });
+
+T.km.soon = '🎬 អ្នកអាចរកលុយតាមរយៈវីដេអូ ឬរូបភាពដែលអ្នកបង្ហោះ។ ប៉ុន្តែពេលនេះ CamFeed ផ្តល់សិទ្ធិនេះសម្រាប់តែអ្នកដែលទទួលបានការអញ្ជើញពីយើងប៉ុណ្ណោះ ព្រោះអ្នកប្រើប្រាស់នៅមិនទាន់ច្រើន។ នៅពេលមានអ្នកប្រើច្រើន យើងនឹងបើកឲ្យមនុស្សគ្រប់គ្នា។';
+T.en.soon = '🎬 You can earn money from the videos or photos you post. For now, CamFeed gives this right only to people we have invited, because we do not have many users yet. When more people join, we will open it to everyone.';
+T.km.approved = '🎉 អបអរសាទរ! CamFeed បានអញ្ជើញអ្នកឲ្យមានសិទ្ធិរកលុយ។ អ្នកអាចរកលុយពីវីដេអូ ឬរូបភាពដែលអ្នកបង្ហោះ ហើយប្រាក់ចូលកាបូបរបស់អ្នក។ សិទ្ធិនេះសម្រាប់តែអ្នកដែលទទួលបានការអញ្ជើញប៉ុណ្ណោះ។';
+T.en.approved = '🎉 Congratulations! CamFeed has invited you to earn money. You can earn from the videos or photos you post, and the money goes into your wallet. This right is only for invited members.';
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
 var t = function (k) { return T[lang][k] !== undefined ? T[lang][k] : T.en[k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -182,8 +187,8 @@ function render() {
   $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
   var box = $('monetizationStatusContainer'); box.textContent = '';
-  if (!d.creatorProgramOpen) box.appendChild(el('div', { class: 'status-banner status-pending' }, t('soon')));
-  else if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));
+  if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));   // invited by an admin: works even while the public program is still "coming soon"
+  else if (!d.creatorProgramOpen) box.appendChild(el('div', { class: 'status-banner status-pending' }, t('soon')));
   else if (d.applicationStatus === 'pending') box.appendChild(el('div', { class: 'status-banner status-pending' }, t('pending')));
   else {
     if (d.applicationStatus === 'rejected') { var rb = el('div', { class: 'status-banner status-rejected', style: 'margin-bottom:12px' }, t('rejected') + (d.applicationNote ? ' ' + t('reason') + ' ' + d.applicationNote : '') + ' ' + t('again')); box.appendChild(rb); }
