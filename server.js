@@ -851,7 +851,7 @@ async function backfillFeedVideos() {
     }
   } catch (e) { console.error('[feedvideo] job:', e.message); } finally { feedVideoBusy = false; }
 }
-setTimeout(() => { backfillFeedVideos(); setInterval(backfillFeedVideos, 45 * 1000); }, 2 * 60 * 1000);
+setTimeout(() => { backfillFeedVideos(); setInterval(backfillFeedVideos, 15 * 1000); }, 2 * 60 * 1000);
 if (process.env.FEED_VIDEOS === 'on') console.log('[feedvideo] small feed videos are ON');
 
 
