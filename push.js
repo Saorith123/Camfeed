@@ -109,7 +109,7 @@ module.exports = function createPush({ app, pool }) {
       // When the app's code does start, it also opens the full system call screen.
       await sendToUser(calleeEmail, {
         title: fullName(u), body: kind === 'video' ? '📹 ការហៅវីដេអូចូល' : '📞 ការហៅសំឡេងចូល', channel: 'calls', tag: 'call_' + callId,
-        data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', from: callerEmail, url: '/feed.html' }, high: true,
+        data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', caller: callerEmail, url: '/feed.html' }, high: true,
       });
     } catch (e) { console.error('[push] call notify failed:', e.message); }
   }
