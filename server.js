@@ -1,3 +1,7 @@
+// a stray error in one request must never take the whole site down (that shows as "502 Bad Gateway"); it is written to the log instead
+process.on('unhandledRejection', (e) => console.error('[crash-guard] unhandledRejection:', e && e.stack ? e.stack.split('\n').slice(0, 4).join(' | ') : e));
+process.on('uncaughtException', (e) => console.error('[crash-guard] uncaughtException:', e && e.stack ? e.stack.split('\n').slice(0, 4).join(' | ') : e));
+{ const t = setInterval(() => { const m = process.memoryUsage(); if (m.rss > 380 * 1048576) console.warn('[memory] high: rss ' + Math.round(m.rss / 1048576) + ' MB, heap ' + Math.round(m.heapUsed / 1048576) + ' MB'); }, 60000); if (t.unref) t.unref(); }
 const express = require('express');
 const { Pool } = require('pg');
 const multer = require('multer');

@@ -172,17 +172,6 @@ module.exports = function createPush({ app, pool }) {
       res.json({ success: true, push: enabled });
     } catch (e) { res.status(500).json({ success: false }); }
   });
-  // Settings > "test the notification": the phone asks for a test push that arrives after 15 s, so the person can leave the app first
-  app.post('/api/push/test', async (req, res) => {
-    const me = req.authEmail;
-    if (!me) return res.status(401).json({ success: false });
-    try {
-      await ensureSchema();
-      const n = +(await pool.query('SELECT COUNT(*) AS n FROM push_tokens WHERE LOWER(user_email) = LOWER($1)', [me])).rows[0].n;
-      if (n > 0) setTimeout(() => { sendToUser(me, { title: 'CamFeed', body: '✅ ការជូនដំណឹងដំណើរការ', data: { type: 'message', url: '/messages.html' }, channel: 'messages' }); }, 15000);
-      res.json({ success: true, push: enabled, tokens: n });
-    } catch (e) { res.status(500).json({ success: false }); }
-  });
   app.post('/api/push/unregister', async (req, res) => {
     const token = String((req.body && req.body.token) || '');
     try { await ensureSchema(); await pool.query('DELETE FROM push_tokens WHERE token = $1 AND LOWER(user_email) = LOWER($2)', [token, req.authEmail || '']); } catch (e) {}
