@@ -268,3 +268,4 @@ function createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }) {
 }
 
 module.exports = { createTelegramLogin, verifyIdToken, pkcePair, sealCookie, openCookie, readCookie, isTelegramAddress, SYNTHETIC_DOMAIN };
+
