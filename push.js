@@ -143,7 +143,7 @@ module.exports = function createPush({ app, pool }) {
       for (const n of ns) {
         lastNote = Math.max(lastNote, +n.id);
         if (!n.recipient_email || norm(n.recipient_email) === norm(n.sender_email)) continue;
-        sendToUser(n.recipient_email, { title: 'CamFeed', body: n.message || 'មានការជូនដំណឹងថ្មី', data: { type: 'notification', url: '/feed.html' }, channel: 'general', ntype: n.type });
+        sendToUser(n.recipient_email, { title: 'CamFeed', body: n.message || 'មានការជូនដំណឹងថ្មី', data: { type: 'notification', url: '/notifications', ntype: String(n.type || '') }, channel: 'general', ntype: n.type });
       }
     } catch (e) { console.error('[push] tick failed:', e.message); }
     finally { busy = false; }
