@@ -438,9 +438,8 @@
 
         function changeLanguage() {
             const lang = document.getElementById('langSwitch').value;
-            const prevLang = localStorage.getItem('camfeed_lang');
             localStorage.setItem('camfeed_lang', lang);
-            if (prevLang && prevLang !== lang) { location.reload(); return; }
+            location.reload(); return;
             const t = texts[lang];
 
             document.getElementById('logoTagline').innerText = t.logoTagline;
