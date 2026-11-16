@@ -193,3 +193,14 @@
     clearSession(); window.location.href = 'index.html';
   } };
 })();
+
+// Inside the CamFeed phone app the five main tabs are drawn by the app at the bottom of the screen: hide the copy at the top.
+(function () {
+  try {
+    if (/CamFeedApp/.test(navigator.userAgent || '')) {
+      var st = document.createElement('style');
+      st.textContent = '.nav-menus{display:none!important}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+  } catch (e) {}
+})();
