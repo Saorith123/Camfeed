@@ -57,7 +57,7 @@ module.exports = function createPush({ app, pool }) {
     });
     if (r.ok) return true;
     const t = await r.text().catch(() => '');
-    if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(t)) {          // the app was removed: forget this phone
+    if (r.status === 404 || /UNREGISTERED|not a valid FCM registration token/.test(t)) {          // the app was removed: forget this phone
       await pool.query('DELETE FROM push_tokens WHERE token = $1', [token]).catch(() => {});
     } else console.error('[push] FCM error', r.status, t.slice(0, 200));
     return false;
@@ -93,6 +93,7 @@ module.exports = function createPush({ app, pool }) {
         };
         if (await sendOne(token, msg)) ok++;
       }
+      console.log('[push] ' + (dataOnly ? 'data' : channel) + ' -> ' + String(email).slice(0, 3) + '***: ' + ok + '/' + rows.length + ' phones');
       return ok;
     } catch (e) { console.error('[push] send failed:', e.message); return 0; }
   }
@@ -166,6 +167,17 @@ module.exports = function createPush({ app, pool }) {
       await pool.query(`INSERT INTO push_tokens (token, user_email, platform, updated_at) VALUES ($1, $2, 'android', NOW())
                         ON CONFLICT (token) DO UPDATE SET user_email = EXCLUDED.user_email, updated_at = NOW()`, [token, me]);
       res.json({ success: true, push: enabled });
+    } catch (e) { res.status(500).json({ success: false }); }
+  });
+  // Settings > "test the notification": the phone asks for a test push that arrives after 15 s, so the person can leave the app first
+  app.post('/api/push/test', async (req, res) => {
+    const me = req.authEmail;
+    if (!me) return res.status(401).json({ success: false });
+    try {
+      await ensureSchema();
+      const n = +(await pool.query('SELECT COUNT(*) AS n FROM push_tokens WHERE LOWER(user_email) = LOWER($1)', [me])).rows[0].n;
+      if (n > 0) setTimeout(() => { sendToUser(me, { title: 'CamFeed', body: '✅ ការជូនដំណឹងដំណើរការ', data: { type: 'message', url: '/messages.html' }, channel: 'messages' }); }, 15000);
+      res.json({ success: true, push: enabled, tokens: n });
     } catch (e) { res.status(500).json({ success: false }); }
   });
   app.post('/api/push/unregister', async (req, res) => {
