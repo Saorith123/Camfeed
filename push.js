@@ -76,7 +76,7 @@ module.exports = function createPush({ app, pool }) {
     return true;
   }
 
-  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '', dataOnly = false }) {
+  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '', dataOnly = false, tag = '' }) {
     if (!enabled || !email) return 0;
     try {
       await ensureSchema();
@@ -89,7 +89,7 @@ module.exports = function createPush({ app, pool }) {
         const msg = dataOnly ? { data: strData, android: { priority: 'HIGH', ttl: '30s' } } : {
           notification: { title: String(title || 'CamFeed').slice(0, 80), body: String(body || '').slice(0, 180) },
           data: strData,
-          android: { priority: high ? 'HIGH' : 'NORMAL', ttl: high ? '30s' : '86400s', notification: { channel_id: channel, sound: 'default' } },
+          android: { priority: 'HIGH', ttl: high ? '30s' : '86400s', notification: { channel_id: channel, sound: 'default', ...(tag ? { tag } : {}), ...(high ? { notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC', default_vibrate_timings: true } : {}) } },
         };
         if (await sendOne(token, msg)) ok++;
       }
@@ -103,8 +103,12 @@ module.exports = function createPush({ app, pool }) {
     if (!enabled) return;
     try {
       const u = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE LOWER(email) = LOWER($1)', [callerEmail])).rows[0] || {};
+      // A call is sent as a notification AND data. The notification is shown by the phone itself (a heads-up banner with the ringtone sound),
+      // so it appears even when the app's own code can not start in the background (the same way chat messages already work).
+      // When the app's code does start, it also opens the full system call screen.
       await sendToUser(calleeEmail, {
-        data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', from: callerEmail, url: '/feed.html' }, high: true, dataOnly: true,
+        title: fullName(u), body: kind === 'video' ? '📹 ការហៅវីដេអូចូល' : '📞 ការហៅសំឡេងចូល', channel: 'calls', tag: 'call_' + callId,
+        data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', from: callerEmail, url: '/feed.html' }, high: true,
       });
     } catch (e) { console.error('[push] call notify failed:', e.message); }
   }
