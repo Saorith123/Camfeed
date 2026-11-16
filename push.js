@@ -76,7 +76,7 @@ module.exports = function createPush({ app, pool }) {
     return true;
   }
 
-  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '' }) {
+  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '', dataOnly = false }) {
     if (!enabled || !email) return 0;
     try {
       await ensureSchema();
@@ -85,7 +85,8 @@ module.exports = function createPush({ app, pool }) {
       const strData = {}; for (const k of Object.keys(data)) strData[k] = String(data[k]);
       let ok = 0;
       for (const { token } of rows) {
-        const msg = {
+        // dataOnly (incoming calls): no notification block, so the app's own code runs even when closed and can ring like a phone call
+        const msg = dataOnly ? { data: strData, android: { priority: 'HIGH', ttl: '30s' } } : {
           notification: { title: String(title || 'CamFeed').slice(0, 80), body: String(body || '').slice(0, 180) },
           data: strData,
           android: { priority: high ? 'HIGH' : 'NORMAL', ttl: high ? '30s' : '86400s', notification: { channel_id: channel, sound: 'default' } },
@@ -101,12 +102,16 @@ module.exports = function createPush({ app, pool }) {
   async function notifyCall(calleeEmail, callerEmail, kind, callId) {
     if (!enabled) return;
     try {
-      const u = (await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = LOWER($1)', [callerEmail])).rows[0] || {};
+      const u = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE LOWER(email) = LOWER($1)', [callerEmail])).rows[0] || {};
       await sendToUser(calleeEmail, {
-        title: fullName(u), body: kind === 'video' ? '📹 ការហៅវីដេអូចូល' : '📞 ការហៅសំឡេងចូល',
-        data: { type: 'call', kind, callId, url: '/feed.html' }, high: true, channel: 'calls',
+        data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', from: callerEmail, url: '/feed.html' }, high: true, dataOnly: true,
       });
     } catch (e) { console.error('[push] call notify failed:', e.message); }
+  }
+  // the caller hung up (or nobody answered): stop the ringing on the phone
+  async function notifyCallEnd(calleeEmail, callId) {
+    if (!enabled) return;
+    try { await sendToUser(calleeEmail, { data: { type: 'call_end', callId }, high: true, dataOnly: true }); } catch (e) { /* ignore */ }
   }
 
   // ---- new messages and new notifications are found by looking at the tables every few seconds (no change to the code that writes them) ----
@@ -165,5 +170,5 @@ module.exports = function createPush({ app, pool }) {
     res.json({ success: true });
   });
 
-  return { enabled, sendToUser, notifyCall };
+  return { enabled, sendToUser, notifyCall, notifyCallEnd };
 };

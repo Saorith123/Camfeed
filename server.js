@@ -1187,6 +1187,14 @@ app.get('/api/posts', async (req, res) => {
       LEFT JOIN users ou ON op.user_email = ou.email
     `;
 
+    if (profileEmail && req.query.tagged === '1') {
+      // posts where this person is tagged (accepted tags only); others see only public ones
+      const tq = `${cteAndJoins} ${baseFrom} WHERE LOWER($2) = ANY(string_to_array(COALESCE(p.tagged_emails,''), ',')) AND (p.privacy = 'public' OR p.user_email = $1 OR LOWER($1) = LOWER($2)) ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
+      const tr = await pool.query(tq, [safeViewer, profileEmail, parsedLimit, parsedOffset]);
+      tr.rows.forEach((r) => visibility.scrubOriginal(r, req.authEmail));
+      return res.json({ success: true, posts: tr.rows, hasMore: tr.rows.length === parsedLimit });
+    }
+
     if (profileEmail) {
       let query = `${cteAndJoins} ${baseFrom}`;
       if (profileEmail === safeViewer) {

@@ -271,6 +271,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   }
   function finish(c, status, result) {
     if (!live(c)) return;
+    if (c.status === 'ringing' && push && push.notifyCallEnd) push.notifyCallEnd(c.callee, c.id);   // stop the ringing on the callee's phone
     c.status = status; c.endedAt = Date.now();
     logCall(c, result);
   }
