@@ -263,12 +263,16 @@ function createVisibility(pool) {
     const r = await pool.query(
       `SELECT p.privacy, p.user_email, COALESCE(u.is_banned, FALSE) AS banned,
               EXISTS (SELECT 1 FROM blocked_users b WHERE (b.blocker_email = $2 AND b.blocked_email = p.user_email)
-                                                       OR (b.blocker_email = p.user_email AND b.blocked_email = $2)) AS blocked
+                                                       OR (b.blocker_email = p.user_email AND b.blocked_email = $2)) AS blocked,
+              EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = p.user_email) AS follows_author
        FROM posts p JOIN users u ON u.email = p.user_email WHERE p.id = $1`, [postId, viewerEmail]);
     const row = r.rows[0];
     if (!row) return false;
     if (String(row.user_email).toLowerCase() === String(viewerEmail || '').toLowerCase()) return true;
-    return row.privacy !== 'private' && !row.banned && !row.blocked;
+    if (row.banned || row.blocked) return false;
+    if (row.privacy === 'private') return false;
+    if (row.privacy === 'friends') return !!row.follows_author;
+    return true;
   }
   // returns true when the person may continue; otherwise it has already answered "not found"
   async function guardPost(req, res, postId) {
@@ -284,7 +288,7 @@ function createVisibility(pool) {
   function scrubOriginal(post, viewerEmail) {
     if (!post || !post.orig_id) return post;
     const mine = String(post.orig_author_email || '').toLowerCase() === String(viewerEmail || '').toLowerCase();
-    if (post.orig_privacy === 'private' && !mine) {
+    if ((post.orig_privacy === 'private' || post.orig_privacy === 'friends') && !mine) {
       post.orig_id = null; post.orig_content = ''; post.orig_media_url = null; post.orig_media_type = null; post.orig_media_aspect = '';
     }
     return post;

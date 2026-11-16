@@ -493,7 +493,7 @@
       if (!j || !j.success) return;                           // errors never close a ringing screen
       var inc = j.incoming;
       if (inc && S.dismissed[inc.id]) inc = null;
-      if (inc && !S.incoming) showIncoming(inc);
+      if (inc && !S.incoming) { showIncoming(inc); if (/[?&]callAccept=1/.test(location.search)) setTimeout(function () { try { accept(); } catch (e) {} }, 250); }
       else if (!inc && S.incoming) { S.ended = true; var nm = S.incoming.name; cleanup('ខកខានការហៅពី ' + (nm || '')); try { document.title = document.title.replace(/^📞 /, ''); } catch (e) {} }
     }).catch(function () {}).then(function () { schedulePoll(S.incoming ? 1500 : 4000); });
   }
@@ -501,5 +501,5 @@
   window.addEventListener('beforeunload', function () { var id = (S.call && S.call.id) || (S.incoming && S.incoming.id); if (id) { try { navigator.sendBeacon('/api/calls/' + id + '/end', new Blob(['{}'], { type: 'application/json' })); } catch (e) {} } });
 
   window.CamCall = { start: start, busy: function () { return !!(S.call || S.incoming); } };
-  schedulePoll(2500);
+  schedulePoll(/[?&]callAccept=1/.test(location.search) ? 200 : 2500);
 })();

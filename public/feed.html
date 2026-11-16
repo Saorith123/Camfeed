@@ -1248,6 +1248,7 @@
                             <div id="composerUserName" class="notranslate" translate="no" style="font-weight:700; font-size:14.5px; color:#050505;">User</div>
                             <select id="composerPostPrivacy" style="width:auto; padding:3px 9px; font-size:12px; margin:2px 0 0 0; border-radius:8px; background:#f0f2f5; font-weight:700;">
                                 <option value="public" id="optPublic">🌐 ជាសាធារណៈ (Public)</option>
+                                <option value="friends" id="optFriends">👥 មិត្តភក្តិ / អ្នកតាមដាន (Friends)</option>
                                 <option value="private" id="optPrivate">🔒 ឯកជន (Private)</option>
                             </select>
                         </div>
@@ -1426,6 +1427,7 @@
                     <label style="font-size: 13px; font-weight: 700; color: #050505;">ភាពឯកជន (Privacy):</label>
                     <select id="editPostPrivacySelect" style="width: auto; padding: 6px 12px; font-size: 13px; margin: 0; border-radius: 8px; font-weight: 600;">
                         <option value="public">🌐 ជាសាធារណៈ (Public)</option>
+                        <option value="friends">👥 មិត្តភក្តិ / អ្នកតាមដាន (Friends)</option>
                         <option value="private">🔒 ឯកជន (Private - ឃើញតែខ្ញុំម្នាក់ឯង)</option>
                     </select>
                 </div>
@@ -1553,6 +1555,7 @@
                 privacyLabel: "Privacy:",
                 optPublic: "🌐 Public",
                 optPrivate: "🔒 Private (Only me)",
+                optFriends: "👥 Friends / Followers",
                 photoVideoLabel: "Photo / Video (Multiple)",
                 postBtn: "Post",
                 reactionsModalTitle: "People who reacted",
@@ -1586,6 +1589,7 @@
                 privacyLabel: "ភាពឯកជន:",
                 optPublic: "🌐 ជាសាធារណៈ",
                 optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
+                optFriends: "👥 មិត្តភក្តិ / អ្នកតាមដាន",
                 photoVideoLabel: "រូបថត / វីដេអូ (ច្រើនឯកសារ)",
                 postBtn: "បង្ហោះ",
                 reactionsModalTitle: "អ្នកដែលបានប្រតិកម្ម",
@@ -1632,6 +1636,7 @@
             setTxt('lblPrivacy', t.privacyLabel);
             setTxt('optPublic', t.optPublic);
             setTxt('optPrivate', t.optPrivate);
+            setTxt('optFriends', t.optFriends);
             setTxt('photoVideoLabel', t.photoVideoLabel);
             setTxt('postSubmitBtn', t.postBtn);
             setTxt('modalReactorTitle', t.reactionsModalTitle);
@@ -3255,7 +3260,7 @@
             document.querySelectorAll('.post-options-dropdown').forEach(m => m.style.display = 'none');
             activePostIdForEdit = postId;
             document.getElementById('editPostContentTextarea').value = decodeURIComponent(encodedContent || '');
-            document.getElementById('editPostPrivacySelect').value = currentPrivacy === 'private' ? 'private' : 'public';
+            document.getElementById('editPostPrivacySelect').value = (currentPrivacy === 'private' || currentPrivacy === 'friends') ? currentPrivacy : 'public';
             document.getElementById('editPostModal').style.display = 'flex';
             setTimeout(() => document.getElementById('editPostContentTextarea').focus(), 80);
         }

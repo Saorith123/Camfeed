@@ -862,7 +862,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
 
   const email = req.body.email;
   const content = req.body.content || '';
-  const privacy = req.body.privacy || 'public';
+  const privacy = ['public', 'friends', 'private'].includes(req.body.privacy) ? req.body.privacy : 'public';
   const thumbnailBase64 = req.body.thumbnailBase64 || null;
   const mediaAspect = req.body.mediaAspect || '';
 
@@ -910,6 +910,9 @@ app.post('/api/posts/share', async (req, res) => {
     if (orig.rows.length === 0) return res.status(404).json({ success: false, error: 'Post not found' });
 
     const p = orig.rows[0];
+    if (String(p.privacy || 'public') !== 'public' && String(p.user_email).toLowerCase() !== String(req.authEmail || email || '').toLowerCase()) {
+      return res.status(403).json({ success: false, error: 'Only public posts can be shared.' });
+    }
     const rootPostId = p.shared_post_id ? p.shared_post_id : p.id;
 
     const result = await pool.query(
@@ -1117,6 +1120,7 @@ app.get('/api/posts', async (req, res) => {
         COALESCE(ss.shares_count, 0) AS shares_count,
         ls.user_reaction,
         ls.reaction_types,
+        EXISTS (SELECT 1 FROM follows ff2 WHERE ff2.follower_email = $1 AND ff2.following_email = p.user_email) AS author_followed,
         (SELECT string_agg(t.rt, ',' ORDER BY t.c DESC) FROM (SELECT reaction_type AS rt, COUNT(*) AS c FROM likes l2 WHERE l2.post_id = p.id GROUP BY reaction_type ORDER BY COUNT(*) DESC LIMIT 2) t) AS top_reactions,
         op.id AS orig_id,
         op.content AS orig_content,
@@ -1151,8 +1155,8 @@ app.get('/api/posts', async (req, res) => {
           : ` WHERE p.user_email = $2`;
       } else {
         query += type === 'videos'
-          ? ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND p.privacy = 'public' AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`
-          : ` WHERE p.user_email = $2 AND p.privacy = 'public' AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`;
+          ? ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_email = $1 AND ff.following_email = p.user_email))) AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`
+          : ` WHERE p.user_email = $2 AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_email = $1 AND ff.following_email = p.user_email))) AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`;
       }
       query += ` ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
       const result = await pool.query(query, [safeViewer, profileEmail, parsedLimit, parsedOffset]);
@@ -1204,7 +1208,7 @@ app.get('/api/posts', async (req, res) => {
       LEFT JOIN user_interest_scores uis ON uis.user_email = $1 AND uis.category = p.ai_category
       LEFT JOIN (SELECT DISTINCT post_id FROM post_views WHERE viewer_email = $1) pv ON pv.post_id = p.id
       LEFT JOIN feed_seen fs ON fs.viewer_email = $1 AND fs.post_id = p.id
-      WHERE (p.privacy = 'public' OR p.user_email = $1 OR f.following_email IS NOT NULL)
+      WHERE (p.privacy = 'public' OR p.user_email = $1 OR (f.following_email IS NOT NULL AND p.privacy = 'friends'))
         ${videoOnlyCondition}
         ${excludeCondition}
         AND COALESCE(u.is_banned, FALSE) = FALSE
@@ -1281,7 +1285,7 @@ app.put('/api/posts/:id', async (req, res) => {
   const { content, privacy, email } = req.body;
   try {
     const query = 'UPDATE posts SET content = $1, privacy = $2 WHERE id = $3 AND user_email = $4 RETURNING *';
-    const result = await pool.query(query, [content, privacy || 'public', id, email]);
+    const result = await pool.query(query, [content, ['public', 'friends', 'private'].includes(privacy) ? privacy : 'public', id, email]);
     if (result.rows.length > 0) {
       res.json({ success: true, post: result.rows[0] });
     } else {
@@ -1788,7 +1792,7 @@ app.get('/api/follow-list', async (req, res) => {
     let query = '';
     if (type === 'friends') {
       query = `
-        SELECT u.email, u.first_name, u.last_name, u.profile_pic, TRUE AS is_following
+        SELECT u.email, u.first_name, u.last_name, u.profile_pic, u.last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '40 seconds' AND COALESCE(u.show_active_status, TRUE)) AS is_online, TRUE AS is_following
         FROM follows f1
         JOIN follows f2 ON f1.following_email = f2.follower_email AND f2.following_email = $1
         JOIN users u ON u.email = f1.following_email
