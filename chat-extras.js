@@ -9,7 +9,7 @@ const TTL_OPTIONS = [0, 24, 168, 720, 4380, 8760];       // hours: off, 24h, 7d,
 const CALL_RING_MS = 35 * 1000;
 const CALL_STALE_MS = 25 * 1000;
 
-module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn }) {
+module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
   const maxMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
   const maxHours = maxMonths * 730;
@@ -301,6 +301,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       const c = { id: newId(), caller: me, callee: peer, kind, status: 'ringing', offer: b.offer, answer: null,
         ice: { caller: [], callee: [] }, created: Date.now(), answeredAt: 0, seen: { [me]: Date.now(), [peer]: 0 } };
       calls.set(c.id, c);
+      if (push && push.notifyCall) push.notifyCall(peer, me, kind, c.id);   // ring the phone even if the app is closed
       res.json({ success: true, id: c.id });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });

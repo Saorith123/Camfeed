@@ -1947,7 +1947,8 @@ app.post('/api/presence/offline', async (req, res) => {
   }
 });
 
-const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase() });
+const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
+const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push });
 
 // Send Chat Message
 app.post('/api/messages', (req, res, next) => {

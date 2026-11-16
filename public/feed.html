@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <script src="i18n-dict.js"></script><script src="i18n.js"></script>
     <script src="call.js" defer></script>
     <script src="video-priority.js"></script>
     <link rel="manifest" href="/manifest.webmanifest">
@@ -1616,7 +1617,7 @@
         let activeReplyTargetMap = {};
 
         function applyLanguage() {
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             const t = uiTexts[currentLang];
             if (!t) return;
 
@@ -1690,6 +1691,7 @@
 
         function selectAppLanguage(langCode) {
             localStorage.setItem('camfeed_lang', langCode);
+            location.reload(); return;
             applyLanguage();
             const sub = document.getElementById('langSubmenu');
             if (sub) sub.classList.remove('open');
@@ -3061,7 +3063,7 @@
             const container = document.getElementById(containerId);
             if (!container) return;
             if (!append) container.innerHTML = '';
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             const t = uiTexts[currentLang];
 
             if (posts.length === 0 && !append) {
@@ -3523,7 +3525,7 @@
         }
 
         function updatePostReactionUI(postId) {
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             const state = postReactionsState[postId];
             const btn = document.getElementById(`likeBtn-${postId}`);
             const summary = document.getElementById(`reactionSummary-${postId}`);
@@ -3539,7 +3541,7 @@
         function openShareModal(postId, encodedContent) {
             activePostIdForShare = postId;
             activePostTextForShare = decodeURIComponent(encodedContent || '');
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             document.getElementById('shareCaptionInput').value = '';
             document.getElementById('copyLinkLabel').innerText = uiTexts[currentLang].copyLinkLabel;
             document.getElementById('shareModal').style.display = 'flex';
@@ -3566,7 +3568,7 @@
                 const data = await res.json();
                 if (data.success) {
                     closeShareModal();
-                    const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+                    const currentLang = localStorage.getItem('camfeed_lang') || 'km';
                     alert(currentLang === 'km' ? 'បានស៊ែរចូលទៅក្នុង Profile របស់អ្នកជោគជ័យ!' : 'Shared to your profile successfully!');
                     loadPosts();
                 }
@@ -3595,7 +3597,7 @@
             if (!activePostIdForShare) return;
             const shareUrl = `${window.location.origin}/p/${activePostIdForShare}`;
             navigator.clipboard.writeText(shareUrl);
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             document.getElementById('copyLinkLabel').innerText = currentLang === 'km' ? '✓ បានចម្លងតំណភ្ជាប់!' : '✓ Link Copied!';
             setTimeout(() => closeShareModal(), 900);
         }
@@ -3635,7 +3637,7 @@
         async function openReactionsList(postId) {
             const modal = document.getElementById('reactionsModal');
             const listContainer = document.getElementById('reactionsModalList');
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             listContainer.innerHTML = `<p style="text-align:center; color:#65676b;">${currentLang === 'km' ? 'កំពុងផ្ទុក...' : 'Loading...'}</p>`;
             modal.style.display = 'flex';
 
@@ -3679,7 +3681,7 @@
         async function openSharersList(postId) {
             const modal = document.getElementById('sharersModal');
             const listContainer = document.getElementById('sharersModalList');
-            const currentLang = localStorage.getItem('camfeed_lang') || 'en';
+            const currentLang = localStorage.getItem('camfeed_lang') || 'km';
             listContainer.innerHTML = `<p style="text-align:center; color:#65676b;">${currentLang === 'km' ? 'កំពុងផ្ទុក...' : 'Loading...'}</p>`;
             modal.style.display = 'flex';
 
@@ -4003,7 +4005,7 @@
             } catch (e) { /* the feed works without it */ }
         }
         function pymkText() {
-            return (localStorage.getItem('camfeed_lang') || 'en') === 'km'
+            return (localStorage.getItem('camfeed_lang') || 'km') === 'km'
                 ? { title: 'មនុស្សដែលអ្នកអាចស្គាល់', follow: 'តាមដាន', following: 'កំពុងតាមដាន ✓', remove: 'លុបចេញ', all: 'មើលទាំងអស់', mutual: (n) => 'មិត្តរួម ' + n + ' នាក់', sug: 'ណែនាំសម្រាប់អ្នក' }
                 : { title: 'People you may know', follow: 'Follow', following: 'Following ✓', remove: 'Remove', all: 'See all', mutual: (n) => n + ' mutual friend' + (n === 1 ? '' : 's'), sug: 'Suggested for you' };
         }
