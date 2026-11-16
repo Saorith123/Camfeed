@@ -163,7 +163,8 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0,
       ADD COLUMN IF NOT EXISTS shared_post_id INTEGER DEFAULT NULL,
       ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) DEFAULT '',
-      ADD COLUMN IF NOT EXISTS tagged_emails TEXT DEFAULT ''
+      ADD COLUMN IF NOT EXISTS tagged_emails TEXT DEFAULT '',
+      ADD COLUMN IF NOT EXISTS tag_pending TEXT DEFAULT ''
     `);
 
     await client.query(`
@@ -184,6 +185,7 @@ pool.connect(async (err, client, release) => {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS relationship_status VARCHAR(150) DEFAULT '',
       ADD COLUMN IF NOT EXISTS work VARCHAR(150) DEFAULT '',
+      ADD COLUMN IF NOT EXISTS tag_review BOOLEAN DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS location_privacy VARCHAR(20) DEFAULT 'public',
       ADD COLUMN IF NOT EXISTS birthdate_privacy VARCHAR(20) DEFAULT 'public',
       ADD COLUMN IF NOT EXISTS relationship_privacy VARCHAR(20) DEFAULT 'public',
@@ -871,8 +873,17 @@ async function notifyTagged(tags, by, postId, label) {
   try {
     const n = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [String(by).toLowerCase()]);
     const nm = `${n.rows[0]?.first_name || ''} ${n.rows[0]?.last_name || ''}`.trim();
-    for (const t of tags) {
+    // People who turned on "review tags" are held as pending until they accept; everyone else is tagged straight away.
+    const rv = await pool.query('SELECT LOWER(email) AS e FROM users WHERE tag_review = TRUE AND LOWER(email) = ANY($1::text[])', [tags]);
+    const hold = new Set(rv.rows.map((x) => x.e));
+    const ok = tags.filter((t) => !hold.has(t));
+    const pend = tags.filter((t) => hold.has(t));
+    await pool.query('UPDATE posts SET tagged_emails = $1, tag_pending = $2 WHERE id = $3', [ok.join(','), pend.join(','), postId]);
+    for (const t of ok) {
       await pool.query('INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, FALSE)', [t, by, postId, 'tag', `${nm} បាន Tag អ្នកក្នុង${label}`]);
+    }
+    for (const t of pend) {
+      await pool.query('INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, FALSE)', [t, by, postId, 'tag_review', `${nm} បាន Tag អ្នកក្នុង${label} — រង់ចាំការអនុម័តរបស់អ្នក`]);
     }
   } catch (e) { /* a failed notification never blocks the post */ }
 }
@@ -2390,6 +2401,59 @@ app.get('/api/blocked-users', async (req, res) => {
     console.error('Blocked users error:', err.message);
     res.status(500).json({ success: false, message: 'Could not load the list.' });
   }
+});
+
+// ---- Tag review: a user may require approval before a tag shows on their profile ----
+app.get('/api/settings/tags', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT tag_review FROM users WHERE email = $1', [req.authEmail]);
+    res.json({ success: true, review: !!(r.rows[0] && r.rows[0].tag_review) });
+  } catch (e) { res.status(500).json({ success: false, message: 'Could not load.' }); }
+});
+app.put('/api/settings/tags', async (req, res) => {
+  try {
+    if (typeof (req.body || {}).review !== 'boolean') return res.status(400).json({ success: false, message: 'Invalid value.' });
+    await pool.query('UPDATE users SET tag_review = $1 WHERE email = $2', [req.body.review, req.authEmail]);
+    res.json({ success: true, review: req.body.review });
+  } catch (e) { res.status(500).json({ success: false, message: 'Could not save.' }); }
+});
+// Posts waiting for my approval (stay here until I decide)
+app.get('/api/tags/pending', async (req, res) => {
+  try {
+    const me = String(req.authEmail || '').toLowerCase();
+    const r = await pool.query(`SELECT p.id, p.content, p.media_type, p.media_url, p.thumb_url, p.created_at, u.first_name, u.last_name, u.profile_pic, u.email AS author_email
+      FROM posts p JOIN users u ON u.email = p.user_email
+      WHERE $1 = ANY(string_to_array(COALESCE(p.tag_pending,''), ',')) ORDER BY p.created_at DESC LIMIT 100`, [me]);
+    res.json({ success: true, posts: r.rows });
+  } catch (e) { res.status(500).json({ success: false, message: 'Could not load.' }); }
+});
+async function resolveTag(req, res, accept) {
+  try {
+    const me = String(req.authEmail || '').toLowerCase();
+    const id = parseInt(req.params.id, 10);
+    const r = await pool.query('SELECT tagged_emails, tag_pending FROM posts WHERE id = $1', [id]);
+    if (!r.rows[0]) return res.status(404).json({ success: false, message: 'Not found.' });
+    const split = (x) => String(x || '').split(',').filter(Boolean);
+    const pend = split(r.rows[0].tag_pending).filter((x) => x !== me);
+    let ok = split(r.rows[0].tagged_emails);
+    if (accept && !ok.includes(me)) ok.push(me);
+    await pool.query('UPDATE posts SET tagged_emails = $1, tag_pending = $2 WHERE id = $3', [ok.join(','), pend.join(','), id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false, message: 'Could not save.' }); }
+}
+app.post('/api/tags/:id/accept', (req, res) => resolveTag(req, res, true));
+app.post('/api/tags/:id/decline', (req, res) => resolveTag(req, res, false));
+// Remove my own tag from a post
+app.post('/api/tags/:id/remove', async (req, res) => {
+  try {
+    const me = String(req.authEmail || '').toLowerCase();
+    const id = parseInt(req.params.id, 10);
+    const r = await pool.query('SELECT tagged_emails FROM posts WHERE id = $1', [id]);
+    if (!r.rows[0]) return res.status(404).json({ success: false });
+    const ok = String(r.rows[0].tagged_emails || '').split(',').filter((x) => x && x !== me);
+    await pool.query('UPDATE posts SET tagged_emails = $1 WHERE id = $2', [ok.join(','), id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false }); }
 });
 
 app.get('/api/settings/notifications', async (req, res) => {
