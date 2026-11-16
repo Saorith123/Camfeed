@@ -110,6 +110,9 @@ module.exports = function createPush({ app, pool }) {
       await sendToUser(calleeEmail, {
         title: fullName(u), body: kind === 'video' ? '📹 ការហៅវីដេអូចូល' : '📞 ការហៅសំឡេងចូល', channel: 'calls', tag: 'call_' + callId,
         data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', caller: callerEmail, url: '/feed.html' }, high: true,
+        // default: data only, so the app's own code opens the full-screen call screen (lights the screen, rings until answered).
+        // Render > Environment CALL_PUSH_MODE=banner switches back to a plain notification banner (it can not light the screen).
+        dataOnly: String(process.env.CALL_PUSH_MODE || '').toLowerCase() !== 'banner',
       });
     } catch (e) { console.error('[push] call notify failed:', e.message); }
   }
