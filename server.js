@@ -354,6 +354,7 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS overlays TEXT').catch(() => {});
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumb_url TEXT').catch(() => {});
+    await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS sounds_post_uq ON sounds (post_id) WHERE post_id IS NOT NULL').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories (expires_at)').catch(() => {});
@@ -821,6 +822,39 @@ async function backfillAspects() {
 setTimeout(() => { backfillAspects(); setInterval(backfillAspects, 60 * 1000); }, 90 * 1000);
 
 
+// ---- "feed version" of every video: a small MP4 (540 px wide, ~1 Mbps, moov at the front) so the phone app starts it at once, like Facebook ----
+// The original stays untouched (full screen / website). Turn on in Render: FEED_VIDEOS = on. One video at a time, newest first.
+async function makeFeedVideo(src) {
+  if (!thumbsReady()) return null;
+  const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
+  const out = path.join(os.tmpdir(), 'camfeed-fv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.mp4');
+  let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
+  try {
+    await new Promise((ok, no) => execFile(bin, ['-y', '-i', src, '-t', '300', '-vf', "scale='if(gt(iw,ih),min(720,iw),min(540,iw))':-2,fps=30", '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main', '-pix_fmt', 'yuv420p',
+      '-crf', '28', '-maxrate', '1200k', '-bufsize', '2400k', '-g', '60', '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-movflags', '+faststart', '-threads', '1', out],
+      { timeout: 8 * 60 * 1000, maxBuffer: 1024 * 1024 * 8 }, (e) => e ? no(e) : ok()));
+    if (!fs.existsSync(out)) return null;
+    const size = fs.statSync(out).size; if (size < 2000 || size > 60 * 1024 * 1024) return null;
+    return await r2PutBuffer('feed/' + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.mp4', fs.readFileSync(out), 'video/mp4');
+  } catch (e) { console.error('[feedvideo] ffmpeg:', String(e.message || e).slice(0, 200)); return null; } finally { try { fs.unlinkSync(out); } catch (e) {} }
+}
+let feedVideoBusy = false;
+async function backfillFeedVideos() {
+  if (process.env.FEED_VIDEOS !== 'on' || feedVideoBusy || !thumbsReady()) return; feedVideoBusy = true;
+  try {
+    const rows = (await pool.query("SELECT id, media_type, media_url FROM posts WHERE feed_url IS NULL AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') ORDER BY id DESC LIMIT 1")).rows;
+    for (const row of rows) {
+      const v = pubMedia(row).video;
+      const u = v ? await makeFeedVideo(v) : null;
+      await pool.query('UPDATE posts SET feed_url = $2 WHERE id = $1', [row.id, u || '']).catch(() => {});      // '' = tried, do not try again
+      if (u) console.log('[feedvideo] post', row.id, 'ready');
+    }
+  } catch (e) { console.error('[feedvideo] job:', e.message); } finally { feedVideoBusy = false; }
+}
+setTimeout(() => { backfillFeedVideos(); setInterval(backfillFeedVideos, 45 * 1000); }, 2 * 60 * 1000);
+if (process.env.FEED_VIDEOS === 'on') console.log('[feedvideo] small feed videos are ON');
+
+
 app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -1087,6 +1121,8 @@ app.get('/api/posts', async (req, res) => {
         op.content AS orig_content,
         op.media_type AS orig_media_type,
         op.media_url AS orig_media_url,
+        op.thumb_url AS orig_thumb_url,
+        op.feed_url AS orig_feed_url,
         op.media_aspect AS orig_media_aspect,
         op.created_at AS orig_created_at,
         op.privacy AS orig_privacy,
@@ -1214,6 +1250,8 @@ app.get('/api/posts/:id', async (req, res) => {
       op.content as orig_content,
       op.media_type as orig_media_type,
       op.media_url as orig_media_url,
+      op.thumb_url as orig_thumb_url,
+      op.feed_url as orig_feed_url,
       op.created_at as orig_created_at,
       op.privacy as orig_privacy,
       ou.email as orig_author_email,
