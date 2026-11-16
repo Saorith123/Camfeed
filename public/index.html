@@ -1423,5 +1423,19 @@
     // an invitation link (…/index.html?ref=<15-digit code>) is remembered until the new account is created
     (function () { try { var r = new URLSearchParams(location.search).get('ref'); if (/^\d{15}$/.test(r || '')) { localStorage.setItem('camfeed_ref', r); var ri = document.getElementById('regRef'); if (ri) ri.value = r; } } catch (e) {} })();
     </script>
+<script>
+/* the phone app opens this page with ?start=register (sign up) or ?start=reset (forgot password) */
+(function () {
+  try {
+    var st = new URLSearchParams(location.search).get('start');
+    if (!st) return;
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        try { if (st === 'register' && typeof showRegisterForm === 'function') showRegisterForm(); if (st === 'reset' && typeof showResetForm === 'function') showResetForm(); } catch (e) {}
+      }, 250);
+    });
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>

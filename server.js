@@ -783,6 +783,44 @@ async function backfillThumbs() {                                           // o
 }
 setTimeout(() => { backfillThumbs(); setInterval(backfillThumbs, 90 * 1000); }, 60 * 1000);
 
+// The saved picture / video shape ("9 / 16" ...) is only a guess made when the post was written. The thumbnail has the exact shape of the video,
+// so its real size is written back ("480 / 270"): the website and the phone app then draw the right box at once, before the video loads.
+function jpegSize(buf) {
+  if (!buf || buf.length < 12 || buf[0] !== 0xFF || buf[1] !== 0xD8) return null;
+  let i = 2;
+  while (i + 9 < buf.length) {
+    if (buf[i] !== 0xFF) { i++; continue; }
+    const m = buf[i + 1];
+    if (m === 0xD8 || m === 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
+    const len = buf.readUInt16BE(i + 2);
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+    i += 2 + len;
+  }
+  return null;
+}
+let aspectBusy = false;
+const aspectTried = new Set();
+async function backfillAspects() {
+  if (aspectBusy || typeof fetch !== 'function') return; aspectBusy = true;
+  try {
+    const rows = (await pool.query("SELECT id, thumb_url FROM posts WHERE thumb_url LIKE 'http%' AND shared_post_id IS NULL AND (media_aspect IS NULL OR media_aspect IN ('', '9 / 16', '16 / 9', '1 / 1')) ORDER BY id DESC LIMIT 60")).rows;
+    let done = 0;
+    for (const r of rows) {
+      if (done >= 6) break;
+      if (aspectTried.has(r.id)) continue;
+      aspectTried.add(r.id); done++;
+      try {
+        const resp = await fetch(r.thumb_url);
+        if (!resp.ok) continue;
+        const sz = jpegSize(Buffer.from(await resp.arrayBuffer()));
+        if (sz && sz.w > 0 && sz.h > 0) await pool.query('UPDATE posts SET media_aspect = $2 WHERE id = $1', [r.id, `${sz.w} / ${sz.h}`]);
+      } catch (e) { /* tried once; tried again after the next restart */ }
+    }
+  } catch (e) { console.error('[aspect] backfill:', e.message); } finally { aspectBusy = false; }
+}
+setTimeout(() => { backfillAspects(); setInterval(backfillAspects, 60 * 1000); }, 90 * 1000);
+
+
 app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
