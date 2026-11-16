@@ -889,6 +889,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     `;
     const thumbUrl = mediaType === 'video' ? await thumbFromBase64(thumbnailBase64) : null;
     const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl]);
+    if (mediaType === 'video' || String(mediaUrl || '').includes('"type":"video"')) setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 4000);   // a new video gets its small feed version first
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

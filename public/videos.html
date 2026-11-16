@@ -883,7 +883,7 @@
                         userReaction: video.user_reaction
                     };
                     const isOwn = currentUser.email === video.user_email;
-                    const cleanVideoSrc = video.media_url.split('#')[0];
+                    const cleanVideoSrc = (/^https:\/\//.test(video.feed_url || '') ? video.feed_url : video.media_url).split('#')[0];   // the small, fast version when there is one
 
                     return `
                         <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
