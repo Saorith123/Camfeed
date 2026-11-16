@@ -936,7 +936,7 @@
                                 <div class="reel-views-text" id="viewCount-${video.id}">${formatCompactNumber(video.views_count)} Views</div>
                             </div>
 
-                            <div class="reel-actions">
+                            <div class="reel-actions" onclick="event.stopPropagation()" onpointerup="event.stopPropagation()">
                                 <div class="action-slot">
                                     <div id="picker-${uid}" class="reaction-picker" onclick="event.stopPropagation()">
                                         <span class="emoji-option" onclick="selectReaction(event, ${video.id}, '${uid}', '👍')">👍</span>
