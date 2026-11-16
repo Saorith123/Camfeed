@@ -162,7 +162,8 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS ai_tags TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0,
       ADD COLUMN IF NOT EXISTS shared_post_id INTEGER DEFAULT NULL,
-      ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) DEFAULT ''
+      ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) DEFAULT '',
+      ADD COLUMN IF NOT EXISTS tagged_emails TEXT DEFAULT ''
     `);
 
     await client.query(`
@@ -855,6 +856,29 @@ setTimeout(() => { backfillFeedVideos(); setInterval(backfillFeedVideos, 15 * 10
 if (process.env.FEED_VIDEOS === 'on') console.log('[feedvideo] small feed videos are ON');
 
 
+// ---- Tag friends: a post / share can tag people you follow (max 20). Stored as a comma list in posts.tagged_emails. ----
+async function cleanTags(req, raw) {
+  try {
+    const me = String(req.authEmail || '').toLowerCase();
+    const list = (Array.isArray(raw) ? raw : []).map((x) => String((x && x.email) || x || '').trim().toLowerCase()).filter((x) => x && x !== me && x.includes('@'));
+    const uniq = [...new Set(list)].slice(0, 20);
+    if (!uniq.length) return [];
+    const r = await pool.query('SELECT following_email FROM follows WHERE follower_email = $1 AND LOWER(following_email) = ANY($2::text[])', [me, uniq]);
+    return r.rows.map((x) => String(x.following_email).toLowerCase());
+  } catch (e) { return []; }
+}
+async function notifyTagged(tags, by, postId, label) {
+  try {
+    const n = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [String(by).toLowerCase()]);
+    const nm = `${n.rows[0]?.first_name || ''} ${n.rows[0]?.last_name || ''}`.trim();
+    for (const t of tags) {
+      await pool.query('INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, $3, $4, $5, FALSE)', [t, by, postId, 'tag', `${nm} បាន Tag អ្នកក្នុង${label}`]);
+    }
+  } catch (e) { /* a failed notification never blocks the post */ }
+}
+const TAGGED_USERS_SQL = `(SELECT json_agg(json_build_object('email', tu.email, 'name', TRIM(COALESCE(tu.first_name,'') || ' ' || COALESCE(tu.last_name,''))))
+        FROM users tu WHERE COALESCE(p.tagged_emails,'') <> '' AND LOWER(tu.email) = ANY(string_to_array(p.tagged_emails, ','))) AS tagged_users`;
+
 app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ success: false, error: 'Request body is missing' });
@@ -880,15 +904,17 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   }
 
   try {
+    const tags = await cleanTags(req, req.body.tagged);
     const aiResult = await classifyPostWithGemini(content, mediaType, thumbnailBase64);
 
     const query = `
-      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, media_aspect, thumb_url) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+      INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, media_aspect, thumb_url, tagged_emails) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
       RETURNING *
     `;
     const thumbUrl = mediaType === 'video' ? await thumbFromBase64(thumbnailBase64) : null;
-    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl]);
+    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, tags.join(',')]);
+    if (tags.length) notifyTagged(tags, req.authEmail || email, result.rows[0].id, 'ការបង្ហោះ');
     if (mediaType === 'video' || String(mediaUrl || '').includes('"type":"video"')) setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 4000);   // a new video gets its small feed version first
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
@@ -903,6 +929,7 @@ app.post('/api/posts/share', async (req, res) => {
     if (!postId) return res.status(400).json({ success: false, error: 'Missing post.' });
     if (!(await visibility.guardPost(req, res, postId))) return;
     bumpInterest(req.authEmail, postId, 8);
+    const shareTags = await cleanTags(req, req.body.tagged);
     const orig = await pool.query(
       'SELECT p.*, u.first_name, u.last_name FROM posts p JOIN users u ON p.user_email = u.email WHERE p.id = $1',
       [postId]
@@ -916,11 +943,12 @@ app.post('/api/posts/share', async (req, res) => {
     const rootPostId = p.shared_post_id ? p.shared_post_id : p.id;
 
     const result = await pool.query(
-      `INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, shared_post_id) 
-       VALUES ($1, $2, 'shared', NULL, 'public', $3, $4, $5) 
+      `INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, shared_post_id, tagged_emails) 
+       VALUES ($1, $2, 'shared', NULL, 'public', $3, $4, $5, $6) 
        RETURNING *`,
-      [email, caption || '', p.ai_category || 'General', p.ai_tags || '', rootPostId]
+      [email, caption || '', p.ai_category || 'General', p.ai_tags || '', rootPostId, shareTags.join(',')]
     );
+    if (shareTags.length) notifyTagged(shareTags, req.authEmail || email, result.rows[0].id, 'ការចែករំលែក');
 
     const sharerRes = await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [email]);
     const sharerName = `${sharerRes.rows[0]?.first_name || ''} ${sharerRes.rows[0]?.last_name || ''}`.trim();
@@ -1121,6 +1149,7 @@ app.get('/api/posts', async (req, res) => {
         ls.user_reaction,
         ls.reaction_types,
         EXISTS (SELECT 1 FROM follows ff2 WHERE ff2.follower_email = $1 AND ff2.following_email = p.user_email) AS author_followed,
+        ${TAGGED_USERS_SQL},
         (SELECT string_agg(t.rt, ',' ORDER BY t.c DESC) FROM (SELECT reaction_type AS rt, COUNT(*) AS c FROM likes l2 WHERE l2.post_id = p.id GROUP BY reaction_type ORDER BY COUNT(*) DESC LIMIT 2) t) AS top_reactions,
         op.id AS orig_id,
         op.content AS orig_content,
@@ -1251,6 +1280,7 @@ app.get('/api/posts/:id', async (req, res) => {
       (SELECT reaction_type FROM likes l WHERE l.post_id = p.id AND l.user_email = $2) as user_reaction,
       (SELECT ARRAY_AGG(DISTINCT reaction_type) FROM likes l WHERE l.post_id = p.id) as reaction_types,
       (SELECT string_agg(t.rt, ',' ORDER BY t.c DESC) FROM (SELECT reaction_type AS rt, COUNT(*) AS c FROM likes l2 WHERE l2.post_id = p.id GROUP BY reaction_type ORDER BY COUNT(*) DESC LIMIT 2) t) as top_reactions,
+      ${TAGGED_USERS_SQL},
       op.id as orig_id,
       op.content as orig_content,
       op.media_type as orig_media_type,
@@ -1909,6 +1939,34 @@ app.get('/api/chat-conversations', async (req, res) => {
   }
 });
 
+// Search posts / videos by words (the native search screen). Only what the viewer is allowed to see: public posts and their own.
+app.get('/api/search-content', async (req, res) => {
+  try {
+    const me = req.authEmail || req.query.email || '';
+    const kw = String(req.query.keyword || '').trim().slice(0, 80);
+    if (kw.length < 1) return res.json({ success: true, posts: [] });
+    const type = req.query.type === 'videos' ? 'videos' : 'posts';
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 40);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const like = `%${kw.replace(/[\\%_]/g, '\\$&')}%`;
+    const vid = `(p.media_type = 'video' OR COALESCE(p.media_url,'') LIKE '%"type":"video"%')`;
+    const r = await pool.query(`
+      SELECT p.id, p.content, p.media_type, p.media_url, p.thumb_url, p.created_at, p.user_email, u.first_name, u.last_name, u.profile_pic,
+             (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)::int AS likes_count,
+             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id)::int AS comments_count
+      FROM posts p JOIN users u ON u.email = p.user_email
+      WHERE p.shared_post_id IS NULL AND COALESCE(u.is_banned, FALSE) = FALSE
+        AND (COALESCE(p.privacy,'public') = 'public' OR p.user_email = $1)
+        AND p.user_email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
+        AND (p.content ILIKE $2 OR COALESCE(p.ai_tags,'') ILIKE $2)
+        AND ${type === 'videos' ? vid : 'TRUE'}
+      ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`, [me, like, limit, offset]);
+    res.json({ success: true, posts: r.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/search-users', async (req, res) => {
   const { email, keyword } = req.query;
   try {
@@ -2287,7 +2345,7 @@ function bumpInterest(email, postId, delta) {
 // Settings page: privacy switches, blocked people, notification choices, log out everywhere, download my data
 // ---------------------------------------------------------------------------
 const PRIVACY_FIELDS = ['phone_privacy', 'email_privacy', 'location_privacy', 'birthdate_privacy', 'relationship_privacy', 'gender_privacy', 'work_privacy'];
-const NOTIFICATION_GROUPS = { reactions: ['reaction', 'comment_reaction'], comments: ['comment', 'reply'], follows: ['follow'], shares: ['share'] };
+const NOTIFICATION_GROUPS = { reactions: ['reaction', 'comment_reaction'], comments: ['comment', 'reply'], follows: ['follow'], shares: ['share'], tags: ['tag'], messages: [] };   // messages = the phone notification for new chat messages
 
 function readNotificationPrefs(raw) {                      // everything is ON unless the person switched it off
   let saved = {};

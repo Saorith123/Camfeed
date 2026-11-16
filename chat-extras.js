@@ -34,6 +34,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
         PRIMARY KEY (user_a, user_b))`);
       await pool.query(`CREATE TABLE IF NOT EXISTS chat_mutes (
         user_email VARCHAR(255) NOT NULL, peer_email VARCHAR(255) NOT NULL, PRIMARY KEY (user_email, peer_email))`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS chat_nicknames (
+        user_email VARCHAR(255) NOT NULL, peer_email VARCHAR(255) NOT NULL, nickname VARCHAR(60) NOT NULL, PRIMARY KEY (user_email, peer_email))`);
       await pool.query(`CREATE TABLE IF NOT EXISTS message_reactions (
         message_id INTEGER NOT NULL, user_email VARCHAR(255) NOT NULL, emoji VARCHAR(40) NOT NULL,
         PRIMARY KEY (message_id, user_email))`);
@@ -451,6 +453,28 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       for (const e of emails) await pool.query("INSERT INTO chat_group_members (group_id, user_email, role) VALUES ($1,$2,'member') ON CONFLICT DO NOTHING", [gid, e]);
       await systemNote(me, 'group:' + gid, `👥 ${await nameOf(me)} បានបង្កើតក្រុម «${name}»`);
       res.json({ success: true, group: { id: gid, name } });
+    } catch (e) { bad(res, 500, e.message); }
+  });
+
+  // nicknames: the name I call a friend by (only I see it)
+  app.get('/api/nicknames', async (req, res) => {
+    const me = norm(req.authEmail); if (!me) return bad(res, 401, 'auth');
+    try {
+      await ensureSchema();
+      const r = await pool.query('SELECT peer_email, nickname FROM chat_nicknames WHERE user_email = $1', [me]);
+      res.json({ success: true, nicknames: r.rows });
+    } catch (e) { bad(res, 500, e.message); }
+  });
+
+  app.post('/api/nicknames', async (req, res) => {
+    const me = norm(req.authEmail); const b = req.body || {};
+    const peer = norm(b.peer_email || b.peer); const nick = String(b.nickname || '').trim().slice(0, 40);
+    if (!me || !peer || peer === me) return bad(res, 400, 'bad request');
+    try {
+      await ensureSchema();
+      if (!nick) await pool.query('DELETE FROM chat_nicknames WHERE user_email = $1 AND peer_email = $2', [me, peer]);
+      else await pool.query('INSERT INTO chat_nicknames (user_email, peer_email, nickname) VALUES ($1,$2,$3) ON CONFLICT (user_email, peer_email) DO UPDATE SET nickname = EXCLUDED.nickname', [me, peer, nick]);
+      res.json({ success: true });
     } catch (e) { bad(res, 500, e.message); }
   });
 

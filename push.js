@@ -64,10 +64,23 @@ module.exports = function createPush({ app, pool }) {
   }
 
   // title/body: what the person sees. data: small facts for the app (strings only). high: ring now (calls).
-  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages' }) {
+  // what the person switched off in Settings > notifications (users.notification_prefs); everything is ON unless switched off
+  const GROUP_OF = { reaction: 'reactions', comment_reaction: 'reactions', comment: 'comments', reply: 'comments', follow: 'follows', share: 'shares', tag: 'tags' };
+  async function wants(email, channel, ntype) {
+    try {
+      const r = (await pool.query('SELECT notification_prefs FROM users WHERE LOWER(email) = LOWER($1)', [email])).rows[0];
+      const saved = JSON.parse((r && r.notification_prefs) || '{}') || {};
+      if (channel === 'messages') return saved.messages !== false;
+      if (channel === 'general') { const g = GROUP_OF[ntype]; return !(g && saved[g] === false); }
+    } catch (e) { /* unknown: send */ }
+    return true;
+  }
+
+  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '' }) {
     if (!enabled || !email) return 0;
     try {
       await ensureSchema();
+      if (!(await wants(email, channel, ntype))) return 0;
       const rows = (await pool.query('SELECT token FROM push_tokens WHERE LOWER(user_email) = LOWER($1)', [email])).rows;
       const strData = {}; for (const k of Object.keys(data)) strData[k] = String(data[k]);
       let ok = 0;
@@ -125,7 +138,7 @@ module.exports = function createPush({ app, pool }) {
       for (const n of ns) {
         lastNote = Math.max(lastNote, +n.id);
         if (!n.recipient_email || norm(n.recipient_email) === norm(n.sender_email)) continue;
-        sendToUser(n.recipient_email, { title: 'CamFeed', body: n.message || 'មានការជូនដំណឹងថ្មី', data: { type: 'notification', url: '/feed.html' }, channel: 'general' });
+        sendToUser(n.recipient_email, { title: 'CamFeed', body: n.message || 'មានការជូនដំណឹងថ្មី', data: { type: 'notification', url: '/feed.html' }, channel: 'general', ntype: n.type });
       }
     } catch (e) { console.error('[push] tick failed:', e.message); }
     finally { busy = false; }
