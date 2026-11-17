@@ -3936,8 +3936,29 @@ async function syncViewEarnings(email) {
   if (pay > 0) await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'revenue_share', 'Earnings from views', 'system')", [email, pay]);
   return pay;
 }
+// ---- Rules the Super Admin can change at any time in Admin > Monetization (saved in creator_settings as 'r:<NAME>').
+//      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
+const RULE_KEYS = {
+  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000]],
+  referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
+};
+let ruleOverride = {};
+async function loadRuleOverrides() {
+  try {
+    const r = await pool.query("SELECT key, value FROM creator_settings WHERE key LIKE 'r:%'");
+    const m = {}; r.rows.forEach((x) => { const v = Number(x.value); if (x.value !== '' && Number.isFinite(v) && v >= 0) m[x.key.slice(2)] = v; });
+    ruleOverride = m;
+  } catch (e) { /* the table may not exist yet: the Render values are used */ }
+}
+setTimeout(loadRuleOverrides, 4000);
+setInterval(loadRuleOverrides, 60000).unref();
+const ruleNum = (k, d) => {
+  if (Object.prototype.hasOwnProperty.call(ruleOverride, k)) return ruleOverride[k];
+  const raw = process.env[k]; const v = Number(raw);
+  return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d;
+};
 const creatorRules = () => {
-  const n = (k, d) => { const raw = process.env[k]; const v = Number(raw); return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d; };
+  const n = ruleNum;
   return { followers: n('CREATOR_MIN_FOLLOWERS', 1000), views: n('CREATOR_MIN_VIEWS', 10000), ageDays: n('CREATOR_MIN_ACCOUNT_DAYS', 30), posts: n('CREATOR_MIN_POSTS', 5), minWithdrawCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100) };
 };
 async function creatorStats(email) {
@@ -3958,7 +3979,7 @@ async function walletCents(email) {
 // ---- Invitation reward: $0.20 for the person who invited a friend, paid when the friend has used CamFeed on 3 different days AND posted 3 public photos / videos.
 //      (6 steps; the progress is shown step by step, the money is added to the wallet only when all steps are done)
 const referralRules = () => {
-  const n = (k, d) => { const raw = process.env[k]; const v = Number(raw); return raw !== undefined && raw !== '' && Number.isFinite(v) && v >= 0 ? v : d; };
+  const n = ruleNum;
   return { rewardCents: Math.round(n('REFERRAL_REWARD_USD', 0.2) * 100), days: n('REFERRAL_ACTIVE_DAYS', 3), posts: n('REFERRAL_POSTS', 3), windowDays: n('REFERRAL_WINDOW_DAYS', 3), maxPerMonth: n('REFERRAL_MAX_PER_MONTH', 50) };
 };
 const phnomPenhDay = (ms) => new Date((ms === undefined ? Date.now() : ms) + 7 * 3600 * 1000).toISOString().slice(0, 10);   // the day in Cambodia (UTC+7)
@@ -4331,6 +4352,35 @@ app.post('/api/admin/creator-rate', async (req, res) => {
     const t = (await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE kind = 'revenue_share'")).rows[0];
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, rpm: cfg.rpm, dailyCap: cfg.dailyCap, paidTotal: (Number(t.n) || 0) / 100 });
   } catch (err) { console.error('[admin] rate error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+// The rules of the Creator Program (who may ask to earn) and — SEPARATELY — the rules of the invitation reward.
+// Any admin can see them; a Super Admin can change them at any time (no Render change, no restart needed).
+app.post('/api/admin/monetization-rules', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const group = b.group === 'referral' ? 'referral' : 'creator';
+    if (b.set && typeof b.set === 'object') {
+      if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change the rules.' });
+      const changed = [];
+      for (const [k, , lo, hi] of RULE_KEYS[group]) {
+        if (!Object.prototype.hasOwnProperty.call(b.set, k)) continue;
+        const raw = String(b.set[k] === null || b.set[k] === undefined ? '' : b.set[k]).trim();
+        if (raw === '') { await pool.query('DELETE FROM creator_settings WHERE key = $1', ['r:' + k]); changed.push(k + '=default'); continue; }
+        const v = Number(raw);
+        if (!Number.isFinite(v) || v < lo || v > hi) return res.status(400).json({ success: false, error: k + ' must be a number from ' + lo + ' to ' + hi + '.' });
+        await pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['r:' + k, String(v)]);
+        changed.push(k + '=' + v);
+      }
+      await loadRuleOverrides();
+      if (changed.length) audit(a.adminEmail, group === 'referral' ? 'referral-rules' : 'creator-rules', 'settings', changed.join(', ').slice(0, 300));
+    }
+    const cur = group === 'referral' ? referralRules() : creatorRules();
+    const val = (field) => field === 'minWithdraw' ? cur.minWithdrawCents / 100 : field === 'reward' ? cur.rewardCents / 100 : cur[field];
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, group,
+      rules: RULE_KEYS[group].map(([k, field, lo, hi]) => ({ key: k, field, value: val(field), min: lo, max: hi, saved: Object.prototype.hasOwnProperty.call(ruleOverride, k) })) });
+  } catch (err) { console.error('[admin] rules error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
 app.post('/api/admin/referrals', async (req, res) => {

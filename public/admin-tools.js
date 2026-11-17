@@ -311,11 +311,11 @@
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['apps', '⭐ Applications'], ['ref', '🎁 Invitations'], ['wd', '💵 Withdrawals'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['apps', '⭐ Applications'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Invitations'], ['wd', '💵 Withdrawals'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'apps') monApps(body); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
+    if (mon.view === 'apps') monApps(body); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
   }
   function monApps(body) {
     body.appendChild(empty('Loading…'));
@@ -323,7 +323,7 @@
       body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
       d.requests = d.requests || []; var pending = d.requests.filter(function (r) { return r.status === 'pending'; }).length; var sm = document.getElementById('statMonetize'); if (sm) sm.textContent = String(pending);
       var c = d.criteria || { followers: 0, views: 0, posts: 0, ageDays: 0 };
-      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Requirements: ' + c.followers + ' followers · ' + c.views + ' views · ' + c.posts + ' posts · ' + c.ageDays + ' days old (set with CREATOR_MIN_* in Render). You may approve anyone: open Users → Manage → "Make Creator".' }));
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Requirements: ' + c.followers + ' followers · ' + c.views + ' views · ' + c.posts + ' posts · ' + c.ageDays + ' days old (change them in ⚙️ Conditions). You may approve anyone: open Users → Manage → "Make Creator".' }));
       if (!d.requests.length) { body.appendChild(empty('No application yet.')); return; }
       body.appendChild(table(['Creator', 'Followers', 'Views', 'Posts', 'Age', 'Wallet', 'Status', 'Decision', ''], d.requests.map(function (r) {
         function decide(status, askNote) {
@@ -342,6 +342,8 @@
     });
   }
   function monReferrals(body) {
+    var rulesBox = el('div'); body.appendChild(rulesBox); monRules(rulesBox, 'referral');
+    var listBox = el('div'); body.appendChild(listBox); body = listBox;
     body.appendChild(empty('Loading…'));
     adm('/api/admin/referrals').then(function (d) {
       body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
@@ -360,6 +362,37 @@
           el('td', { text: r.days_done + ' / ' + rl.days }), el('td', { text: r.posts_done + ' / ' + rl.posts }), el('td', {}, [statusBadge(r.status === 'rewarded' ? 'paid' : r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: r.note || '' }), acts]);
       })));
     });
+  }
+  // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
+  var RULE_LABEL = {
+    CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: 'Smallest withdrawal ($)',
+    REFERRAL_REWARD_USD: 'Reward per invited friend ($)', REFERRAL_ACTIVE_DAYS: 'Friend must use CamFeed on … different days', REFERRAL_POSTS: 'Friend must post … public photos / videos', REFERRAL_WINDOW_DAYS: 'Within … days after signing up', REFERRAL_MAX_PER_MONTH: 'Paid automatically per inviter per month (more = waits for you)'
+  };
+  function monRules(body, group) {
+    var box = el('div', { style: 'max-width:560px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' }, [empty('Loading…')]);
+    body.appendChild(box);
+    function draw(d) {
+      box.textContent = '';
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: group === 'referral' ? '🎁 Invitation reward — rules' : '⚙️ Monetization — conditions to ask for earning' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: group === 'referral'
+        ? 'Only for inviting friends. It is separate from the monetization conditions: anybody can invite and earn this reward.'
+        : 'What a person needs before the "Apply" button works. Inviting friends is NOT part of this (it has its own rules in 🎁 Invitations). You can still approve anyone by hand.' }));
+      if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
+      var inputs = {}, out = el('div', { style: 'display:none' });
+      d.rules.forEach(function (r) {
+        var i = el('input', { class: 'at-in', type: 'number', step: 'any', min: String(r.min), max: String(r.max), value: String(r.value) }); inputs[r.key] = i; if (!d.isSuperAdmin) i.disabled = true;
+        box.appendChild(el('div', { class: 'at-lbl', text: (RULE_LABEL[r.key] || r.key) + (r.saved ? '' : '  (default / Render)') })); box.appendChild(i);
+      });
+      if (d.isSuperAdmin) {
+        var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:12px', text: 'Save', onclick: function () {
+          var set = {}; Object.keys(inputs).forEach(function (k) { set[k] = inputs[k].value; });
+          btn.disabled = true; adm('/api/admin/monetization-rules', { group: group, set: set }).then(function (x) { btn.disabled = false; if (x.success) { draw(x); msg(box.querySelector('.rules-out') || out, true, '✅ Saved — used from now on'); } else msg(out, false, '❌ ' + (x.error || 'Failed')); });
+        } });
+        box.appendChild(btn);
+      } else box.appendChild(el('div', { style: 'margin-top:10px;font-size:13px;color:#b45309', text: 'Only a Super Admin can change these.' }));
+      out.className = 'rules-out'; box.appendChild(out);
+    }
+    adm('/api/admin/monetization-rules', { group: group }).then(draw);
   }
   function monRate(body) {
     body.appendChild(empty('Loading…'));
