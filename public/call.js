@@ -129,18 +129,28 @@
       try {
         S.ac = S.ac || new (window.AudioContext || window.webkitAudioContext)();
         if (S.ac.state === 'suspended') S.ac.resume();
-        var freqs = incoming ? [880, 660] : [440, 480], vol = incoming ? 0.22 : 0.1;
+        if (incoming === 'ringback') {                       // the other phone is ringing: a long two-tone ring (440 + 480 Hz, 1.2 s)
+          [440, 480].forEach(function (fq) {
+            var o = S.ac.createOscillator(), g = S.ac.createGain();
+            o.frequency.value = fq; o.type = 'sine'; o.connect(g); g.connect(S.ac.destination);
+            var t = S.ac.currentTime;
+            g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.07, t + 0.05); g.gain.setValueAtTime(0.07, t + 1.15); g.gain.linearRampToValueAtTime(0, t + 1.2);
+            o.start(t); o.stop(t + 1.25);
+          });
+        } else {
+        var freqs = incoming ? [880, 660] : [440, 440], vol = incoming ? 0.22 : 0.08;   // calling (not reached yet): two short soft beeps
         freqs.forEach(function (fq, i) {
           var o = S.ac.createOscillator(), g = S.ac.createGain();
           o.frequency.value = fq; o.type = 'sine'; o.connect(g); g.connect(S.ac.destination);
-          var t = S.ac.currentTime + i * 0.28;
-          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.03); g.gain.linearRampToValueAtTime(0, t + 0.24);
+          var t = S.ac.currentTime + i * (incoming ? 0.28 : 0.22);
+          g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.03); g.gain.linearRampToValueAtTime(0, incoming ? t + 0.24 : t + 0.14);
           o.start(t); o.stop(t + 0.26);
         });
+        }
       } catch (e) {}
-      if (incoming) { try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} }
+      if (incoming === true) { try { navigator.vibrate && navigator.vibrate([400, 200, 400]); } catch (e) {} }
     }
-    beep(); S.ring = setInterval(beep, incoming ? 1800 : 3000);
+    beep(); S.ring = setInterval(beep, incoming === true ? 1800 : (incoming === 'ringback' ? 4000 : 2000));
   }
 
   // ---------- face smoothing (soft-focus + brightness, runs on the phone before sending) ----------
@@ -444,6 +454,7 @@
         }).catch(function (e) { hangup(true, 'ការតភ្ជាប់បរាជ័យ sdp:' + ((e && (e.name || e.message)) || '')); });
       }
       if (j.ice && j.ice.length) { addRemoteIce(j.ice); c.icIdx = j.icTotal; }
+      if (j.status === 'ringing' && c.role === 'caller' && j.rang && !c.rangShown) { c.rangShown = true; setStatus('កំពុងរោទ៍…'); startTone('ringback'); }   // Calling… -> Ringing…
       if (j.status === 'accepted') applyPeerCam(j.peerCam === false);
       if (j.status === 'accepted' && S.answerSet) { try { handleVideoNeg(c, j); } catch (e) { console.error('[call] video', e); } }
       if (j.status !== 'ringing' && j.status !== 'accepted') {

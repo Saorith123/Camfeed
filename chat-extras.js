@@ -313,6 +313,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const me = norm(req.authEmail); if (!me) return res.json({ success: true });
     for (const c of calls.values()) {
       if (c.callee === me && c.status === 'ringing') {
+        c.rang = true;                                        // the call reached the other person's screen: the caller now hears "ringing"
         const u = await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE LOWER(email)=LOWER($1)', [c.caller]).catch(() => ({ rows: [] }));
         const p = u.rows[0] || {};
         return res.json({ success: true, incoming: { id: c.id, kind: c.kind, from_email: c.caller, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), pic: p.profile_pic || '', offer: c.offer } });
@@ -332,9 +333,16 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     if (c.negOffer && c.negBy !== me) neg.offer = c.negOffer;            // the other side wants to renegotiate (adds video)
     if (c.negAns && c.negBy === me) neg.answer = c.negAns;
     const peerCam = c.cam && c.cam[other] !== undefined ? c.cam[other] : null;
-    res.json({ success: true, status: c.status, why: c.why || '', kind: c.kind, peerCam,
+    res.json({ success: true, status: c.status, why: c.why || '', kind: c.kind, peerCam, rang: !!c.rang,
       v: c.v ? { by: c.v.by === c.caller ? 'caller' : 'callee', mine: c.v.by === me, state: c.v.state } : null, neg: Object.keys(neg).length ? Object.assign(neg, { seq: c.negSeq || 0 }) : null, answer: role === 'caller' ? c.answer : null,
       ice: c.ice[other].slice(since), icTotal: c.ice[other].length, answeredAt: c.answeredAt });
+  });
+
+  // the phone of the person being called is ringing now (sent by the app when the call screen appears, even with the app closed)
+  app.post('/api/calls/:callId/ringing', (req, res) => {
+    const me = norm(req.authEmail); const c = calls.get(req.params.callId);
+    if (c && c.callee === me && c.status === 'ringing') c.rang = true;
+    res.json({ success: true });
   });
 
   app.post('/api/calls/:callId/answer', (req, res) => {
