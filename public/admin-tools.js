@@ -206,9 +206,9 @@
         var to = u.role === 'admin' ? 'user' : 'admin'; if (!confirm('Change the role of ' + nm(u) + ' to ' + to + '?')) return;
         adm('/api/admin/set-role', { targetEmail: u.email, newRole: to }).then(function (r) { if (r.success) { searchUsers(true); openUser(u.email); } else msg(out, false, '❌ ' + (r.error || 'Failed')); });
       }, sup && u.role !== 'super_admin' && !self);
-      act('⭐ Make Creator', 'btn-green', function () {
-        if (!confirm('Put ' + nm(u) + ' in the Creator Program (no need to meet the requirements)?')) return;
-        adm('/api/admin/monetization-action', { targetEmail: u.email, status: 'approved', note: 'Invited by an admin' }).then(function (r) { msg(out, r.success, r.success ? '✅ ' + nm(u) + ' is now a Creator' : '❌ ' + (r.error || 'Failed')); });
+      act('✉️ Invite to earn', 'btn-green', function () {
+        if (!confirm('Invite ' + nm(u) + ' to earn money (no need to meet the requirements)?')) return;
+        adm('/api/admin/monetization-action', { targetEmail: u.email, status: 'invite', note: 'Invited by CamFeed' }).then(function (r) { msg(out, r.success, r.success ? (r.status === 'invited' ? '✅ Invitation sent to ' + nm(u) + ' (waiting for them to accept)' : '✅ ' + nm(u) + ' can earn now') : '❌ ' + (r.error || 'Failed')); });
       }, !self);
       act('💵 Wallet bonus', 'btn-gray', function () {
         var a = prompt('Amount in $ to add to the wallet of ' + nm(u) + ' (negative = take back):', '5'); if (a === null || a === '') return; var why = prompt('Reason (the creator sees it):', 'Bonus'); if (!why) return;
@@ -305,26 +305,60 @@
 
 
   // ---------- Monetization (Creator Program, wallets, withdrawals) ----------
-  var mon = { view: 'apps' };
+  var mon = { view: 'inv' };
   function money(n) { return '$' + Number(n || 0).toFixed(2); }
   function statusBadge(s) { return el('span', { class: 'badge ' + (s === 'approved' || s === 'paid' ? 'badge-resolved' : s === 'pending' ? 'badge-pending' : 'badge-banned'), text: s }); }
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['apps', '⭐ Applications'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Invitations'], ['wd', '💵 Withdrawals'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'apps') monApps(body); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
+    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
   }
-  function monApps(body) {
+  // the settings of one way to earn (its own price, daily limit, switch and text)
+  function monPath(box, src) {
+    box.appendChild(empty('Loading…'));
+    function draw(d) {
+      box.textContent = '';
+      var wrap = el('div', { style: 'max-width:560px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' });
+      box.appendChild(wrap);
+      wrap.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: src === 'invited' ? '✉️ Invited by CamFeed — settings' : '📋 Earning by requirements — settings' }));
+      wrap.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: src === 'invited' ? 'People YOU choose (Users → Manage → "Invite to earn"). No requirements.' : 'People who meet the requirements (⚙️ Conditions) and apply; you approve or refuse.' }));
+      if (!d.success) { wrap.appendChild(empty(d.error || 'Could not load.')); return; }
+      var dis = !d.isSuperAdmin, out = el('div', { style: 'display:none' });
+      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: d.rpm, placeholder: 'empty = common ($' + d.commonRpm + ')' });
+      var cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: d.dailyCap, placeholder: 'empty = common ($' + d.commonCap + ')' });
+      var sw = el('input', { type: 'checkbox' }); sw.checked = src === 'invited' ? d.mustAccept : d.open;
+      var tx = el('textarea', { class: 'at-in', rows: '3', placeholder: 'Text people see (empty = the standard text)' }); tx.value = d.text || '';
+      [rpm, cap, sw, tx].forEach(function (x) { x.disabled = dis; });
+      wrap.appendChild(el('div', { class: 'at-lbl', text: 'Price per 1,000 views ($) — now: $' + d.effRpm }));  wrap.appendChild(rpm);
+      wrap.appendChild(el('div', { class: 'at-lbl', text: 'Daily limit per creator ($) — now: $' + d.effCap })); wrap.appendChild(cap);
+      wrap.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px' }, [sw, el('span', { text: src === 'invited' ? 'The person must ACCEPT the invitation first' : 'Applying is OPEN (off = the requirements card is hidden)' })]));
+      wrap.appendChild(el('div', { class: 'at-lbl', text: 'Text shown to people' })); wrap.appendChild(tx);
+      if (!dis) {
+        var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Save', onclick: function () {
+          var body2 = { source: src, set: true, rpm: rpm.value, dailyCap: cap.value, text: tx.value };
+          if (src === 'invited') body2.mustAccept = sw.checked; else body2.open = sw.checked;
+          btn.disabled = true; adm('/api/admin/creator-path', body2).then(function (x) { btn.disabled = false; if (x.success) { draw(x); } else msg(out, false, '❌ ' + (x.error || 'Failed')); });
+        } });
+        wrap.appendChild(btn);
+      } else wrap.appendChild(el('div', { style: 'margin-top:10px;font-size:13px;color:#b45309', text: 'Only a Super Admin can change these.' }));
+      wrap.appendChild(out);
+    }
+    adm('/api/admin/creator-path', { source: src }).then(draw);
+  }
+  function monApps(body, src) {
+    var setBox = el('div'); body.appendChild(setBox); monPath(setBox, src);
+    var listBox = el('div'); body.appendChild(listBox); body = listBox;
     body.appendChild(empty('Loading…'));
     adm('/api/admin/monetization-requests').then(function (d) {
       body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
-      d.requests = d.requests || []; var pending = d.requests.filter(function (r) { return r.status === 'pending'; }).length; var sm = document.getElementById('statMonetize'); if (sm) sm.textContent = String(pending);
+      d.requests = (d.requests || []).filter(function (r) { return (r.source || 'applied') === src; }); var pending = d.requests.filter(function (r) { return r.status === 'pending'; }).length; var sm = document.getElementById('statMonetize'); if (sm) sm.textContent = String(pending);
       var c = d.criteria || { followers: 0, views: 0, posts: 0, ageDays: 0 };
-      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Requirements: ' + c.followers + ' followers · ' + c.views + ' views · ' + c.posts + ' posts · ' + c.ageDays + ' days old (change them in ⚙️ Conditions). You may approve anyone: open Users → Manage → "Make Creator".' }));
-      if (!d.requests.length) { body.appendChild(empty('No application yet.')); return; }
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Requirements: ' + c.followers + ' followers · ' + c.views + ' views · ' + c.posts + ' posts · ' + c.ageDays + ' days old (change them in ⚙️ Conditions). To let someone earn WITHOUT the requirements, use ✉️ Invited by CamFeed.' }));
+      if (!d.requests.length) { body.appendChild(empty(src === 'invited' ? 'Nobody invited yet. Open Users → Manage → "✉️ Invite to earn".' : 'No application yet.')); return; }
       body.appendChild(table(['Creator', 'Followers', 'Views', 'Posts', 'Age', 'Wallet', 'Status', 'Decision', ''], d.requests.map(function (r) {
         function decide(status, askNote) {
           var note = ''; if (askNote) { note = prompt('Reason (shown to the creator):', '') || ''; } else if (!confirm((status === 'approved' ? 'Approve ' : 'Reset ') + nm(r) + '?')) return;
@@ -335,6 +369,11 @@
             ? el('button', { class: 'btn-sm btn-green', text: '▶ Resume earning', onclick: function () { if (!confirm('Let ' + nm(r) + ' earn again? Views made while stopped will not be paid.')) return; adm('/api/admin/creator-earning', { targetEmail: r.user_email, suspend: false }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); }); } })
             : el('button', { class: 'btn-sm btn-red', text: '⏸ Stop earning', onclick: function () { var why = prompt('Why? (the creator sees this, e.g. "Views do not look real")', ''); if (!why) return; adm('/api/admin/creator-earning', { targetEmail: r.user_email, suspend: true, reason: why }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); }); } })] : []));
         if (r.earn_suspended) acts.appendChild(el('div', { style: 'font-size:12px;color:#9b1229;margin-top:4px', text: '⏸ Earning stopped: ' + (r.suspend_reason || '') }));
+        if (r.status === 'invited') acts.appendChild(el('div', { style: 'font-size:12px;color:#b06000;margin-top:4px', text: '✉️ Waiting for the person to accept' }));
+        acts.appendChild(el('button', { class: 'btn-sm btn-gray', text: src === 'invited' ? '→ Move to "requirements"' : '→ Move to "invited"', onclick: function () {
+          if (!confirm('Move ' + nm(r) + ' to the other way to earn? Its price / daily limit is used from now on.')) return;
+          adm('/api/admin/monetization-action', { targetEmail: r.user_email, status: 'move', source: src === 'invited' ? 'applied' : 'invited' }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+        } }));
         function stat(have, need) { return el('td', { text: Number(have).toLocaleString() + ' / ' + Number(need).toLocaleString(), style: have >= need ? 'color:#176f35;font-weight:700' : '' }); }
         return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(r) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: r.public_id || '' }), r.message ? el('div', { style: 'font-size:12px;margin-top:4px;max-width:240px;white-space:normal', text: '“' + r.message + '”' }) : el('span')]), stat(r.followers_count, c.followers), stat(r.total_views, c.views), stat(r.posts_count, c.posts), stat(r.age_days, c.ageDays), el('td', { text: money(r.balance) }),
           el('td', {}, [statusBadge(r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: (r.decided_by ? 'by ' + r.decided_by + ' · ' : '') + (r.note || '') }), acts]);

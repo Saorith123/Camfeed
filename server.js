@@ -374,6 +374,9 @@ pool.connect(async (err, client, release) => {
     await pool.query("CREATE TABLE IF NOT EXISTS live_requests (id SERIAL PRIMARY KEY, user_email TEXT NOT NULL UNIQUE, status VARCHAR(10) NOT NULL DEFAULT 'pending', purpose VARCHAR(20), message TEXT, link TEXT, channel_name TEXT, requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT, blocked BOOLEAN NOT NULL DEFAULT FALSE)").catch(() => {});
     await pool.query('ALTER TABLE live_streams ADD COLUMN IF NOT EXISTS display_name TEXT').catch(() => {});
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS live_blocked BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
+    // two separate ways to earn: 'invited' (an admin invites the person, no requirements) and 'applied' (the person meets the requirements and applies)
+    await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS source VARCHAR(10)').catch(() => {});
+    await pool.query("UPDATE creator_applications SET source = CASE WHEN status = 'approved' THEN 'invited' ELSE 'applied' END WHERE source IS NULL").catch(() => {});
     await pool.query("CREATE TABLE IF NOT EXISTS sounds (id SERIAL PRIMARY KEY, title TEXT NOT NULL, artist TEXT, audio_url TEXT NOT NULL, cover_url TEXT, duration INTEGER NOT NULL DEFAULT 30, active BOOLEAN NOT NULL DEFAULT TRUE, uses INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())").catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS saved_sounds (user_email TEXT NOT NULL, sound_id INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, sound_id))').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
@@ -3934,15 +3937,27 @@ const usdText = (cents) => '$' + (cents / 100).toFixed(2);
 const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9 \-]{2,58}[A-Za-z0-9]$/;
 // ---- Pay per view: an admin-invited (approved) creator earns a small amount for each view that comes AFTER the approval / the day the rate was switched on.
 //      The Super Admin sets the price ($ per 1,000 views) and a daily cap per creator; 0 = switched off.
-async function earnSettings() {
-  const r = await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('rpm_usd', 'daily_cap_usd')");
-  const m = {}; r.rows.forEach((x) => { m[x.key] = Number(x.value); });
+async function earnSettings(source) {
+  const r = await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('rpm_usd', 'daily_cap_usd', 'rpm_usd_invited', 'daily_cap_usd_invited', 'rpm_usd_applied', 'daily_cap_usd_applied')");
+  const m = {}; r.rows.forEach((x) => { if (x.value !== '' && x.value !== null) m[x.key] = Number(x.value); });
   const pick = (k, env, d) => (Number.isFinite(m[k]) && m[k] >= 0 ? m[k] : (Number.isFinite(Number(process.env[env])) && process.env[env] !== undefined && process.env[env] !== '' ? Number(process.env[env]) : d));
-  return { rpm: pick('rpm_usd', 'CREATOR_RPM_USD', 0), dailyCap: pick('daily_cap_usd', 'CREATOR_DAILY_CAP_USD', 1) };
+  const base = { rpm: pick('rpm_usd', 'CREATOR_RPM_USD', 0), dailyCap: pick('daily_cap_usd', 'CREATOR_DAILY_CAP_USD', 1) };
+  // each way to earn may have its own price / daily limit (Admin > Monetization); empty = the common one
+  if (source === 'invited' || source === 'applied') {
+    const r2 = m['rpm_usd_' + source], c2 = m['daily_cap_usd_' + source];
+    return { rpm: Number.isFinite(r2) && r2 >= 0 ? r2 : base.rpm, dailyCap: Number.isFinite(c2) && c2 >= 0 ? c2 : base.dailyCap };
+  }
+  return base;
+}
+// the switches and texts of the two ways (Admin > Monetization > each tab)
+async function pathSettings() {
+  const r = await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('invite_accept', 'applied_open', 'text_invited', 'text_applied')").catch(() => ({ rows: [] }));
+  const m = {}; r.rows.forEach((x) => { m[x.key] = x.value; });
+  return { inviteAccept: m.invite_accept === '1', appliedOpen: m.applied_open !== '0', textInvited: m.text_invited || '', textApplied: m.text_applied || '' };
 }
 async function syncViewEarnings(email) {
-  const cfg = await earnSettings(); if (!(cfg.rpm > 0)) return 0;
-  const ok = (await pool.query("SELECT decided_at FROM creator_applications WHERE user_email = $1 AND status = 'approved' AND earn_suspended = FALSE", [email])).rows[0]; if (!ok) return 0;
+  const ok = (await pool.query("SELECT decided_at, source FROM creator_applications WHERE user_email = $1 AND status = 'approved' AND earn_suspended = FALSE", [email])).rows[0]; if (!ok) return 0;
+  const cfg = await earnSettings(ok.source); if (!(cfg.rpm > 0)) return 0;
   const st = (await pool.query("SELECT value FROM creator_settings WHERE key = 'earn_start'")).rows[0];
   const since = Math.max(ok.decided_at ? new Date(ok.decided_at).getTime() : 0, st ? Number(st.value) || 0 : 0);   // posts made after this moment are paid from their very first view
   const posts = (await pool.query("SELECT p.id, p.created_at, COALESCE(p.views_count, 0) AS views, e.views_seen FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
@@ -4082,7 +4097,7 @@ app.get('/api/monetization/status', async (req, res) => {
     await syncViewEarnings(email).catch((e) => console.error('[earn] sync error:', e.message));
     const [st, cents, app_, refs, me, wd, led] = await Promise.all([
       creatorStats(email), walletCents(email),
-      pool.query('SELECT status, decided_at, note, earn_suspended, suspend_reason FROM creator_applications WHERE user_email = $1', [email]),
+      pool.query('SELECT status, decided_at, note, earn_suspended, suspend_reason, source FROM creator_applications WHERE user_email = $1', [email]),
       pool.query('SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1', [email]),
       pool.query('SELECT public_id FROM users WHERE email = $1', [email]),
       pool.query('SELECT id, amount_cents, method, account_name, account_number, status, created_at, decided_at, note, (payout_code IS NOT NULL) AS has_code, code_issued_at, code_viewed_at, reissue_requested_at, reissue_count FROM withdrawal_requests WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 20', [email]),
@@ -4099,7 +4114,8 @@ app.get('/api/monetization/status', async (req, res) => {
       referrals: invited.map((x) => { const done = Math.min(steps, (x.days_done || 0) + (x.posts_done || 0)); return { name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), status: x.status, daysDone: x.days_done || 0, postsDone: x.posts_done || 0, joined: x.created_at, note: x.status === 'review' || x.status === 'rejected' ? '' : '', progress: x.status === 'rewarded' ? rr.rewardCents / 100 : (x.status === 'progress' ? Math.round(rr.rewardCents * done / steps) / 100 : 0), reward: rr.rewardCents / 100 }; }),
       followersCount: st.followers, totalViews: st.views, postsCount: st.posts, accountAgeDays: st.ageDays,
       earningSuspended: !!(a && a.earn_suspended), suspendReason: a && a.earn_suspended ? (a.suspend_reason || '') : '', applicationStatus: a ? a.status : null, applicationNote: a && a.status === 'rejected' ? (a.note || '') : '', eligible: meetsRules(st, rules),
-      criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100, payPerView: (await earnSettings()).rpm,
+      criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100, payPerView: (await earnSettings(a && a.source)).rpm,
+      creatorSource: a ? (a.source || 'applied') : null, paths: await pathSettings(),
       withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, accountName: w.account_name || '', accountNumber: w.account_number || '', status: w.status, created_at: w.created_at, decided_at: w.decided_at, note: w.note || '', hasCode: !!w.has_code, usesCode: CODE_METHODS.includes(w.method), codeIssuedAt: w.code_issued_at, codeSeen: !!w.code_viewed_at, reissuePending: !!w.reissue_requested_at, reissueLeft: Math.max(0, 3 - (w.reissue_count || 0)) })),
       ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at })) });
   } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -4117,10 +4133,51 @@ app.post('/api/monetization/apply', async (req, res) => {
     if (!meetsRules(st, rules)) return res.status(400).json({ success: false, error: 'You do not meet the requirements yet.', stats: st, criteria: rules });
     const message = String((req.body || {}).message || '').replace(/\s+/g, ' ').trim().slice(0, 500);
     if (message.length < 10) return res.status(400).json({ success: false, error: 'Please write a short request (at least 10 letters) so the admin knows you.' });
-    await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note, message) VALUES ($1, 'pending', NOW(), NULL, NULL, NULL, $2)
-      ON CONFLICT (user_email) DO UPDATE SET status = 'pending', requested_at = NOW(), decided_at = NULL, decided_by = NULL, note = NULL, message = $2`, [email, message]);
+    if (!(await pathSettings()).appliedOpen) return res.status(403).json({ success: false, error: 'Applying is closed for now.' });
+    if (cur && cur.status === 'invited') return res.status(409).json({ success: false, error: 'CamFeed has already invited you: please answer the invitation.' });
+    await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note, message, source) VALUES ($1, 'pending', NOW(), NULL, NULL, NULL, $2, 'applied')
+      ON CONFLICT (user_email) DO UPDATE SET status = 'pending', requested_at = NOW(), decided_at = NULL, decided_by = NULL, note = NULL, message = $2, source = 'applied'`, [email, message]);
     res.json({ success: true });
   } catch (err) { console.error('[monetization] apply error:', err.message); res.status(500).json({ success: false, error: 'Could not send your application.' }); }
+});
+
+// the person answers CamFeed's invitation to earn
+app.post('/api/monetization/invite-reply', async (req, res) => {
+  try {
+    const email = req.authEmail, accept = (req.body || {}).accept === true;
+    const cur = (await pool.query("SELECT status FROM creator_applications WHERE user_email = $1 AND status = 'invited'", [email])).rows[0];
+    if (!cur) return res.status(404).json({ success: false, error: 'There is no invitation.' });
+    if (accept) await pool.query("UPDATE creator_applications SET status = 'approved', decided_at = NOW() WHERE user_email = $1", [email]);
+    else await pool.query("DELETE FROM creator_applications WHERE user_email = $1 AND status = 'invited'", [email]);
+    res.json({ success: true });
+  } catch (err) { console.error('[monetization] invite reply error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+// Admin: the settings of each way to earn ('invited' / 'applied'): price per 1,000 views, daily limit, switches, the text people see
+app.post('/api/admin/creator-path', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const src = b.source === 'invited' ? 'invited' : 'applied';
+    if (b.set) {
+      if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+      const put = (k, v) => (v === '' || v === null || v === undefined) ? pool.query('DELETE FROM creator_settings WHERE key = $1', [k]) : pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', [k, String(v)]);
+      const num = (v, hi) => { if (v === '' || v === null || v === undefined) return ''; const n = Number(v); if (!Number.isFinite(n) || n < 0 || n > hi) throw new Error('bad number'); return n; };
+      let rpm, cap;
+      try { rpm = num(b.rpm, 50); cap = num(b.dailyCap, 100); } catch (e) { return res.status(400).json({ success: false, error: 'Price must be $0–$50 and the daily limit $0–$100 (empty = the common value).' }); }
+      await put('rpm_usd_' + src, rpm); await put('daily_cap_usd_' + src, cap);
+      if (rpm !== '' && rpm > 0 && !(await pool.query("SELECT 1 FROM creator_settings WHERE key = 'earn_start'")).rows.length) await pool.query("INSERT INTO creator_settings (key, value) VALUES ('earn_start', $1)", [String(Date.now())]);
+      if (src === 'invited' && b.mustAccept !== undefined) await put('invite_accept', b.mustAccept ? '1' : '0');
+      if (src === 'applied' && b.open !== undefined) await put('applied_open', b.open ? '1' : '0');
+      if (b.text !== undefined) await put('text_' + src, String(b.text || '').slice(0, 600));
+      audit(a.adminEmail, 'creator-path-' + src, 'settings', 'rpm ' + rpm + ', cap ' + cap);
+    }
+    const r = await pool.query('SELECT key, value FROM creator_settings WHERE key = ANY($1)', [['rpm_usd_' + src, 'daily_cap_usd_' + src]]);
+    const m = {}; r.rows.forEach((x) => { m[x.key] = x.value; });
+    const ps = await pathSettings(), common = await earnSettings(), eff = await earnSettings(src);
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, source: src, rpm: m['rpm_usd_' + src] || '', dailyCap: m['daily_cap_usd_' + src] || '', commonRpm: common.rpm, commonCap: common.dailyCap, effRpm: eff.rpm, effCap: eff.dailyCap,
+      mustAccept: ps.inviteAccept, open: ps.appliedOpen, text: src === 'invited' ? ps.textInvited : ps.textApplied });
+  } catch (err) { console.error('[admin] creator path error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
 app.post('/api/monetization/withdraw', async (req, res) => {
@@ -4204,7 +4261,7 @@ app.post('/api/admin/monetization-requests', async (req, res) => {
     const a = await adminGate(req, res); if (!a) return;
     await expirePendingApps();
     const r = await pool.query(
-      `SELECT ca.user_email, ca.status, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, ca.message, ca.earn_suspended, ca.suspend_reason, u.first_name, u.last_name, u.profile_pic, u.public_id,
+      `SELECT ca.user_email, ca.status, ca.source, ca.requested_at, ca.decided_at, ca.decided_by, ca.note, ca.message, ca.earn_suspended, ca.suspend_reason, u.first_name, u.last_name, u.profile_pic, u.public_id,
               (SELECT COUNT(*) FROM follows f WHERE f.following_email = ca.user_email) AS followers_count,
               (SELECT COALESCE(SUM(views_count), 0) FROM posts p WHERE p.user_email = ca.user_email) AS total_views,
               (SELECT COUNT(*) FROM posts p WHERE p.user_email = ca.user_email AND p.shared_post_id IS NULL) AS posts_count,
@@ -4220,10 +4277,27 @@ app.post('/api/admin/monetization-action', async (req, res) => {
   const b = req.body || {};
   try {
     const a = await adminGate(req, res); if (!a) return;
-    const status = ['approved', 'rejected', 'pending'].includes(b.status) ? b.status : '';
-    if (!status) return res.status(400).json({ success: false, error: 'Invalid status.' });
     const u = await resolveIdentifier(b.identifier || b.targetEmail); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
     const note = String(b.note || '').slice(0, 300);
+    if (b.status === 'invite') {
+      // way 1: CamFeed invites this person (no requirements). With "must accept" on, the person answers the invitation first.
+      const st = (await pathSettings()).inviteAccept ? 'invited' : 'approved';
+      await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note, source) VALUES ($1, $2, NOW(), $3, $4, $5, 'invited')
+        ON CONFLICT (user_email) DO UPDATE SET status = $2, decided_at = $3, decided_by = $4, note = $5, source = 'invited'`, [u.email, st, st === 'approved' ? new Date() : null, a.adminEmail, note || 'Invited by CamFeed']);
+      audit(a.adminEmail, 'creator-invite', u.email, st);
+      await sendAdminNotice(a.adminEmail, u.email, st === 'invited' ? '✉️ CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក។ សូមបើក ម៉ឺនុយ › Monetization ដើម្បីទទួលយក។' : '🎉 CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក។', 'wallet_notice').catch(() => {});
+      return res.json({ success: true, status: st });
+    }
+    if (b.status === 'move') {
+      // move a person from one way to the other (the price / daily limit of that way is used from now on)
+      const to = b.source === 'invited' ? 'invited' : 'applied';
+      const up = await pool.query('UPDATE creator_applications SET source = $2 WHERE user_email = $1 RETURNING user_email', [u.email, to]);
+      if (!up.rows.length) return res.status(404).json({ success: false, error: 'Not in the Creator Program.' });
+      audit(a.adminEmail, 'creator-move', u.email, to);
+      return res.json({ success: true });
+    }
+    const status = ['approved', 'rejected', 'pending'].includes(b.status) ? b.status : '';
+    if (!status) return res.status(400).json({ success: false, error: 'Invalid status.' });
     await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note) VALUES ($1, $2, NOW(), $3, $4, $5)
       ON CONFLICT (user_email) DO UPDATE SET status = $2, decided_at = $3, decided_by = $4, note = $5`, [u.email, status, status === 'pending' ? null : new Date(), a.adminEmail, note]);
     audit(a.adminEmail, 'creator-' + status, u.email, note);

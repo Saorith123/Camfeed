@@ -22,6 +22,7 @@
         body, input, button, select { font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', sans-serif; }
         body { background-color: #f0f2f5; color: #050505; min-height: 100vh; padding-bottom: 40px; }
 
+        body.in-app .top-nav { display: none; }       /* inside the phone app: the app shows its own title bar */
         .top-nav { background: #fff; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 100; }
         .back-btn { background: #f0f2f5; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #050505; }
         .back-btn:hover { background: #e4e6eb; }
@@ -99,7 +100,13 @@
 <div id="friendsBox" style="margin-top:12px"></div>
 </div>
 
-<!-- Creator Program -->
+<!-- Way 1: invited by CamFeed (shown only to people CamFeed invited) -->
+<div class="card" id="inviteCard" style="display:none">
+<div class="card-title" id="tInvTitle"></div>
+<div id="inviteBox"></div>
+</div>
+
+<!-- Way 2: earning by meeting the requirements (apply) -->
 <div class="card" id="monetizationCard">
 <div class="card-title" id="tProgTitle"></div>
 <div id="monetizationStatusContainer"></div>
@@ -154,12 +161,16 @@ T.en.approved = '🎉 Congratulations! CamFeed has invited you to earn money. Yo
 Object.assign(T.km, { reqLbl: 'សរសេរសំណើរបស់អ្នក (អ្នកជានរណា បង្ហោះមាតិកាអ្វី)', reqPh: 'ឧ. ខ្ញុំបង្ហោះវីដេអូកំប្លែង និងរូបភាពធ្វើម្ហូបរាល់ថ្ងៃ…', reqShort: 'សូមសរសេរសំណើខ្លីៗ (យ៉ាងតិច 10 តួអក្សរ)។' });
 Object.assign(T.en, { reqLbl: 'Write your request (who you are, what you post)', reqPh: 'e.g. I post funny videos and cooking photos every day…', reqShort: 'Please write a short request (at least 10 letters).' });
 
+Object.assign(T.km, { invTitle: '✉️ ការអញ្ជើញពី CamFeed', invText: 'CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពដែលអ្នកបង្ហោះ ដោយមិនចាំបាច់បំពេញលក្ខខណ្ឌ។', invAccept: 'ទទួលយក', invDecline: 'បដិសេធ', invAccepted: '🎉 អបអរសាទរ! អ្នកបានទទួលយកការអញ្ជើញ ហើយអាចរកប្រាក់បានហើយ។', invDeclineQ: 'បដិសេធការអញ្ជើញនេះ?', invApproved: '🎉 អ្នកជា Creator ដែល CamFeed បានអញ្ជើញ។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក ហើយប្រាក់ចូលកាបូប។', appText: 'បំពេញលក្ខខណ្ឌខាងក្រោមឲ្យគ្រប់ ហើយដាក់ពាក្យ។ Admin នឹងពិនិត្យ និងអនុម័ត។', appApproved: '🎉 អបអរសាទរ! ពាក្យសុំរបស់អ្នកត្រូវបានអនុម័ត។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នកបានហើយ។', appClosed: 'ការដាក់ពាក្យត្រូវបានបិទជាបណ្ដោះអាសន្ន។' });
+Object.assign(T.en, { invTitle: '✉️ Invitation from CamFeed', invText: 'CamFeed has invited you to earn money from the videos and photos you post — no requirements needed.', invAccept: 'Accept', invDecline: 'Decline', invAccepted: '🎉 Congratulations! You accepted the invitation and can earn now.', invDeclineQ: 'Decline this invitation?', invApproved: '🎉 You are a Creator invited by CamFeed. You earn from your videos and photos, and the money goes into your wallet.', appText: 'Meet all the requirements below, then apply. An admin will review and approve.', appApproved: '🎉 Congratulations! Your application was approved. You can earn from your videos and photos now.', appClosed: 'Applying is closed for now.' });
+T.km.progTitle = '📋 រកប្រាក់តាមលក្ខខណ្ឌ'; T.en.progTitle = '📋 Earn by meeting the requirements';
 Object.assign(T.km, { notYet: 'អ្នកត្រូវបំពេញលក្ខខណ្ឌខាងលើឲ្យគ្រប់សិន ទើបអាចស្នើសុំបាន។' });
 Object.assign(T.en, { notYet: 'You must meet all the requirements above before you can apply.' });
 T.km.pending = '⏳ កំពុងត្រួតពិនិត្យសំណើរបស់អ្នក។ បើមិនទាន់មានការអនុម័តក្នុងរយៈពេល 15 ថ្ងៃ អ្នកអាចស្នើសុំម្តងទៀត។';
 T.en.pending = '⏳ Your request is being reviewed. If it is not approved within 15 days, you can apply again.';
 
 T.km.suspended = '⚠️ សិទ្ធិរកលុយរបស់អ្នកត្រូវបានផ្អាកជាបណ្តោះអាសន្ន។ ប្រាក់ក្នុងកាបូបនៅដដែល។'; T.en.suspended = '⚠️ Your earning is paused for now. Your wallet money is safe.';
+try { if (/CamFeedApp/.test(navigator.userAgent)) document.body.classList.add('in-app'); } catch (e) {}
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : (l && l !== 'km' ? 'en' : 'km'); })();
 var t = function (k) { return T[lang][k] !== undefined ? T[lang][k] : T.en[k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -172,7 +183,7 @@ function fmtDate(d) { var x = new Date(d); return isNaN(x) ? '' : x.toLocaleDate
 function applyTexts() {
   document.documentElement.lang = lang;
   $('tWalletLbl').textContent = t('wallet'); $('withdrawBtn').textContent = t('withdraw'); $('tNote').textContent = t('note'); $('tRefTitle').textContent = t('refTitle'); $('tRefText').textContent = t('refText'); $('copyBtn').textContent = t('copy'); $('copyCodeBtn').textContent = t('copy'); $('tRefCodeLbl').textContent = t('refCodeLbl'); $('tRefCount').textContent = t('refCount');
-  $('tProgTitle').textContent = t('progTitle'); $('tHistTitle').textContent = t('histTitle');
+  $('tProgTitle').textContent = t('progTitle'); $('tHistTitle').textContent = t('histTitle'); $('tInvTitle').textContent = t('invTitle');
 }
 function renderReferrals(d) {
   var rr = d.referralRules || { reward: 0.2, days: 3, posts: 3, windowDays: 3 };
@@ -197,13 +208,35 @@ function render() {
   $('refLinkInput').value = d.referralCode ? location.origin + '/index.html?ref=' + d.referralCode : '';
   $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
-  var box = $('monetizationStatusContainer'); box.textContent = '';
-  if (d.applicationStatus === 'approved') box.appendChild(el('div', { class: 'status-banner status-approved' }, t('approved')));
-  if (d.applicationStatus === 'approved' && d.earningSuspended) box.appendChild(el('div', { class: 'status-banner status-rejected', style: 'margin-top:10px' }, t('suspended') + (d.suspendReason ? ' ' + d.suspendReason : '')));   // invited by an admin
-  else if (d.applicationStatus === 'pending') box.appendChild(el('div', { class: 'status-banner status-pending' }, t('pending')));
+  var paths = d.paths || { appliedOpen: true }, src = d.creatorSource, stt = d.applicationStatus;
+  // way 1: invited by CamFeed — its own card, only for people CamFeed invited
+  var ic = $('inviteCard'), ib = $('inviteBox'); ib.textContent = '';
+  var invitedWay = src === 'invited' && (stt === 'invited' || stt === 'approved');
+  ic.style.display = invitedWay ? '' : 'none';
+  if (invitedWay && stt === 'invited') {
+    ib.appendChild(el('div', { class: 'status-banner status-pending', style: 'margin-bottom:12px;text-align:left' }, paths.textInvited || t('invText')));
+    var row = el('div', { style: 'display:flex;gap:10px' });
+    var yes = el('button', { type: 'button', class: 'btn-primary', style: 'flex:1' }, t('invAccept')), no = el('button', { type: 'button', class: 'btn-primary', style: 'flex:1;background:#e4e6eb;color:#050505;box-shadow:none' }, t('invDecline'));
+    yes.addEventListener('click', async function () { yes.disabled = true; var r = await api('/api/monetization/invite-reply', { accept: true }); if (r.success) { msg(true, t('invAccepted')); load(); } else { yes.disabled = false; msg(false, r.error || t('net')); } });
+    no.addEventListener('click', async function () { if (!confirm(t('invDeclineQ'))) return; no.disabled = true; var r = await api('/api/monetization/invite-reply', { accept: false }); if (r.success) load(); else { no.disabled = false; msg(false, r.error || t('net')); } });
+    row.appendChild(yes); row.appendChild(no); ib.appendChild(row);
+  } else if (invitedWay) {
+    ib.appendChild(el('div', { class: 'status-banner status-approved' }, t('invApproved')));
+    if (d.earningSuspended) ib.appendChild(el('div', { class: 'status-banner status-rejected', style: 'margin-top:10px' }, t('suspended') + (d.suspendReason ? ' ' + d.suspendReason : '')));
+  }
+  // way 2: by the requirements — its own card (hidden for people already invited, and when the admin closed applying)
+  var mc = $('monetizationCard'), box = $('monetizationStatusContainer'); box.textContent = '';
+  var appliedWay = src !== 'invited' || !stt;
+  mc.style.display = (invitedWay || (!paths.appliedOpen && !(src === 'applied' && stt))) ? 'none' : '';
+  if (!appliedWay || invitedWay) { /* nothing more */ }
+  else if (stt === 'approved') {
+    box.appendChild(el('div', { class: 'status-banner status-approved' }, t('appApproved')));
+    if (d.earningSuspended) box.appendChild(el('div', { class: 'status-banner status-rejected', style: 'margin-top:10px' }, t('suspended') + (d.suspendReason ? ' ' + d.suspendReason : '')));
+  }
+  else if (stt === 'pending') box.appendChild(el('div', { class: 'status-banner status-pending' }, t('pending')));
   else {
-    box.appendChild(el('div', { class: 'status-banner status-pending', style: 'margin-bottom:12px' }, t('soon')));
-    if (d.applicationStatus === 'rejected') { var rb = el('div', { class: 'status-banner status-rejected', style: 'margin-bottom:12px' }, t('rejected') + (d.applicationNote ? ' ' + t('reason') + ' ' + d.applicationNote : '') + ' ' + t('again')); box.appendChild(rb); }
+    box.appendChild(el('div', { class: 'mz-note', style: 'margin-bottom:12px' }, paths.textApplied || t('appText')));
+    if (stt === 'rejected') { var rb = el('div', { class: 'status-banner status-rejected', style: 'margin-bottom:12px' }, t('rejected') + (d.applicationNote ? ' ' + t('reason') + ' ' + d.applicationNote : '') + ' ' + t('again')); box.appendChild(rb); }
     var list = el('div', { class: 'criteria-list' }), c = d.criteria;
     [['cFollowers', d.followersCount, c.followers], ['cViews', d.totalViews, c.views], ['cPosts', d.postsCount, c.posts], ['cAge', d.accountAgeDays, c.ageDays]].forEach(function (x) {
       var ok = x[1] >= x[2]; var row = el('div', { class: 'criteria-item' }); row.appendChild(el('span', {}, t(x[0]) + ' ≥ ' + Number(x[2]).toLocaleString())); row.appendChild(el('span', { class: 'criteria-badge ' + (ok ? 'badge-pass' : 'badge-pending') }, Number(x[1]).toLocaleString() + ' / ' + Number(x[2]).toLocaleString())); list.appendChild(row);

@@ -114,6 +114,33 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   };
 
   // ---------- settings ----------
+  // ---- "typing…": the app tells the server while the person types (every few seconds); kept in memory for 6 seconds ----
+  const typing = new Map();                       // 'to|from' or 'g:<id>|from'  ->  time
+  { const tm = setInterval(() => { const old = Date.now() - 8000; for (const [k, t] of typing) if (t < old) typing.delete(k); }, 30000); if (tm.unref) tm.unref(); }
+  app.post('/api/chat/typing', async (req, res) => {
+    const me = norm(req.authEmail); const b = req.body || {};
+    if (!me) return res.json({ success: false });
+    const gid = parseInt(b.group, 10);
+    if (gid > 0) { if (await memberOf(gid, me).catch(() => null)) typing.set('g:' + gid + '|' + me, b.stop ? 0 : Date.now()); }
+    else if (b.chat_with) typing.set(norm(b.chat_with) + '|' + me + (b.kind === 'video' ? '#v' : ''), b.stop ? 0 : Date.now());   // '#v' = sending a video
+    res.json({ success: true });
+  });
+  app.get('/api/chat/typing', async (req, res) => {
+    const me = norm(req.authEmail); if (!me) return res.json({ success: true, typing: false });
+    const fresh = (t) => t && Date.now() - t < 6000;
+    const gid = parseInt(req.query.group, 10);
+    if (gid > 0) {
+      if (!(await memberOf(gid, me).catch(() => null))) return res.json({ success: true, typing: false, names: [] });
+      const who = [];
+      for (const [k, t] of typing) { if (k.startsWith('g:' + gid + '|') && fresh(t)) { const e = k.slice(k.indexOf('|') + 1); if (e !== me) who.push(e); } }
+      let names = [];
+      if (who.length) names = (await pool.query('SELECT first_name FROM users WHERE LOWER(email) = ANY($1::text[])', [who]).catch(() => ({ rows: [] }))).rows.map((r) => r.first_name || '').filter(Boolean);
+      return res.json({ success: true, typing: who.length > 0, names });
+    }
+    const other = norm(req.query.chat_with);
+    res.json({ success: true, typing: !!(other && fresh(typing.get(me + '|' + other))), sendingVideo: !!(other && fresh(typing.get(me + '|' + other + '#v'))) });
+  });
+
   app.get('/api/chat-settings', async (req, res) => {
     const me = req.authEmail; const peer = String(req.query.peer_email || req.query.peer || '');
     if (!me || !peer) return res.status(400).json({ success: false });

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1877f2">
+<title>CamFeed - System Management</title>
+<link rel="icon" type="image/png" href="logo-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<!--
+  System Management (ប្រព័ន្ធគ្រប់គ្រង): restaurant, stock and other business management for shop owners.
+  For now only a "coming soon" page. The phone app opens THIS page from Menu, so the real tools can be built
+  here on the website at any time, without a new app version.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', sans-serif; background: #f0f2f5; color: #050505; min-height: 100vh; padding-bottom: 40px; }
+  .top-nav { background: #fff; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 5; }
+  .back-btn { background: #f0f2f5; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  .nav-title { font-size: 17px; font-weight: 800; background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  body.in-app .top-nav { display: none; }          /* the app already shows its own title bar */
+  .container { max-width: 680px; margin: 16px auto; padding: 0 12px; display: flex; flex-direction: column; gap: 16px; }
+  .hero { background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%); color: #fff; border-radius: 16px; padding: 28px 20px; text-align: center; }
+  .hero .icon { font-size: 52px; line-height: 1; }
+  .hero h1 { font-size: 22px; font-weight: 800; margin-top: 12px; }
+  .badge { display: inline-block; margin-top: 12px; background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.5); padding: 6px 16px; border-radius: 20px; font-weight: 800; font-size: 14px; }
+  .hero p { margin-top: 12px; font-size: 14px; line-height: 1.6; opacity: 0.95; }
+  .card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; gap: 14px; align-items: flex-start; }
+  .card .ic { font-size: 30px; width: 48px; height: 48px; flex: 0 0 48px; border-radius: 12px; background: #e7f0fd; display: flex; align-items: center; justify-content: center; }
+  .card h3 { font-size: 15.5px; font-weight: 800; }
+  .card p { font-size: 13.5px; color: #65676b; margin-top: 4px; line-height: 1.5; }
+  .soon { display: inline-block; margin-top: 8px; font-size: 11.5px; font-weight: 800; color: #b06000; background: #fef7e0; padding: 2px 10px; border-radius: 10px; }
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .plan { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .plan h4 { font-size: 15px; font-weight: 800; }
+  .plan.pro { border: 2px solid #1877f2; }
+  .plan ul { margin-top: 8px; padding-left: 18px; font-size: 13px; color: #444; line-height: 1.7; }
+  .note { text-align: center; font-size: 13px; color: #65676b; line-height: 1.6; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #18191a; color: #e4e6eb; }
+    .top-nav, .card, .plan { background: #242526; }
+    .card p, .note { color: #b0b3b8; }
+    .plan ul { color: #cfd2d6; }
+    .card .ic { background: #263951; }
+  }
+</style>
+</head>
+<body>
+  <div class="top-nav">
+    <button class="back-btn" type="button" onclick="history.length > 1 ? history.back() : (location.href = '/feed.html')">←</button>
+    <div class="nav-title" data-t="title"></div>
+  </div>
+
+  <div class="container">
+    <div class="hero">
+      <div class="icon">🏢</div>
+      <h1 data-t="title"></h1>
+      <div class="badge" data-t="soon"></div>
+      <p data-t="intro"></p>
+    </div>
+
+    <div class="card"><div class="ic">🍽️</div><div><h3 data-t="r1"></h3><p data-t="r1d"></p><span class="soon" data-t="soonS"></span></div></div>
+    <div class="card"><div class="ic">📦</div><div><h3 data-t="s1"></h3><p data-t="s1d"></p><span class="soon" data-t="soonS"></span></div></div>
+    <div class="card"><div class="ic">🏪</div><div><h3 data-t="o1"></h3><p data-t="o1d"></p><span class="soon" data-t="soonS"></span></div></div>
+
+    <div class="plans">
+      <div class="plan"><h4 data-t="free"></h4><ul data-t="freeL"></ul></div>
+      <div class="plan pro"><h4 data-t="pro"></h4><ul data-t="proL"></ul></div>
+    </div>
+
+    <div class="note" data-t="note"></div>
+  </div>
+
+<script>
+(function () {
+  var T = {
+    km: {
+      title: 'ប្រព័ន្ធគ្រប់គ្រង', soon: '🚀 មកដល់ឆាប់ៗនេះ', soonS: 'មកដល់ឆាប់ៗ',
+      intro: 'ឧបករណ៍គ្រប់គ្រងអាជីវកម្មរបស់អ្នក នៅក្នុង CamFeed តែមួយ — សម្រាប់ហាង ភោជនីយដ្ឋាន និងអាជីវកម្មគ្រប់ប្រភេទ។',
+      r1: 'គ្រប់គ្រងភោជនីយដ្ឋាន', r1d: 'ម៉ឺនុយ តុ ការកុម្ម៉ង់ វិក្កយបត្រ និងរបាយការណ៍លក់ប្រចាំថ្ងៃ។',
+      s1: 'គ្រប់គ្រងទំនិញក្នុងស្តុក', s1d: 'ទំនិញចូល-ចេញ ចំនួននៅសល់ ការជូនដំណឹងពេលទំនិញជិតអស់។',
+      o1: 'ការគ្រប់គ្រងប្រភេទផ្សេងៗ', o1d: 'អតិថិជន បុគ្គលិក ចំណូល-ចំណាយ និងឧបករណ៍ផ្សេងទៀតសម្រាប់ហាងធំៗ។',
+      free: 'គណនីធម្មតា', freeL: '<li>មុខងារមូលដ្ឋាន</li><li>ឥតគិតថ្លៃ</li>',
+      pro: '⭐ Upgrade', proL: '<li>មុខងារពេញលេញ</li><li>ច្រើនហាង / ច្រើនបុគ្គលិក</li><li>របាយការណ៍លម្អិត</li>',
+      note: 'យើងកំពុងរៀបចំមុខងារនេះ។ សូមរង់ចាំការជូនដំណឹងពី CamFeed!'
+    },
+    en: {
+      title: 'System Management', soon: '🚀 Coming soon', soonS: 'Coming soon',
+      intro: 'Tools to run your business, inside CamFeed — for shops, restaurants and every kind of business.',
+      r1: 'Restaurant management', r1d: 'Menu, tables, orders, bills and daily sales reports.',
+      s1: 'Stock management', s1d: 'Goods in and out, what is left, alerts when something is running low.',
+      o1: 'Other management tools', o1d: 'Customers, staff, income and expenses, and more for big shops.',
+      free: 'Normal account', freeL: '<li>Basic features</li><li>Free</li>',
+      pro: '⭐ Upgrade', proL: '<li>All features</li><li>Several shops / staff</li><li>Detailed reports</li>',
+      note: 'We are preparing this. Watch for news from CamFeed!'
+    }
+  };
+  var lang = 'km';
+  try { lang = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km'; } catch (e) {}
+  document.documentElement.lang = lang;
+  if (/CamFeedApp/.test(navigator.userAgent)) document.body.classList.add('in-app');
+  var t = T[lang];
+  document.title = 'CamFeed - ' + t.title;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (el) {
+    var k = el.getAttribute('data-t');
+    if (/L$/.test(k)) el.innerHTML = t[k]; else el.textContent = t[k];     // only our own fixed texts above
+  });
+})();
+</script>
+</body>
+</html>
