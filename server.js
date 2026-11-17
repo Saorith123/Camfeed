@@ -35,6 +35,25 @@ const jsonLarge = express.json({ limit: '6mb' });
 app.use((req, res, next) => (/^\/api\/(posts|videos)(\/|$)/.test(req.path) ? jsonLarge : jsonSmall)(req, res, next));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Typed logins and codes are cleaned before any route reads them: Khmer digits (០-៩) -> 0-9, invisible characters that Khmer keyboards
+// insert (zero-width space ...) removed, and spaces removed where they can never belong (an e-mail, a referral number, a one-time code).
+// "012 345 678", "+855 12-345-678", "០១២ ៣៤៥ ៦៧៨" and "123 456" are all understood. Passwords are never touched.
+const KH_DIGITS = /[០-៩]/g, INVISIBLE = /[​-‍⁠﻿]/g;
+const cleanTyped = (v) => String(v).replace(KH_DIGITS, (c) => String(c.charCodeAt(0) - 0x17E0)).replace(INVISIBLE, '').replace(/ /g, ' ').trim();
+app.use((req, res, next) => {
+  const b = req.body;
+  if (b && typeof b === 'object' && !Array.isArray(b) && req.path.startsWith('/api/') && !/withdraw/i.test(req.path)) {
+    for (const k of ['email', 'phone', 'identifier', 'ident', 'login', 'who', 'code', 'ref', 'referral', 'referralCode']) {
+      if (typeof b[k] !== 'string') continue;
+      let v = cleanTyped(b[k]);
+      if ((k === 'email' || k === 'identifier' || k === 'ident' || k === 'login' || k === 'who') && v.includes('@')) v = v.replace(/\s+/g, '');
+      if (k === 'code' || k === 'ref' || k === 'referral' || k === 'referralCode') v = v.replace(/[\s\-]+/g, '');
+      b[k] = v;
+    }
+  }
+  next();
+});
+
 // Server files must never be downloadable, even if one is dropped into /public by mistake
 const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
@@ -359,6 +378,7 @@ pool.connect(async (err, client, release) => {
     await pool.query('CREATE TABLE IF NOT EXISTS saved_sounds (user_email TEXT NOT NULL, sound_id INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, sound_id))').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS overlays TEXT').catch(() => {});
+    await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});   // small, quick-start copy of a story video (made by the feed-video job)
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumb_url TEXT').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
@@ -849,6 +869,14 @@ let feedVideoBusy = false;
 async function backfillFeedVideos() {
   if (process.env.FEED_VIDEOS !== 'on' || feedVideoBusy || !thumbsReady()) return; feedVideoBusy = true;
   try {
+    // story videos first: they are the raw files from the phone camera (very big, slow to start) and they only live 24 hours
+    const sv = (await pool.query("SELECT id, media_url FROM stories WHERE media_type = 'video' AND feed_url IS NULL AND expires_at > NOW() + INTERVAL '10 minutes' ORDER BY id DESC LIMIT 1").catch(() => ({ rows: [] }))).rows[0];
+    if (sv) {
+      const u = sv.media_url ? await makeFeedVideo(sv.media_url) : null;
+      await pool.query('UPDATE stories SET feed_url = $2 WHERE id = $1', [sv.id, u || '']).catch(() => {});
+      if (u) console.log('[feedvideo] story', sv.id, 'ready');
+      return;
+    }
     const rows = (await pool.query("SELECT id, media_type, media_url FROM posts WHERE feed_url IS NULL AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') ORDER BY id DESC LIMIT 1")).rows;
     for (const row of rows) {
       const v = pubMedia(row).video;
@@ -3437,6 +3465,7 @@ app.post('/api/stories', async (req, res) => {
     }
     const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at, sound_id, sound_start, sound_len, overlays) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours', $7, $8, $9, $10) RETURNING id", [email, type, url, caption || null, bg, privacy, soundId, sStart, sLen, type === 'text' ? null : (cleanOverlays(b.overlays, storyMediaBase()).length ? JSON.stringify(cleanOverlays(b.overlays, storyMediaBase())) : null)]);
     if (soundId) pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [soundId]).catch(() => {});
+    if (type === 'video') setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 3000);   // its small quick-start copy is made right away
     res.status(201).json({ success: true, id: r.rows[0].id });
   } catch (err) { console.error('[story] create error:', err.message); res.status(500).json({ success: false, error: 'Could not post your story.' }); }
 });
@@ -3445,7 +3474,7 @@ app.get('/api/stories/feed', async (req, res) => {
   const me = req.authEmail;
   try {
     const r = await pool.query(
-      `SELECT s.id, s.user_email, s.media_type, s.media_url, s.caption, s.bg, s.privacy, s.created_at, s.expires_at, u.first_name, u.last_name, u.profile_pic,
+      `SELECT s.id, s.user_email, s.media_type, s.media_url, s.feed_url, s.caption, s.bg, s.privacy, s.created_at, s.expires_at, u.first_name, u.last_name, u.profile_pic,
               (v.story_id IS NOT NULL) AS seen, rx.emoji AS my_reaction,
               (SELECT COUNT(*) FROM story_views sv WHERE sv.story_id = s.id)::int AS views, (SELECT COUNT(*) FROM story_reactions sr WHERE sr.story_id = s.id)::int AS reactions,
               sd.id AS snd_id, sd.title AS snd_title, sd.artist AS snd_artist, sd.audio_url AS snd_url, s.sound_start, s.sound_len, s.overlays
@@ -3462,7 +3491,7 @@ app.get('/api/stories/feed', async (req, res) => {
       let g = groups.get(x.user_email);
       if (!g) { g = { user_email: x.user_email, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), profile_pic: x.profile_pic || '', mine: x.user_email === me, allSeen: true, latest: 0, stories: [] }; groups.set(x.user_email, g); }
       const mine = x.user_email === me;
-      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', overlays: x.overlays ? cleanOverlays(x.overlays, storyMediaBase()) : [], sound: x.snd_id ? { id: x.snd_id, title: x.snd_title, artist: x.snd_artist || '', url: x.snd_url, start: x.sound_start, len: x.sound_len } : null, views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
+      g.stories.push({ id: x.id, mediaType: x.media_type, mediaUrl: x.media_url || '', feedUrl: x.feed_url || '', caption: x.caption || '', bg: x.bg || 'blue', privacy: x.privacy, created_at: x.created_at, expires_at: x.expires_at, seen: !!x.seen || mine, myReaction: x.my_reaction || '', overlays: x.overlays ? cleanOverlays(x.overlays, storyMediaBase()) : [], sound: x.snd_id ? { id: x.snd_id, title: x.snd_title, artist: x.snd_artist || '', url: x.snd_url, start: x.sound_start, len: x.sound_len } : null, views: mine ? x.views : undefined, reactions: mine ? x.reactions : undefined });
       if (!x.seen && !mine) g.allSeen = false;
       g.latest = Math.max(g.latest, new Date(x.created_at).getTime());
     }
