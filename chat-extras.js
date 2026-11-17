@@ -346,6 +346,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
         return res.json({ success: true, incoming: { id: c.id, kind: c.kind, from_email: c.caller, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), pic: p.profile_pic || '', offer: c.offer } });
       }
     }
+    const g = req.query.groups ? await groupRinging(me).catch(() => null) : null;   // a call started in one of my groups (only the app can join them)
+    if (g) return res.json({ success: true, incoming: g });
     res.json({ success: true });
   });
 
@@ -368,6 +370,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   // the phone of the person being called is ringing now (sent by the app when the call screen appears, even with the app closed)
   app.post('/api/calls/:callId/ringing', (req, res) => {
     const me = norm(req.authEmail); const c = calls.get(req.params.callId);
+    const room = gcalls.get(req.params.callId); if (room) { room.rang.add(me); return res.json({ success: true }); }
     if (c && c.callee === me && c.status === 'ringing') c.rang = true;
     res.json({ success: true });
   });
@@ -422,6 +425,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
 
   app.post('/api/calls/:callId/end', (req, res) => {
     const me = norm(req.authEmail); const c = calls.get(req.params.callId);
+    const room = gcalls.get(req.params.callId);                // "Decline" on a group call: stop ringing for me only, the call goes on
+    if (room) { room.declined.add(me); if (push && push.notifyCallEnd) push.notifyCallEnd(me, room.id); return res.json({ success: true }); }
     if (!involved(c, me)) return res.status(404).json({ success: false });
     if (live(c)) {
       c.why = (c.caller === me ? 'caller:' : 'callee:') + String((req.body || {}).why || '').slice(0, 60);
@@ -438,6 +443,154 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       if (c.status === 'ringing' && now - c.created > CALL_RING_MS) finish(c, 'missed', 'missed');
       else if (c.status === 'accepted' && (now - (c.seen[c.caller] || 0) > CALL_STALE_MS || now - (c.seen[c.callee] || 0) > CALL_STALE_MS)) finish(c, 'ended', 'ended');
       if (!live(c) && c.endedAt && now - c.endedAt > 60 * 1000) calls.delete(id);
+    }
+  }, 4000).unref();
+
+  // ---------- group calls (in memory) ----------
+  // Everybody in the call is connected to everybody else (mesh), so it is meant for small groups (GROUP_CALL_MAX people at once).
+  // The server only passes the connection messages (offer / answer / ice) between the phones; voice and video go phone to phone.
+  // Rule that avoids two phones calling each other at the same moment: the one who joined LATER sends the offer.
+  const GROUP_CALL_MAX = Math.max(2, Math.min(16, parseInt(process.env.GROUP_CALL_MAX || '8', 10) || 8));
+  const gcalls = new Map();                       // room id ("g...") -> room
+  const roomOfGroup = (gid) => { for (const r of gcalls.values()) if (r.gid === gid && r.status === 'live') return r; return null; };
+  const roomInfo = async (r) => {
+    const emails = [...r.parts.keys()];
+    const u = emails.length ? await pool.query('SELECT LOWER(email) AS email, first_name, last_name, profile_pic FROM users WHERE LOWER(email) = ANY($1::text[])', [emails]).catch(() => ({ rows: [] })) : { rows: [] };
+    const by = new Map(u.rows.map((x) => [x.email, x]));
+    return emails.map((e) => { const p = r.parts.get(e); const x = by.get(e) || {};
+      return { email: e, name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), pic: x.profile_pic || '', joined: p.joined, cam: p.cam !== false, mic: p.mic !== false }; });
+  };
+  function endRoom(r) {
+    if (r.status !== 'live') return;
+    r.status = 'ended'; r.endedAt = Date.now();
+    if (push && push.notifyCallEnd) for (const e of r.invited) if (!r.everJoined.has(e)) push.notifyCallEnd(e, r.id);
+  }
+  function leaveRoom(r, email) {
+    r.parts.delete(email); r.inbox.delete(email);
+    for (const box of r.inbox.values()) box.items.push({ from_email: email, type: 'bye' });
+    if (r.parts.size === 0 || (r.parts.size === 1 && r.everJoined.size > 1)) endRoom(r);   // nobody left to talk to
+  }
+  function joinRoom(r, email) {
+    if (!r.parts.has(email)) r.parts.set(email, { joined: Date.now(), seen: Date.now(), cam: true, mic: true });
+    if (!r.inbox.has(email)) r.inbox.set(email, { base: 0, items: [] });
+    r.everJoined.add(email);
+  }
+  // for /api/calls/poll: a group call that should ring on my phone now
+  async function groupRinging(me) {
+    for (const r of gcalls.values()) {
+      if (r.status !== 'live' || !r.invited.has(me) || r.everJoined.has(me) || r.declined.has(me)) continue;
+      if (Date.now() - r.created > CALL_RING_MS) continue;
+      r.rang.add(me);
+      const g = await pool.query('SELECT name, pic FROM chat_groups WHERE id=$1', [r.gid]);
+      const u = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email)=$1', [r.starter]);
+      const gr = g.rows[0] || {}; const su = u.rows[0] || {};
+      return { id: r.id, kind: r.kind, group: { id: r.gid, name: gr.name || '', pic: gr.pic || '' }, from_email: r.starter,
+        name: gr.name || 'CamFeed', pic: gr.pic || '', starter: `${su.first_name || ''} ${su.last_name || ''}`.trim(), offer: '' };
+    }
+    return null;
+  }
+
+  // start a call in a group (or join the one that is already going on there)
+  app.post('/api/gcalls/start', async (req, res) => {
+    const me = norm(req.authEmail); const b = req.body || {}; const gid = parseInt(b.gid, 10) || 0;
+    const kind = b.kind === 'video' ? 'video' : 'audio';
+    try {
+      if (!me || !(await memberOf(gid, me))) return bad(res, 403, 'not a member');
+      const one = busyWith(me); if (one) finish(one, 'ended', one.status === 'ringing' ? 'cancelled' : 'ended');
+      for (const r of gcalls.values()) if (r.status === 'live' && r.gid !== gid && r.parts.has(me)) leaveRoom(r, me);
+      let r = roomOfGroup(gid);
+      if (r) {
+        if (!r.parts.has(me) && r.parts.size >= GROUP_CALL_MAX) return res.json({ success: false, error: 'full', max: GROUP_CALL_MAX });
+        joinRoom(r, me);
+        return res.json({ success: true, id: r.id, kind: r.kind, joined: true, me_email: me, max: GROUP_CALL_MAX, parts: await roomInfo(r) });
+      }
+      const mem = await pool.query('SELECT user_email FROM chat_group_members WHERE group_id=$1', [gid]);
+      r = { id: 'g' + newId(), gid, kind, starter: me, created: Date.now(), status: 'live', parts: new Map(), inbox: new Map(),
+        invited: new Set(mem.rows.map((x) => norm(x.user_email)).filter((e) => e !== me)), declined: new Set(), rang: new Set(), everJoined: new Set() };
+      gcalls.set(r.id, r);
+      joinRoom(r, me);
+      const g = await pool.query('SELECT name, pic FROM chat_groups WHERE id=$1', [gid]);
+      const gr = g.rows[0] || {};
+      if (push && push.notifyCall) for (const e of r.invited) push.notifyCall(e, me, kind, r.id, { groupName: gr.name || '', groupPic: gr.pic || '' });
+      res.json({ success: true, id: r.id, kind, joined: false, me_email: me, max: GROUP_CALL_MAX, parts: await roomInfo(r) });
+    } catch (e) { bad(res, 500, e.message); }
+  });
+
+  // join a group call that is going on (from the ringing screen or the "Join" bar in the group chat)
+  app.post('/api/gcalls/:id/join', async (req, res) => {
+    const me = norm(req.authEmail); const r = gcalls.get(req.params.id);
+    try {
+      if (!r || r.status !== 'live') return res.json({ success: false, error: 'ended' });
+      if (!(await memberOf(r.gid, me))) return bad(res, 403, 'not a member');
+      if (!r.parts.has(me) && r.parts.size >= GROUP_CALL_MAX) return res.json({ success: false, error: 'full', max: GROUP_CALL_MAX });
+      const one = busyWith(me); if (one) finish(one, 'ended', one.status === 'ringing' ? 'cancelled' : 'ended');
+      for (const o of gcalls.values()) if (o !== r && o.status === 'live' && o.parts.has(me)) leaveRoom(o, me);
+      joinRoom(r, me);
+      res.json({ success: true, id: r.id, kind: r.kind, me_email: me, max: GROUP_CALL_MAX, parts: await roomInfo(r) });
+    } catch (e) { bad(res, 500, e.message); }
+  });
+
+  // is there a call going on in this group? (the group chat shows a green "Join" bar)
+  app.get('/api/gcalls/active', async (req, res) => {
+    const me = norm(req.authEmail); const gid = parseInt(req.query.gid, 10) || 0;
+    try {
+      if (!(await memberOf(gid, me))) return res.json({ success: true, call: null });
+      const r = roomOfGroup(gid);
+      res.json({ success: true, call: r ? { id: r.id, kind: r.kind, count: r.parts.size, inIt: r.parts.has(me), since: r.created } : null });
+    } catch (e) { res.json({ success: true, call: null }); }
+  });
+
+  // everything my phone needs: who is in the call, and the messages other phones sent to me
+  app.get('/api/gcalls/:id', async (req, res) => {
+    const me = norm(req.authEmail); const r = gcalls.get(req.params.id);
+    if (!r) return res.json({ success: true, status: 'ended', parts: [], signals: [], next: 0 });
+    const p = r.parts.get(me);
+    if (!p || r.status !== 'live') return res.json({ success: true, status: r.status === 'live' ? 'left' : 'ended', parts: [], signals: [], next: 0 });
+    p.seen = Date.now();
+    const box = r.inbox.get(me);
+    const since = Math.max(0, parseInt(req.query.since, 10) || 0);
+    if (since > box.base) { box.items.splice(0, Math.min(box.items.length, since - box.base)); box.base = since; }   // already received: drop
+    const signals = box.items.slice();
+    res.json({ success: true, status: 'live', kind: r.kind, me_email: me, started: r.created, parts: await roomInfo(r), signals, next: box.base + box.items.length });
+  });
+
+  // pass one connection message (offer / answer / ice) to one other phone in the call
+  app.post('/api/gcalls/:id/signal', (req, res) => {
+    const me = norm(req.authEmail); const r = gcalls.get(req.params.id); const b = req.body || {};
+    const to = norm(b.to_email); const type = String(b.type || '');
+    if (!r || r.status !== 'live' || !r.parts.has(me) || !r.parts.has(to) || to === me) return res.json({ success: false });
+    if (!['offer', 'answer', 'ice'].includes(type)) return res.status(400).json({ success: false });
+    const data = typeof b.data === 'string' ? b.data : JSON.stringify(b.data || {});
+    if (data.length > 60000) return res.status(400).json({ success: false });
+    const box = r.inbox.get(to);
+    if (box.items.length > 600) box.items.splice(0, 100), box.base += 100;
+    box.items.push({ from_email: me, type, data });
+    res.json({ success: true });
+  });
+
+  app.post('/api/gcalls/:id/state', (req, res) => {
+    const me = norm(req.authEmail); const r = gcalls.get(req.params.id); const b = req.body || {};
+    const p = r && r.parts.get(me); if (!p) return res.json({ success: false });
+    if (b.cam !== undefined) p.cam = b.cam !== false;
+    if (b.mic !== undefined) p.mic = b.mic !== false;
+    res.json({ success: true });
+  });
+
+  app.post('/api/gcalls/:id/leave', (req, res) => {
+    const me = norm(req.authEmail); const r = gcalls.get(req.params.id);
+    if (r && r.parts.has(me)) leaveRoom(r, me);
+    if (r && r.starter === me && r.everJoined.size === 1) endRoom(r);       // the starter gave up before anybody answered
+    res.json({ success: true });
+  });
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, r] of gcalls) {
+      if (r.status === 'live') {
+        for (const [e, p] of r.parts) if (now - p.seen > CALL_STALE_MS) leaveRoom(r, e);      // phone gone (no internet, app killed)
+        if (r.status === 'live' && r.everJoined.size === 1 && now - r.created > CALL_RING_MS + 10000) endRoom(r);   // nobody answered
+      }
+      if (r.status !== 'live' && r.endedAt && now - r.endedAt > 60 * 1000) gcalls.delete(id);
     }
   }, 4000).unref();
 

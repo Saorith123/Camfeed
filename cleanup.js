@@ -69,6 +69,7 @@ function createCleanup({ pool, cloudinary, deleteR2 }) {
       'SELECT 1 FROM posts WHERE media_url LIKE $1 LIMIT 1',
       'SELECT 1 FROM users WHERE profile_pic LIKE $1 OR cover_pic LIKE $1 LIMIT 1',
       'SELECT 1 FROM messages WHERE media_url LIKE $1 LIMIT 1',
+      'SELECT 1 FROM comments WHERE media_url LIKE $1 LIMIT 1',
       'SELECT 1 FROM videos WHERE video_url LIKE $1 OR thumbnail_url LIKE $1 LIMIT 1'
     ];
     for (const sql of checks) {
@@ -124,6 +125,10 @@ function createCleanup({ pool, cloudinary, deleteR2 }) {
       if (r.media_url && !NON_FILE_POST_TYPES.has(r.media_type)) urls.push(...extractMediaUrls(r.media_url));
       if (r.thumb_url) urls.push(r.thumb_url);
     });
+    // photos in the comments of these posts are deleted from storage too
+    await client.query('SAVEPOINT cm_sp');
+    try { const cm = await client.query('SELECT media_url FROM comments WHERE post_id = ANY($1::int[]) AND media_url IS NOT NULL', [ids]); cm.rows.forEach(r => urls.push(r.media_url)); await client.query('RELEASE SAVEPOINT cm_sp'); }
+    catch (e) { await client.query('ROLLBACK TO SAVEPOINT cm_sp'); }
     await client.query('DELETE FROM likes WHERE post_id = ANY($1::int[])', [ids]);
     await client.query('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE post_id = ANY($1::int[]))', [ids]);
     await client.query('DELETE FROM notifications WHERE post_id = ANY($1::int[]) OR comment_id IN (SELECT id FROM comments WHERE post_id = ANY($1::int[]))', [ids]);
@@ -157,7 +162,8 @@ function createCleanup({ pool, cloudinary, deleteR2 }) {
 
   // Delete a comment and all its replies, likes and notifications.
   async function deleteCommentCompletely(commentId) {
-    return inTransaction(async (client) => {
+    const urls = [];
+    const n = await inTransaction(async (client) => {
       const tree = await client.query(
         `WITH RECURSIVE tree AS (
            SELECT id FROM comments WHERE id = $1
@@ -166,11 +172,16 @@ function createCleanup({ pool, cloudinary, deleteR2 }) {
          ) SELECT id FROM tree`, [commentId]);
       const ids = tree.rows.map(r => r.id);
       if (!ids.length) return 0;
+      await client.query('SAVEPOINT cm_sp');
+      try { const cm = await client.query('SELECT media_url FROM comments WHERE id = ANY($1::int[]) AND media_url IS NOT NULL', [ids]); cm.rows.forEach(r => urls.push(r.media_url)); await client.query('RELEASE SAVEPOINT cm_sp'); }
+      catch (e) { await client.query('ROLLBACK TO SAVEPOINT cm_sp'); }
       await client.query('DELETE FROM comment_likes WHERE comment_id = ANY($1::int[])', [ids]);
       await client.query('DELETE FROM notifications WHERE comment_id = ANY($1::int[])', [ids]);
       await client.query('DELETE FROM comments WHERE id = ANY($1::int[])', [ids]);
       return ids.length;
     });
+    if (urls.length) await purgeMediaUrls(urls).catch((e) => console.error('[cleanup] comment photos:', e.message));   // the photos leave the storage too
+    return n;
   }
 
   // Delete an account and everything it ever created or took part in (posts, videos, comments, likes, follows,
@@ -184,6 +195,9 @@ function createCleanup({ pool, cloudinary, deleteR2 }) {
       const mine = await client.query('SELECT id FROM comments WHERE user_email = $1', [email]);
       const cids = mine.rows.map(r => r.id);
       if (cids.length) {
+        await client.query('SAVEPOINT cmu_sp');
+        try { const cm = await client.query('SELECT media_url FROM comments WHERE id = ANY($1::int[]) AND media_url IS NOT NULL', [cids]); cm.rows.forEach(r => out.push(r.media_url)); await client.query('RELEASE SAVEPOINT cmu_sp'); }
+        catch (e) { await client.query('ROLLBACK TO SAVEPOINT cmu_sp'); }
         await client.query('UPDATE comments SET reply_to_id = NULL WHERE reply_to_id = ANY($1::int[])', [cids]);
         await client.query('DELETE FROM comment_likes WHERE comment_id = ANY($1::int[])', [cids]);
         await client.query('DELETE FROM notifications WHERE comment_id = ANY($1::int[])', [cids]);

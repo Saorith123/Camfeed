@@ -100,7 +100,7 @@ module.exports = function createPush({ app, pool }) {
 
   const fullName = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'CamFeed';
 
-  async function notifyCall(calleeEmail, callerEmail, kind, callId) {
+  async function notifyCall(calleeEmail, callerEmail, kind, callId, grp) {
     if (!enabled) return;
     try {
       const u = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE LOWER(email) = LOWER($1)', [callerEmail])).rows[0] || {};
@@ -108,8 +108,9 @@ module.exports = function createPush({ app, pool }) {
       // so it appears even when the app's own code can not start in the background (the same way chat messages already work).
       // When the app's code does start, it also opens the full system call screen.
       await sendToUser(calleeEmail, {
-        title: fullName(u), body: kind === 'video' ? '📹 ការហៅវីដេអូចូល' : '📞 ការហៅសំឡេងចូល', channel: 'calls', tag: 'call_' + callId,
-        data: { type: 'call', kind, callId, name: fullName(u), pic: u.profile_pic || '', caller: callerEmail, url: '/feed.html' }, high: true,
+        title: grp ? (grp.groupName || 'CamFeed') : fullName(u),
+        body: (kind === 'video' ? '📹 ការហៅវីដេអូចូល' : '📞 ការហៅសំឡេងចូល') + (grp ? ' · ' + fullName(u) : ''), channel: 'calls', tag: 'call_' + callId,
+        data: { type: 'call', kind, callId, name: grp ? (grp.groupName || 'CamFeed') : fullName(u), pic: grp ? (grp.groupPic || '') : (u.profile_pic || ''), caller: callerEmail, group: grp ? '1' : '', url: '/feed.html' }, high: true,
         // default: data only, so the app's own code opens the full-screen call screen (lights the screen, rings until answered).
         // Render > Environment CALL_PUSH_MODE=banner switches back to a plain notification banner (it can not light the screen).
         dataOnly: String(process.env.CALL_PUSH_MODE || '').toLowerCase() !== 'banner',

@@ -1672,7 +1672,7 @@
                                     <div class="comment-content-wrapper">
                                         <div class="comment-bubble">
                                             <span class="comment-author notranslate" translate="no" onclick="goPage('profile.html?email=${encodeURIComponent(c.user_email)}')">${esc(c.first_name)} ${esc(c.last_name)} ${replyBadge}</span>
-                                            <div id="v-comment-text-${c.id}" class="notranslate" translate="no">${linkify(c.content)}</div>
+                                            <div id="v-comment-text-${c.id}" class="notranslate" translate="no">${linkify(c.content)}</div>${(c.media_url && /^https:\/\/[^\s"'<>`]+$/.test(c.media_url)) ? `<img src="${c.media_url}" loading="lazy" style="display:block;max-width:220px;max-height:260px;border-radius:12px;margin-top:6px;cursor:pointer" onclick="window.open(this.src)">` : ''}
                                         </div>
                                         <div style="display:flex; gap:4px; align-items:center;">
                                             ${isCommentOwner ? `<button class="comment-options-btn" onclick="enableEditVideoComment(${c.id}, ${postId}, '${encodeURIComponent(c.content)}')" title="កែប្រែ">✏️</button>` : ''}

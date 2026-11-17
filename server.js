@@ -381,7 +381,8 @@ pool.connect(async (err, client, release) => {
     await pool.query('CREATE TABLE IF NOT EXISTS saved_sounds (user_email TEXT NOT NULL, sound_id INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, sound_id))').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS overlays TEXT').catch(() => {});
-    await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});   // small, quick-start copy of a story video (made by the feed-video job)
+    await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
+    await pool.query('ALTER TABLE comments ADD COLUMN IF NOT EXISTS media_url TEXT').catch(() => {});   // a photo in a comment (deleted from storage together with the comment / post)   // small, quick-start copy of a story video (made by the feed-video job)
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumb_url TEXT').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
@@ -1628,13 +1629,18 @@ app.post('/api/comments/:id/reaction', async (req, res) => {
 });
 
 app.post('/api/comments', async (req, res) => {
-  const { postId, email, content, replyToCommentId } = req.body;
+  const { postId, email, replyToCommentId } = req.body;
+  let content = String((req.body || {}).content || '').trim();
+  // a comment can be a photo (with or without text): only a file of our own storage is accepted
+  const rawMedia = String((req.body || {}).mediaUrl || '').trim();
+  const mediaUrl = rawMedia && rawMedia.startsWith(storyMediaBase()) && !/[\s"'<>`\\]/.test(rawMedia) && rawMedia.length <= 500 ? rawMedia : null;
   try {
-    if (!postId || !content || !String(content).trim()) return res.status(400).json({ success: false, error: 'A comment needs a post and some text.' });
+    if (!postId || (!content && !mediaUrl)) return res.status(400).json({ success: false, error: 'A comment needs a post and some text or a photo.' });
     if (!(await visibility.guardPost(req, res, postId))) return;
     bumpInterest(req.authEmail, postId, 4);
-    const query = 'INSERT INTO comments (post_id, user_email, content, reply_to_id) VALUES ($1, $2, $3, $4) RETURNING *';
-    const result = await pool.query(query, [postId, email, content, replyToCommentId || null]);
+    const query = 'INSERT INTO comments (post_id, user_email, content, reply_to_id, media_url) VALUES ($1, $2, $3, $4, $5) RETURNING *';
+    const result = await pool.query(query, [postId, email, content, replyToCommentId || null, mediaUrl]);
+    if (!content && mediaUrl) content = '📷';
     const newComment = result.rows[0];
 
     const userInfo = await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [email]);
