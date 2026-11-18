@@ -429,6 +429,77 @@
     });
   }
   // ---------- 🪙 Coins & 🎁 gifts: top-ups waiting, packs, receiver share, waiting days, payment details, the gift list ----------
+  // ---------- 🚩 chat reports (on top of the Reports tab): see the reported message + the messages around it, delete at once,
+  // message the person, limit their chat, suspend, dismiss; every report about the same person is counted (watch them) ----------
+  function chatReportsAdmin() {
+    var panel = document.getElementById('panel-reports'); if (!panel) return;
+    var box = document.getElementById('chatReportsBox');
+    if (!box) { box = el('div', { id: 'chatReportsBox', class: 'at-card', style: 'margin-bottom:14px' }); panel.insertBefore(box, panel.firstChild); }
+    var mode = box.getAttribute('data-mode') || 'pending', target = box.getAttribute('data-target') || '';
+    function call(extra) {
+      return adm('/api/admin/chat-reports', Object.assign({ status: mode === 'done' ? 'done' : 'pending' }, target ? { target_email: target } : {}, extra || {}))
+        .then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; });
+    }
+    function media(url, type) {
+      if (!url) return null;
+      var u = String(url); if (u.charAt(0) === '[') { try { u = JSON.parse(u)[0].url || ''; } catch (e) { u = ''; } }
+      if (!u) return null;
+      if (type === 'video' || /\.(mp4|mov|webm)(\?|$)/i.test(u)) return el('video', { src: u, controls: 'controls', style: 'max-width:260px;max-height:260px;border-radius:8px;background:#000' });
+      if (type === 'audio' || /\.(m4a|aac|mp3|ogg|webm)(\?|$)/i.test(u)) return el('audio', { src: u, controls: 'controls' });
+      return el('img', { src: u, style: 'max-width:260px;max-height:260px;border-radius:8px;border:1px solid #ccc' });
+    }
+    function draw(d) {
+      box.textContent = '';
+      var reasons = d.reasons || {};
+      var head = el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px' }, [
+        el('span', { style: 'font-size:16px;font-weight:800', text: '💬 Chat reports' + (d.pending ? ' (' + d.pending + ' waiting)' : '') }),
+        el('button', { class: 'btn-sm' + (mode === 'pending' ? ' btn-blue' : ''), text: 'Waiting', onclick: function () { box.setAttribute('data-mode', 'pending'); chatReportsAdmin(); } }),
+        el('button', { class: 'btn-sm' + (mode === 'done' ? ' btn-blue' : ''), text: 'Done', onclick: function () { box.setAttribute('data-mode', 'done'); chatReportsAdmin(); } }),
+        target ? el('button', { class: 'btn-sm', text: '✕ Show everybody', onclick: function () { box.setAttribute('data-target', ''); chatReportsAdmin(); } }) : '']);
+      box.appendChild(head);
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-bottom:8px', text: 'Only what was reported is shown (with 10 messages before and after). Pictures / videos of deleted messages are kept 60 days as proof, then removed. Every action is saved in the Activity Log.' }));
+      if (!d.reports.length) { box.appendChild(el('div', { style: 'color:#65676b;padding:10px', text: mode === 'pending' ? 'No chat reports waiting 🎉' : 'Nothing yet.' })); return; }
+      d.reports.forEach(function (r) {
+        var tname = ((r.t_first || '') + ' ' + (r.t_last || '')).trim() || r.target_email, rname = ((r.r_first || '') + ' ' + (r.r_last || '')).trim() || r.reporter_email;
+        var card = el('div', { style: 'border:1px solid ' + (r.reason === 'child' || r.reason === 'sexual' ? '#fca5a5' : '#e4e6eb') + ';border-radius:12px;padding:12px;margin:8px 0;background:#fff' });
+        card.appendChild(el('div', { style: 'font-weight:800', text: '🚩 ' + (reasons[r.reason] || r.reason) + ' · ' + (r.kind === 'person' ? 'person' : 'message') + (r.group_name ? ' · group "' + r.group_name + '"' : '') + ' · ' + ago(r.created_at) }));
+        card.appendChild(el('div', { style: 'font-size:13px;margin:2px 0' }, [el('span', { text: 'Reported: ' }), el('b', { text: tname }),
+          el('span', { text: ' · reports about this person: ' + (r.t_reports || 0) + ' (acted on ' + (r.t_resolved || 0) + ')' + (r.t_banned ? ' · ⛔ suspended' : '') + (r.t_limit ? ' · chat: ' + r.t_limit : '') }), ' ',
+          el('a', { href: '#', text: '👁 watch this person', onclick: function (ev) { ev.preventDefault(); box.setAttribute('data-target', r.target_email); box.setAttribute('data-mode', 'done'); chatReportsAdmin(); } })]));
+        card.appendChild(el('div', { style: 'font-size:13px;color:#65676b', text: 'By: ' + rname + (r.note ? ' · note: "' + r.note + '"' : '') }));
+        if (r.kind === 'message') {
+          var main = el('div', { style: 'background:#fff7ed;border-radius:10px;padding:8px;margin:6px 0' }, [el('div', { style: 'font-size:12px;color:#9a3412;font-weight:700', text: 'Reported message' })]);
+          var m = media(r.media_url, r.message_type); if (m) main.appendChild(m);
+          if (r.message && r.message !== '[Photo]' && r.message !== '[Video]') main.appendChild(el('div', { text: String(r.message).replace(/^__CAMFEED_EDITED__:/, '') }));
+          card.appendChild(main);
+        }
+        var ctx = Array.isArray(r.context) ? r.context : [];
+        if (ctx.length) {
+          var det = el('details', { style: 'margin:4px 0' }, [el('summary', { style: 'cursor:pointer;font-size:13px', text: 'Messages around it (' + ctx.length + ')' })]);
+          ctx.forEach(function (c) {
+            var who = c.sender_email === r.target_email ? tname : (c.sender_email === r.reporter_email ? rname : 'other');
+            var line = el('div', { style: 'font-size:13px;padding:3px 0;border-bottom:1px solid #f0f2f5' + (Number(c.id) === Number(r.message_id) ? ';background:#fff7ed' : '') }, [el('b', { text: who + ': ' }), el('span', { text: String(c.message || '').replace(/^__CAMFEED_EDITED__:/, '').slice(0, 300) })]);
+            var mm = media(c.media_url, c.message_type); if (mm) { mm.style.maxWidth = '140px'; mm.style.maxHeight = '140px'; line.appendChild(el('div', {}, [mm])); }
+            det.appendChild(line);
+          });
+          card.appendChild(det);
+        }
+        if (r.status === 'pending') {
+          card.appendChild(el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:6px' }, [
+            r.message_id ? el('button', { class: 'btn-sm btn-red', text: '🗑 Delete now (both sides)', onclick: function () { var w = prompt('Reason (the sender sees it):', reasons[r.reason] || ''); if (w !== null) call({ action: 'delete', id: r.id, reason: w }); } }) : '',
+            el('button', { class: 'btn-sm', text: '✉️ Send a message', onclick: function () { var t = prompt('Message to ' + tname + ' (from CamFeed):'); if (t) call({ action: 'notice', id: r.id, text: t, close: confirm('Close this report too?') }); } }),
+            el('button', { class: 'btn-sm', text: '🔒 Limit chat', onclick: function () { var w = prompt('Reason (the person sees it):'); if (w) call({ action: 'limit', id: r.id, limit: confirm('OK = no chats or calls at all · Cancel = may only answer') ? 'banned' : 'reply_only', reason: w }); } }),
+            d.isSuperAdmin ? el('button', { class: 'btn-sm btn-red', text: '⛔ Suspend account', onclick: function () { var w = prompt('Reason:'); if (w && confirm('Suspend ' + tname + '?')) call({ action: 'suspend', id: r.id, reason: w }); } }) : '',
+            el('button', { class: 'btn-sm', text: '✔ Nothing wrong', onclick: function () { call({ action: 'dismiss', id: r.id }); } })]));
+        } else {
+          card.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:4px', text: '✅ ' + r.status + (r.action ? ' · ' + r.action : '') + ' · by ' + (r.handled_by || '') + ' · ' + ago(r.handled_at) }));
+        }
+        box.appendChild(card);
+      });
+    }
+    call();
+  }
+
   // ---------- ⭐ CamFeed Stars: applications (ID + selfie), stars (hours this month, pause / remove / warn), monthly bonuses, all rules ----------
   function starsAdmin(body) {
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
@@ -959,7 +1030,7 @@
   function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
   function applyInbox(d) {
     var c = d.counts;
-    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', c.reports); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0);
+    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0);
     document.title = (d.total > 0 ? '(' + d.total + ') ' : '') + baseTitle;
     var ib = document.getElementById('tabBtn-inbox'); if (ib) ib.style.color = d.total > 0 ? '#e41e3f' : '';
     if (lastTotal >= 0 && d.total > lastTotal) { try { var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05; o.start(); o.stop(ac.currentTime + 0.18); } catch (e) {} }
@@ -972,7 +1043,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party']];
       p.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px' }, chips.map(function (x) {
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
@@ -1080,7 +1151,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

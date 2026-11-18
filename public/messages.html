@@ -1736,6 +1736,27 @@
         }
 
         // ▶️ voice messages one after another (same choice as the app): 'off' | 'theirs' | 'all'
+        // 🚩 report a message (or the person) to CamFeed — same as the app
+        const CHAT_REPORT_REASONS = [['sexual', '🔞 អាសអាភាស ឬផ្លូវភេទ'], ['scam', '💸 បោកប្រាស់'], ['harass', '💢 ជេរប្រមាថ ឬរំលោភ'], ['violence', '⚠️ ហិង្សា ឬគំរាមកំហែង'], ['child', '🧒 ពាក់ព័ន្ធកុមារ'], ['spam', '📢 Spam'], ['other', '❓ ផ្សេងៗ']];
+        async function reportChatMessage(msgId) {
+            if (!activeFriend) return;
+            const list = CHAT_REPORT_REASONS.map((r, i) => (i + 1) + '. ' + r[1]).join('\n');
+            const pick = prompt((msgId ? '🚩 រាយការណ៍សារនេះ' : '🚩 រាយការណ៍អ្នកនេះ') + '\nវាយលេខមូលហេតុ៖\n' + list);
+            if (pick === null) return;
+            const r = CHAT_REPORT_REASONS[(parseInt(pick, 10) || 7) - 1] || CHAT_REPORT_REASONS[6];
+            const note = prompt('ពន្យល់បន្ថែម (មិនចាំបាច់)') || '';
+            const isG = !!activeFriend.is_group;
+            const body = { reason: r[0], note };
+            if (msgId) { body.message_id = msgId; if (isG) body.group_id = activeFriend.group_id || parseInt(String(activeFriend.email).replace('group:', ''), 10) || 0; }
+            else body.target_email = activeFriend.email;
+            if (!isG && confirm('ហាមឃាត់អ្នកនេះផងដែរ?')) body.block = true;
+            try {
+                const res = await fetch('/api/chat/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const d = await res.json();
+                alert(d.success ? '✅ បានរាយការណ៍ទៅ CamFeed ហើយ។ អរគុណ!' : (res.status === 409 ? 'អ្នកបានរាយការណ៍សារនេះរួចហើយ' : (d.error || 'បញ្ជូនមិនបាន')));
+            } catch (e) { alert('មានបញ្ហាបណ្ដាញ'); }
+        }
+
         function voiceAutoMode() { try { return localStorage.getItem('camfeed_voice_autoplay') || 'theirs'; } catch (e) { return 'theirs'; } }
         function setVoiceAutoMode(v) { try { localStorage.setItem('camfeed_voice_autoplay', v); } catch (e) {} renderChatSettings(); }
         function playNextVoice(msgId) {
@@ -2839,7 +2860,7 @@
                 <div class="cs-sec"><h4>▶️ ចាក់សារសំឡេងបន្តដោយស្វ័យប្រវត្តិ</h4><div class="cs-grid">${[['off', 'បិទ'], ['theirs', 'តែសំឡេងរបស់គេ'], ['all', 'ទាំងរបស់គេ និងរបស់ខ្ញុំ']].map(o => `<button type="button" class="cs-chip ${voiceAutoMode() === o[0] ? 'on' : ''}" onclick="setVoiceAutoMode('${o[0]}')">${o[1]}</button>`).join('')}</div>
                     <small>ស្ដាប់ចប់មួយ ចាក់មួយបន្ទាប់ដោយខ្លួនឯង រំលងរូបភាព និងសារអក្សរ។</small></div>
                 <div class="cs-sec"><div class="cs-row"><span>🔕 បិទសំឡេងជូនដំណឹងឆាតនេះ</span><button type="button" class="cs-switch ${s.muted ? 'on' : ''}" onclick="saveChatSetting({muted:${!s.muted}})"></button></div></div>
-                ${isG ? groupFooterHtml() : `<div class="cs-sec"><button type="button" class="cs-chip" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">👤 មើលប្រូហ្វាល</button></div>`}`;
+                ${isG ? groupFooterHtml() : `<div class="cs-sec"><button type="button" class="cs-chip" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">👤 មើលប្រូហ្វាល</button> <button type="button" class="cs-chip" style="color:#dc2626" onclick="closeChatSettings(); reportChatMessage(0)">🚩 រាយការណ៍អ្នកនេះ</button></div>`}`;
         }
         async function saveChatSetting(patch) {
             if (!activeFriend) return;
@@ -2936,6 +2957,7 @@
                     <button type="button" onclick="openForwardModal(${m.id}, '${encodeURIComponent(displayText)}', '${encodeURIComponent(m.media_url || '')}', '${m.message_type || 'text'}')">↪️ បញ្ជូនបន្ត (Forward)</button>
                     ${(isSent && isTextOnly) ? `<button type="button" onclick="startEditMessage(${m.id}, '${encodeURIComponent(displayText)}')">✏️ កែប្រែ (Edit)</button>` : ''}
                     ${isSent ? `<button type="button" class="danger" onclick="deleteSentMessage(${m.id})">🗑️ លុប (Delete)</button>` : ''}
+                    ${!isSent ? `<button type="button" class="danger" onclick="reportChatMessage(${m.id})">🚩 រាយការណ៍សារនេះ</button>` : ''}
                 `;
 
                 const actionsHtml = `

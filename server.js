@@ -2298,7 +2298,10 @@ app.post('/api/presence/offline', async (req, res) => {
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d),
   restrictedBy: (to, from) => chatPrefs.isRestricted(to, from) });   // a person I restricted: their calls do not ring
-const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
+const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });
+// 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
+const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), cleanup, extractMediaUrls, ensureChat: () => chatExtras.ensureSchema() });   // pin / archive / mute / restrict / delete chat / message requests
 // ⭐ CamFeed Stars (Party Room hosts): applications with ID + selfie, hours, a bigger gift share, monthly bonus (Admin pays)
 const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });
@@ -4617,6 +4620,7 @@ app.post('/api/admin/inbox', async (req, res) => {
       q("SELECT lr.id, lr.purpose, lr.requested_at AS at, u.first_name, u.last_name FROM live_requests lr JOIN users u ON u.email = lr.user_email WHERE lr.status = 'pending' ORDER BY lr.requested_at DESC LIMIT 15"),
       q("SELECT t.id, t.usd, t.method, t.created_at AS at, u.first_name, u.last_name FROM coin_topups t LEFT JOIN users u ON LOWER(u.email) = t.user_email WHERE t.status = 'pending' ORDER BY t.created_at DESC LIMIT 15"),
       q("SELECT p.room_id AS id, p.reason, p.created_at AS at FROM party_reports p WHERE p.handled = FALSE ORDER BY p.created_at DESC LIMIT 15")]);
+    const crp = await q("SELECT c.id, c.reason, c.kind, c.created_at AS at, u.first_name, u.last_name FROM chat_reports c LEFT JOIN users u ON LOWER(u.email) = c.target_email WHERE c.status = 'pending' ORDER BY c.created_at DESC LIMIT 15");
     const cnt = async (sql) => { try { return Number((await pool.query(sql)).rows[0].n); } catch (e) { return 0; } };
     const counts = {
       withdrawals: await cnt("SELECT COUNT(*) AS n FROM withdrawal_requests WHERE status = 'pending'"),
@@ -4626,7 +4630,8 @@ app.post('/api/admin/inbox', async (req, res) => {
       ads: await cnt("SELECT COUNT(*) AS n FROM ad_requests WHERE status = 'pending'"),
       live: await cnt("SELECT COUNT(*) AS n FROM live_requests WHERE status = 'pending'"),
       coins: await cnt("SELECT COUNT(*) AS n FROM coin_topups WHERE status = 'pending'"),
-      party: await cnt("SELECT COUNT(*) AS n FROM party_reports WHERE handled = FALSE")
+      party: await cnt("SELECT COUNT(*) AS n FROM party_reports WHERE handled = FALSE"),
+      chatReports: await cnt("SELECT COUNT(*) AS n FROM chat_reports WHERE status = 'pending'")
     };
     const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
     const items = [].concat(
@@ -4637,7 +4642,8 @@ app.post('/api/admin/inbox', async (req, res) => {
       ad.rows.map((x) => ({ kind: 'ad', tab: 'ads', title: String(x.business_name || 'Ad'), sub: 'Advertising request', at: x.at })),
       lv.rows.map((x) => ({ kind: 'live', tab: 'live', title: nm(x), sub: 'Live video request' + (x.purpose ? ' (' + x.purpose + ')' : ''), at: x.at })),
       ct.rows.map((x) => ({ kind: 'coins', tab: 'coins', title: nm(x) + ' · $' + Number(x.usd).toFixed(2), sub: 'Coin top-up (' + x.method + ')', at: x.at })),
-      pr.rows.map((x) => ({ kind: 'party', tab: 'party', title: 'Party Room #' + x.id, sub: 'Room report: ' + String(x.reason || '').slice(0, 80), at: x.at }))
+      pr.rows.map((x) => ({ kind: 'party', tab: 'party', title: 'Party Room #' + x.id, sub: 'Room report: ' + String(x.reason || '').slice(0, 80), at: x.at })),
+      crp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: '💬 ' + nm(x), sub: 'Chat report (' + x.kind + '): ' + x.reason, at: x.at }))
     ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
     res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
   } catch (err) { console.error('[admin] inbox error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
