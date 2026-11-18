@@ -705,10 +705,11 @@ app.post('/api/register', async (req, res) => {
     const hashed = await auth.hashPassword(password);
     const query = `
       INSERT INTO users (email, password, first_name, last_name, birthdate, gender, country, bio, phone_privacy, email_privacy, role, phone) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'private', 'private', $8, $10) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, '', 'private', 'private', $8, $9) 
       RETURNING *
     `;
-    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole, 'private', viaPhone ? phoneE164 : null]);
+    // every $n must be used in the SQL: an unused one ("$9" before) makes Postgres refuse the whole sign-up
+    const result = await pool.query(query, [email, hashed, firstName, lastName, birth, gender, country, initialRole, viaPhone ? phoneE164 : null]);
     const user = result.rows[0];
     registerLimiter.hit(req.ip);
     recordReferral(user.email, req.body && req.body.ref, req.ip);
