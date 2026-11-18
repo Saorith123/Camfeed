@@ -1,0 +1,18 @@
+{
+  "id": "/signup-helper.html",
+  "name": "CamFeed ចុះឈ្មោះ",
+  "short_name": "ចុះឈ្មោះ",
+  "description": "CamFeed Admin — ចុះឈ្មោះអ្នកប្រើថ្មី និងប្ដូរពាក្យសម្ងាត់",
+  "lang": "km",
+  "start_url": "/signup-helper.html",
+  "scope": "/signup-helper.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f2fb",
+  "theme_color": "#7c3aed",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

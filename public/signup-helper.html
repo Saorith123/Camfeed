@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CamFeed ចុះឈ្មោះ</title>
+<meta name="theme-color" content="#7c3aed">
+<link rel="manifest" href="/signup-helper.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ចុះឈ្មោះ">
+<link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="auth-client.js"></script>
+<script src="qr.js"></script>
+<style>
+  :root { --bg: #f4f2fb; --card: #ffffff; --text: #1c1b29; --sub: #6b6880; --line: #e6e3f0; --brand: #7c3aed; --brand2: #ec4899; --ok: #16a34a; --bad: #dc2626; --chip: #f1eefb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #12111a; --card: #1d1b29; --text: #f2f0fa; --sub: #a5a1bb; --line: #2e2b3f; --chip: #2a2740; } }
+  :root[data-theme="dark"] { --bg: #12111a; --card: #1d1b29; --text: #f2f0fa; --sub: #a5a1bb; --line: #2e2b3f; --chip: #2a2740; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Kantumruy Pro', system-ui, sans-serif; font-size: 16px; }
+  .top { background: linear-gradient(135deg, var(--brand), var(--brand2)); color: #fff; padding: calc(env(safe-area-inset-top) + 18px) 18px 54px; }
+  .top h1 { margin: 0; font-size: 22px; font-weight: 800; }
+  .top p { margin: 4px 0 0; opacity: .9; font-size: 14px; }
+  .top .stat { margin-top: 12px; display: inline-flex; gap: 8px; align-items: center; background: rgba(255,255,255,.18); border-radius: 20px; padding: 6px 12px; font-size: 13.5px; font-weight: 600; }
+  .wrap { max-width: 520px; margin: -38px auto 0; padding: 0 14px calc(env(safe-area-inset-bottom) + 30px); }
+  .card { background: var(--card); border-radius: 20px; padding: 18px 16px; box-shadow: 0 8px 28px rgba(60, 30, 120, .10); margin-bottom: 14px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--chip); border-radius: 14px; padding: 4px; margin-bottom: 14px; }
+  .seg button { border: 0; background: transparent; padding: 11px; border-radius: 11px; font: inherit; font-weight: 700; color: var(--sub); }
+  .seg button.on { background: var(--card); color: var(--brand); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  label { display: block; font-size: 13.5px; font-weight: 700; color: var(--sub); margin: 12px 2px 6px; }
+  input, select { width: 100%; border: 1.5px solid var(--line); background: var(--card); color: var(--text); border-radius: 14px; padding: 13px 14px; font: inherit; font-size: 17px; outline: none; }
+  input:focus, select:focus { border-color: var(--brand); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1.4fr 1.2fr; gap: 8px; }
+  .phone { display: flex; gap: 8px; }
+  .phone .cc { flex: 0 0 86px; text-align: center; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--line); border-radius: 14px; background: var(--chip); }
+  .chips { display: flex; gap: 8px; }
+  .chips button { flex: 1; border: 1.5px solid var(--line); background: var(--card); color: var(--text); border-radius: 14px; padding: 12px 6px; font: inherit; font-weight: 700; }
+  .chips button.on { border-color: var(--brand); background: var(--chip); color: var(--brand); }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 14px; color: var(--sub); }
+  .check input { width: 22px; height: 22px; flex: 0 0 22px; margin-top: 1px; accent-color: var(--brand); }
+  .btn { width: 100%; border: 0; border-radius: 16px; padding: 16px; font: inherit; font-size: 17px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand2)); margin-top: 18px; box-shadow: 0 8px 20px rgba(124,58,237,.3); }
+  .btn:disabled { opacity: .55; }
+  .btn.ghost { background: var(--chip); color: var(--brand); box-shadow: none; }
+  .msg { margin-top: 12px; padding: 12px 14px; border-radius: 14px; font-size: 14.5px; display: none; }
+  .msg.bad { display: block; background: #fdecee; color: #9b1229; }
+  .done { text-align: center; }
+  .done .big { font-size: 46px; }
+  .done h2 { margin: 6px 0 2px; font-size: 20px; }
+  .cred { background: var(--chip); border-radius: 16px; padding: 14px; text-align: left; margin: 14px 0; }
+  .cred div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 15px; }
+  .cred b { font-size: 17px; word-break: break-all; text-align: right; }
+  .qr { display: inline-block; background: #fff; padding: 10px; border-radius: 16px; margin-top: 4px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .actions .btn { margin-top: 10px; font-size: 15px; padding: 14px; }
+  .hint { font-size: 13px; color: var(--sub); margin-top: 8px; line-height: 1.5; }
+  .gate { text-align: center; }
+  .gate .lock { font-size: 40px; }
+  .pw { display: flex; gap: 8px; }
+  .pw button { flex: 0 0 auto; border: 1.5px solid var(--line); background: var(--chip); color: var(--brand); border-radius: 14px; padding: 0 14px; font: inherit; font-weight: 700; }
+  .toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 14px); transform: translateX(-50%); background: #222233; color: #fff; padding: 11px 16px; border-radius: 16px; font-size: 14.5px; font-weight: 600; z-index: 9; display: none; max-width: 90vw; box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>➕ ចុះឈ្មោះអ្នកប្រើថ្មី</h1>
+  <p>បង្កើតគណនី CamFeed ឲ្យមនុស្សដែលអ្នកជួប ក្នុងមួយនាទី</p>
+  <div class="stat" id="stat">📊 ថ្ងៃនេះ៖ 0 នាក់</div>
+</div>
+<div class="wrap">
+  <!-- not logged in / not an admin / PIN -->
+  <div class="card gate" id="gate" style="display:none">
+    <div class="lock">🔐</div>
+    <h2 style="margin:6px 0">សម្រាប់ Admin CamFeed</h2>
+    <div id="gateBody"></div>
+  </div>
+
+  <!-- two jobs: a new account / a new password for an account -->
+  <div class="seg" id="modeSeg" style="display:none;background:var(--card);box-shadow:0 8px 28px rgba(60,30,120,.10)"><button type="button" id="mNew" class="on">➕ ចុះឈ្មោះថ្មី</button><button type="button" id="mReset">🔑 ប្ដូរពាក្យសម្ងាត់</button></div>
+
+  <!-- reset a password -->
+  <div class="card" id="resetCard" style="display:none">
+    <div class="hint" style="margin-top:0">សម្រាប់អ្នកដែលភ្លេចពាក្យសម្ងាត់។ សូមពិនិត្យថាជាម្ចាស់គណនីពិតប្រាកដ (មើលអត្តសញ្ញាណ ឬសួរព័ត៌មានគណនី) មុនប្ដូរ</div>
+    <label for="rId">លេខទូរសព្ទ ឬ Gmail របស់គណនី</label>
+    <input id="rId" autocomplete="off" placeholder="012 345 678 ឬ name@gmail.com">
+    <label for="rPw">ពាក្យសម្ងាត់ថ្មី</label>
+    <div class="pw"><input id="rPw" type="text" autocomplete="off" placeholder="ទុកទទេ = បង្កើតឲ្យដោយស្វ័យប្រវត្តិ"><button type="button" id="rGen">🎲</button></div>
+    <button class="btn" id="rGo">🔑 ប្ដូរពាក្យសម្ងាត់</button>
+    <div class="msg" id="rMsg"></div>
+  </div>
+
+  <!-- the form -->
+  <div class="card" id="formCard" style="display:none">
+    <div class="seg"><button type="button" id="kPhone" class="on">📱 លេខទូរសព្ទ</button><button type="button" id="kEmail">✉️ Gmail</button></div>
+    <div id="phoneBox">
+      <label for="phone">លេខទូរសព្ទ (ប្រើជាឈ្មោះចូល)</label>
+      <div class="phone"><div class="cc">🇰🇭 +855</div><input id="phone" type="tel" inputmode="tel" placeholder="012 345 678" autocomplete="off"></div>
+    </div>
+    <div id="emailBox" style="display:none">
+      <label for="email">Gmail (ប្រើជាឈ្មោះចូល)</label>
+      <input id="email" type="email" inputmode="email" placeholder="name@gmail.com" autocomplete="off">
+    </div>
+    <div class="row">
+      <div><label for="last">នាមត្រកូល</label><input id="last" autocomplete="off" placeholder="សុខ"></div>
+      <div><label for="first">នាមខ្លួន</label><input id="first" autocomplete="off" placeholder="ដារា"></div>
+    </div>
+    <label>ភេទ</label>
+    <div class="chips" id="gender"><button type="button" data-v="Male" class="on">👨 ប្រុស</button><button type="button" data-v="Female">👩 ស្រី</button><button type="button" data-v="Other">ផ្សេងៗ</button></div>
+    <label>ថ្ងៃខែឆ្នាំកំណើត</label>
+    <div class="row3"><select id="dd"></select><select id="mm"></select><select id="yy"></select></div>
+    <label for="pw">ពាក្យសម្ងាត់</label>
+    <div class="pw"><input id="pw" type="text" autocomplete="off" placeholder="ទុកទទេ = បង្កើតឲ្យដោយស្វ័យប្រវត្តិ"><button type="button" id="gen">🎲</button></div>
+    <button class="btn" id="go">✅ បង្កើតគណនី</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <!-- done -->
+  <div class="card done" id="doneCard" style="display:none">
+    <div class="big" id="dIcon">🎉</div>
+    <h2 id="dName"></h2>
+    <div class="hint" id="dHint">គណនីបានបង្កើតរួចហើយ។ ឲ្យគាត់ថតរូប ឬផ្ញើព័ត៌មាននេះទៅគាត់</div>
+    <div class="cred">
+      <div><span>ឈ្មោះចូល</span><b id="dLogin"></b></div>
+      <div><span>ពាក្យសម្ងាត់</span><b id="dPw"></b></div>
+    </div>
+    <div class="qr"><canvas id="qr" width="180" height="180"></canvas></div>
+    <div class="hint">ស្កេន QR ដើម្បីបើក CamFeed ហើយចូលគណនី · ប្រាប់គាត់ឲ្យប្ដូរពាក្យសម្ងាត់ក្នុង ការកំណត់</div>
+    <div class="actions"><button class="btn ghost" id="copy">📋 ចម្លង</button><button class="btn ghost" id="share">📤 ផ្ញើ</button></div>
+    <button class="btn" id="again">➕ ចុះឈ្មោះម្នាក់ទៀត</button>
+  </div>
+  <div class="hint" style="text-align:center">💡 ចុច ⋮ → «Add to Home screen» ដើម្បីដាក់ទំព័រនេះលើអេក្រង់ទូរសព្ទ</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var SITE = location.origin;
+  var user = null; try { user = JSON.parse(localStorage.getItem('camfeed_user') || 'null'); } catch (e) {}
+  var KEY_S = 'camfeed_admin_key', KEY_L = 'camfeed_signup_pin';
+  function pin() { try { return sessionStorage.getItem(KEY_S) || localStorage.getItem(KEY_L) || ''; } catch (e) { return ''; } }
+  function toast(t) { var x = $('toast'); x.textContent = t; x.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { x.style.display = 'none'; }, 2600); }
+  function el(tag, attrs, text) { var e = document.createElement(tag); Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); }); if (text) e.textContent = text; return e; }
+
+  // today's count (on this phone)
+  function todayKey() { var d = new Date(); return 'camfeed_signups_' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function drawStat() { var n = 0; try { n = parseInt(localStorage.getItem(todayKey()) || '0', 10) || 0; } catch (e) {} $('stat').textContent = '📊 ថ្ងៃនេះ៖ ' + n + ' នាក់'; }
+  function addStat() { try { localStorage.setItem(todayKey(), String((parseInt(localStorage.getItem(todayKey()) || '0', 10) || 0) + 1)); } catch (e) {} drawStat(); }
+  drawStat();
+
+  // ---- gate: logged in as an admin + the Admin PIN ----
+  function showGate(kind) {
+    $('formCard').style.display = 'none'; $('doneCard').style.display = 'none'; $('gate').style.display = 'block';
+    var b = $('gateBody'); b.textContent = '';
+    if (kind === 'login') {
+      b.appendChild(el('p', { class: 'hint' }, 'សូមចូលគណនី Admin របស់អ្នកនៅ CamFeed ជាមុនសិន'));
+      var a = el('button', { class: 'btn' }, 'ចូលគណនី'); a.onclick = function () { location.href = 'index.html?next=' + encodeURIComponent('/signup-helper.html'); }; b.appendChild(a);
+      return;
+    }
+    b.appendChild(el('p', { class: 'hint' }, 'បញ្ចូល Admin PIN'));
+    var i = el('input', { type: 'password', inputmode: 'numeric', placeholder: 'Admin PIN', autocomplete: 'off' }); b.appendChild(i);
+    var lab = el('label', { class: 'check' }); var cb = el('input', { type: 'checkbox' }); lab.appendChild(cb); lab.appendChild(el('span', {}, 'ចងចាំលើទូរសព្ទនេះ (ទូរសព្ទផ្ទាល់ខ្លួនតែប៉ុណ្ណោះ)')); b.appendChild(lab);
+    var go = el('button', { class: 'btn' }, 'បើក'); b.appendChild(go);
+    var m = el('div', { class: 'msg' }); b.appendChild(m);
+    go.onclick = function () {
+      var k = i.value.trim(); if (!k) return;
+      go.disabled = true;
+      fetch('/api/admin/chat/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminEmail: user.email, adminKey: k }) })
+        .then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
+        .then(function (x) {
+          go.disabled = false;
+          // 403 "only a Super Admin" still means the PIN is right; a wrong PIN / not an admin says so
+          var bad = !x.d.success && /PIN|Denied|permission|configured|Too many/i.test(x.d.error || '');
+          if (bad) { m.className = 'msg bad'; m.textContent = /Denied|permission/i.test(x.d.error) ? 'គណនីនេះមិនមែនជា Admin ទេ' : 'PIN មិនត្រឹមត្រូវ'; return; }
+          try { sessionStorage.setItem(KEY_S, k); if (cb.checked) localStorage.setItem(KEY_L, k); } catch (e) {}
+          showForm();
+        }).catch(function () { go.disabled = false; m.className = 'msg bad'; m.textContent = 'មានបញ្ហាបណ្ដាញ'; });
+    };
+  }
+
+  // ---- the form ----
+  var kind = 'phone', gender = 'Male', lastResult = null;
+  function fillDates() {
+    var dd = $('dd'), mm = $('mm'), yy = $('yy');
+    dd.appendChild(el('option', { value: '' }, 'ថ្ងៃ')); for (var d = 1; d <= 31; d++) dd.appendChild(el('option', { value: String(d).padStart(2, '0') }, String(d)));
+    var months = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'];
+    mm.appendChild(el('option', { value: '' }, 'ខែ')); months.forEach(function (n, i) { mm.appendChild(el('option', { value: String(i + 1).padStart(2, '0') }, n)); });
+    var now = new Date().getFullYear();
+    yy.appendChild(el('option', { value: '' }, 'ឆ្នាំ')); for (var y = now - 13; y >= now - 90; y--) yy.appendChild(el('option', { value: String(y) }, String(y)));
+  }
+  function setKind(k) { kind = k; $('kPhone').className = k === 'phone' ? 'on' : ''; $('kEmail').className = k === 'email' ? 'on' : ''; $('phoneBox').style.display = k === 'phone' ? '' : 'none'; $('emailBox').style.display = k === 'email' ? '' : 'none'; }
+  function makePw() { var a = 'abcdefghjkmnpqrstuvwxyz23456789', s = '', r = new Uint8Array(8); crypto.getRandomValues(r); r.forEach(function (b) { s += a[b % a.length]; }); return s; }
+  function bad(t) { var m = $('msg'); m.className = 'msg bad'; m.textContent = t; }
+  var mode = 'new';
+  function showForm() {
+    $('gate').style.display = 'none'; $('doneCard').style.display = 'none'; $('modeSeg').style.display = 'grid';
+    $('formCard').style.display = mode === 'new' ? 'block' : 'none'; $('resetCard').style.display = mode === 'reset' ? 'block' : 'none';
+    $('mNew').className = mode === 'new' ? 'on' : ''; $('mReset').className = mode === 'reset' ? 'on' : '';
+  }
+  $('mNew').onclick = function () { mode = 'new'; showForm(); };
+  $('mReset').onclick = function () { mode = 'reset'; showForm(); };
+  $('rGen').onclick = function () { $('rPw').value = makePw(); };
+  function showDone(name, login, pw, isReset) {
+    lastResult = { name: name, login: login, pw: pw, reset: isReset };
+    $('dIcon').textContent = isReset ? '🔑' : '🎉';
+    $('dName').textContent = name;
+    $('dHint').textContent = isReset ? 'ពាក្យសម្ងាត់ត្រូវបានប្ដូរ។ គាត់ត្រូវចូលម្ដងទៀតគ្រប់ទូរសព្ទ' : 'គណនីបានបង្កើតរួចហើយ។ ឲ្យគាត់ថតរូប ឬផ្ញើព័ត៌មាននេះទៅគាត់';
+    $('dLogin').textContent = login; $('dPw').textContent = pw;
+    $('again').textContent = isReset ? '🔑 ប្ដូរម្នាក់ទៀត' : '➕ ចុះឈ្មោះម្នាក់ទៀត';
+    try { CamQR.draw($('qr'), SITE + '/', 7); } catch (e) {}
+    $('formCard').style.display = 'none'; $('resetCard').style.display = 'none'; $('modeSeg').style.display = 'none'; $('doneCard').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+  $('rGo').onclick = function () {
+    var m = $('rMsg'); m.className = 'msg';
+    var id = $('rId').value.trim(), pw = $('rPw').value.trim();
+    if (id.length < 6) { m.className = 'msg bad'; m.textContent = 'សូមបញ្ចូលលេខទូរសព្ទ ឬ Gmail'; return; }
+    if (pw && pw.length < 6) { m.className = 'msg bad'; m.textContent = 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៦ តួ'; return; }
+    if (!confirm('ប្ដូរពាក្យសម្ងាត់របស់ ' + id + '? គាត់នឹងត្រូវចេញពីគ្រប់ទូរសព្ទ')) return;
+    var btn = $('rGo'); btn.disabled = true;
+    fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminEmail: user.email, adminKey: pin(), identifier: id.includes('@') ? id : id.replace(/[\s\-]/g, ''), country: 'Cambodia', newPassword: pw }) })
+      .then(function (r) { return r.json(); })
+      .then(function (x) {
+        btn.disabled = false;
+        if (!x.success) {
+          var e = x.error || '';
+          if (/PIN|Denied/i.test(e)) { try { sessionStorage.removeItem(KEY_S); localStorage.removeItem(KEY_L); } catch (z) {} showGate('pin'); return; }
+          m.className = 'msg bad'; m.textContent = /No account/i.test(e) ? 'រកមិនឃើញគណនីនេះទេ' : /Super Admin/i.test(e) ? 'ប្ដូរពាក្យសម្ងាត់ Admin បានតែ Super Admin' : (e || 'ប្ដូរមិនបាន'); return;
+        }
+        showDone('ពាក្យសម្ងាត់ថ្មី', id, x.tempPassword || pw, true);
+      }).catch(function () { btn.disabled = false; m.className = 'msg bad'; m.textContent = 'មានបញ្ហាបណ្ដាញ'; });
+  };
+
+  $('kPhone').onclick = function () { setKind('phone'); };
+  $('kEmail').onclick = function () { setKind('email'); };
+  Array.prototype.forEach.call($('gender').children, function (b) { b.onclick = function () { gender = b.getAttribute('data-v'); Array.prototype.forEach.call($('gender').children, function (x) { x.className = x === b ? 'on' : ''; }); }; });
+  $('gen').onclick = function () { $('pw').value = makePw(); };
+
+  $('go').onclick = function () {
+    $('msg').className = 'msg';
+    var first = $('first').value.trim(), last = $('last').value.trim();
+    var phone = $('phone').value.replace(/[\s\-]/g, ''), email = $('email').value.trim();
+    var d = $('dd').value, m = $('mm').value, y = $('yy').value;
+    if (kind === 'phone' && phone.length < 8) return bad('សូមបញ្ចូលលេខទូរសព្ទឲ្យត្រឹមត្រូវ');
+    if (kind === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('សូមបញ្ចូល Gmail ឲ្យត្រឹមត្រូវ');
+    if (!first || !last) return bad('សូមបញ្ចូលនាមត្រកូល និងនាមខ្លួន');
+    if (!d || !m || !y) return bad('សូមជ្រើសថ្ងៃខែឆ្នាំកំណើត');
+    var pw = $('pw').value.trim(); if (pw && pw.length < 6) return bad('ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៦ តួ');
+    var btn = $('go'); btn.disabled = true; btn.textContent = 'កំពុងបង្កើត…';
+    fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      adminEmail: user.email, adminKey: pin(), kind: kind, phone: phone, loginEmail: email, firstName: first, lastName: last, gender: gender, country: 'Cambodia',
+      birthdate: d + '-' + m + '-' + y, password: pw }) })
+      .then(function (r) { return r.json(); })
+      .then(function (x) {
+        btn.disabled = false; btn.textContent = '✅ បង្កើតគណនី';
+        if (!x.success) {
+          var e = x.error || '';
+          if (/PIN|Denied/i.test(e)) { try { sessionStorage.removeItem(KEY_S); localStorage.removeItem(KEY_L); } catch (z) {} showGate('pin'); return; }
+          return bad(/already/i.test(e) ? (kind === 'phone' ? 'លេខនេះមានគណនីរួចហើយ' : 'Gmail នេះមានគណនីរួចហើយ') : /phone number is not valid/i.test(e) ? 'លេខទូរសព្ទមិនត្រឹមត្រូវ' : (e || 'បង្កើតមិនបាន'));
+        }
+        showDone(x.name, x.kind === 'phone' ? ('0' + String(x.login).replace(/^\+855/, '')) : x.login, x.tempPassword || pw, false);
+        addStat();
+      }).catch(function () { btn.disabled = false; btn.textContent = '✅ បង្កើតគណនី'; bad('មានបញ្ហាបណ្ដាញ សូមព្យាយាមម្ដងទៀត'); });
+  };
+
+  function credText() { var r = lastResult; return (r.reset ? 'ពាក្យសម្ងាត់ CamFeed ថ្មីរបស់អ្នក៖' : 'សួស្ដី ' + r.name + '! គណនី CamFeed របស់អ្នក៖') + '\nឈ្មោះចូល៖ ' + r.login + '\nពាក្យសម្ងាត់៖ ' + r.pw + '\nចូលនៅ៖ ' + SITE + '\nសូមប្ដូរពាក្យសម្ងាត់ក្នុង ការកំណត់ ក្រោយចូលលើកដំបូង។'; }
+  $('copy').onclick = function () { if (!lastResult) return; (navigator.clipboard ? navigator.clipboard.writeText(credText()) : Promise.reject()).then(function () { toast('✅ បានចម្លង'); }, function () { toast('ចម្លងមិនបាន'); }); };
+  $('share').onclick = function () { if (!lastResult) return; if (navigator.share) navigator.share({ title: 'CamFeed', text: credText() }).catch(function () {}); else $('copy').onclick(); };
+  $('again').onclick = function () { ['phone', 'email', 'first', 'last', 'pw', 'rId', 'rPw'].forEach(function (id) { $(id).value = ''; }); $('dd').value = ''; $('mm').value = ''; $('yy').value = ''; lastResult = null; showForm(); $('phone').focus(); };
+
+  fillDates();
+  if (!user || !user.email) showGate('login'); else if (!pin()) showGate('pin'); else showForm();
+})();
+</script>
+</body>
+</html>

@@ -108,7 +108,7 @@
 
     <script>
         // after login go back to the shared post (/p/123) if the person came from one; only this exact shape is allowed (no open redirect)
-        const NEXT_URL = (function () { try { const n = new URLSearchParams(location.search).get('next') || ''; return /^\/p\/\d{1,10}$/.test(n) ? n : 'feed.html'; } catch (e) { return 'feed.html'; } })();
+        const NEXT_URL = (function () { try { const n = new URLSearchParams(location.search).get('next') || ''; return (/^\/p\/\d{1,10}$/.test(n) || n === '/signup-helper.html') ? n : 'feed.html'; } catch (e) { return 'feed.html'; } })();
         const existingUser = localStorage.getItem('camfeed_user');
         if (existingUser) {
             window.location.href = NEXT_URL;
