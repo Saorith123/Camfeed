@@ -528,6 +528,14 @@
       box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [vo, el('span', { text: 'VIP open' })]),
         el('span', { text: 'VIP price (coins)' }), vp, el('span', { text: 'days' }), vd,
         su ? el('button', { class: 'btn-sm btn-blue', text: 'Save VIP & levels', onclick: function () { call({ action: 'vip', levels: lv.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean), vipPrice: vp.value, vipDays: vd.value, vipOn: vo.checked }); } }) : '']));
+      // 📅 daily check-in
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '📅 Daily check-in (today: ' + (d.checkinToday || 0) + ' people · coins given in 30 days: ' + Number(d.checkinCoins30 || 0).toLocaleString() + ')' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'People tap check-in once a day in Party Room; 7 days in a row, then it starts again. A missed day starts again at day 1. Coins for day 1 … day 7 (comma between). Careful: these coins are free money — keep them small.' }));
+      var ckv = el('input', { class: 'at-in', value: (st.checkin || [5, 5, 10, 10, 15, 20, 50]).join(','), style: 'width:260px' });
+      var cko = el('input', { type: 'checkbox' }); cko.checked = st.checkinOn !== false;
+      if (!su) [ckv, cko].forEach(function (i) { i.disabled = true; });
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [cko, el('span', { text: 'Check-in open' })]), ckv,
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save check-in', onclick: function () { call({ action: 'checkin', checkin: ckv.value.split(',').map(function (x) { return x.trim(); }), checkinOn: cko.checked }); } }) : '']));
       // add / take coins by hand
       if (su) {
         box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));
