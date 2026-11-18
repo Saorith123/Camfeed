@@ -91,6 +91,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         // it does not go through the voice line, so it sounds clear and costs nothing more
         for (const col of ['music_id INTEGER', 'music_url TEXT', 'music_title TEXT', 'music_artist TEXT', 'music_at TIMESTAMPTZ', 'music_paused_at TIMESTAMPTZ', 'music_by TEXT'])
           await pool.query(`ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS ${col}`);
+        // 🤝 people who were in the same room ≥ 10 minutes: "people you met in rooms" (make friends)
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_met (user_email TEXT NOT NULL, other_email TEXT NOT NULL, room_id INTEGER, met_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          hidden BOOLEAN NOT NULL DEFAULT FALSE, PRIMARY KEY (user_email, other_email))`);
         const n = await pool.query('SELECT COUNT(*)::int AS n FROM party_fx');
         if (!n.rows[0].n) {
           let i = 0;
@@ -176,7 +179,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
   }
 
   // forget people who went away, close rooms whose owner is gone; old chat is removed after a day
-  let sweptAt = 0;
+  let sweptAt = 0, metAt = 0;
   async function sweep() {
     if (Date.now() - sweptAt < 10000) return; sweptAt = Date.now();
     try {
@@ -185,6 +188,15 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       const gone = await pool.query(`SELECT r.id FROM party_rooms r WHERE r.status = 'open' AND NOT EXISTS (
                                        SELECT 1 FROM party_members m WHERE m.room_id = r.id AND m.user_email = r.owner_email AND m.last_seen >= NOW() - ($1 || ' seconds')::interval)`, [String(OWNER_GONE_SEC)]);
       for (const g of gone.rows) await closeRoom(g.id, 'system', 'owner left');
+      if (Date.now() - metAt > 60000) {                     // once a minute: who has been together ≥ 10 minutes
+        metAt = Date.now();
+        await pool.query(`INSERT INTO party_met (user_email, other_email, room_id, met_at)
+                          SELECT a.user_email, b.user_email, a.room_id, NOW() FROM party_members a JOIN party_members b ON b.room_id = a.room_id AND b.user_email <> a.user_email
+                          WHERE GREATEST(a.joined_at, b.joined_at) < NOW() - INTERVAL '10 minutes'
+                            AND a.last_seen >= NOW() - ($1 || ' seconds')::interval AND b.last_seen >= NOW() - ($1 || ' seconds')::interval
+                          ON CONFLICT (user_email, other_email) DO UPDATE SET met_at = NOW(), room_id = EXCLUDED.room_id`, [String(STALE_SEC)]);
+        await pool.query("DELETE FROM party_met WHERE met_at < NOW() - INTERVAL '30 days'");
+      }
       await pool.query("DELETE FROM party_messages WHERE room_id IN (SELECT id FROM party_rooms WHERE status = 'closed' AND closed_at < NOW() - INTERVAL '1 day')");
       await pool.query("DELETE FROM party_bans WHERE room_id IN (SELECT id FROM party_rooms WHERE status = 'closed')");
       await pool.query("DELETE FROM party_rooms WHERE status = 'closed' AND closed_at < NOW() - INTERVAL '30 days' AND id NOT IN (SELECT room_id FROM party_reports WHERE handled = FALSE)");
@@ -204,6 +216,13 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
                                    LEFT JOIN users t ON LOWER(t.email) = p.to_email LEFT JOIN gift_catalog g ON g.id = p.gift_id
                                    LEFT JOIN party_fx f ON f.id = p.fx_id
                                    WHERE p.room_id = $1 AND p.id > $2 ORDER BY p.id DESC LIMIT 60`, [room.id, parseInt(after, 10) || 0]);
+    if (people.length) {                                   // ➕ Follow / 💬 message straight from the room (make friends)
+      const others = people.map((p) => norm(p.email)).filter((x) => x !== email);
+      const f = others.length ? await pool.query(`SELECT LOWER(follower_email) AS a, LOWER(following_email) AS b FROM follows
+                                                  WHERE (LOWER(follower_email) = $1 AND LOWER(following_email) = ANY($2)) OR (LOWER(following_email) = $1 AND LOWER(follower_email) = ANY($2))`, [email, others]).catch(() => ({ rows: [] })) : { rows: [] };
+      const iF = new Set(f.rows.filter((x) => x.a === email).map((x) => x.b)), fMe = new Set(f.rows.filter((x) => x.b === email).map((x) => x.a));
+      for (const p of people) { const k = norm(p.email); p.i_follow = iF.has(k); p.follows_me = fMe.has(k); }
+    }
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
     return {
@@ -357,6 +376,31 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
   });
 
   // the rooms I follow: open now (enter) or closed (waiting for the next time)
+  // 🤝 people I spent ≥ 10 minutes with in a room (last 30 days), not yet followed by me
+  app.get('/api/party/met', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure(); await sweep();
+      const r = await pool.query(`
+        SELECT ${userCols}, pm.met_at, (SELECT title FROM party_rooms z WHERE z.id = pm.room_id) AS room_title
+        FROM party_met pm JOIN users u ON LOWER(u.email) = pm.other_email
+        WHERE pm.user_email = $1 AND pm.hidden = FALSE
+          AND NOT EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = $1 AND LOWER(f.following_email) = pm.other_email)
+          AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = pm.other_email) OR (LOWER(b.blocker_email) = pm.other_email AND LOWER(b.blocked_email) = $1))
+        ORDER BY pm.met_at DESC LIMIT 30`, [e]);
+      res.json({ success: true, people: r.rows.map((x) => ({ email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '', met_at: x.met_at, room_title: x.room_title || '' })) });
+    } catch (err) { console.error('[party] met:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+  });
+  app.post('/api/party/met/hide', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const who = norm(req.body && (req.body.target_email || ''));
+      if (who) await pool.query('UPDATE party_met SET hidden = TRUE WHERE user_email = $1 AND other_email = $2', [e, who]);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+  });
+
   app.get('/api/party/following', async (req, res) => {
     const e = me(req, res); if (!e) return;
     try {

@@ -153,6 +153,7 @@ module.exports = function createPush({ app, pool }) {
         let text = media || String(m.message || '').replace(/\s+/g, ' ');
         if (text.startsWith('STICKER_EMOJI:')) text = text.slice(14) || '🙂';
         else if (text.startsWith('BIG_EMOJI:')) text = text.split(':').slice(2).join(':') || '👍';
+        else if (text.startsWith('PARTY_ROOM:')) text = '🎉 Party Room: ' + text.split(':').slice(2).join(':');
         else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
         else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
         sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages' });
@@ -169,6 +170,7 @@ module.exports = function createPush({ app, pool }) {
           let text = { image: '📷 រូបភាព', video: '🎬 វីដេអូ', audio: '🎙️ សារសំឡេង', location: '📍 ទីតាំង', sticker: 'Sticker' }[g.message_type] || String(g.message || '').replace(/\s+/g, ' ');
           if (text.startsWith('STICKER_EMOJI:')) text = text.slice(14) || '🙂';
           else if (text.startsWith('BIG_EMOJI:')) text = text.split(':').slice(2).join(':') || '👍';
+        else if (text.startsWith('PARTY_ROOM:')) text = '🎉 Party Room: ' + text.split(':').slice(2).join(':');
           else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
           else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
           const members = (await pool.query('SELECT user_email FROM chat_group_members WHERE group_id = $1', [g.group_id]).catch(() => ({ rows: [] }))).rows;

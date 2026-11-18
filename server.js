@@ -395,6 +395,7 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
     await pool.query('ALTER TABLE comments ADD COLUMN IF NOT EXISTS media_url TEXT').catch(() => {});   // a photo in a comment (deleted from storage together with the comment / post)   // small, quick-start copy of a story video (made by the feed-video job)
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
+    await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS audio_ready BOOLEAN DEFAULT FALSE').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumb_url TEXT').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS sounds_post_uq ON sounds (post_id) WHERE post_id IS NOT NULL').catch(() => {});
@@ -3819,18 +3820,66 @@ app.post('/api/sounds/:id/save', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false }); }
 });
 // "Save sound" from a video's ⋮ menu: the video's own audio becomes a sound in the person's saved list
+function soundTitleOf(content) {
+  const t = String(content || '').replace(/\s+/g, ' ').trim();
+  return '🎬 សំឡេងពីវីដេអូ' + (t ? ' · ' + (t.length > 40 ? t.slice(0, 40) + '…' : t) : '');
+}
+// the sound of a video → a small audio file (AAC .m4a, starts at once): the whole video file was big and played badly in Party Rooms
+const soundAudioBusy = new Set();
+async function makeSoundAudio(id, src) {
+  if (!thumbsReady() || soundAudioBusy.has(id)) return; soundAudioBusy.add(id);
+  const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
+  const out = path.join(os.tmpdir(), 'camfeed-snd-' + id + '-' + Date.now() + '.m4a');
+  let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
+  try {
+    await new Promise((ok, no) => execFile(bin, ['-y', '-i', src, '-vn', '-t', '1800', '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-movflags', '+faststart', '-threads', '1', out],
+      { timeout: 8 * 60 * 1000, maxBuffer: 1024 * 1024 * 8 }, (e) => e ? no(e) : ok()));
+    const size = fs.existsSync(out) ? fs.statSync(out).size : 0;
+    if (size < 1000) { await pool.query('UPDATE sounds SET audio_ready = TRUE WHERE id = $1', [id]).catch(() => {}); return; }
+    const url = await r2PutBuffer('sounds/' + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.m4a', fs.readFileSync(out), 'audio/mp4');
+    const secs = await videoSecs(out).catch(() => null);
+    if (url) {
+      await pool.query('UPDATE sounds SET audio_url = $2, audio_ready = TRUE, duration = COALESCE($3, duration) WHERE id = $1', [id, url, secs ? Math.max(1, Math.round(secs)) : null]);
+      await pool.query('UPDATE party_rooms SET music_url = $2 WHERE music_id = $1', [id, url]).catch(() => {});   // a room playing it now switches to the small file
+      console.log('[sounds] audio ready for sound', id);
+    }
+  } catch (e) {
+    console.error('[sounds] ffmpeg:', String(e.message || e).slice(0, 200));
+    await pool.query('UPDATE sounds SET audio_ready = TRUE WHERE id = $1', [id]).catch(() => {});   // do not try again and again
+  } finally { soundAudioBusy.delete(id); try { fs.unlinkSync(out); } catch (e) {} }
+}
+// once: old "សំឡេងដើម · <name>" titles are renamed; sounds still using a whole video file get their small audio file (one at a time)
+let soundFixReady = false;
+async function fixVideoSounds() {
+  try {
+    if (!soundFixReady) {
+      await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS audio_ready BOOLEAN DEFAULT FALSE');
+      const old = (await pool.query("SELECT s.id, p.content FROM sounds s LEFT JOIN posts p ON p.id = s.post_id WHERE s.post_id IS NOT NULL AND s.title LIKE 'សំឡេងដើម%'")).rows;
+      for (const o of old) {
+        const t = soundTitleOf(o.content);
+        await pool.query("UPDATE sounds SET title = $2, artist = '' WHERE id = $1", [o.id, t]);
+        await pool.query("UPDATE party_rooms SET music_title = $2, music_artist = '' WHERE music_id = $1", [o.id, t]).catch(() => {});
+      }
+      soundFixReady = true;
+    }
+    if (!thumbsReady()) return;
+    const r = (await pool.query("SELECT id, audio_url FROM sounds WHERE post_id IS NOT NULL AND COALESCE(audio_ready, FALSE) = FALSE ORDER BY id DESC LIMIT 1")).rows[0];
+    if (r && r.audio_url) await makeSoundAudio(r.id, r.audio_url);
+  } catch (e) { console.error('[sounds] fix:', e.message); }
+}
+setTimeout(() => { fixVideoSounds(); setInterval(fixVideoSounds, 30 * 1000); }, 45 * 1000);
+
 app.post('/api/sounds/from-post/:postId', async (req, res) => {
   try {
     const me = req.authEmail, pid = parseInt(req.params.postId, 10); if (!me || !pid) return res.status(400).json({ success: false });
-    const row = (await pool.query("SELECT p.id, p.user_email, p.media_type, p.media_url, p.privacy, u.first_name, u.last_name FROM posts p JOIN users u ON u.email = p.user_email WHERE p.id = $1", [pid])).rows[0];
+    const row = (await pool.query("SELECT p.id, p.user_email, p.media_type, p.media_url, p.privacy, p.content FROM posts p WHERE p.id = $1", [pid])).rows[0];
     if (!row || (row.privacy && row.privacy !== 'public' && row.user_email !== me)) return res.status(404).json({ success: false });
     const v = pubMedia(row).video; if (!v) return res.status(400).json({ success: false, error: 'No video.' });
     let sd = (await pool.query('SELECT id FROM sounds WHERE post_id = $1', [pid])).rows[0];
     if (!sd) {
-      const nm = (String(row.first_name || '') + ' ' + String(row.last_name || '')).trim().slice(0, 60) || 'CamFeed';
-      sd = (await pool.query("INSERT INTO sounds (title, artist, audio_url, duration, created_by, post_id) VALUES ($1, $2, $3, 30, $4, $5) ON CONFLICT (post_id) WHERE post_id IS NOT NULL DO UPDATE SET audio_url = EXCLUDED.audio_url RETURNING id", ['សំឡេងដើម · ' + nm, nm, v, row.user_email, pid])).rows[0];
-      const sid = sd.id;                                                         // the real length, so Story can choose any part of it
-      videoSecs(v).then((secs) => { if (secs > 0) pool.query('UPDATE sounds SET duration = $1 WHERE id = $2', [Math.round(secs), sid]).catch(() => {}); }).catch(() => {});
+      // the person who posted the video is not always the owner of the song → no name of a person, only "sound from a video"
+      sd = (await pool.query("INSERT INTO sounds (title, artist, audio_url, duration, created_by, post_id) VALUES ($1, '', $2, 30, $3, $4) ON CONFLICT (post_id) WHERE post_id IS NOT NULL DO UPDATE SET audio_url = EXCLUDED.audio_url RETURNING id", [soundTitleOf(row.content), v, row.user_email, pid])).rows[0];
+      makeSoundAudio(sd.id, v);                                                    // a small sound-only file (quick to play), made in the background
     }
     const ex = (await pool.query('SELECT 1 FROM saved_sounds WHERE user_email = $1 AND sound_id = $2', [me, sd.id])).rows[0];
     if (ex) return res.json({ success: true, saved: true, already: true });
