@@ -8,6 +8,7 @@ const THEMES = ['', 'blue', 'green', 'rose', 'orange', 'purple', 'teal', 'dark']
 const TTL_OPTIONS = [0, 24, 168, 720, 4380, 8760];       // hours: off, 24h, 7d, 30d, 6mo, 12mo
 const CALL_RING_MS = 35 * 1000;
 const CALL_STALE_MS = 25 * 1000;
+const CALL_TALK_STALE_MS = 90 * 1000;   // a call in progress: a phone that stops asking for a while (weak internet, screen off) is NOT cut at once — the voice goes phone-to-phone
 
 module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
@@ -358,6 +359,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     if (!involved(c, me)) return res.status(404).json({ success: false });
     c.seen[me] = Date.now();
     const role = c.caller === me ? 'caller' : 'callee';
+    if (role === 'callee' && c.status === 'ringing') c.rang = true;
     const other = role === 'caller' ? 'callee' : 'caller';
     const since = Math.max(0, parseInt(req.query.ic, 10) || 0);
     const neg = {};
@@ -366,7 +368,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const peerCam = c.cam && c.cam[other] !== undefined ? c.cam[other] : null;
     res.json({ success: true, status: c.status, why: c.why || '', kind: c.kind, peerCam, rang: !!c.rang,
       v: c.v ? { by: c.v.by === c.caller ? 'caller' : 'callee', mine: c.v.by === me, state: c.v.state } : null, neg: Object.keys(neg).length ? Object.assign(neg, { seq: c.negSeq || 0 }) : null, answer: role === 'caller' ? c.answer : null,
-      ice: c.ice[other].slice(since), icTotal: c.ice[other].length, answeredAt: c.answeredAt });
+      ice: c.ice[other].slice(since), icTotal: c.ice[other].length, answeredAt: c.answeredAt,
+      offer: role === 'callee' && req.query.offer ? c.offer : undefined });   // answered on the lock screen: the call screen asks for the offer itself
   });
 
   // the phone of the person being called is ringing now (sent by the app when the call screen appears, even with the app closed)
@@ -443,7 +446,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const now = Date.now();
     for (const [id, c] of calls) {
       if (c.status === 'ringing' && now - c.created > CALL_RING_MS) finish(c, 'missed', 'missed');
-      else if (c.status === 'accepted' && (now - (c.seen[c.caller] || 0) > CALL_STALE_MS || now - (c.seen[c.callee] || 0) > CALL_STALE_MS)) finish(c, 'ended', 'ended');
+      else if (c.status === 'accepted' && (now - (c.seen[c.caller] || 0) > CALL_TALK_STALE_MS || now - (c.seen[c.callee] || 0) > CALL_TALK_STALE_MS)) finish(c, 'ended', 'ended');
       if (!live(c) && c.endedAt && now - c.endedAt > 60 * 1000) calls.delete(id);
     }
   }, 4000).unref();
