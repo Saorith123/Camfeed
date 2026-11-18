@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <script src="auth-client.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#7c3aed">
+    <title>CamFeed - Coins</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, input, button, select, textarea { font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', sans-serif; }
+        body { background: #f0f2f5; color: #050505; min-height: 100vh; padding-bottom: 40px; }
+        .top { background: #fff; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); position: sticky; top: 0; z-index: 10; }
+        .back { background: #f0f2f5; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+        .title { font-size: 17px; font-weight: 800; background: linear-gradient(135deg, #7c3aed, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; flex: 1; }
+        .lang { background: #f0f2f5; border: none; border-radius: 16px; padding: 6px 12px; font-weight: 700; cursor: pointer; }
+        .wrap { max-width: 640px; margin: 16px auto; padding: 0 12px; display: flex; flex-direction: column; gap: 14px; }
+        .card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .h { font-size: 16.5px; font-weight: 800; margin-bottom: 10px; }
+        .bal { background: linear-gradient(135deg, #7c3aed, #ec4899); color: #fff; border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 14px; box-shadow: 0 6px 18px rgba(124,58,237,.3); }
+        .bal b { font-size: 30px; display: block; }
+        .packs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .pack { border: 2px solid #e4e6eb; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; background: #fff; transition: .15s; }
+        .pack.on { border-color: #7c3aed; background: #f5f3ff; }
+        .pack .c { font-size: 20px; font-weight: 800; }
+        .pack .u { color: #65676b; font-weight: 700; margin-top: 4px; }
+        .methods { display: flex; flex-wrap: wrap; gap: 8px; }
+        .m { border: 2px solid #e4e6eb; border-radius: 20px; padding: 8px 14px; font-weight: 700; cursor: pointer; background: #fff; }
+        .m.on { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+        .pay { white-space: pre-wrap; background: #f7f8fa; border-radius: 10px; padding: 12px; font-size: 14.5px; line-height: 1.55; }
+        label { display: block; font-weight: 700; font-size: 14px; margin: 12px 0 6px; }
+        input[type=text] { width: 100%; border: 1px solid #ccd0d5; border-radius: 10px; padding: 11px 12px; font-size: 15px; }
+        .btn { width: 100%; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #7c3aed, #ec4899); cursor: pointer; margin-top: 14px; }
+        .btn:disabled { opacity: .5; }
+        .msg { display: none; padding: 11px 13px; border-radius: 10px; font-size: 14px; }
+        .row { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f2f5; font-size: 14px; }
+        .row:last-child { border-bottom: none; }
+        .st-pending { color: #b45309; } .st-approved { color: #15803d; } .st-rejected { color: #b91c1c; }
+        .muted { color: #65676b; font-size: 13px; }
+        .gifts { display: flex; flex-wrap: wrap; gap: 8px; }
+        .gift { background: #f7f8fa; border-radius: 12px; padding: 8px 10px; text-align: center; min-width: 84px; font-size: 12.5px; }
+        .gift .e { font-size: 26px; }
+    </style>
+</head>
+<body>
+<div class="top"><button class="back" onclick="history.length > 1 ? history.back() : (location.href = 'feed.html')">←</button><div class="title" id="tTitle"></div><button class="lang" id="langBtn"></button></div>
+<div class="wrap">
+    <div class="bal"><div style="font-size:42px">🪙</div><div><span id="tBal"></span><b id="balNum">—</b></div></div>
+    <div class="msg" id="msg"></div>
+    <div class="card">
+        <div class="h" id="tStep1"></div>
+        <div class="packs" id="packs"></div>
+    </div>
+    <div class="card">
+        <div class="h" id="tStep2"></div>
+        <div class="methods" id="methods"></div>
+        <div class="pay" id="payinfo" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+        <div class="h" id="tStep3"></div>
+        <label id="tRef"></label>
+        <input type="text" id="ref" maxlength="80">
+        <label id="tReceipt"></label>
+        <input type="file" id="file" accept="image/*">
+        <div class="muted" id="upState" style="margin-top:6px"></div>
+        <button class="btn" id="send"></button>
+        <div class="muted" id="tNote" style="margin-top:10px"></div>
+    </div>
+    <div class="card"><div class="h" id="tMine"></div><div id="mine"></div></div>
+    <div class="card"><div class="h" id="tGifts"></div><div class="gifts" id="gifts"></div></div>
+</div>
+<script>
+(function () {
+'use strict';
+var currentUser = null; try { currentUser = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
+if (!currentUser) { location.href = 'index.html'; return; }
+var T = {
+  km: { title: '🪙 បញ្ចូលកាក់', bal: 'កាក់របស់អ្នក', step1: '១. ជ្រើសកញ្ចប់កាក់', step2: '២. បង់ប្រាក់', step3: '៣. ផ្ញើវិក្កយបត្រ', ref: 'លេខប្រតិបត្តិការ (Transaction ID) ឬលេខចុងក្រោយ', receipt: 'រូបវិក្កយបត្រ (ស្រេចចិត្ត ប៉ុន្តែល្អជាង)',
+    send: 'ផ្ញើសំណើបញ្ចូលកាក់', note: 'CamFeed នឹងពិនិត្យការបង់ប្រាក់ ហើយបញ្ចូលកាក់ឲ្យអ្នក (ជាធម្មតាក្នុងថ្ងៃដដែល)។ អ្នកនឹងទទួលបានការជូនដំណឹងពេលកាក់ចូល។ កាក់ប្រើបានតែក្នុង CamFeed ប៉ុណ្ណោះ។',
+    mine: '🧾 សំណើរបស់ខ្ញុំ', none: 'មិនទាន់មានទេ', gifts: '🎁 កាដូក្នុង Party Room', coins: 'កាក់', pick: 'សូមជ្រើសកញ្ចប់កាក់', pickM: 'សូមជ្រើសវិធីបង់ប្រាក់', needRef: 'សូមដាក់លេខប្រតិបត្តិការ ឬរូបវិក្កយបត្រ',
+    uploading: 'កំពុងអាប់ឡូត...', uploaded: '✅ អាប់ឡូតរួចរាល់', upFail: '❌ អាប់ឡូតមិនបាន', sent: '✅ បានផ្ញើហើយ! CamFeed នឹងពិនិត្យ ហើយបញ្ចូលកាក់ឲ្យអ្នក។', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server',
+    pending: '⏳ រង់ចាំពិនិត្យ', approved: '✅ បានបញ្ចូល', rejected: '❌ មិនអនុម័ត', noPay: 'CamFeed មិនទាន់ដាក់ព័ត៌មានបង់ប្រាក់នៅឡើយទេ។ សូមទាក់ទង Telegram @Camfeed។', lang: 'English', bonus: 'ថែម' },
+  en: { title: '🪙 Buy coins', bal: 'Your coins', step1: '1. Choose a coin pack', step2: '2. Pay', step3: '3. Send the receipt', ref: 'Transaction ID (or the last digits)', receipt: 'Photo of the receipt (optional, but better)',
+    send: 'Send top-up request', note: 'CamFeed checks the payment and adds the coins (usually the same day). You get a notification when they arrive. Coins can only be used inside CamFeed.',
+    mine: '🧾 My requests', none: 'Nothing yet', gifts: '🎁 Gifts in Party Room', coins: 'coins', pick: 'Please choose a coin pack', pickM: 'Please choose how you pay', needRef: 'Please add the transaction ID or a photo of the receipt',
+    uploading: 'Uploading...', uploaded: '✅ Uploaded', upFail: '❌ Upload failed', sent: '✅ Sent! CamFeed will check it and add your coins.', net: 'Could not reach the server',
+    pending: '⏳ Waiting', approved: '✅ Added', rejected: '❌ Not approved', noPay: 'CamFeed has not added the payment details yet. Please contact Telegram @Camfeed.', lang: 'ខ្មែរ', bonus: 'bonus' }
+};
+var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : 'km'; })();
+var t = function (k) { return T[lang][k] || T.en[k] || k; };
+var $ = function (id) { return document.getElementById(id); };
+var st = { pack: -1, method: '', receipt: '' }, data = null;
+function msg(ok, text) { var b = $('msg'); b.textContent = text; b.style.display = text ? 'block' : 'none'; b.style.background = ok ? '#e6f4ea' : '#fdecee'; b.style.color = ok ? '#176f35' : '#9b1229'; if (text) window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function api(path, body) {
+  try { var r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined); return await r.json(); } catch (e) { return { success: false, error: t('net') }; }
+}
+function texts() {
+  ['title', 'bal', 'step1', 'step2', 'step3', 'ref', 'receipt', 'note', 'mine', 'gifts'].forEach(function (k) { var e = $('t' + k.charAt(0).toUpperCase() + k.slice(1)); if (e) e.textContent = t(k); });
+  $('send').textContent = t('send'); $('langBtn').textContent = t('lang'); document.title = 'CamFeed - ' + t('title');
+}
+function draw() {
+  texts();
+  if (!data) return;
+  $('balNum').textContent = Number(data.balance || 0).toLocaleString();
+  var ps = $('packs'); ps.textContent = '';
+  data.packs.forEach(function (p) {
+    var base = Math.round(p.usd * 100 / (data.coinCents || 1)), extra = p.coins - base;
+    var d = document.createElement('div'); d.className = 'pack' + (st.pack === p.i ? ' on' : '');
+    d.innerHTML = '<div class="c">🪙 ' + p.coins.toLocaleString() + '</div><div class="u">$' + p.usd.toFixed(2) + '</div>' + (extra > 0 ? '<div class="muted" style="color:#7c3aed;font-weight:700">+' + extra.toLocaleString() + ' ' + t('bonus') + '</div>' : '');
+    d.onclick = function () { st.pack = p.i; draw(); };
+    ps.appendChild(d);
+  });
+  var ms = $('methods'); ms.textContent = '';
+  ['ABA', 'ACLEDA', 'Wing', 'KHQR'].forEach(function (m) {
+    var b = document.createElement('button'); b.className = 'm' + (st.method === m ? ' on' : ''); b.textContent = (m === 'Wing' ? '🟢 ' : (m === 'KHQR' ? '🔳 ' : '🏦 ')) + m;
+    b.onclick = function () { st.method = m; draw(); }; ms.appendChild(b);
+  });
+  $('payinfo').textContent = data.payinfo || t('noPay');
+  var mine = $('mine'); mine.textContent = '';
+  if (!data.topups.length) mine.innerHTML = '<div class="muted">' + t('none') + '</div>';
+  data.topups.forEach(function (x) {
+    var r = document.createElement('div'); r.className = 'row';
+    var left = document.createElement('div'); left.innerHTML = '<b>🪙 ' + Number(x.coins).toLocaleString() + '</b> · $' + Number(x.usd).toFixed(2) + ' · ' + x.method + '<div class="muted">' + new Date(x.created_at).toLocaleString() + '</div>';
+    if (x.status === 'rejected' && x.note) { var n = document.createElement('div'); n.className = 'muted'; n.textContent = x.note; left.appendChild(n); }
+    var right = document.createElement('div'); right.className = 'st-' + x.status; right.textContent = t(x.status);
+    r.appendChild(left); r.appendChild(right); mine.appendChild(r);
+  });
+  var gs = $('gifts'); gs.textContent = '';
+  data.gifts.forEach(function (g) {
+    var d = document.createElement('div'); d.className = 'gift';
+    d.innerHTML = '<div class="e"></div><div class="n"></div><div class="muted">🪙 ' + g.coins.toLocaleString() + '</div>';
+    d.querySelector('.e').textContent = g.emoji; d.querySelector('.n').textContent = lang === 'en' ? g.name_en : g.name_km;
+    gs.appendChild(d);
+  });
+}
+async function load() { var d = await api('/api/coins'); if (d.success) { data = d; draw(); } else msg(false, d.error || t('net')); }
+$('langBtn').onclick = function () { lang = lang === 'en' ? 'km' : 'en'; try { localStorage.setItem('camfeed_lang', lang); } catch (e) {} draw(); };
+$('file').addEventListener('change', async function (ev) {
+  var f = ev.target.files && ev.target.files[0]; st.receipt = ''; if (!f) return;
+  $('upState').textContent = t('uploading');
+  try {
+    var u = await (await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name || 'receipt.jpg', content_type: f.type || 'image/jpeg' }) })).json();
+    if (!u.uploadUrl) throw new Error('x');
+    var put = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'image/jpeg' }, body: f });
+    if (!put.ok) throw new Error('x');
+    st.receipt = u.publicUrl; $('upState').textContent = t('uploaded');
+  } catch (e) { $('upState').textContent = t('upFail'); }
+});
+$('send').onclick = async function () {
+  if (st.pack < 0) return msg(false, t('pick'));
+  if (!st.method) return msg(false, t('pickM'));
+  var ref = $('ref').value.trim(); if (!ref && !st.receipt) return msg(false, t('needRef'));
+  $('send').disabled = true;
+  var d = await api('/api/coins/topup', { pack: st.pack, method: st.method, ref: ref, receipt_url: st.receipt });
+  $('send').disabled = false;
+  if (d.success) { msg(true, t('sent')); $('ref').value = ''; $('file').value = ''; st.receipt = ''; $('upState').textContent = ''; load(); }
+  else msg(false, d.error || t('net'));
+};
+texts(); load();
+})();
+</script>
+</body>
+</html>

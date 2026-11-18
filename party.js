@@ -38,6 +38,12 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
           id SERIAL PRIMARY KEY, room_id INTEGER NOT NULL, reporter_email TEXT NOT NULL, reason TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), handled BOOLEAN NOT NULL DEFAULT FALSE)`);
         await pool.query('CREATE TABLE IF NOT EXISTS creator_settings (key VARCHAR(40) PRIMARY KEY, value TEXT)');
+        // used by gifts (coins.js fills the catalog)
+        await pool.query('ALTER TABLE party_messages ADD COLUMN IF NOT EXISTS to_email TEXT');
+        await pool.query('ALTER TABLE party_messages ADD COLUMN IF NOT EXISTS gift_id INTEGER');
+        await pool.query(`CREATE TABLE IF NOT EXISTS gift_catalog (
+          id SERIAL PRIMARY KEY, code VARCHAR(30) UNIQUE, emoji VARCHAR(16) NOT NULL, name_km VARCHAR(60) NOT NULL, name_en VARCHAR(60) NOT NULL,
+          coins INTEGER NOT NULL, tier INTEGER NOT NULL DEFAULT 1, active BOOLEAN NOT NULL DEFAULT TRUE, sort INTEGER NOT NULL DEFAULT 0)`);
       })().catch((e) => { ready = null; throw e; });
     }
     return ready;
@@ -138,7 +144,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
                                   WHERE m.room_id = $1 AND m.last_seen >= NOW() - ($2 || ' seconds')::interval ORDER BY m.seat NULLS LAST, m.joined_at`, [room.id, String(STALE_SEC)]);
     const people = mem.rows.map((x) => ({ email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '',
       role: x.role, seat: x.seat, muted: !!x.host_muted, hand: !!x.hand_at, hand_at: x.hand_at }));
-    const msgs = await pool.query(`SELECT p.id, p.kind, p.text, p.created_at, ${userCols} FROM party_messages p LEFT JOIN users u ON LOWER(u.email) = p.user_email
+    const msgs = await pool.query(`SELECT p.id, p.kind, p.text, p.created_at, ${userCols}, p.to_email, t.first_name AS to_first_name, t.last_name AS to_last_name,
+                                     g.emoji AS gift_emoji, g.name_km AS gift_km, g.name_en AS gift_en, g.tier AS gift_tier, g.coins AS gift_coins
+                                   FROM party_messages p LEFT JOIN users u ON LOWER(u.email) = p.user_email
+                                   LEFT JOIN users t ON LOWER(t.email) = p.to_email LEFT JOIN gift_catalog g ON g.id = p.gift_id
                                    WHERE p.room_id = $1 AND p.id > $2 ORDER BY p.id DESC LIMIT 60`, [room.id, parseInt(after, 10) || 0]);
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
@@ -148,7 +157,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       people,
       me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand } : null,
       messages: msgs.rows.reverse().map((m) => ({ id: m.id, kind: m.kind, text: m.text, created_at: m.created_at,
-        email: m.email || null, first_name: m.first_name || '', last_name: m.last_name || '', profile_pic: m.profile_pic || '' })),
+        email: m.email || null, first_name: m.first_name || '', last_name: m.last_name || '', profile_pic: m.profile_pic || '',
+        ...(m.kind === 'gift' ? { to_email: m.to_email, to_first_name: m.to_first_name || '', to_last_name: m.to_last_name || '',
+          gift: { emoji: m.gift_emoji || '🎁', name_km: m.gift_km || '', name_en: m.gift_en || '', tier: m.gift_tier || 1, coins: m.gift_coins || 0 }, count: parseInt(m.text, 10) || 1 } : {}) })),
     };
   }
 
@@ -234,8 +245,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       for (const o of other.rows) { if (o.role === 'owner') await closeRoom(o.room_id, e, 'owner left'); }
       await pool.query('DELETE FROM party_members WHERE user_email = $1 AND room_id <> $2', [e, room.id]);
       const isOwner = norm(room.owner_email) === e;
-      await pool.query(`INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, $3, $4)
-                        ON CONFLICT (room_id, user_email) DO UPDATE SET last_seen = NOW()`, [room.id, e, isOwner ? 'owner' : 'member', isOwner ? 0 : null]);
+      const ins = await pool.query(`INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (room_id, user_email) DO UPDATE SET last_seen = NOW() RETURNING (xmax = 0) AS fresh`, [room.id, e, isOwner ? 'owner' : 'member', isOwner ? 0 : null]);
+      // somebody new came in: a "welcome" line in the chat (the app writes it in the reader's language; '👋' for older apps)
+      if (!isOwner && ins.rows[0] && ins.rows[0].fresh) await pool.query("INSERT INTO party_messages (room_id, user_email, kind, text) VALUES ($1, $2, 'join', '👋')", [room.id, e]).catch(() => {});
       const m = await memberOf(room.id, e);
       res.json({ success: true, live: await ticket(room, e, m && m.seat !== null, m && m.host_muted), state: await stateOf(room, e, 0) });
     } catch (err) { console.error('[party] join:', err.message); res.status(500).json({ success: false, error: 'Could not enter the room.' }); }
@@ -324,7 +337,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
       const m = await memberOf(room.id, e);
       if (!canManage(m)) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
-      const who = norm(b.user); const t = await memberOf(room.id, who);
+      // the person is sent as their public id: turn it back into the e-mail ("user" is not one of the keys the id layer reads)
+      let who = norm(b.user_email || b.user);
+      if (/^1\d{14}$/.test(who)) { try { const mp = await publicIds.toEmails([who]); who = norm(mp.get(who) || who); } catch (e) { /* keep */ } }
+      const t = await memberOf(room.id, who);
       if (!t) return res.status(404).json({ success: false, error: 'This person has left the room.' });
       if (t.role === 'owner' || (t.role === 'helper' && m.role !== 'owner')) return res.status(403).json({ success: false, error: 'You can not do this to this person.' });
       const act = String(b.action || '');

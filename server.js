@@ -2200,7 +2200,9 @@ app.post('/api/presence/offline', async (req, res) => {
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d) });
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
-const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });   // 🎉 Party Room (voice rooms, LiveKit)
+const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });
+const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
 if (push.setMessageFilter) push.setMessageFilter((to, from) => chatPrefs.shouldNotify(to, from));
 
 // Send Chat Message
@@ -4270,7 +4272,10 @@ app.post('/api/monetization/withdraw', async (req, res) => {
       accountName = accountName || 'Wing cash-out';
     } else if (accountName.length < 3 || !/\S+\s+\S+|\S{3,}/.test(accountName)) return res.status(400).json({ success: false, error: 'Please enter your full name exactly as it appears on the account.' });
     else if (digits < 6) return res.status(400).json({ success: false, error: 'Please enter your correct account number.' });
-    if (cents > (await walletCents(email))) return res.status(400).json({ success: false, error: 'Your balance is not enough.' });
+    const wallet = await walletCents(email);
+    if (cents > wallet) return res.status(400).json({ success: false, error: 'Your balance is not enough.' });
+    const held = await coins.heldCents(email);          // money from Party Room gifts waits a few days (Admin sets how many)
+    if (held > 0 && cents > wallet - held) return res.status(400).json({ success: false, error: 'Gift money from Party Room can be withdrawn a few days after you receive it. You can withdraw $' + (Math.max(0, wallet - held) / 100).toFixed(2) + ' now.' });
     let id;
     try {
       const ins = await pool.query('INSERT INTO withdrawal_requests (user_email, amount_cents, method, account_name, account_number) VALUES ($1, $2, $3, $4, $5) RETURNING id', [email, cents, method, accountName, accountNumber]);

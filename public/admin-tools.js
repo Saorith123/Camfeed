@@ -296,6 +296,7 @@
       var c = d.checks;
       var appBox = el('div'); p.appendChild(appBox); monRules(appBox, 'app');      // settings the Super Admin changes here (name change days, group call size ...)
       var partyBox = el('div'); p.appendChild(partyBox); partyAdmin(partyBox);       // 🎉 Party Room: LiveKit keys, open rooms, reports
+      var coinBox = el('div'); p.appendChild(coinBox); coinsAdmin(coinBox);          // 🪙 coins: top-ups to approve, packs, gifts
       Object.keys(HINTS).forEach(function (k) {
         var ok = k === 'supportTelegram' ? !!c[k] : !!c[k]; var extra = k === 'database' && c.databaseMs !== null ? ' (' + c.databaseMs + ' ms)' : (k === 'supportTelegram' && c[k] ? ' ' + c[k] : '');
         p.appendChild(el('div', { class: 'at-chk' }, [el('span', { class: ok ? 'at-ok' : 'at-warn', text: ok ? '✅' : '⚠️' }), el('div', {}, [el('b', { text: HINTS[k][0] + extra }), el('small', { text: ok ? 'Working' : HINTS[k][1] })])]));
@@ -403,6 +404,90 @@
           el('td', { text: r.days_done + ' / ' + rl.days }), el('td', { text: r.posts_done + ' / ' + rl.posts }), el('td', {}, [statusBadge(r.status === 'rewarded' ? 'paid' : r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: r.note || '' }), acts]);
       })));
     });
+  }
+  // ---------- 🪙 Coins & 🎁 gifts: top-ups waiting, packs, receiver share, waiting days, payment details, the gift list ----------
+  function coinsAdmin(body) {
+    var box = el('div', { style: 'max-width:900px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' }, [empty('Loading…')]);
+    body.appendChild(box);
+    function call(extra) { return adm('/api/admin/coins', extra || {}).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; }); }
+    function draw(d) {
+      box.textContent = '';
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🪙 Coins & 🎁 gifts (Party Room)' }));
+      if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
+      var tt = d.totals || {};
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: '1 coin = $0.01. Sold on the website so far: $' + Number(tt.sold_usd || 0).toFixed(2) + ' · coins spent on gifts: ' + Number(tt.gift_coins || 0).toLocaleString() + ' · paid to receivers: $' + (Number(tt.receiver_cents || 0) / 100).toFixed(2) + '. People buy on camfeedkh.com/coins.html.' }));
+      var su = !!d.isSuperAdmin;
+      // top-ups waiting
+      box.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 6px', text: 'Top-ups waiting (' + d.pending.length + ')' }));
+      if (!d.pending.length) box.appendChild(empty('Nothing waiting.'));
+      else box.appendChild(table(['Person', 'Pack', 'Paid with', 'Transaction', 'Receipt', 'Sent', ''], d.pending.map(function (x) {
+        return el('tr', {}, [el('td', { text: nm(x) + ' · ' + x.user_email }), el('td', { text: '$' + Number(x.usd).toFixed(2) + ' → ' + x.coins + ' coins' }), el('td', { text: x.method }), el('td', { text: x.payer_ref || '—' }),
+          el('td', {}, [x.receipt_url ? el('a', { href: x.receipt_url, target: '_blank', text: '🖼️ Open' }) : el('span', { text: '—' })]), el('td', { text: ago(x.created_at) }),
+          el('td', {}, su ? [
+            el('button', { class: 'btn-sm btn-blue', text: 'Approve', onclick: function () { if (confirm('Add ' + x.coins + ' coins to ' + nm(x) + '? Check that the money arrived first.')) call({ action: 'decide', id: x.id, status: 'approved' }); } }), ' ',
+            el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { var why = prompt('Reason (the person sees it):', ''); if (why) call({ action: 'decide', id: x.id, status: 'rejected', note: why }); } })
+          ] : [el('span', { text: 'Super Admin' })])]);
+      })));
+      // settings
+      var s = d.settings;
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Packs, share and payment details' }));
+      var rows = el('div');
+      function packRow(p) {
+        var u = el('input', { class: 'at-in', type: 'number', step: '0.01', value: String(p.usd), style: 'width:90px;display:inline-block' });
+        var w = el('input', { class: 'at-in', type: 'number', value: String(p.web), style: 'width:110px;display:inline-block' });
+        var a = el('input', { class: 'at-in', type: 'number', value: String(p.app || 0), style: 'width:110px;display:inline-block' });
+        var r = el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0' }, [el('span', { text: '$' }), u, el('span', { text: 'website coins' }), w, el('span', { text: 'in-app coins (later)' }), a,
+          el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { r.remove(); } })]);
+        r._get = function () { return { usd: u.value, web: w.value, app: a.value }; };
+        rows.appendChild(r);
+      }
+      s.packs.forEach(packRow);
+      box.appendChild(rows);
+      if (su) box.appendChild(el('button', { class: 'btn-sm btn-gray', text: '+ Add pack', onclick: function () { packRow({ usd: 1, web: 100, app: 100 }); } }));
+      var share = el('input', { class: 'at-in', type: 'number', value: String(s.share) }), hold = el('input', { class: 'at-in', type: 'number', value: String(s.holdDays) });
+      var pay = el('textarea', { class: 'at-in', rows: '5', style: 'width:100%' }); pay.value = s.payinfo || '';
+      box.appendChild(el('div', { class: 'at-lbl', text: 'Receiver gets … % of a gift\'s value (start 50)' })); box.appendChild(share);
+      box.appendChild(el('div', { class: 'at-lbl', text: 'Gift money can be withdrawn after … days' })); box.appendChild(hold);
+      box.appendChild(el('div', { class: 'at-lbl', text: 'Payment details shown on the website (ABA / ACLEDA / Wing account name and number, KHQR …)' })); box.appendChild(pay);
+      if (!su) [share, hold, pay].forEach(function (i) { i.disabled = true; });
+      if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Save', onclick: function () {
+        var packs = Array.prototype.map.call(rows.children, function (r) { return r._get(); });
+        call({ action: 'settings', packs: packs, share: share.value, hold: hold.value, payinfo: pay.value }).then(function (x) { if (x.success) alert('✅ Saved'); });
+      } }));
+      // gifts
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Gifts (' + d.gifts.length + ')' }));
+      function giftRow(g) {
+        var e = el('input', { class: 'at-in', value: g.emoji || '', style: 'width:60px' }), km = el('input', { class: 'at-in', value: g.name_km || '' }), en = el('input', { class: 'at-in', value: g.name_en || '' });
+        var c = el('input', { class: 'at-in', type: 'number', value: String(g.coins || ''), style: 'width:100px' }), ti = el('select', { class: 'at-in', style: 'width:90px' });
+        [1, 2, 3, 4].forEach(function (n) { var o = el('option', { value: String(n), text: ['', 'Small', 'Medium', 'Big', 'Top'][n] }); if (n === (g.tier || 1)) o.selected = true; ti.appendChild(o); });
+        var on = el('input', { type: 'checkbox' }); on.checked = g.active !== false;
+        if (!su) [e, km, en, c, ti, on].forEach(function (i) { i.disabled = true; });
+        return el('tr', {}, [el('td', {}, [e]), el('td', {}, [km]), el('td', {}, [en]), el('td', {}, [c]), el('td', {}, [ti]), el('td', {}, [on]),
+          el('td', {}, su ? [el('button', { class: 'btn-sm btn-blue', text: g.id ? 'Save' : 'Add', onclick: function () {
+            call({ action: 'gift', gift: { id: g.id, emoji: e.value, name_km: km.value, name_en: en.value, coins: c.value, tier: ti.value, active: on.checked } });
+          } })] : [])]);
+      }
+      var list = d.gifts.map(giftRow); if (su) list.push(giftRow({}));
+      box.appendChild(table(['Picture', 'Khmer name', 'English name', 'Coins', 'Size', 'On', ''], list));
+      // add / take coins by hand
+      if (su) {
+        box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));
+        var who = el('input', { class: 'at-in', placeholder: 'e-mail, phone account or 15-digit id' }), n = el('input', { class: 'at-in', type: 'number', placeholder: '+100 or -100' }), why = el('input', { class: 'at-in', placeholder: 'Note (kept in the audit log)' });
+        box.appendChild(who); box.appendChild(n); box.appendChild(why);
+        box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Apply', onclick: function () {
+          if (!confirm('Change coins of ' + who.value + ' by ' + n.value + '?')) return;
+          call({ action: 'adjust', user: who.value, coins: n.value, note: why.value }).then(function (x) { if (x.success) alert('✅ Done'); });
+        } }));
+      }
+      // recent decisions
+      if (d.recent.length) {
+        box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Recent decisions' }));
+        box.appendChild(table(['Person', 'Pack', 'Status', 'Note', 'By', 'When'], d.recent.map(function (x) {
+          return el('tr', {}, [el('td', { text: nm(x) }), el('td', { text: '$' + Number(x.usd).toFixed(2) + ' / ' + x.coins }), el('td', { text: x.status }), el('td', { text: x.note || '' }), el('td', { text: x.decided_by || '' }), el('td', { text: ago(x.decided_at) })]);
+        })));
+      }
+    }
+    call({});
   }
   // ---------- 🎉 Party Room: the LiveKit keys (sound server), the rooms open now, reports ----------
   function partyAdmin(body) {
