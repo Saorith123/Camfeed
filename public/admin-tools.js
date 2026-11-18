@@ -516,6 +516,18 @@
       }
       var flist = frames.map(frameRow); if (su) flist.push(frameRow({}));
       box.appendChild(table(['Look', 'Khmer name', 'English name', 'Colours', 'Emoji', 'Move', 'Coins', 'Days', 'On', 'Wearing now', ''], flist));
+      // 👑 VIP + levels
+      var st = d.settings || {};
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '👑 VIP & levels (VIP now: ' + (d.vipNow || 0) + ')' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Level = coins a person has spent in Party Rooms (gifts, frames, VIP). Write the coins where each level starts, comma between, first is 0 (Level 1). VIP: a month (or N days) bought with coins: 👑 badge, golden name, a big "VIP came in" banner, first in the ✋ list, a helper can not send them out.' }));
+      var lv = el('input', { class: 'at-in', value: (st.levels || []).join(','), style: 'width:100%' });
+      var vp = el('input', { class: 'at-in', type: 'number', value: String(st.vipPrice || 3000), style: 'width:110px' }), vd = el('input', { class: 'at-in', type: 'number', value: String(st.vipDays || 30), style: 'width:80px' });
+      var vo = el('input', { type: 'checkbox' }); vo.checked = st.vipOn !== false;
+      if (!su) [lv, vp, vd, vo].forEach(function (i) { i.disabled = true; });
+      box.appendChild(el('div', { class: 'at-lbl', text: 'Levels (coins where each level starts)' })); box.appendChild(lv);
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [vo, el('span', { text: 'VIP open' })]),
+        el('span', { text: 'VIP price (coins)' }), vp, el('span', { text: 'days' }), vd,
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save VIP & levels', onclick: function () { call({ action: 'vip', levels: lv.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean), vipPrice: vp.value, vipDays: vd.value, vipOn: vo.checked }); } }) : '']));
       // add / take coins by hand
       if (su) {
         box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));

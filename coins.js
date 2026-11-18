@@ -7,6 +7,9 @@
 module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const COIN_CENTS = 1;
+  // 👑 levels: the coins a person has SPENT in Party Rooms (gifts, frames, VIP) — level N starts at DEFAULT_LEVELS[N-1] coins
+  const DEFAULT_LEVELS = [0, 100, 500, 1000, 3000, 6000, 10000, 20000, 50000, 100000];
+  const SPEND_KINDS = ['gift', 'frame', 'vip'];
   const DEFAULT_PACKS = [{ usd: 1, web: 120, app: 100 }, { usd: 5, web: 620, app: 500 }, { usd: 10, web: 1250, app: 1000 }, { usd: 20, web: 2550, app: 2000 }];
   const SEED = [
     // tier 1: small
@@ -68,6 +71,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
           active BOOLEAN NOT NULL DEFAULT TRUE, sort INTEGER NOT NULL DEFAULT 0)`);
         await pool.query('CREATE TABLE IF NOT EXISTS user_frames (user_email TEXT NOT NULL, frame_id INTEGER NOT NULL, expires_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_email, frame_id))');
         await pool.query('CREATE TABLE IF NOT EXISTS frame_wear (user_email TEXT PRIMARY KEY, frame_id INTEGER NOT NULL)');
+        await pool.query('CREATE TABLE IF NOT EXISTS user_vip (user_email TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL)');      // 👑 VIP (bought by the month)
         if (!(await pool.query('SELECT COUNT(*)::int AS n FROM party_frames')).rows[0].n) {
           let i = 0;
           for (const [code, km, en, colors, emoji, anim, coins, days] of FRAME_SEED) {
@@ -89,7 +93,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     let packs = DEFAULT_PACKS;
     try { const p = JSON.parse(m.packs || 'null'); if (Array.isArray(p) && p.length) packs = p; } catch (e) { /* default */ }
     const num = (v, d, lo, hi) => { const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
-    return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 3, 0, 60), payinfo: m.payinfo || '', walletOn: m.wallet_on !== '0' };
+    let levels = DEFAULT_LEVELS;
+    try { const l = JSON.parse(m.levels || 'null'); if (Array.isArray(l) && l.length) levels = l.map((x) => parseInt(x, 10)).filter((x) => x >= 0).sort((a, b) => a - b); } catch (e) { /* default */ }
+    return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 3, 0, 60), payinfo: m.payinfo || '', walletOn: m.wallet_on !== '0',
+      levels, vipOn: m.vip_on !== '0', vipPrice: num(m.vip_price, 3000, 1, 10000000), vipDays: num(m.vip_days, 30, 1, 365) };
   }
   const setSetting = (k, v) => pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['coin:' + k, String(v)]);
 
@@ -300,6 +307,62 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       res.json(await frameShop(e));
     } catch (err) { res.status(500).json({ success: false, error: 'Could not change the frame.' }); }
   });
+  // ---- 👑 VIP + levels ----
+  function levelOf(spent, levels) { let lv = 1; levels.forEach((t, i) => { if (spent >= t) lv = i + 1; }); return lv; }
+  async function spentOf(emails) {
+    const r = await pool.query(`SELECT user_email, COALESCE(SUM(-coins), 0)::int AS n FROM coin_ledger WHERE user_email = ANY($1) AND coins < 0 AND kind = ANY($2) GROUP BY user_email`, [emails.map(norm), SPEND_KINDS]);
+    return new Map(r.rows.map((x) => [x.user_email, x.n]));
+  }
+  /// for party.js: Map email → {level, vip}
+  async function badgesOf(emails) {
+    const m = new Map();
+    if (!emails.length) return m;
+    try {
+      await ensure();
+      const s = await settings();
+      const sp = await spentOf(emails);
+      const v = new Set((await pool.query('SELECT user_email FROM user_vip WHERE user_email = ANY($1) AND expires_at > NOW()', [emails.map(norm)])).rows.map((x) => x.user_email));
+      for (const e of emails.map(norm)) m.set(e, { level: levelOf(sp.get(e) || 0, s.levels), vip: s.vipOn && v.has(e) });
+    } catch (e) { /* nothing yet */ }
+    return m;
+  }
+  async function vipInfo(e) {
+    const s = await settings();
+    const spent = (await spentOf([e])).get(e) || 0;
+    const lv = levelOf(spent, s.levels);
+    const until = (await pool.query('SELECT expires_at FROM user_vip WHERE user_email = $1 AND expires_at > NOW()', [e])).rows[0];
+    return { success: true, balance: await balance(e), spent, level: lv, levelAt: s.levels[lv - 1] || 0, nextAt: s.levels[lv] == null ? null : s.levels[lv], maxLevel: s.levels.length,
+      vipOn: s.vipOn, vipUntil: until ? until.expires_at : null, vipPrice: s.vipPrice, vipDays: s.vipDays };
+  }
+  app.get('/api/party/vip', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try { await ensure(); res.json(await vipInfo(e)); } catch (err) { console.error('[coins] vip:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+  });
+  app.post('/api/party/vip/buy', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const c = await pool.connect();
+    try {
+      await ensure();
+      const s = await settings();
+      if (!s.vipOn) { c.release(); return res.status(400).json({ success: false, error: 'VIP is not open now.' }); }
+      await c.query('BEGIN');
+      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
+      const have = await balance(e, c);
+      if (have < s.vipPrice) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: s.vipPrice, error: 'Not enough coins.' }); }
+      await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'vip', $3, $1)", [e, -s.vipPrice, 'VIP ' + s.vipDays + 'd']);
+      await c.query(`INSERT INTO user_vip (user_email, expires_at) VALUES ($1, NOW() + ($2 || ' days')::interval)
+                     ON CONFLICT (user_email) DO UPDATE SET expires_at = GREATEST(user_vip.expires_at, NOW()) + ($2 || ' days')::interval`, [e, String(s.vipDays)]);
+      await c.query('COMMIT');
+      c.release();
+      res.json(await vipInfo(e));
+    } catch (err) {
+      try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
+      c.release();
+      console.error('[coins] vip buy:', err.message);
+      res.status(500).json({ success: false, error: 'Could not buy VIP.' });
+    }
+  });
+
   /// the frames people in a room wear now (for party.js): Map email → {colors, emoji, anim}
   async function framesOf(emails) {
     const m = new Map();
@@ -343,6 +406,17 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (g.id) await pool.query('UPDATE gift_catalog SET emoji = $2, name_km = $3, name_en = $4, coins = $5, tier = $6, active = $7 WHERE id = $1', [parseInt(g.id, 10), emoji, km, en, coins, tier, g.active !== false]);
         else await pool.query('INSERT INTO gift_catalog (code, emoji, name_km, name_en, coins, tier, sort) VALUES ($1, $2, $3, $4, $5, $6, 999)', ['g' + Date.now(), emoji, km, en, coins, tier]);
         audit(a.adminEmail, 'gift-catalog', String(g.id || 'new'), en + ' ' + coins + ' coins' + (g.active === false ? ' (off)' : ''));
+      } else if (act === 'vip') {
+        if (!superOnly()) return;
+        if (Array.isArray(b.levels)) {
+          const l = b.levels.map((x) => parseInt(x, 10)).filter((x) => x >= 0 && x <= 100000000).sort((x, y) => x - y);
+          if (l.length < 2 || l[0] !== 0) return res.status(400).json({ success: false, error: 'Levels: start with 0, then the coins for each next level (at least 2).' });
+          await setSetting('levels', JSON.stringify(l.slice(0, 50)));
+        }
+        if (b.vipPrice !== undefined) { const v = parseInt(b.vipPrice, 10); if (!(v > 0 && v <= 10000000)) return res.status(400).json({ success: false, error: 'VIP price must be more than 0 coins.' }); await setSetting('vip_price', v); }
+        if (b.vipDays !== undefined) { const v = parseInt(b.vipDays, 10); if (!(v > 0 && v <= 365)) return res.status(400).json({ success: false, error: 'VIP days must be 1 to 365.' }); await setSetting('vip_days', v); }
+        if (b.vipOn !== undefined) await setSetting('vip_on', b.vipOn ? '1' : '0');
+        audit(a.adminEmail, 'vip-settings', 'settings', 'levels / VIP price / days changed');
       } else if (act === 'frame') {
         if (!superOnly()) return;
         const g = b.frame || {};
@@ -391,9 +465,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
                                            (SELECT COALESCE(SUM(coins), 0) FROM gift_events) AS gift_coins,
                                            (SELECT COALESCE(SUM(receiver_cents), 0) FROM gift_events) AS receiver_cents`);
       const frames = await pool.query(`SELECT f.*, (SELECT COUNT(*)::int FROM user_frames u WHERE u.frame_id = f.id AND u.expires_at > NOW()) AS owners FROM party_frames f ORDER BY f.coins, f.sort`);
-      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, gifts: gifts.rows, frames: frames.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
+      const vips = await pool.query('SELECT COUNT(*)::int AS n FROM user_vip WHERE expires_at > NOW()');
+      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, vipNow: vips.rows[0].n, gifts: gifts.rows, frames: frames.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
     } catch (err) { console.error('[coins] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
-  return { heldCents, balance, framesOf };
+  return { heldCents, balance, framesOf, badgesOf };
 };

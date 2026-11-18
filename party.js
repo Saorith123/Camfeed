@@ -8,7 +8,7 @@
 // LiveKit "tickets" (tokens) that allow talking only to the people who sit on a seat.
 const crypto = require('crypto');
 
-module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf }) {
+module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf, badgesOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const SEAT_CHOICES = [4, 8, 12];
   const STALE_SEC = 40;                 // not heard from for this long = gone (the app asks every ~2 s)
@@ -225,6 +225,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       for (const p of people) { const k = norm(p.email); p.i_follow = iF.has(k); p.follows_me = fMe.has(k); }
       const fr = framesOf ? await framesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 🖼️ the frame each one wears
       for (const p of people) { const x = fr.get(norm(p.email)); if (x) p.frame = x; }
+      const bd = badgesOf ? await badgesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 👑 level + VIP
+      for (const p of people) { const x = bd.get(norm(p.email)); if (x) { p.level = x.level; p.vip = x.vip; } }
     }
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
@@ -599,6 +601,11 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       if (!t) return res.status(404).json({ success: false, error: 'This person has left the room.' });
       if (t.role === 'owner' || (t.role === 'helper' && m.role !== 'owner')) return res.status(403).json({ success: false, error: 'You can not do this to this person.' });
       const act = String(b.action || '');
+      // 👑 a VIP can be sent out only by the room's owner (not by a helper)
+      if (act === 'kick' && m.role !== 'owner' && badgesOf) {
+        const bd = await badgesOf([who]).catch(() => new Map());
+        if ((bd.get(who) || {}).vip) return res.status(403).json({ success: false, code: 'vip', error: 'Only the room owner can send out a VIP.' });
+      }
       if (act === 'invite') {
         let seat = parseInt(b.seat, 10);
         const used = new Set((await pool.query('SELECT seat FROM party_members WHERE room_id = $1 AND seat IS NOT NULL AND last_seen >= NOW() - ($2 || \' seconds\')::interval', [room.id, String(STALE_SEC)])).rows.map((x) => x.seat));
