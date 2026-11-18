@@ -76,6 +76,9 @@ module.exports = function createPush({ app, pool }) {
     return true;
   }
 
+  // CamFeed's own sounds (Build 73+): the app makes these Android channels, each with its sound in res/raw
+  //   general = Khmer roneat, messages = Khmer kong, calls = Khmer khim (the call screen itself rings with the same khim tune)
+  const CH = { general: ['general_v2', 'cf_notify'], messages: ['messages_v2', 'cf_message'], calls: ['calls_v2', 'cf_ringtone'] };
   async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '', dataOnly = false, tag = '' }) {
     if (!enabled || !email) return 0;
     try {
@@ -89,7 +92,7 @@ module.exports = function createPush({ app, pool }) {
         const msg = dataOnly ? { data: strData, android: { priority: 'HIGH', ttl: '30s' } } : {
           notification: { title: String(title || 'CamFeed').slice(0, 80), body: String(body || '').slice(0, 180) },
           data: strData,
-          android: { priority: 'HIGH', ttl: high ? '30s' : '86400s', notification: { channel_id: channel, sound: 'default', ...(tag ? { tag } : {}), ...(high ? { notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC', default_vibrate_timings: true } : {}) } },
+          android: { priority: 'HIGH', ttl: high ? '30s' : '86400s', notification: { channel_id: (CH[channel] || [channel])[0], sound: (CH[channel] || [, 'default'])[1], ...(tag ? { tag } : {}), ...(high ? { notification_priority: 'PRIORITY_MAX', visibility: 'PUBLIC', default_vibrate_timings: true } : {}) } },
         };
         if (await sendOne(token, msg)) ok++;
       }
@@ -143,8 +146,13 @@ module.exports = function createPush({ app, pool }) {
         lastMsg = Math.max(lastMsg, +m.id);
         if (['system', 'call'].includes(m.message_type)) continue;
         if (/^group:/i.test(String(m.receiver_email || '')) || norm(m.sender_email) === norm(m.receiver_email)) continue;
+        // muted / restricted chats, and strangers' messages for people who turned on "Message requests", do not ring
+        if (msgFilter && !(await msgFilter(m.receiver_email, m.sender_email).catch(() => true))) continue;
         const media = { image: '📷 រូបភាព', video: '🎬 វីដេអូ', audio: '🎙️ សារសំឡេង', location: '📍 ទីតាំង' }[m.message_type];
-        const text = media || String(m.message || '').replace(/\s+/g, ' ');
+        let text = media || String(m.message || '').replace(/\s+/g, ' ');
+        if (text.startsWith('STICKER_EMOJI:')) text = text.slice(14) || '🙂';
+        else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
+        else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
         sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages' });
       }
       const ns = (await pool.query(
@@ -179,5 +187,7 @@ module.exports = function createPush({ app, pool }) {
     res.json({ success: true });
   });
 
-  return { enabled, sendToUser, notifyCall, notifyCallEnd };
+  let msgFilter = null;
+  const setMessageFilter = (fn) => { msgFilter = fn; };
+  return { enabled, sendToUser, notifyCall, notifyCallEnd, setMessageFilter };
 };

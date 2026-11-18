@@ -837,7 +837,7 @@
                 <span style="cursor:pointer; font-size:20px;" onclick="closeReportModal()">&times;</span>
             </div>
             <div class="modal-body">
-                <p style="font-size:13px; color:#65676b;">សូមជ្រើសរើសមូលហេតុដើម្បីបញ្ជូនទៅកាន់ Admin ត្រួតពិនិត្យ៖</p>
+                <p style="font-size:13px; color:#65676b;">សូមជ្រើសរើសមូលហេតុដើម្បីបញ្ជូនទៅកាន់ CamFeed ត្រួតពិនិត្យ៖</p>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Nudity or Sexual Content (អាសអាភាស)')">🔞 អាសអាភាស ឬរូបភាព/វីដេអូផ្លូវភេទ</button>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Fake Account or Impersonation (គណនីក្លែងក្លាយ)')">🎭 គណនីក្លែងក្លាយ ឬបន្លំឈ្មោះ</button>
                 <button type="button" class="report-reason-btn" onclick="selectReportReason(this, 'Scam, Fraud or Fake News (បោកប្រាស់)')">🚫 ការបោកប្រាស់ ឬព័ត៌មានក្លែងក្លាយ</button>
@@ -998,7 +998,7 @@
                                 <span class="profile-menu-ico">🚩</span>
                                 <div>
                                     <div class="profile-menu-title">Report</div>
-                                    <div class="profile-menu-sub">Report this profile to admins</div>
+                                    <div class="profile-menu-sub">Report this profile to CamFeed</div>
                                 </div>
                             </button>
                             <button class="profile-menu-item" onclick="blockTargetUser(decodeURIComponent('${ea(user.email)}'))">
@@ -2161,7 +2161,7 @@
                 });
                 const data = await res.json();
                 closeReportModal();
-                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
+                alert(data.message || 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ CamFeed ដើម្បីត្រួតពិនិត្យភ្លាមៗ!');
             } catch (err) {
                 console.error(err);
                 closeReportModal();

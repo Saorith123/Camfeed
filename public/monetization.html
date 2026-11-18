@@ -88,6 +88,18 @@
 </div>
 <div class="mz-note" id="tNote"></div>
 
+<!-- Way 1: invited by CamFeed — always shown; its button works only after CamFeed invites this person -->
+<div class="card" id="inviteCard">
+<div class="card-title" id="tInvTitle"></div>
+<div id="inviteBox"></div>
+</div>
+
+<!-- Way 2: earning by meeting the requirements (apply) -->
+<div class="card" id="monetizationCard">
+<div class="card-title" id="tProgTitle"></div>
+<div id="monetizationStatusContainer"></div>
+</div>
+
 <!-- Referral -->
 <div class="card">
 <div class="card-title" id="tRefTitle"></div>
@@ -98,18 +110,6 @@
 <div style="font-size:12px;font-weight:700;color:#1877f2;margin-top:10px"><span id="tRefCount"></span> <span id="referralCount">0</span></div>
 <div class="mz-note" id="tRefRules" style="margin-top:12px;margin-bottom:0"></div>
 <div id="friendsBox" style="margin-top:12px"></div>
-</div>
-
-<!-- Way 1: invited by CamFeed (shown only to people CamFeed invited) -->
-<div class="card" id="inviteCard" style="display:none">
-<div class="card-title" id="tInvTitle"></div>
-<div id="inviteBox"></div>
-</div>
-
-<!-- Way 2: earning by meeting the requirements (apply) -->
-<div class="card" id="monetizationCard">
-<div class="card-title" id="tProgTitle"></div>
-<div id="monetizationStatusContainer"></div>
 </div>
 
 <!-- My posts -->
@@ -135,15 +135,15 @@ var T = {
  km: { friendsTitle: 'មិត្តដែលអ្នកបានអញ្ជើញ', noFriends: 'មិនទាន់មានមិត្តទេ។ ចែករំលែកតំណខាងលើ!', pDays: 'ថ្ងៃ', pPosts: 'ប្រកាស', rs_progress: 'កំពុងធ្វើ', rs_rewarded: 'បានទទួលរង្វាន់', rs_review: 'កំពុងត្រួតពិនិត្យ', rs_rejected: 'មិនរាប់', rs_expired: 'ហួសកំណត់', soon: '🎬 មុខងាររកលុយតាមវីដេអូនឹងមកដល់ឆាប់ៗនេះ។ នៅពេលមានអ្នកប្រើប្រាស់កម្មវិធីនេះច្រើន អ្នកនឹងអាចបង្កើតប្រាក់ចំណូលតាមរយៈវីដេអូរបស់អ្នក។', kReferral: 'រង្វាន់អញ្ជើញមិត្ត', earnedRef: 'រង្វាន់អញ្ជើញដែលបានទទួលសរុប៖', wallet: 'ប្រាក់ក្នុងកាបូប (Total Earnings)', withdraw: 'ដកប្រាក់', note: 'ប្រាក់ក្នុងកាបូបបច្ចុប្បន្នមកពីរង្វាន់ពិសេស និងការប្រកួតរបស់ CamFeed។ ពេល CamFeed មានចំណូលពីការផ្សាយពាណិជ្ជកម្មក្នុងស្រុក ផ្នែកមួយនៃចំណូលនឹងត្រូវបានចែកដល់សមាជិកកម្មវិធី Creator តាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់មិនត្រូវបានធានាទេ។',
    refCodeLbl: 'ឬផ្តល់លេខណែនាំរបស់អ្នកនេះឱ្យមិត្ត (គេដាក់ក្នុងប្រអប់ "លេខណែនាំ" ពេលបង្កើតគណនី)៖', copiedCode: 'បានចម្លងលេខណែនាំ!', refTitle: '🎁 កម្មវិធីអញ្ជើញមិត្ត (Referral)', refText: 'ចែករំលែកតំណនេះឱ្យមិត្តភក្តិ។ ពេលគេបង្កើតគណនី អ្នកនឹងបានរាប់ជាអ្នកអញ្ជើញ។', copy: 'ចម្លង (Copy)', copied: 'បានចម្លងតំណអញ្ជើញ!', refCount: 'មិត្តដែលអ្នកបានអញ្ជើញ៖', people: 'នាក់',
    progTitle: '💰 កម្មវិធី Creator (Apply for Monetization)', cFollowers: 'អ្នកតាមដាន (Followers)', cViews: 'ចំនួន Views សរុប', cPosts: 'ចំនួនប្រកាស', cAge: 'អាយុគណនី (ថ្ងៃ)', apply: 'ដាក់ពាក្យចូលរួម', applying: 'កំពុងផ្ញើ…',
-   approved: '🎉 អបអរសាទរ! អ្នកជាសមាជិកកម្មវិធី Creator ហើយ។', pending: '⏳ ពាក្យសុំរបស់អ្នកកំពុងរង់ចាំការពិនិត្យពី Admin។', rejected: '❌ ពាក្យសុំរបស់អ្នកមិនត្រូវបានអនុម័តទេ។', reason: 'មូលហេតុ៖', again: 'អ្នកអាចដាក់ពាក្យម្តងទៀតក្រោយ 7 ថ្ងៃ។',
+   approved: '🎉 អបអរសាទរ! អ្នកជាសមាជិកកម្មវិធី Creator ហើយ។', pending: '⏳ ពាក្យសុំរបស់អ្នកកំពុងរង់ចាំការពិនិត្យពី CamFeed។', rejected: '❌ ពាក្យសុំរបស់អ្នកមិនត្រូវបានអនុម័តទេ។', reason: 'មូលហេតុ៖', again: 'អ្នកអាចដាក់ពាក្យម្តងទៀតក្រោយ 7 ថ្ងៃ។',
    histTitle: '🧾 ប្រវត្តិកាបូប', none: 'មិនទាន់មានប្រវត្តិ', wdTitle: 'ដកប្រាក់', amount: 'ចំនួន ($)', method: 'វិធីទទួលប្រាក់', accName: 'ឈ្មោះគណនី', accNum: 'លេខគណនី', send: 'ផ្ញើសំណើ', cancel: 'បោះបង់', min: 'ដកអប្បបរមា $', paidBy: 'យើងនឹងផ្ទេរប្រាក់ដោយដៃ ក្នុងរយៈពេលពីរបីថ្ងៃ។',
-   wdSent: 'បានផ្ញើសំណើដកប្រាក់ហើយ។ យើងនឹងផ្ទេរប្រាក់ទៅគណនីរបស់អ្នក។', onlyCreators: 'មានតែសមាជិក Creator ទេដែលអាចដកប្រាក់បាន។', needMore: 'សមតុល្យមិនទាន់ដល់ចំនួនអប្បបរមា $', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', sent: 'បានផ្ញើពាក្យសុំហើយ! Admin នឹងពិនិត្យ។', kBonus: 'រង្វាន់', kAdjustment: 'កែតម្រូវ', kWithdrawal: 'សំណើដកប្រាក់', kRefund: 'សងប្រាក់វិញ', kRev: 'ចំណែកចំណូល', st_pending: 'រង់ចាំ', st_paid: 'បានបង់', st_rejected: 'បដិសេធ' },
+   wdSent: 'បានផ្ញើសំណើដកប្រាក់ហើយ។ យើងនឹងផ្ទេរប្រាក់ទៅគណនីរបស់អ្នក។', onlyCreators: 'មានតែសមាជិក Creator ទេដែលអាចដកប្រាក់បាន។', needMore: 'សមតុល្យមិនទាន់ដល់ចំនួនអប្បបរមា $', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', sent: 'បានផ្ញើពាក្យសុំហើយ! CamFeed នឹងពិនិត្យ។', kBonus: 'រង្វាន់', kAdjustment: 'កែតម្រូវ', kWithdrawal: 'សំណើដកប្រាក់', kRefund: 'សងប្រាក់វិញ', kRev: 'ចំណែកចំណូល', st_pending: 'រង់ចាំ', st_paid: 'បានបង់', st_rejected: 'បដិសេធ' },
  en: { friendsTitle: 'Friends you invited', noFriends: 'No friend yet. Share the link above!', pDays: 'days', pPosts: 'posts', rs_progress: 'In progress', rs_rewarded: 'Rewarded', rs_review: 'Being checked', rs_rejected: 'Not counted', rs_expired: 'Expired', soon: '🎬 Earning money from videos is coming soon. When many people use CamFeed, you will be able to earn from your videos.', kReferral: 'Invitation reward', earnedRef: 'Invitation rewards earned in total:', wallet: 'Wallet balance (Total Earnings)', withdraw: 'Withdraw', note: 'Wallet money currently comes from special bonuses and contests run by CamFeed. When CamFeed earns from local advertising, part of that income will be shared with members of the Creator Program, at CamFeed\'s discretion. Amounts are not guaranteed.',
    refCodeLbl: 'Or give your friend this referral number (they type it in the "Referral number" box when signing up):', copiedCode: 'Referral number copied!', refTitle: '🎁 Invite friends (Referral)', refText: 'Share this link with your friends. When they create an account you are counted as their inviter.', copy: 'Copy', copied: 'Invitation link copied!', refCount: 'Friends you invited:', people: '',
    progTitle: '💰 Creator Program (Apply for Monetization)', cFollowers: 'Followers', cViews: 'Total views', cPosts: 'Posts', cAge: 'Account age (days)', apply: 'Apply to join', applying: 'Sending…',
-   approved: '🎉 Congratulations! You are a member of the Creator Program.', pending: '⏳ Your application is waiting for an admin to review it.', rejected: '❌ Your application was not approved.', reason: 'Reason:', again: 'You can apply again after 7 days.',
+   approved: '🎉 Congratulations! You are a member of the Creator Program.', pending: '⏳ Your application is waiting for CamFeed to review it.', rejected: '❌ Your application was not approved.', reason: 'Reason:', again: 'You can apply again after 7 days.',
    histTitle: '🧾 Wallet history', none: 'Nothing yet', wdTitle: 'Withdraw', amount: 'Amount ($)', method: 'Get paid with', accName: 'Account name', accNum: 'Account number', send: 'Send request', cancel: 'Cancel', min: 'Smallest withdrawal $', paidBy: 'We pay by hand, usually within a few days.',
-   wdSent: 'Your withdrawal request was sent. We will pay your account.', onlyCreators: 'Only Creator Program members can withdraw.', needMore: 'Your balance has not reached the smallest withdrawal $', net: 'Could not reach the server', sent: 'Application sent! An admin will review it.', kBonus: 'Bonus', kAdjustment: 'Adjustment', kWithdrawal: 'Withdrawal request', kRefund: 'Refund', kRev: 'Revenue share', st_pending: 'Waiting', st_paid: 'Paid', st_rejected: 'Refused' } };
+   wdSent: 'Your withdrawal request was sent. We will pay your account.', onlyCreators: 'Only Creator Program members can withdraw.', needMore: 'Your balance has not reached the smallest withdrawal $', net: 'Could not reach the server', sent: 'Application sent! CamFeed will review it.', kBonus: 'Bonus', kAdjustment: 'Adjustment', kWithdrawal: 'Withdrawal request', kRefund: 'Refund', kRev: 'Revenue share', st_pending: 'Waiting', st_paid: 'Paid', st_rejected: 'Refused' } };
 T.km.note = 'ប្រាក់ក្នុងកាបូបមកពីរង្វាន់អញ្ជើញមិត្ត និងរង្វាន់ពិសេសរបស់ CamFeed។ ប្រាក់ចំណូលពីវីដេអូនឹងមកដល់ឆាប់ៗនេះ ហើយនៅពេលនោះ ផ្នែកមួយនៃចំណូលពាណិជ្ជកម្មនឹងត្រូវបានចែកតាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់ពីវីដេអូមិនត្រូវបានធានាទេ។';
 T.en.note = 'Wallet money comes from invitation rewards and special bonuses from CamFeed. Earning from videos is coming soon; when it starts, part of the advertising income will be shared at CamFeed\'s discretion. Amounts from videos are not guaranteed.';
 
@@ -161,8 +161,8 @@ T.en.approved = '🎉 Congratulations! CamFeed has invited you to earn money. Yo
 Object.assign(T.km, { reqLbl: 'សរសេរសំណើរបស់អ្នក (អ្នកជានរណា បង្ហោះមាតិកាអ្វី)', reqPh: 'ឧ. ខ្ញុំបង្ហោះវីដេអូកំប្លែង និងរូបភាពធ្វើម្ហូបរាល់ថ្ងៃ…', reqShort: 'សូមសរសេរសំណើខ្លីៗ (យ៉ាងតិច 10 តួអក្សរ)។' });
 Object.assign(T.en, { reqLbl: 'Write your request (who you are, what you post)', reqPh: 'e.g. I post funny videos and cooking photos every day…', reqShort: 'Please write a short request (at least 10 letters).' });
 
-Object.assign(T.km, { invTitle: '✉️ ការអញ្ជើញពី CamFeed', invText: 'CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពដែលអ្នកបង្ហោះ ដោយមិនចាំបាច់បំពេញលក្ខខណ្ឌ។', invAccept: 'ទទួលយក', invDecline: 'បដិសេធ', invAccepted: '🎉 អបអរសាទរ! អ្នកបានទទួលយកការអញ្ជើញ ហើយអាចរកប្រាក់បានហើយ។', invDeclineQ: 'បដិសេធការអញ្ជើញនេះ?', invApproved: '🎉 អ្នកជា Creator ដែល CamFeed បានអញ្ជើញ។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក ហើយប្រាក់ចូលកាបូប។', appText: 'បំពេញលក្ខខណ្ឌខាងក្រោមឲ្យគ្រប់ ហើយដាក់ពាក្យ។ Admin នឹងពិនិត្យ និងអនុម័ត។', appApproved: '🎉 អបអរសាទរ! ពាក្យសុំរបស់អ្នកត្រូវបានអនុម័ត។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នកបានហើយ។', appClosed: 'ការដាក់ពាក្យត្រូវបានបិទជាបណ្ដោះអាសន្ន។' });
-Object.assign(T.en, { invTitle: '✉️ Invitation from CamFeed', invText: 'CamFeed has invited you to earn money from the videos and photos you post — no requirements needed.', invAccept: 'Accept', invDecline: 'Decline', invAccepted: '🎉 Congratulations! You accepted the invitation and can earn now.', invDeclineQ: 'Decline this invitation?', invApproved: '🎉 You are a Creator invited by CamFeed. You earn from your videos and photos, and the money goes into your wallet.', appText: 'Meet all the requirements below, then apply. An admin will review and approve.', appApproved: '🎉 Congratulations! Your application was approved. You can earn from your videos and photos now.', appClosed: 'Applying is closed for now.' });
+Object.assign(T.km, { invNone: 'CamFeed ជ្រើសរើសអ្នកបង្កើតមាតិកាល្អៗ ហើយអញ្ជើញឲ្យរកប្រាក់ដោយផ្ទាល់ ដោយមិនចាំបាច់បំពេញលក្ខខណ្ឌ។ ផ្លូវនេះដាច់ដោយឡែកពី «រកប្រាក់តាមលក្ខខណ្ឌ»។', invWait: 'មិនទាន់មានការអញ្ជើញពី CamFeed ទេ។ ពេលអ្នកត្រូវបានអញ្ជើញ អ្នកនឹងទទួលការជូនដំណឹង ហើយប៊ូតុងនេះនឹងប្រើបាន។', invTitle: '✉️ រកប្រាក់ដោយការអញ្ជើញពី CamFeed', invText: 'CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពដែលអ្នកបង្ហោះ ដោយមិនចាំបាច់បំពេញលក្ខខណ្ឌ។', invAccept: 'ទទួលយក', invDecline: 'បដិសេធ', invAccepted: '🎉 អបអរសាទរ! អ្នកបានទទួលយកការអញ្ជើញ ហើយអាចរកប្រាក់បានហើយ។', invDeclineQ: 'បដិសេធការអញ្ជើញនេះ?', invApproved: '🎉 អ្នកជា Creator ដែល CamFeed បានអញ្ជើញ។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក ហើយប្រាក់ចូលកាបូប។', appText: 'បំពេញលក្ខខណ្ឌខាងក្រោមឲ្យគ្រប់ ហើយដាក់ពាក្យ។ CamFeed នឹងពិនិត្យ និងអនុម័ត។', appApproved: '🎉 អបអរសាទរ! ពាក្យសុំរបស់អ្នកត្រូវបានអនុម័ត។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នកបានហើយ។', appClosed: 'ការដាក់ពាក្យត្រូវបានបិទជាបណ្ដោះអាសន្ន។' });
+Object.assign(T.en, { invNone: 'CamFeed picks good creators and invites them directly to earn, with no requirements. This way is separate from “Earn by meeting the requirements”.', invWait: 'No invitation from CamFeed yet. When you are invited you will get a notification, and this button will work.', invTitle: '✉️ Earn by invitation from CamFeed', invText: 'CamFeed has invited you to earn money from the videos and photos you post — no requirements needed.', invAccept: 'Accept', invDecline: 'Decline', invAccepted: '🎉 Congratulations! You accepted the invitation and can earn now.', invDeclineQ: 'Decline this invitation?', invApproved: '🎉 You are a Creator invited by CamFeed. You earn from your videos and photos, and the money goes into your wallet.', appText: 'Meet all the requirements below, then apply. CamFeed will review and approve.', appApproved: '🎉 Congratulations! Your application was approved. You can earn from your videos and photos now.', appClosed: 'Applying is closed for now.' });
 T.km.progTitle = '📋 រកប្រាក់តាមលក្ខខណ្ឌ'; T.en.progTitle = '📋 Earn by meeting the requirements';
 Object.assign(T.km, { notYet: 'អ្នកត្រូវបំពេញលក្ខខណ្ឌខាងលើឲ្យគ្រប់សិន ទើបអាចស្នើសុំបាន។' });
 Object.assign(T.en, { notYet: 'You must meet all the requirements above before you can apply.' });
@@ -212,7 +212,7 @@ function render() {
   // way 1: invited by CamFeed — its own card, only for people CamFeed invited
   var ic = $('inviteCard'), ib = $('inviteBox'); ib.textContent = '';
   var invitedWay = src === 'invited' && (stt === 'invited' || stt === 'approved');
-  ic.style.display = invitedWay ? '' : 'none';
+  ic.style.display = '';
   if (invitedWay && stt === 'invited') {
     ib.appendChild(el('div', { class: 'status-banner status-pending', style: 'margin-bottom:12px;text-align:left' }, paths.textInvited || t('invText')));
     var row = el('div', { style: 'display:flex;gap:10px' });
@@ -223,6 +223,11 @@ function render() {
   } else if (invitedWay) {
     ib.appendChild(el('div', { class: 'status-banner status-approved' }, t('invApproved')));
     if (d.earningSuspended) ib.appendChild(el('div', { class: 'status-banner status-rejected', style: 'margin-top:10px' }, t('suspended') + (d.suspendReason ? ' ' + d.suspendReason : '')));
+  } else {
+    // not invited (yet): explain, and show the button greyed out — it works only after CamFeed invites you directly
+    ib.appendChild(el('div', { class: 'mz-note', style: 'margin-bottom:12px' }, t('invNone')));
+    ib.appendChild(el('button', { type: 'button', class: 'btn-primary', disabled: 'disabled', style: 'width:100%;opacity:.45;cursor:not-allowed' }, t('invAccept')));
+    ib.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:8px;text-align:center' }, t('invWait')));
   }
   // way 2: by the requirements — its own card (hidden for people already invited, and when the admin closed applying)
   var mc = $('monetizationCard'), box = $('monetizationStatusContainer'); box.textContent = '';

@@ -96,6 +96,7 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 <div class="note warn" data-i18n="acc_name_note">ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។</div>
 <div class="grid2 field-gap"><div><label class="field" for="firstName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="firstName" maxlength="60" autocomplete="given-name"></div>
 <div><label class="field" for="lastName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="lastName" maxlength="60" autocomplete="family-name"></div></div>
+<div class="field-gap"><label class="field" for="namePassword" data-i18n="acc_name_pw">ពាក្យសម្ងាត់ (ដើម្បីបញ្ជាក់)</label><input type="password" id="namePassword" maxlength="128" autocomplete="current-password"></div>
 <button type="button" class="btn" id="saveNameBtn" data-i18n="save" disabled>រក្សាទុក</button></div>
 <div class="card"><h2 data-i18n="acc_contact_t">លេខសម្គាល់ និងតំណ</h2><p class="desc" data-i18n="acc_contact_d2">ចែករំលែកតំណរបស់អ្នកឱ្យមិត្តរកអ្នក។</p>
 <div class="row" id="idRow"><span class="r-ic">🔢</span><div class="r-main"><div class="r-title" data-i18n="acc_id">លេខសម្គាល់របស់អ្នក</div><div class="r-sub" id="idValue">…</div></div><button type="button" class="btn small secondary" id="copyIdBtn" data-i18n="copy">ចម្លង</button></div>
@@ -186,7 +187,7 @@ tf_t:'ការផ្ទៀងផ្ទាត់ពីរជំហាន (Two-fa
 dv_t:'កន្លែងដែលអ្នកបានចូលគណនី',dv_d:'ឧបករណ៍ដែលកំពុងចូល ឬបានចូលថ្មីៗ។ បើមិនស្គាល់ សូមចាកចេញ ហើយប្តូរពាក្យសម្ងាត់។',dv_others:'ចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់',dv_this:'ឧបករណ៍នេះ',dv_logout:'ចាកចេញ',dv_empty:'មិនមានឧបករណ៍ផ្សេងទេ',dv_unknown:'មិនស្គាល់ទីតាំង',
 dv_conf_t:'ចាកចេញពីឧបករណ៍នេះ?',dv_conf_b:(n)=>`${n} នឹងត្រូវចូលគណនីម្តងទៀត។`,dv_done:'បានចាកចេញពីឧបករណ៍ហើយ',dv_others_t:'ចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់?',dv_others_b:'ឧបករណ៍នេះនៅតែចូលបាន ឧបករណ៍ផ្សេងទាំងអស់នឹងត្រូវចូលគណនីម្តងទៀត។',dv_others_ok:'ចាកចេញទាំងអស់',dv_others_done:'បានចាកចេញពីឧបករណ៍ផ្សេងហើយ',dv_old:'ការចូលពីមុន (ចូលម្តងទៀតដើម្បីឃើញព័ត៌មានលម្អិត)',
 now:'ឥឡូវនេះ',ago_min:(n)=>`${n} នាទីមុន`,ago_hour:(n)=>`${n} ម៉ោងមុន`,ago_day:(n)=>`${n} ថ្ងៃមុន`,
-name_saved:'បានរក្សាទុកឈ្មោះថ្មីហើយ',name_need:'សូមបញ្ចូលទាំងនាមខ្លួន និងនាមត្រកូល',name_wait:(n)=>`អ្នកអាចប្តូរឈ្មោះម្តងទៀតក្នុង ${n} ថ្ងៃ`,
+name_saved:'បានរក្សាទុកឈ្មោះថ្មីហើយ',name_need:'សូមបញ្ចូលទាំងនាមខ្លួន និងនាមត្រកូល',acc_name_pw:'ពាក្យសម្ងាត់ (ដើម្បីបញ្ជាក់)',name_pw_need:'សូមវាយពាក្យសម្ងាត់ ដើម្បីបញ្ជាក់ថាជាអ្នក',name_wait:(n)=>`អ្នកអាចប្តូរឈ្មោះម្តងទៀតក្នុង ${n} ថ្ងៃ`,
 pr_t:'អ្នកណាអាចឃើញព័ត៌មានរបស់អ្នក',pr_d:'បើបើក អ្នកដទៃអាចឃើញក្នុងប្រវត្តិរូបរបស់អ្នក។ បើបិទ មានតែអ្នកប៉ុណ្ណោះឃើញ។',pr_email:'អាសយដ្ឋានអ៊ីមែល',pr_phone:'លេខទូរស័ព្ទ',pr_location:'ទីតាំង',pr_birthdate:'ថ្ងៃកំណើត',pr_relationship:'ស្ថានភាពទំនាក់ទំនង',pr_gender:'ភេទ',pr_work:'ការងារ',
 pr_on:'អ្នកដទៃអាចឃើញ',pr_off:'មានតែអ្នកឃើញ',pr_saved:'បានរក្សាទុក',pr_fail:'មិនអាចរក្សាទុកបានទេ សូមព្យាយាមម្តងទៀត',
 bl_t:'អ្នកដែលបានហាមឃាត់',bl_d:'អ្នកដែលអ្នកបានហាមឃាត់ មិនអាចឃើញអ្នក ឬផ្ញើសារមកអ្នកបានទេ។',bl_note:'ពេលអ្នកហាមឃាត់នរណាម្នាក់ ការតាមដានរវាងអ្នកទាំងពីរត្រូវបានដកចេញដោយស្វ័យប្រវត្តិ ទោះធ្លាប់តាមដានគ្នាក៏ដោយ។',bl_empty:'អ្នកមិនបានហាមឃាត់នរណាទេ',bl_unblock:'ឈប់ហាមឃាត់',bl_done:'បានឈប់ហាមឃាត់ហើយ',
@@ -226,7 +227,7 @@ tf_t:'Two-factor authentication',tf_d:'Add a second code when you log in, so nob
 dv_t:'Where you are logged in',dv_d:'Devices that are logged in or logged in recently. If you do not recognise one, log it out and change your password.',dv_others:'Log out of all other devices',dv_this:'This device',dv_logout:'Log out',dv_empty:'No other devices',dv_unknown:'Unknown location',
 dv_conf_t:'Log out this device?',dv_conf_b:(n)=>`${n} will have to log in again.`,dv_done:'Device logged out',dv_others_t:'Log out of all other devices?',dv_others_b:'This device stays logged in. Every other device will have to log in again.',dv_others_ok:'Log out all',dv_others_done:'Logged out of the other devices',dv_old:'Earlier login (log in again to see details)',
 now:'Now',ago_min:(n)=>`${n} min ago`,ago_hour:(n)=>`${n} h ago`,ago_day:(n)=>`${n} d ago`,
-name_saved:'Your new name is saved',name_need:'Please enter both first and last name',name_wait:(n)=>`You can change your name again in ${n} day(s)`,
+name_saved:'Your new name is saved',name_need:'Please enter both first and last name',acc_name_pw:'Password (to confirm)',name_pw_need:'Type your password to confirm it is you',name_wait:(n)=>`You can change your name again in ${n} day(s)`,
 pr_t:'Who can see your details',pr_d:'When on, other people can see it on your profile. When off, only you can.',pr_email:'Email address',pr_phone:'Phone number',pr_location:'Location',pr_birthdate:'Date of birth',pr_relationship:'Relationship status',pr_gender:'Gender',pr_work:'Work',
 pr_on:'Visible to others',pr_off:'Only you',pr_saved:'Saved',pr_fail:'Could not save. Please try again',
 bl_t:'Blocked people',bl_d:'People you block can not see you or message you.',bl_note:'When you block someone, any follow between the two of you is removed automatically, even if you followed each other.',bl_empty:"You haven't blocked anyone",bl_unblock:'Unblock',bl_done:'Unblocked',
@@ -244,7 +245,8 @@ app_t:'The CamFeed app',app_d:'Install CamFeed on your home screen to open it fa
 err_net:'Could not reach the server',err_generic:'Something went wrong. Please try again'}
 };
 let lang = (function(){const l=localStorage.getItem('camfeed_lang');return l==='en'?'en':(l&&l!=='km'?'en':'km');})();
-const t=(k,...a)=>{const v=(T[lang]&&T[lang][k]!==undefined)?T[lang][k]:T.en[k];return typeof v==='function'?v(...a):v;};
+let NAME_DAYS=15;   // set by the Admin (Admin > System > App settings)
+const t=(k,...a)=>{let v=(T[lang]&&T[lang][k]!==undefined)?T[lang][k]:T.en[k];if((k==='acc_name_note'||k==='lg_name_s')&&typeof v==='string')v=v.replace('15',String(NAME_DAYS));return typeof v==='function'?v(...a):v;};
 const $=(id)=>document.getElementById(id);
 const el=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;};
 let toastTimer=null;
@@ -343,11 +345,13 @@ $('copyLinkBtn').addEventListener('click',()=>copyText(location.origin+'/profile
 const nameChanged=()=>$('firstName').value.trim()!==(me.first_name||'')||$('lastName').value.trim()!==(me.last_name||'');
 ['firstName','lastName'].forEach((id)=>$(id).addEventListener('input',()=>{$('saveNameBtn').disabled=!nameChanged();}));
 $('saveNameBtn').addEventListener('click',async()=>{const firstName=$('firstName').value.trim(),lastName=$('lastName').value.trim();
-if(!firstName||!lastName)return toast(t('name_need'),'err');$('saveNameBtn').disabled=true;
-const r=await api('/api/settings/name',jsonOpts('PUT',{firstName,lastName}));
+if(!firstName||!lastName)return toast(t('name_need'),'err');const password=$('namePassword').value;if(!password)return toast(t('name_pw_need'),'err');$('saveNameBtn').disabled=true;
+const r=await api('/api/settings/name',jsonOpts('PUT',{firstName,lastName,password,lang}));
 if(r.ok&&r.data.user){me.first_name=r.data.user.first_name;me.last_name=r.data.user.last_name;currentUser.first_name=me.first_name;currentUser.last_name=me.last_name;
 try{localStorage.setItem('camfeed_user',JSON.stringify(currentUser));}catch(e){}renderContact();toast(t('name_saved'),'ok');}
-else{const m=/(\d+)\s*day/i.exec(msgOf(r));toast(m?t('name_wait',m[1]):msgOf(r),'err');$('saveNameBtn').disabled=!nameChanged();}});
+else{toast(msgOf(r),'err');$('saveNameBtn').disabled=!nameChanged();}
+$('namePassword').value='';});
+api('/api/app-settings').then((r)=>{const d=r&&r.data;if(d&&d.success&&Number.isFinite(Number(d.nameDays))){NAME_DAYS=Number(d.nameDays);try{applyLang();}catch(e){}}}).catch(()=>{});
 
 const PRIVACY=[{key:'email_privacy',icon:'✉️',label:'pr_email'},{key:'phone_privacy',icon:'📞',label:'pr_phone'},{key:'location_privacy',icon:'📍',label:'pr_location'},
 {key:'birthdate_privacy',icon:'🎂',label:'pr_birthdate'},{key:'relationship_privacy',icon:'💕',label:'pr_relationship'},{key:'gender_privacy',icon:'⚧️',label:'pr_gender'},{key:'work_privacy',icon:'💼',label:'pr_work'}];

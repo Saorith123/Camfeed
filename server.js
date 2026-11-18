@@ -269,6 +269,15 @@ pool.connect(async (err, client, release) => {
     `);
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS hidden_posts (
+        user_email VARCHAR(255) NOT NULL,
+        post_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_email, post_id)
+      )
+    `);
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS reports (
         id SERIAL PRIMARY KEY,
         reporter_email VARCHAR(255) NOT NULL,
@@ -1085,6 +1094,17 @@ app.post('/api/posts/:id/view', async (req, res) => {
 });
 
 // Report Post or Video to Admin
+// "Hide post" (⋯ on a post): it disappears from MY feed only. undo: true brings it back.
+app.post('/api/posts/:id/hide', async (req, res) => {
+  const me = req.authEmail; const id = parseInt(req.params.id, 10) || 0;
+  if (!me || !id) return res.status(400).json({ success: false });
+  try {
+    if (req.body && req.body.undo) await pool.query('DELETE FROM hidden_posts WHERE user_email = $1 AND post_id = $2', [me, id]);
+    else await pool.query('INSERT INTO hidden_posts (user_email, post_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [me, id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 app.post('/api/posts/:id/report', async (req, res) => {
   const { id } = req.params;
   const { email, reason } = req.body;
@@ -1098,7 +1118,7 @@ app.post('/api/posts/:id/report', async (req, res) => {
        VALUES ($1, 'post', $2, $3, $4)`,
       [email, id, targetUserEmail, reason || 'Violation reported']
     );
-    res.json({ success: true, message: 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!' });
+    res.json({ success: true, message: 'របាយការណ៍របស់អ្នកត្រូវបានបញ្ជូនទៅកាន់ CamFeed ដើម្បីត្រួតពិនិត្យភ្លាមៗ!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1113,7 +1133,7 @@ app.post('/api/users/report', async (req, res) => {
        VALUES ($1, 'profile', $2, $3)`,
       [reporterEmail, targetEmail, reason || 'Profile violation reported']
     );
-    res.json({ success: true, message: 'របាយការណ៍អំពីគណនីនេះត្រូវបានបញ្ជូនទៅកាន់ Admin ដើម្បីត្រួតពិនិត្យភ្លាមៗ!' });
+    res.json({ success: true, message: 'របាយការណ៍អំពីគណនីនេះត្រូវបានបញ្ជូនទៅកាន់ CamFeed ដើម្បីត្រួតពិនិត្យភ្លាមៗ!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1196,6 +1216,7 @@ app.get('/api/posts', async (req, res) => {
         ls.user_reaction,
         ls.reaction_types,
         EXISTS (SELECT 1 FROM follows ff2 WHERE ff2.follower_email = $1 AND ff2.following_email = p.user_email) AS author_followed,
+        EXISTS (SELECT 1 FROM follows ff3 WHERE ff3.follower_email = p.user_email AND ff3.following_email = $1) AS author_follows_me,
         ${TAGGED_USERS_SQL},
         (SELECT string_agg(t.rt, ',' ORDER BY t.c DESC) FROM (SELECT reaction_type AS rt, COUNT(*) AS c FROM likes l2 WHERE l2.post_id = p.id GROUP BY reaction_type ORDER BY COUNT(*) DESC LIMIT 2) t) AS top_reactions,
         op.id AS orig_id,
@@ -1297,6 +1318,7 @@ app.get('/api/posts', async (req, res) => {
         ${excludeCondition}
         AND COALESCE(u.is_banned, FALSE) = FALSE
         AND p.user_email NOT IN (SELECT u_email FROM blocked)
+        AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_email = $1 AND hp.post_id = p.id)
       ORDER BY ${feedOrder}
       LIMIT $2 OFFSET $3
     `;
@@ -1802,6 +1824,8 @@ app.get('/api/user-profile', async (req, res) => {
       SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '100 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $2), TRUE)) AS is_online,
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
+      (SELECT COUNT(*) FROM posts p WHERE p.user_email = u.email) as posts_count,
+      (EXISTS(SELECT 1 FROM creator_applications ca WHERE LOWER(ca.user_email) = LOWER(u.email) AND ca.status = 'approved')) as is_creator,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $2)) as is_followed_by
       FROM users u WHERE u.email = $1
@@ -1906,6 +1930,11 @@ app.get('/api/follow-list', async (req, res) => {
       `;
     }
     const result = await pool.query(query, type === 'friends' ? [email] : [email, email]);
+    // fair: a person who hides their own active status does not see other people's either (like Messenger)
+    if (req.authEmail) {
+      const v = await pool.query('SELECT COALESCE(show_active_status, TRUE) AS on FROM users WHERE email = $1', [req.authEmail]).catch(() => ({ rows: [] }));
+      if (v.rows[0] && v.rows[0].on === false) result.rows.forEach((r) => { r.is_online = false; r.last_active = null; });
+    }
     res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1940,7 +1969,7 @@ app.get('/api/chat-conversations', async (req, res) => {
   const { email } = req.query;
   try {
     const query = `
-      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '100 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
+      SELECT DISTINCT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '100 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
       (
         SELECT m.message FROM messages m 
         WHERE (m.sender_email = u.email AND m.receiver_email = $1) OR (m.sender_email = $1 AND m.receiver_email = u.email)
@@ -1971,7 +2000,7 @@ app.get('/api/chat-conversations', async (req, res) => {
       
       UNION
       
-      SELECT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '100 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
+      SELECT u.email, u.first_name, u.last_name, u.profile_pic, CASE WHEN COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE) THEN u.last_active END AS last_active, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '100 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $1), TRUE)) AS is_online,
       'Start a conversation' as last_message,
       NULL as last_sender_email,
       0 as unread_count,
@@ -1992,7 +2021,22 @@ app.get('/api/chat-conversations', async (req, res) => {
       ORDER BY last_time DESC NULLS LAST
     `;
     const result = await pool.query(query, [email]);
-    res.json({ success: true, conversations: result.rows });
+    // conversations this person deleted "for me": hidden until a newer message arrives
+    let rows = result.rows;
+    try {
+      const cp = await pool.query("SELECT peer, cleared_at FROM chat_prefs WHERE user_email = $1 AND cleared_at IS NOT NULL AND peer NOT LIKE 'group:%'", [String(req.authEmail || email || '').toLowerCase()]);
+      if (cp.rows.length) {
+        const m = new Map(cp.rows.map((x) => [x.peer, x.cleared_at]));
+        rows = rows.filter((r) => { const c = m.get(String(r.email).toLowerCase()); return !c || (r.last_message !== 'Start a conversation' && new Date(r.last_time) > new Date(c)); });
+      }
+      // people who restricted me: I do not see when they are active
+      const rs = await pool.query('SELECT user_email FROM chat_prefs WHERE peer = $1 AND restricted = TRUE', [String(req.authEmail || email || '').toLowerCase()]);
+      if (rs.rows.length) {
+        const hide = new Set(rs.rows.map((x) => String(x.user_email).toLowerCase()));
+        rows.forEach((r) => { if (hide.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } });
+      }
+    } catch (e) { /* the table may not exist yet */ }
+    res.json({ success: true, conversations: rows });
   } catch (err) {
     console.error("Error loading conversations:", err);
     res.status(500).json({ success: false, error: err.message });
@@ -2106,6 +2150,11 @@ app.get('/api/messages', async (req, res) => {
       ORDER BY created_at ASC
     `;
     const result = await pool.query(query, [user1, user2]);
+    // "Delete for me": the messages before that moment are not shown to this person any more
+    const viewer = String(req.authEmail || user1 || '').toLowerCase();
+    const other = viewer === String(user1 || '').toLowerCase() ? user2 : user1;
+    const cl = await chatPrefs.clearedAt(viewer, other);
+    if (cl) result.rows = result.rows.filter((r) => new Date(r.created_at) > new Date(cl));
     let reactions = {}, settings = null;
     try {
       reactions = await chatExtras.reactionsFor(result.rows.map((r) => r.id));
@@ -2149,7 +2198,9 @@ app.post('/api/presence/offline', async (req, res) => {
 });
 
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
-const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push });
+const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d) });
+const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
+if (push.setMessageFilter) push.setMessageFilter((to, from) => chatPrefs.shouldNotify(to, from));
 
 // Send Chat Message
 app.post('/api/messages', (req, res, next) => {
@@ -2311,29 +2362,39 @@ app.post('/api/translate-text', async (req, res) => {
 // ACCOUNT SETTINGS (name / password / delete account)
 // =============================================================================
 const MIN_PASSWORD_LENGTH = 6;
-const NAME_CHANGE_COOLDOWN_DAYS = 15;
+const NAME_CHANGE_COOLDOWN_DAYS = 15;     // default; Admin > System > App settings can change it (NAME_CHANGE_DAYS)
 
 app.put('/api/settings/name', async (req, res) => {
   const email = req.authEmail;
   const firstName = String((req.body && req.body.firstName) || '').trim();
   const lastName = String((req.body && req.body.lastName) || '').trim();
+  const password = String((req.body && req.body.password) || '');
+  const km = String(req.get('accept-language') || '').toLowerCase().startsWith('km') || req.body && req.body.lang === 'km';
   try {
     if (!firstName || !lastName) {
-      return res.status(400).json({ success: false, message: 'First and last name are required.' });
+      return res.status(400).json({ success: false, message: km ? 'សូមវាយនាមខ្លួន និងនាមត្រកូល។' : 'First and last name are required.' });
     }
-    const cur = await pool.query('SELECT name_changed_at FROM users WHERE email = $1', [email]);
-    const last = cur.rows[0] && cur.rows[0].name_changed_at;
-    if (last) {
+    const cur = await pool.query('SELECT name_changed_at, password FROM users WHERE email = $1', [email]);
+    const row = cur.rows[0];
+    // the owner of the account must type the password (a phone left unlocked can not rename the account)
+    const check = row ? await auth.verifyPassword(password, row.password) : { ok: false };
+    if (!check.ok) return res.status(400).json({ success: false, code: 'bad_password', message: km ? 'ពាក្យសម្ងាត់មិនត្រឹមត្រូវ។' : 'The password is incorrect.' });
+    const days = ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS);
+    const last = row && row.name_changed_at;
+    if (last && days > 0) {
       const daysSince = (Date.now() - new Date(last).getTime()) / 86400000;
-      if (daysSince < NAME_CHANGE_COOLDOWN_DAYS) {
-        const left = Math.ceil(NAME_CHANGE_COOLDOWN_DAYS - daysSince);
-        return res.status(400).json({ success: false, message: `You can change your name again in ${left} day(s).` });
+      if (daysSince < days) {
+        const left = Math.ceil(days - daysSince);
+        const when = new Date(new Date(last).getTime() + days * 86400000).toISOString().slice(0, 10);
+        return res.status(400).json({ success: false, code: 'too_soon', daysLeft: left, nextDate: when,
+          message: km ? `អ្នកអាចប្ដូរឈ្មោះម្ដងទៀតនៅថ្ងៃ ${when} (នៅសល់ ${left} ថ្ងៃ)។` : `You can change your name again on ${when} (${left} day(s) left).` });
       }
     }
     const upd = await pool.query(
       'UPDATE users SET first_name = $1, last_name = $2, name_changed_at = NOW() WHERE email = $3 RETURNING *',
       [firstName, lastName, email]);
-    res.json({ success: true, user: upd.rows[0] });
+    const nu = upd.rows[0]; if (nu) delete nu.password;          // never send the password hash back
+    res.json({ success: true, user: nu });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -2654,13 +2715,14 @@ app.get('/api/people-suggestions', async (req, res) => {
     ),
     m AS (SELECT cand_email, COUNT(DISTINCT via) AS mutual FROM cand WHERE cand_email <> $1 GROUP BY cand_email)
     SELECT u.email, u.first_name, u.last_name, u.profile_pic, COALESCE(m.mutual, 0)::int AS mutual,
+           EXISTS (SELECT 1 FROM follows fm WHERE fm.follower_email = u.email AND fm.following_email = $1) AS follows_me,
            (SELECT COALESCE(json_agg(x.profile_pic), '[]'::json) FROM (SELECT DISTINCT mu.profile_pic FROM cand c2 JOIN users mu ON mu.email = c2.via WHERE c2.cand_email = u.email AND COALESCE(mu.profile_pic, '') <> '' LIMIT 3) x) AS mutual_pics
     FROM users u LEFT JOIN m ON m.cand_email = u.email
     WHERE u.email <> $1 AND COALESCE(u.is_banned, FALSE) = FALSE
       AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = u.email)
       AND u.email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
       ${withDismissed ? 'AND u.email NOT IN (SELECT dismissed_email FROM dismissed_suggestions WHERE user_email = $1)' : ''}
-    ORDER BY (m.mutual IS NULL), m.mutual DESC NULLS LAST, RANDOM()
+    ORDER BY EXISTS (SELECT 1 FROM follows fm2 WHERE fm2.follower_email = u.email AND fm2.following_email = $1) DESC, (m.mutual IS NULL), m.mutual DESC NULLS LAST, RANDOM()
     LIMIT ${limit}`;
   try {
     let r;
@@ -3990,6 +4052,7 @@ async function syncViewEarnings(email) {
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {
   creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000]],
+  app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16]],
   referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
 };
 let ruleOverride = {};
@@ -4059,6 +4122,7 @@ function recordReferral(newEmail, ref, ip) {
 }
 async function creditReferral(referrer, cents) {
   await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'referral', $3, 'system')", [referrer, cents, 'A friend you invited finished the challenge']);
+  await sendAdminNotice(SUPER_ADMIN_EMAILS[0] || referrer, referrer, '🎁 អបអរសាទរ! មិត្តដែលអ្នកបានអញ្ជើញបានបំពេញលក្ខខណ្ឌ។ រង្វាន់ $' + (cents / 100).toFixed(2) + ' បានចូលកាបូបរបស់អ្នកហើយ។', 'wallet_notice').catch(() => {});
 }
 async function evaluateReferral(referredEmail) {
   const r = (await pool.query("SELECT referrer_email, created_at, ip_hash FROM referrals WHERE referred_email = $1 AND status = 'progress'", [referredEmail])).rows[0];
@@ -4291,7 +4355,7 @@ app.post('/api/admin/monetization-action', async (req, res) => {
       await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note, source) VALUES ($1, $2, NOW(), $3, $4, $5, 'invited')
         ON CONFLICT (user_email) DO UPDATE SET status = $2, decided_at = $3, decided_by = $4, note = $5, source = 'invited'`, [u.email, st, st === 'approved' ? new Date() : null, a.adminEmail, note || 'Invited by CamFeed']);
       audit(a.adminEmail, 'creator-invite', u.email, st);
-      await sendAdminNotice(a.adminEmail, u.email, st === 'invited' ? '✉️ CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក។ សូមបើក ម៉ឺនុយ › Monetization ដើម្បីទទួលយក។' : '🎉 CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក។', 'wallet_notice').catch(() => {});
+      await sendAdminNotice(a.adminEmail, u.email, st === 'invited' ? '🎉 អបអរសាទរ! លោកអ្នកទទួលបានការអញ្ជើញពី CamFeed ឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក។ ចុចទីនេះ ដើម្បីទទួលយក។' : '🎉 អបអរសាទរ! CamFeed បានអញ្ជើញ និងបើកការរកប្រាក់ឲ្យអ្នករួចហើយ។ ឥឡូវអ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នកបានហើយ។', 'wallet_notice').catch(() => {});
       return res.json({ success: true, status: st });
     }
     if (b.status === 'move') {
@@ -4307,6 +4371,9 @@ app.post('/api/admin/monetization-action', async (req, res) => {
     await pool.query(`INSERT INTO creator_applications (user_email, status, requested_at, decided_at, decided_by, note) VALUES ($1, $2, NOW(), $3, $4, $5)
       ON CONFLICT (user_email) DO UPDATE SET status = $2, decided_at = $3, decided_by = $4, note = $5`, [u.email, status, status === 'pending' ? null : new Date(), a.adminEmail, note]);
     audit(a.adminEmail, 'creator-' + status, u.email, note);
+    // tell the person (notification in the app + on the phone); tapping it opens the earning page
+    if (status === 'approved') await sendAdminNotice(a.adminEmail, u.email, '🎉 អបអរសាទរ! CamFeed បានអនុម័តពាក្យសុំរកប្រាក់របស់អ្នក។ ឥឡូវអ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នកបានហើយ។', 'wallet_notice').catch(() => {});
+    else if (status === 'rejected') await sendAdminNotice(a.adminEmail, u.email, 'ពាក្យសុំរកប្រាក់របស់អ្នកមិនទាន់ត្រូវបានអនុម័តនៅឡើយទេ។' + (note ? ' មូលហេតុ៖ ' + note + '។' : '') + ' អ្នកអាចដាក់ពាក្យម្ដងទៀតក្រោយ 7 ថ្ងៃ។', 'wallet_notice').catch(() => {});
     res.json({ success: true });
   } catch (err) { console.error('[admin] monetization action error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
@@ -4465,11 +4532,16 @@ app.post('/api/admin/creator-rate', async (req, res) => {
 
 // The rules of the Creator Program (who may ask to earn) and — SEPARATELY — the rules of the invitation reward.
 // Any admin can see them; a Super Admin can change them at any time (no Render change, no restart needed).
+// settings the app / website show to people (set by the Super Admin in Admin > System > App settings)
+app.get('/api/app-settings', (req, res) => {
+  res.json({ success: true, nameDays: ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS), groupCallMax: ruleNum('GROUP_CALL_MAX', 8) });
+});
+
 app.post('/api/admin/monetization-rules', async (req, res) => {
   const b = req.body || {};
   try {
     const a = await adminGate(req, res); if (!a) return;
-    const group = b.group === 'referral' ? 'referral' : 'creator';
+    const group = b.group === 'referral' ? 'referral' : b.group === 'app' ? 'app' : 'creator';
     if (b.set && typeof b.set === 'object') {
       if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change the rules.' });
       const changed = [];
@@ -4483,9 +4555,9 @@ app.post('/api/admin/monetization-rules', async (req, res) => {
         changed.push(k + '=' + v);
       }
       await loadRuleOverrides();
-      if (changed.length) audit(a.adminEmail, group === 'referral' ? 'referral-rules' : 'creator-rules', 'settings', changed.join(', ').slice(0, 300));
+      if (changed.length) audit(a.adminEmail, group === 'referral' ? 'referral-rules' : group === 'app' ? 'app-settings' : 'creator-rules', 'settings', changed.join(', ').slice(0, 300));
     }
-    const cur = group === 'referral' ? referralRules() : creatorRules();
+    const cur = group === 'referral' ? referralRules() : group === 'app' ? { nameDays: ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS), groupCallMax: ruleNum('GROUP_CALL_MAX', 8) } : creatorRules();
     const val = (field) => field === 'minWithdraw' ? cur.minWithdrawCents / 100 : field === 'reward' ? cur.rewardCents / 100 : cur[field];
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, group,
       rules: RULE_KEYS[group].map(([k, field, lo, hi]) => ({ key: k, field, value: val(field), min: lo, max: hi, saved: Object.prototype.hasOwnProperty.call(ruleOverride, k) })) });

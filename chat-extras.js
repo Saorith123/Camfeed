@@ -9,7 +9,7 @@ const TTL_OPTIONS = [0, 24, 168, 720, 4380, 8760];       // hours: off, 24h, 7d,
 const CALL_RING_MS = 35 * 1000;
 const CALL_STALE_MS = 25 * 1000;
 
-module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push }) {
+module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
   const maxMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
   const maxHours = maxMonths * 730;
@@ -450,7 +450,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   // Everybody in the call is connected to everybody else (mesh), so it is meant for small groups (GROUP_CALL_MAX people at once).
   // The server only passes the connection messages (offer / answer / ice) between the phones; voice and video go phone to phone.
   // Rule that avoids two phones calling each other at the same moment: the one who joined LATER sends the offer.
-  const GROUP_CALL_MAX = Math.max(2, Math.min(16, parseInt(process.env.GROUP_CALL_MAX || '8', 10) || 8));
+  const groupCallMax = () => { const v = setting ? Number(setting('GROUP_CALL_MAX', 8)) : parseInt(process.env.GROUP_CALL_MAX || '8', 10); return Math.max(2, Math.min(16, v || 8)); };   // Admin > System > App settings
   const gcalls = new Map();                       // room id ("g...") -> room
   const roomOfGroup = (gid) => { for (const r of gcalls.values()) if (r.gid === gid && r.status === 'live') return r; return null; };
   const roomInfo = async (r) => {
@@ -500,9 +500,9 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       for (const r of gcalls.values()) if (r.status === 'live' && r.gid !== gid && r.parts.has(me)) leaveRoom(r, me);
       let r = roomOfGroup(gid);
       if (r) {
-        if (!r.parts.has(me) && r.parts.size >= GROUP_CALL_MAX) return res.json({ success: false, error: 'full', max: GROUP_CALL_MAX });
+        if (!r.parts.has(me) && r.parts.size >= groupCallMax()) return res.json({ success: false, error: 'full', max: groupCallMax() });
         joinRoom(r, me);
-        return res.json({ success: true, id: r.id, kind: r.kind, joined: true, me_email: me, max: GROUP_CALL_MAX, parts: await roomInfo(r) });
+        return res.json({ success: true, id: r.id, kind: r.kind, joined: true, me_email: me, max: groupCallMax(), parts: await roomInfo(r) });
       }
       const mem = await pool.query('SELECT user_email FROM chat_group_members WHERE group_id=$1', [gid]);
       r = { id: 'g' + newId(), gid, kind, starter: me, created: Date.now(), status: 'live', parts: new Map(), inbox: new Map(),
@@ -512,7 +512,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       const g = await pool.query('SELECT name, pic FROM chat_groups WHERE id=$1', [gid]);
       const gr = g.rows[0] || {};
       if (push && push.notifyCall) for (const e of r.invited) push.notifyCall(e, me, kind, r.id, { groupName: gr.name || '', groupPic: gr.pic || '' });
-      res.json({ success: true, id: r.id, kind, joined: false, me_email: me, max: GROUP_CALL_MAX, parts: await roomInfo(r) });
+      res.json({ success: true, id: r.id, kind, joined: false, me_email: me, max: groupCallMax(), parts: await roomInfo(r) });
     } catch (e) { bad(res, 500, e.message); }
   });
 
@@ -522,11 +522,11 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     try {
       if (!r || r.status !== 'live') return res.json({ success: false, error: 'ended' });
       if (!(await memberOf(r.gid, me))) return bad(res, 403, 'not a member');
-      if (!r.parts.has(me) && r.parts.size >= GROUP_CALL_MAX) return res.json({ success: false, error: 'full', max: GROUP_CALL_MAX });
+      if (!r.parts.has(me) && r.parts.size >= groupCallMax()) return res.json({ success: false, error: 'full', max: groupCallMax() });
       const one = busyWith(me); if (one) finish(one, 'ended', one.status === 'ringing' ? 'cancelled' : 'ended');
       for (const o of gcalls.values()) if (o !== r && o.status === 'live' && o.parts.has(me)) leaveRoom(o, me);
       joinRoom(r, me);
-      res.json({ success: true, id: r.id, kind: r.kind, me_email: me, max: GROUP_CALL_MAX, parts: await roomInfo(r) });
+      res.json({ success: true, id: r.id, kind: r.kind, me_email: me, max: groupCallMax(), parts: await roomInfo(r) });
     } catch (e) { bad(res, 500, e.message); }
   });
 
@@ -680,7 +680,12 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
           COALESCE((SELECT gm.created_at FROM group_messages gm WHERE gm.group_id = g.id AND gm.created_at >= m.joined_at ORDER BY gm.id DESC LIMIT 1), g.created_at) AS last_time,
           (SELECT COUNT(*)::int FROM group_messages gm WHERE gm.group_id = g.id AND gm.id > m.last_read_id AND gm.sender_email <> m.user_email AND gm.message_type <> 'system' AND gm.created_at >= m.joined_at) AS unread_count
         FROM chat_groups g JOIN chat_group_members m ON m.group_id = g.id WHERE m.user_email = $1`, [me]);
-      res.json({ success: true, groups: r.rows });
+      let groups = r.rows;
+      try {      // groups this person deleted "for me": hidden until a newer message arrives
+        const cp = await pool.query("SELECT peer, cleared_at FROM chat_prefs WHERE user_email = $1 AND cleared_at IS NOT NULL AND peer LIKE 'group:%'", [me]);
+        if (cp.rows.length) { const m = new Map(cp.rows.map((x) => [x.peer, x.cleared_at])); groups = groups.filter((g) => { const c = m.get('group:' + g.id); return !c || new Date(g.last_time) > new Date(c); }); }
+      } catch (e) { /* no table yet */ }
+      res.json({ success: true, groups });
     } catch (e) { bad(res, 500, e.message); }
   });
 
@@ -787,6 +792,11 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
                  u.first_name AS sender_first, u.last_name AS sender_last, u.profile_pic AS sender_pic
           FROM group_messages gm LEFT JOIN users u ON LOWER(u.email) = gm.sender_email
           WHERE gm.group_id = $1 AND gm.created_at >= $2 ORDER BY gm.id DESC LIMIT 500) t ORDER BY id ASC`, [gid, mem.joined_at]);
+      try {      // "Delete for me"
+        const cp = await pool.query('SELECT cleared_at FROM chat_prefs WHERE user_email = $1 AND peer = $2', [me, 'group:' + gid]);
+        const cl = cp.rows[0] && cp.rows[0].cleared_at;
+        if (cl) r.rows = r.rows.filter((x) => new Date(x.created_at) > new Date(cl));
+      } catch (e) { /* no table yet */ }
       const ids = r.rows.map((x) => x.id);
       const rx = {};
       if (ids.length) {

@@ -294,6 +294,7 @@
       p.textContent = ''; if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Check again', onclick: loadSystem }), el('span', { style: 'color:#65676b;font-size:13px', text: 'Only yes / no is shown here. Secret values are never displayed.' })]));
       var c = d.checks;
+      var appBox = el('div'); p.appendChild(appBox); monRules(appBox, 'app');      // settings the Super Admin changes here (name change days, group call size ...)
       Object.keys(HINTS).forEach(function (k) {
         var ok = k === 'supportTelegram' ? !!c[k] : !!c[k]; var extra = k === 'database' && c.databaseMs !== null ? ' (' + c.databaseMs + ' ms)' : (k === 'supportTelegram' && c[k] ? ' ' + c[k] : '');
         p.appendChild(el('div', { class: 'at-chk' }, [el('span', { class: ok ? 'at-ok' : 'at-warn', text: ok ? '✅' : '⚠️' }), el('div', {}, [el('b', { text: HINTS[k][0] + extra }), el('small', { text: ok ? 'Working' : HINTS[k][1] })])]));
@@ -405,6 +406,7 @@
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {
     CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: 'Smallest withdrawal ($)',
+    NAME_CHANGE_DAYS: 'A person can change their name once every … days (0 = any time)', GROUP_CALL_MAX: 'People in one group call at most (2–16)',
     REFERRAL_REWARD_USD: 'Reward per invited friend ($)', REFERRAL_ACTIVE_DAYS: 'Friend must use CamFeed on … different days', REFERRAL_POSTS: 'Friend must post … public photos / videos', REFERRAL_WINDOW_DAYS: 'Within … days after signing up', REFERRAL_MAX_PER_MONTH: 'Paid automatically per inviter per month (more = waits for you)'
   };
   function monRules(body, group) {
@@ -412,8 +414,10 @@
     body.appendChild(box);
     function draw(d) {
       box.textContent = '';
-      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: group === 'referral' ? '🎁 Invitation reward — rules' : '⚙️ Monetization — conditions to ask for earning' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: group === 'referral'
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: group === 'app' ? '⚙️ App settings' : group === 'referral' ? '🎁 Invitation reward — rules' : '⚙️ Monetization — conditions to ask for earning' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: group === 'app'
+        ? 'Used by the app and the website right after Save (no code or Render change needed).'
+        : group === 'referral'
         ? 'Only for inviting friends. It is separate from the monetization conditions: anybody can invite and earn this reward.'
         : 'What a person needs before the "Apply" button works. Inviting friends is NOT part of this (it has its own rules in 🎁 Invitations). You can still approve anyone by hand.' }));
       if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
