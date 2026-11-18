@@ -2319,6 +2319,7 @@
             if (rawMsg === DELETED_MARKER) return '🚫 សារត្រូវបានលុប';
             if (rawMsg.startsWith(EDITED_PREFIX)) return rawMsg.slice(EDITED_PREFIX.length);
             if (rawMsg.startsWith('STICKER_EMOJI:') || rawMsg === '[Sticker]') return '💟 Sticker';
+            if (rawMsg.startsWith('BIG_EMOJI:')) return rawMsg.split(':').slice(2).join(':');
             if (rawMsg.startsWith('CALL:')) { const q = rawMsg.split(':'); return (q[2] === 'video' ? '📹 ' : '📞 ') + (q[1] === 'ended' ? 'ការហៅ' : 'ខកខាន/បោះបង់ការហៅ'); }
             return rawMsg;
         }
@@ -2503,6 +2504,7 @@
             if (t === DELETED_MARKER) return 'សារត្រូវបានលុប';
             if (t.startsWith(EDITED_PREFIX)) t = t.slice(EDITED_PREFIX.length);
             if (t.startsWith('STICKER_EMOJI:')) return t.slice(14);
+            if (t.startsWith('BIG_EMOJI:')) return t.split(':').slice(2).join(':');
             return t.slice(0, 80);
         }
         function reactionsHtml(m) {
@@ -2903,7 +2905,7 @@
                 const isVideo = !ov.deleted && m.media_url && (m.message_type === 'video' || (m.media_url.match(/\.(mp4|webm|mov|m4v)$/i) && m.message_type !== 'audio'));
                 const isAudio = !ov.deleted && m.media_url && (m.message_type === 'audio' || displayText === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
                 const isLocation = !ov.deleted && !m.media_url && (m.message_type === 'location' || displayText.includes('📍 ទីតាំងរបស់ខ្ញុំ'));
-                const isTextOnly = !m.media_url && displayText && !isBigEmoji(displayText) && !displayText.startsWith('STICKER_EMOJI:');
+                const isTextOnly = !m.media_url && displayText && !isBigEmoji(displayText) && !displayText.startsWith('STICKER_EMOJI:') && !displayText.startsWith('BIG_EMOJI:');
 
                 const canDl = !ov.deleted && m.media_url && !isAudio && m.media_type !== 'sticker' && m.message_type !== 'sticker';
                 const menuItems = `
@@ -2951,6 +2953,10 @@
                     `;
                 } else if (m.media_type === 'sticker' && m.media_url) {
                     bodyHtml = `<img src="${m.media_url}" class="cf-sent-sticker-img" onclick="openPhotoLightbox('${m.media_url}')" alt="Sticker">`;
+                } else if (displayText.startsWith('BIG_EMOJI:')) {
+                    // 👍 sent with the finger held in the app: as big as it was made (1× – 3×)
+                    const bp = displayText.split(':'); const pct = Math.max(100, Math.min(300, parseInt(bp[1], 10) || 100));
+                    bodyHtml = `<div style="font-size:${Math.round(30 * pct / 100)}px;line-height:1.1;padding:2px 4px">${escapeHtml(bp.slice(2).join(':'))}</div>`;
                 } else if (displayText.startsWith('STICKER_EMOJI:')) {
                     const emChar = displayText.replace('STICKER_EMOJI:', '');
                     bodyHtml = `<div class="cf-sent-sticker-emoji">${escapeHtml(emChar)}</div>`;

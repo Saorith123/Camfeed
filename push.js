@@ -151,6 +151,7 @@ module.exports = function createPush({ app, pool }) {
         const media = { image: '📷 រូបភាព', video: '🎬 វីដេអូ', audio: '🎙️ សារសំឡេង', location: '📍 ទីតាំង' }[m.message_type];
         let text = media || String(m.message || '').replace(/\s+/g, ' ');
         if (text.startsWith('STICKER_EMOJI:')) text = text.slice(14) || '🙂';
+        else if (text.startsWith('BIG_EMOJI:')) text = text.split(':').slice(2).join(':') || '👍';
         else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
         else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
         sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages' });

@@ -11,8 +11,10 @@ const CALL_STALE_MS = 25 * 1000;
 
 module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
-  const maxMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
-  const maxHours = maxMonths * 730;
+  // the longest a chat message is kept (months): Admin > System > App settings (CHAT_MAX_MONTHS), else Render env, else 12
+  const envMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
+  const maxMonthsNow = () => { const v = setting ? Number(setting('CHAT_MAX_MONTHS', envMonths)) : envMonths; return Math.max(1, Math.min(24, Math.round(v) || envMonths)); };
+  const maxHoursNow = () => maxMonthsNow() * 730;
   const norm = (s) => String(s || '').trim().toLowerCase();
   const isGroupKey = (k) => /^group:\d+$/.test(norm(k));
   const pairOf = (a, b) => {
@@ -87,7 +89,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const s = await pool.query('SELECT bg, emoji, theme, ttl_hours, ttl_since FROM chat_settings WHERE user_a=$1 AND user_b=$2', [a, b]);
     const m = await pool.query('SELECT 1 FROM chat_mutes WHERE user_email=$1 AND peer_email=$2', [norm(me), norm(peer)]);
     const r = s.rows[0] || {};
-    return { bg: r.bg || '', emoji: r.emoji || '', theme: r.theme || '', ttl_hours: r.ttl_hours || 0, muted: m.rows.length > 0, maxMonths };
+    return { bg: r.bg || '', emoji: r.emoji || '', theme: r.theme || '', ttl_hours: r.ttl_hours || 0, muted: m.rows.length > 0, maxMonths: maxMonthsNow() };
   }
 
   async function reactionsFor(ids) {
@@ -184,7 +186,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       let setSince = false;
       if (body.ttl_hours !== undefined) {
         const t = parseInt(body.ttl_hours, 10) || 0;
-        if (!TTL_OPTIONS.includes(t) || t > maxHours) return res.status(400).json({ success: false, error: 'bad ttl' });
+        if (!TTL_OPTIONS.includes(t) || t > maxHoursNow()) return res.status(400).json({ success: false, error: 'bad ttl' });
         if (t !== cur.ttl_hours) {
           next.ttl_hours = t; setSince = true;
           const label = { 0: 'បិទ (ប្រើកំណត់របស់ប្រព័ន្ធ)', 24: '២៤ ម៉ោង', 168: '៧ ថ្ងៃ', 720: '១ ខែ', 4380: '៦ ខែ', 8760: '១២ ខែ' }[t];
@@ -252,7 +254,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       let total = 0;
       for (let i = 0; i < 40; i++) {          // small batches so the server never stalls
         const d = await pool.query(
-          `DELETE FROM messages WHERE id IN (SELECT id FROM messages WHERE created_at < NOW() - make_interval(hours => $1) LIMIT 300) RETURNING id, media_url`, [maxHours]);
+          `DELETE FROM messages WHERE id IN (SELECT id FROM messages WHERE created_at < NOW() - make_interval(hours => $1) LIMIT 300) RETURNING id, media_url`, [maxHoursNow()]);
         await purgeRows(d.rows); total += d.rows.length;
         if (d.rows.length < 300) break;
       }
@@ -267,7 +269,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
         if (d.rows.length < 300) break;
       }
       for (let i = 0; i < 40; i++) {
-        const d = await pool.query(`DELETE FROM group_messages WHERE id IN (SELECT id FROM group_messages WHERE created_at < NOW() - make_interval(hours => $1) LIMIT 300) RETURNING id, media_url`, [maxHours]);
+        const d = await pool.query(`DELETE FROM group_messages WHERE id IN (SELECT id FROM group_messages WHERE created_at < NOW() - make_interval(hours => $1) LIMIT 300) RETURNING id, media_url`, [maxHoursNow()]);
         await purgeGroupRows(d.rows); total += d.rows.length;
         if (d.rows.length < 300) break;
       }

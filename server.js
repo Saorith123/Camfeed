@@ -1824,6 +1824,7 @@ app.get('/api/user-profile', async (req, res) => {
 
     const query = `
       SELECT u.*, (u.last_active IS NOT NULL AND u.last_active >= NOW() - INTERVAL '100 seconds' AND COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $2), TRUE)) AS is_online,
+      CASE WHEN COALESCE(u.show_active_status, TRUE) AND COALESCE((SELECT v.show_active_status FROM users v WHERE v.email = $2), TRUE) THEN u.last_active END AS last_seen,
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
       (SELECT COUNT(*) FROM posts p WHERE p.user_email = u.email) as posts_count,
@@ -2177,13 +2178,27 @@ app.post('/api/mark-read', async (req, res) => {
 
 app.get('/api/messages', async (req, res) => {
   const { user1, user2 } = req.query;
+  // ?limit=N : only the newest N (the app opens a chat fast); &before=<id> : the N before that message (scrolling up)
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 200);
+  const before = parseInt(req.query.before, 10) || 0;
   try {
-    const query = `
-      SELECT * FROM messages 
-      WHERE (sender_email = $1 AND receiver_email = $2) OR (sender_email = $2 AND receiver_email = $1)
-      ORDER BY created_at ASC
-    `;
-    const result = await pool.query(query, [user1, user2]);
+    let result, more = false;
+    if (limit > 0) {
+      result = await pool.query(`
+        SELECT * FROM (
+          SELECT * FROM messages
+          WHERE ((sender_email = $1 AND receiver_email = $2) OR (sender_email = $2 AND receiver_email = $1)) AND ($3::int = 0 OR id < $3::int)
+          ORDER BY created_at DESC, id DESC LIMIT $4
+        ) t ORDER BY created_at ASC, id ASC`, [user1, user2, before, limit + 1]);
+      if (result.rows.length > limit) { more = true; result.rows.shift(); }
+    } else {
+      const query = `
+        SELECT * FROM messages 
+        WHERE (sender_email = $1 AND receiver_email = $2) OR (sender_email = $2 AND receiver_email = $1)
+        ORDER BY created_at ASC
+      `;
+      result = await pool.query(query, [user1, user2]);
+    }
     // "Delete for me": the messages before that moment are not shown to this person any more
     const viewer = String(req.authEmail || user1 || '').toLowerCase();
     const other = viewer === String(user1 || '').toLowerCase() ? user2 : user1;
@@ -2195,7 +2210,7 @@ app.get('/api/messages', async (req, res) => {
       settings = await chatExtras.settingsFor(user1, user2);
     } catch (e) { /* extras are optional; chat still loads */ }
     result.rows.forEach((r) => { r.reactions = reactions[r.id] || []; });
-    res.json({ success: true, messages: result.rows, settings });
+    res.json({ success: true, messages: result.rows, settings, more });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -4089,7 +4104,7 @@ async function syncViewEarnings(email) {
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {
   creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000]],
-  app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16]],
+  app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16], ['CHAT_MAX_MONTHS', 'chatMaxMonths', 1, 24]],
   referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
 };
 let ruleOverride = {};
@@ -4603,7 +4618,7 @@ app.post('/api/admin/monetization-rules', async (req, res) => {
       await loadRuleOverrides();
       if (changed.length) audit(a.adminEmail, group === 'referral' ? 'referral-rules' : group === 'app' ? 'app-settings' : 'creator-rules', 'settings', changed.join(', ').slice(0, 300));
     }
-    const cur = group === 'referral' ? referralRules() : group === 'app' ? { nameDays: ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS), groupCallMax: ruleNum('GROUP_CALL_MAX', 8) } : creatorRules();
+    const cur = group === 'referral' ? referralRules() : group === 'app' ? { nameDays: ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS), groupCallMax: ruleNum('GROUP_CALL_MAX', 8), chatMaxMonths: ruleNum('CHAT_MAX_MONTHS', parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12) } : creatorRules();
     const val = (field) => field === 'minWithdraw' ? cur.minWithdrawCents / 100 : field === 'reward' ? cur.rewardCents / 100 : cur[field];
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, group,
       rules: RULE_KEYS[group].map(([k, field, lo, hi]) => ({ key: k, field, value: val(field), min: lo, max: hi, saved: Object.prototype.hasOwnProperty.call(ruleOverride, k) })) });
