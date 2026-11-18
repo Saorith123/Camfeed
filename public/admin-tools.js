@@ -295,6 +295,7 @@
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Check again', onclick: loadSystem }), el('span', { style: 'color:#65676b;font-size:13px', text: 'Only yes / no is shown here. Secret values are never displayed.' })]));
       var c = d.checks;
       var appBox = el('div'); p.appendChild(appBox); monRules(appBox, 'app');      // settings the Super Admin changes here (name change days, group call size ...)
+      var partyBox = el('div'); p.appendChild(partyBox); partyAdmin(partyBox);       // 🎉 Party Room: LiveKit keys, open rooms, reports
       Object.keys(HINTS).forEach(function (k) {
         var ok = k === 'supportTelegram' ? !!c[k] : !!c[k]; var extra = k === 'database' && c.databaseMs !== null ? ' (' + c.databaseMs + ' ms)' : (k === 'supportTelegram' && c[k] ? ' ' + c[k] : '');
         p.appendChild(el('div', { class: 'at-chk' }, [el('span', { class: ok ? 'at-ok' : 'at-warn', text: ok ? '✅' : '⚠️' }), el('div', {}, [el('b', { text: HINTS[k][0] + extra }), el('small', { text: ok ? 'Working' : HINTS[k][1] })])]));
@@ -402,6 +403,50 @@
           el('td', { text: r.days_done + ' / ' + rl.days }), el('td', { text: r.posts_done + ' / ' + rl.posts }), el('td', {}, [statusBadge(r.status === 'rewarded' ? 'paid' : r.status)]), el('td', { style: 'font-size:12px;color:#65676b', text: r.note || '' }), acts]);
       })));
     });
+  }
+  // ---------- 🎉 Party Room: the LiveKit keys (sound server), the rooms open now, reports ----------
+  function partyAdmin(body) {
+    var box = el('div', { style: 'max-width:760px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' }, [empty('Loading…')]);
+    body.appendChild(box);
+    function draw(d) {
+      box.textContent = '';
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🎉 Party Room ' + (d.ready ? '— ✅ ready' : '— ⚠️ not ready (enter the LiveKit keys)') }));
+      if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'The voice goes through LiveKit Cloud (cloud.livekit.io › your project › Settings › Keys). The secret is never shown again; leave its box empty to keep the saved one.' }));
+      var url = el('input', { class: 'at-in', placeholder: 'wss://xxxx.livekit.cloud', value: d.settings.url || '' });
+      var key = el('input', { class: 'at-in', placeholder: 'API Key', value: d.settings.key || '' });
+      var sec = el('input', { class: 'at-in', type: 'password', placeholder: d.settings.secretSet ? '•••••• (saved)' : 'API Secret', value: '' });
+      var out = el('div', { style: 'display:none' });
+      [url, key, sec].forEach(function (i) { if (!d.isSuperAdmin) i.disabled = true; });
+      box.appendChild(el('div', { class: 'at-lbl', text: 'LiveKit URL' })); box.appendChild(url);
+      box.appendChild(el('div', { class: 'at-lbl', text: 'API Key' })); box.appendChild(key);
+      box.appendChild(el('div', { class: 'at-lbl', text: 'API Secret' })); box.appendChild(sec);
+      if (d.isSuperAdmin) {
+        var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:12px', text: 'Save', onclick: function () {
+          btn.disabled = true; adm('/api/admin/party', { set: { url: url.value, key: key.value, secret: sec.value } }).then(function (x) { btn.disabled = false; if (x.success) { draw(x); msg(box.querySelector('.party-out'), true, '✅ Saved'); } else msg(out, false, '❌ ' + (x.error || 'Failed')); });
+        } });
+        box.appendChild(btn);
+      }
+      out.className = 'party-out'; box.appendChild(out);
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Rooms open now (' + d.rooms.length + ')' }));
+      if (!d.rooms.length) box.appendChild(empty('No room is open.'));
+      else box.appendChild(table(['Room', 'Owner', 'Who', 'Seats', 'People', 'Reports', 'Opened', ''], d.rooms.map(function (r) {
+        return el('tr', {}, [el('td', { text: r.title || '(no name)' }), el('td', { text: nm(r) + ' · ' + r.owner_email }), el('td', { text: r.privacy === 'friends' ? 'Friends' : 'Public' }),
+          el('td', { text: String(r.seats) }), el('td', { text: String(r.people) }), el('td', { text: String(r.reports), style: Number(r.reports) ? 'color:#c0392b;font-weight:700' : '' }), el('td', { text: ago(r.created_at) }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-red', text: 'Close room', onclick: function () {
+            var why = prompt('Why is this room closed? (kept in the audit log)', ''); if (why === null) return;
+            adm('/api/admin/party', { close: r.id, reason: why }).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); });
+          } })])]);
+      })));
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Reports waiting (' + d.reports.length + ')' }));
+      if (!d.reports.length) box.appendChild(empty('No report.'));
+      else box.appendChild(table(['Room', 'Status', 'Owner', 'Reason', 'By', 'When', ''], d.reports.map(function (r) {
+        return el('tr', {}, [el('td', { text: '#' + r.room_id + ' ' + (r.title || '') }), el('td', { text: r.status || '—' }), el('td', { text: r.owner_email || '' }), el('td', { text: r.reason || '' }),
+          el('td', { text: r.reporter_email }), el('td', { text: ago(r.created_at) }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Done', onclick: function () { adm('/api/admin/party', { handled: r.room_id }).then(function (x) { if (x.success) draw(x); }); } })])]);
+      })));
+    }
+    adm('/api/admin/party', {}).then(draw);
   }
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {

@@ -2200,6 +2200,7 @@ app.post('/api/presence/offline', async (req, res) => {
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d) });
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
+const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });   // 🎉 Party Room (voice rooms, LiveKit)
 if (push.setMessageFilter) push.setMessageFilter((to, from) => chatPrefs.shouldNotify(to, from));
 
 // Send Chat Message
