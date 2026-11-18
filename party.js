@@ -25,9 +25,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
   ];
   const fxGaps = async () => {
     const m = {};
-    try { (await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('party:action_gap', 'party:emote_gap')")).rows.forEach((r) => { m[r.key] = Number(r.value); }); } catch (e) { /* default */ }
+    try { (await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('party:action_gap', 'party:emote_gap', 'party:seat_sound')")).rows.forEach((r) => { m[r.key] = Number(r.value); }); } catch (e) { /* default */ }
     const ok = (v, d) => (Number.isFinite(v) && v >= 0 && v <= 3600 ? v : d);
-    return { actionGap: ok(m['party:action_gap'], 3), emoteGap: ok(m['party:emote_gap'], 2) };
+    return { actionGap: ok(m['party:action_gap'], 3), emoteGap: ok(m['party:emote_gap'], 2), seatSound: m['party:seat_sound'] !== 0 };
   };
   // the age choices the app shows when opening a room (server side: changing them needs no app update)
   const AGE_CHOICES = { min: [13, 16, 18, 20, 25, 30, 40, 50], max: [17, 20, 25, 30, 35, 40, 50, 60] };
@@ -80,6 +80,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         await pool.query('ALTER TABLE party_messages ADD COLUMN IF NOT EXISTS fx_id INTEGER');
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_min INTEGER');      // who may see the room, by age (empty = everybody)
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_max INTEGER');
+        await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS locked_seats INTEGER[] NOT NULL DEFAULT '{}'");   // 🔒 seats nobody may take
         const n = await pool.query('SELECT COUNT(*)::int AS n FROM party_fx');
         if (!n.rows[0].n) {
           let i = 0;
@@ -196,7 +197,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
     return {
-      room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max,
+      room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
         owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at },
       people,
       me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand } : null,
@@ -361,7 +362,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       }
       const seat = parseInt(b.seat, 10);
       if (!(seat >= 1 && seat < room.seats)) return res.status(400).json({ success: false, error: 'This seat does not exist.' });
-      if (!room.free_seats && !canManage(m)) return res.status(403).json({ success: false, error: 'Raise your hand ✋ and wait for the room owner to invite you.' });
+      if (m.role === 'owner') return res.status(400).json({ success: false, code: 'owner', error: 'The owner stays on the first seat.' });
+      if ((room.locked_seats || []).includes(seat)) return res.status(403).json({ success: false, code: 'locked', message: 'locked', error: 'This seat is locked.' });
+      const moving = m.seat !== null;          // already on a seat: just moving to another one (the voice keeps going)
+      if (!moving && !room.free_seats && !canManage(m)) return res.status(403).json({ success: false, error: 'Raise your hand ✋ and wait for the room owner to invite you.' });
       const taken = await pool.query('SELECT 1 FROM party_members WHERE room_id = $1 AND seat = $2 AND user_email <> $3 AND last_seen >= NOW() - ($4 || \' seconds\')::interval', [room.id, seat, e, String(STALE_SEC)]);
       if (taken.rows.length) return res.status(409).json({ success: false, error: 'Somebody is already on this seat.' });
       await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND seat = $2', [room.id, seat]);   // somebody who went away
@@ -369,6 +373,23 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       setTalk(room.id, e, !m.host_muted);
       res.json({ success: true, live: await ticket(room, e, true, m.host_muted) });
     } catch (err) { console.error('[party] seat:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
+  // 🔒 owner / helpers: lock or unlock one seat (a locked seat can not be taken, even by an invitation)
+  app.post('/api/party/rooms/:id/lock', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const b = req.body || {};
+    try {
+      const room = await roomOf(req.params.id);
+      if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
+      const m = await memberOf(room.id, e);
+      if (!canManage(m)) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
+      const seat = parseInt(b.seat, 10);
+      if (!(seat >= 1 && seat < 12)) return res.status(400).json({ success: false });
+      if (b.locked) await pool.query('UPDATE party_rooms SET locked_seats = ARRAY(SELECT DISTINCT UNNEST(array_append(locked_seats, $2))) WHERE id = $1', [room.id, seat]);
+      else await pool.query('UPDATE party_rooms SET locked_seats = array_remove(locked_seats, $2) WHERE id = $1', [room.id, seat]);
+      res.json({ success: true });
+    } catch (err) { console.error('[party] lock:', err.message); res.status(500).json({ success: false }); }
   });
 
   // my ticket again (after my seat or mute changed: the app reconnects with it)
@@ -402,6 +423,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       if (act === 'invite') {
         let seat = parseInt(b.seat, 10);
         const used = new Set((await pool.query('SELECT seat FROM party_members WHERE room_id = $1 AND seat IS NOT NULL AND last_seen >= NOW() - ($2 || \' seconds\')::interval', [room.id, String(STALE_SEC)])).rows.map((x) => x.seat));
+        (room.locked_seats || []).forEach((x) => used.add(x));          // a locked seat is never given
         if (!(seat >= 1 && seat < room.seats) || used.has(seat)) { seat = -1; for (let i = 1; i < room.seats; i++) if (!used.has(i)) { seat = i; break; } }
         if (seat < 0) return res.status(409).json({ success: false, error: 'All seats are taken.' });
         await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND seat = $2', [room.id, seat]);
@@ -560,6 +582,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       }
       if (b.gaps && typeof b.gaps === 'object') {
         if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+        if (b.gaps.seatSound !== undefined) await pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['party:seat_sound', b.gaps.seatSound ? '1' : '0']);
         for (const [k, key] of [['actionGap', 'party:action_gap'], ['emoteGap', 'party:emote_gap']]) {
           if (b.gaps[k] === undefined) continue;
           const v = Number(b.gaps[k]);
