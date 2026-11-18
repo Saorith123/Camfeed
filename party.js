@@ -81,6 +81,12 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_min INTEGER');      // who may see the room, by age (empty = everybody)
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_max INTEGER');
         await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS locked_seats INTEGER[] NOT NULL DEFAULT '{}'");   // 🔒 seats nobody may take
+        // ❤️ Follow a room: a person's room is THEIR room (one at a time), so following goes to the owner — it stays when the room
+        // closes and opens again (same followers, notified every time it opens)
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_follows (owner_email TEXT NOT NULL, user_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (owner_email, user_email))`);
+        await pool.query('CREATE INDEX IF NOT EXISTS idx_party_follows_user ON party_follows (user_email)');
+        await pool.query('CREATE TABLE IF NOT EXISTS party_open_notes (owner_email TEXT PRIMARY KEY, sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
         const n = await pool.query('SELECT COUNT(*)::int AS n FROM party_fx');
         if (!n.rows[0].n) {
           let i = 0;
@@ -198,7 +204,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
     return {
       room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
-        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at },
+        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at,
+        followers: await followersOf(room.owner_email), following: await follows(room.owner_email, email) },
       people,
       me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand } : null,
       messages: msgs.rows.reverse().map((m) => ({ id: m.id, kind: m.kind, text: m.text, created_at: m.created_at,
@@ -219,11 +226,42 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       canPublishData: false, canPublishSources: talk ? ['microphone'] : [] } }, 6 * 3600) };
   }
   const canManage = (m) => m && (m.role === 'owner' || m.role === 'helper');
+  async function followersOf(owner) { const r = await pool.query('SELECT COUNT(*)::int AS n FROM party_follows WHERE owner_email = $1', [norm(owner)]); return r.rows[0] ? r.rows[0].n : 0; }
+  async function follows(owner, email) { const r = await pool.query('SELECT 1 FROM party_follows WHERE owner_email = $1 AND user_email = $2', [norm(owner), norm(email)]); return r.rows.length > 0; }
+
+  // the room opened: its followers hear about it (at most once an hour per room, so opening/closing many times never spams)
+  async function tellFollowers(room) {
+    try {
+      const last = await pool.query('SELECT sent_at FROM party_open_notes WHERE owner_email = $1', [room.owner_email]);
+      if (last.rows[0] && Date.now() - new Date(last.rows[0].sent_at).getTime() < 60 * 60 * 1000) return;
+      await pool.query('INSERT INTO party_open_notes (owner_email, sent_at) VALUES ($1, NOW()) ON CONFLICT (owner_email) DO UPDATE SET sent_at = NOW()', [room.owner_email]);
+      const u = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [room.owner_email]);
+      const name = u.rows[0] ? `${u.rows[0].first_name || ''} ${u.rows[0].last_name || ''}`.trim() : '';
+      const title = room.title || name;
+      const fs = await pool.query(`SELECT f.user_email FROM party_follows f WHERE f.owner_email = $1
+                                    AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = f.user_email AND LOWER(b.blocked_email) = $1) OR (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = f.user_email))
+                                    LIMIT 5000`, [room.owner_email]);
+      for (const f of fs.rows) {
+        if (room.privacy === 'friends' && !(await isFriend(room.owner_email, f.user_email))) continue;
+        await pool.query('INSERT INTO notifications (recipient_email, sender_email, type, message, is_read) VALUES ($1, $2, $3, $4, FALSE)',
+          [f.user_email, room.owner_email, 'party_open', `🎉 បន្ទប់ "${title}" បើកហើយ — ចូលរួមឥឡូវនេះ!`]).catch(() => {});
+      }
+    } catch (e) { console.error('[party] tell followers:', e.message); }
+  }
 
   // ---- what the app shows -----------------------------------------------------------------------------------------------
   app.get('/api/party/config', async (req, res) => {
     const c = await lk();
-    res.json({ success: true, ready: lkReady(c), seatChoices: SEAT_CHOICES, ageChoices: AGE_CHOICES, myAge: req.authEmail ? await ageOf(req.authEmail) : null });
+    let myTitle = '', myFollowers = 0;
+    if (req.authEmail) {
+      try {
+        await ensure();
+        const t = await pool.query("SELECT title FROM party_rooms WHERE owner_email = $1 AND title <> '' ORDER BY id DESC LIMIT 1", [norm(req.authEmail)]);
+        myTitle = t.rows[0] ? t.rows[0].title : '';
+        myFollowers = await followersOf(req.authEmail);
+      } catch (e) {}
+    }
+    res.json({ success: true, ready: lkReady(c), seatChoices: SEAT_CHOICES, ageChoices: AGE_CHOICES, myAge: req.authEmail ? await ageOf(req.authEmail) : null, myTitle, myFollowers });
   });
 
   // the rooms I can enter: friends' rooms first, then the busiest
@@ -236,7 +274,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
           (SELECT COUNT(*) FROM party_members m WHERE m.room_id = r.id AND m.last_seen >= NOW() - ($2 || ' seconds')::interval) AS people,
           EXISTS (SELECT 1 FROM follows f1 JOIN follows f2 ON f2.follower_email = f1.following_email AND f2.following_email = f1.follower_email
                   WHERE LOWER(f1.follower_email) = $1 AND LOWER(f1.following_email) = r.owner_email) AS friend,
-          EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = $1 AND LOWER(f.following_email) = r.owner_email) AS following
+          EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = $1 AND LOWER(f.following_email) = r.owner_email) AS following,
+          EXISTS (SELECT 1 FROM party_follows pf WHERE pf.owner_email = r.owner_email AND pf.user_email = $1) AS room_followed,
+          (SELECT COUNT(*) FROM party_follows pf WHERE pf.owner_email = r.owner_email) AS followers
         FROM party_rooms r JOIN users u ON LOWER(u.email) = r.owner_email
         WHERE r.status = 'open'
           AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = r.owner_email) OR (LOWER(b.blocker_email) = r.owner_email AND LOWER(b.blocked_email) = $1))
@@ -244,7 +284,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         ORDER BY (LOWER(r.owner_email) = $1) DESC, 1 DESC LIMIT 300`, [e, String(STALE_SEC)]);
       const myAge = await ageOf(e);
       let rows = r.rows.filter((x) => norm(x.owner_email) === e || ((x.privacy !== 'friends' || x.friend) && ageFits(x, myAge)));
-      rows.sort((a, b) => (norm(b.owner_email) === e) - (norm(a.owner_email) === e) || (b.friend - a.friend) || (b.following - a.following) || (Number(b.people) - Number(a.people)) || (b.id - a.id));
+      rows.sort((a, b) => (norm(b.owner_email) === e) - (norm(a.owner_email) === e) || (b.room_followed - a.room_followed) || (b.friend - a.friend) || (b.following - a.following) || (Number(b.people) - Number(a.people)) || (b.id - a.id));
       rows = rows.slice(0, 100);
       // a few faces of the people sitting in each room
       const ids = rows.map((x) => x.id);
@@ -253,10 +293,53 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       const mineNow = await pool.query(`SELECT m.room_id FROM party_members m JOIN party_rooms r ON r.id = m.room_id WHERE m.user_email = $1 AND r.status = 'open' LIMIT 1`, [e]);
       res.json({ success: true, current: mineNow.rows[0] ? mineNow.rows[0].room_id : null, rooms: rows.map((x) => ({
         id: x.id, title: x.title, privacy: x.privacy, seats: x.seats, people: Number(x.people) || 0, friend: !!x.friend, age_min: x.age_min, age_max: x.age_max,
+        followed: !!x.room_followed, followers: Number(x.followers) || 0,
         owner: { email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '' },
         faces: faces.filter((f) => f.room_id === x.id).map((f) => f.profile_pic || '').slice(0, 4),
       })) });
     } catch (err) { console.error('[party] rooms:', err.message); res.status(500).json({ success: false, error: 'Could not load the rooms.' }); }
+  });
+
+  // ❤️ follow / unfollow a room (= its owner's room, kept for every time it opens)
+  app.post('/api/party/rooms/:id/follow', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const room = await roomOf(req.params.id);
+      if (!room) return res.status(404).json({ success: false });
+      if (norm(room.owner_email) === e) return res.status(400).json({ success: false, error: 'This is your own room.' });
+      const on = (req.body || {}).on !== false;
+      if (on) {
+        const r = await pool.query('INSERT INTO party_follows (owner_email, user_email) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING owner_email', [room.owner_email, e]);
+        if (r.rows.length && room.status === 'open') sys(room.id, 'follow', e);           // "X followed the room ❤️" in the room's chat
+      } else {
+        await pool.query('DELETE FROM party_follows WHERE owner_email = $1 AND user_email = $2', [room.owner_email, e]);
+      }
+      res.json({ success: true, following: on, followers: await followersOf(room.owner_email) });
+    } catch (err) { console.error('[party] follow:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
+  // the rooms I follow: open now (enter) or closed (waiting for the next time)
+  app.get('/api/party/following', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure(); await sweep();
+      const r = await pool.query(`
+        SELECT pf.owner_email, ${userCols},
+          (SELECT COUNT(*) FROM party_follows x WHERE x.owner_email = pf.owner_email) AS followers,
+          o.id AS open_id, o.title AS open_title, o.privacy AS open_privacy,
+          (SELECT title FROM party_rooms z WHERE z.owner_email = pf.owner_email AND z.title <> '' ORDER BY z.id DESC LIMIT 1) AS last_title,
+          (SELECT MAX(COALESCE(z.closed_at, z.created_at)) FROM party_rooms z WHERE z.owner_email = pf.owner_email) AS last_at,
+          (SELECT COUNT(*) FROM party_members m WHERE m.room_id = o.id AND m.last_seen >= NOW() - ($2 || ' seconds')::interval) AS people
+        FROM party_follows pf JOIN users u ON LOWER(u.email) = pf.owner_email
+        LEFT JOIN party_rooms o ON o.owner_email = pf.owner_email AND o.status = 'open'
+        WHERE pf.user_email = $1
+          AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = pf.owner_email) OR (LOWER(b.blocker_email) = pf.owner_email AND LOWER(b.blocked_email) = $1))
+        ORDER BY (o.id IS NOT NULL) DESC, pf.created_at DESC LIMIT 200`, [e, String(STALE_SEC)]);
+      res.json({ success: true, rooms: r.rows.map((x) => ({
+        open: !!x.open_id, id: x.open_id || null, title: x.open_title || x.last_title || '', people: Number(x.people) || 0, followers: Number(x.followers) || 0, last_at: x.last_at,
+        owner: { email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '' } })) });
+    } catch (err) { console.error('[party] following:', err.message); res.status(500).json({ success: false, error: 'Could not load the rooms.' }); }
   });
 
   // open a new room (one open room per person: an older one of mine is closed)
@@ -268,7 +351,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       if (!lkReady(await lk())) return res.status(503).json({ success: false, error: 'Party Room is not ready yet. Please try again later.' });
       const seats = SEAT_CHOICES.includes(parseInt(b.seats, 10)) ? parseInt(b.seats, 10) : 8;
       const privacy = b.privacy === 'friends' ? 'friends' : 'public';
-      const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      let title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (!title) { const lt = await pool.query("SELECT title FROM party_rooms WHERE owner_email = $1 AND title <> '' ORDER BY id DESC LIMIT 1", [e]); if (lt.rows[0]) title = lt.rows[0].title; }   // my room keeps its name
       let amin = ageArg(b.age_min), amax = ageArg(b.age_max);
       if (amin != null && amax != null && amin > amax) [amin, amax] = [amax, amin];
       const old = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [e]);
@@ -278,6 +362,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       const room = r.rows[0];
       await pool.query("INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, 'owner', 0)", [room.id, e]);
       res.json({ success: true, id: room.id, live: await ticket(room, e, true, false), state: await stateOf(room, e, 0) });
+      tellFollowers(room);                                     // after answering: the owner never waits for this
     } catch (err) { console.error('[party] create:', err.message); res.status(500).json({ success: false, error: 'Could not open the room.' }); }
   });
 
