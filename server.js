@@ -313,6 +313,8 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_epoch INTEGER DEFAULT 0');      // "log out of all devices"
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs TEXT DEFAULT ''");   // which notifications to receive
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS show_active_status BOOLEAN DEFAULT TRUE');   // "Active status" switch
+    // who may see my lists of friends / followers / following: 'public' | 'friends' | 'private' (only me)
+    for (const c of ['friends_list_privacy', 'followers_list_privacy', 'following_list_privacy']) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c} VARCHAR(10) DEFAULT 'public'`);
     await pool.query(`CREATE TABLE IF NOT EXISTS user_sessions (
       sid VARCHAR(40) PRIMARY KEY, email TEXT NOT NULL, browser VARCHAR(40), os VARCHAR(40), ip_masked VARCHAR(60), country VARCHAR(60), city VARCHAR(60),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(), revoked BOOLEAN NOT NULL DEFAULT FALSE)`);
@@ -1825,6 +1827,7 @@ app.get('/api/user-profile', async (req, res) => {
       (SELECT COUNT(*) FROM follows f WHERE f.following_email = u.email) as followers_count,
       (SELECT COUNT(*) FROM follows f WHERE f.follower_email = u.email) as following_count,
       (SELECT COUNT(*) FROM posts p WHERE p.user_email = u.email) as posts_count,
+      (SELECT COUNT(*) FROM follows f1 JOIN follows f2 ON f2.follower_email = f1.following_email AND f2.following_email = f1.follower_email WHERE f1.follower_email = u.email) as friends_count,
       (EXISTS(SELECT 1 FROM creator_applications ca WHERE LOWER(ca.user_email) = LOWER(u.email) AND ca.status = 'approved')) as is_creator,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $2)) as is_followed_by
@@ -1848,6 +1851,13 @@ app.get('/api/user-profile', async (req, res) => {
         if (u.phone_privacy === 'private') u.phone = '';
       }
       if (isSelf) u.show_active_status = u.show_active_status !== false;
+      // the lists (and their numbers) follow the owner's choice: public / friends / only me
+      if (!isSelf) {
+        for (const [col, cnt, flag] of [['friends_list_privacy', 'friends_count', 'friends_hidden'], ['followers_list_privacy', 'followers_count', 'followers_hidden'], ['following_list_privacy', 'following_count', 'following_hidden']]) {
+          const pv = u[col] || 'public';
+          if (pv === 'private' || (pv === 'friends' && !u.is_friend)) { u[cnt] = null; u[flag] = true; }
+        }
+      }
       if (!isSelf) for (const k of ['role', 'is_banned', 'name_changed_at', 'last_active', 'country', 'show_active_status']) delete u[k];   // internal details of other people
       res.json({ success: true, user: u });
     } else {
@@ -1929,6 +1939,16 @@ app.get('/api/follow-list', async (req, res) => {
         WHERE f.follower_email = $1
       `;
     }
+    // somebody else's list: only when its owner allows it (public / friends / only me)
+    const asker = String(req.authEmail || '').toLowerCase();
+    if (asker && asker !== String(email || '').toLowerCase()) {
+      const col = type === 'friends' ? 'friends_list_privacy' : (type === 'followers' ? 'followers_list_privacy' : 'following_list_privacy');
+      const o = await pool.query(`SELECT COALESCE(${col}, 'public') AS pv,
+        EXISTS (SELECT 1 FROM follows a JOIN follows b ON b.follower_email = a.following_email AND b.following_email = a.follower_email WHERE a.follower_email = users.email AND LOWER(a.following_email) = $2) AS fr
+        FROM users WHERE email = $1`, [email, asker]).catch(() => ({ rows: [] }));
+      const r0 = o.rows[0];
+      if (r0 && (r0.pv === 'private' || (r0.pv === 'friends' && !r0.fr))) return res.status(403).json({ success: false, hidden: true, message: 'private', error: 'This list is private.' });
+    }
     const result = await pool.query(query, type === 'friends' ? [email] : [email, email]);
     // fair: a person who hides their own active status does not see other people's either (like Messenger)
     if (req.authEmail) {
@@ -1939,6 +1959,20 @@ app.get('/api/follow-list', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// my choice: who may see my lists of friends / followers / following
+app.post('/api/profile/list-privacy', async (req, res) => {
+  const me = req.authEmail; if (!me) return res.status(401).json({ success: false });
+  const b = req.body || {}, ok = (v) => (['public', 'friends', 'private'].includes(v) ? v : null);
+  try {
+    const sets = [], vals = [me];
+    for (const [k, col] of [['friends', 'friends_list_privacy'], ['followers', 'followers_list_privacy'], ['following', 'following_list_privacy']]) {
+      const v = ok(b[k]); if (v) { vals.push(v); sets.push(`${col} = $${vals.length}`); }
+    }
+    if (sets.length) await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE email = $1`, vals);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
 app.post('/api/follow', async (req, res) => {
@@ -4411,13 +4445,15 @@ app.post('/api/admin/inbox', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
     const q = (sql) => pool.query(sql).catch(() => ({ rows: [] }));
-    const [wd, ri, cr, rp, ad, lv] = await Promise.all([
+    const [wd, ri, cr, rp, ad, lv, ct, pr] = await Promise.all([
       q("SELECT w.id, w.amount_cents, w.method, w.created_at AS at, u.first_name, u.last_name FROM withdrawal_requests w JOIN users u ON u.email = w.user_email WHERE w.status = 'pending' ORDER BY w.created_at DESC LIMIT 15"),
       q("SELECT w.id, w.reissue_requested_at AS at, u.first_name, u.last_name FROM withdrawal_requests w JOIN users u ON u.email = w.user_email WHERE w.status = 'paid' AND w.reissue_requested_at IS NOT NULL ORDER BY w.reissue_requested_at DESC LIMIT 15"),
       q("SELECT ca.user_email AS id, ca.requested_at AS at, u.first_name, u.last_name FROM creator_applications ca JOIN users u ON u.email = ca.user_email WHERE ca.status = 'pending' ORDER BY ca.requested_at DESC LIMIT 15"),
       q("SELECT r.id, r.target_type, r.reason, r.created_at::timestamptz AS at FROM reports r WHERE r.status = 'pending' ORDER BY r.created_at DESC LIMIT 15"),
       q("SELECT ar.id, ar.business_name, ar.created_at AS at FROM ad_requests ar WHERE ar.status = 'pending' ORDER BY ar.created_at DESC LIMIT 15"),
-      q("SELECT lr.id, lr.purpose, lr.requested_at AS at, u.first_name, u.last_name FROM live_requests lr JOIN users u ON u.email = lr.user_email WHERE lr.status = 'pending' ORDER BY lr.requested_at DESC LIMIT 15")]);
+      q("SELECT lr.id, lr.purpose, lr.requested_at AS at, u.first_name, u.last_name FROM live_requests lr JOIN users u ON u.email = lr.user_email WHERE lr.status = 'pending' ORDER BY lr.requested_at DESC LIMIT 15"),
+      q("SELECT t.id, t.usd, t.method, t.created_at AS at, u.first_name, u.last_name FROM coin_topups t LEFT JOIN users u ON LOWER(u.email) = t.user_email WHERE t.status = 'pending' ORDER BY t.created_at DESC LIMIT 15"),
+      q("SELECT p.room_id AS id, p.reason, p.created_at AS at FROM party_reports p WHERE p.handled = FALSE ORDER BY p.created_at DESC LIMIT 15")]);
     const cnt = async (sql) => { try { return Number((await pool.query(sql)).rows[0].n); } catch (e) { return 0; } };
     const counts = {
       withdrawals: await cnt("SELECT COUNT(*) AS n FROM withdrawal_requests WHERE status = 'pending'"),
@@ -4425,7 +4461,9 @@ app.post('/api/admin/inbox', async (req, res) => {
       creators: await cnt("SELECT COUNT(*) AS n FROM creator_applications WHERE status = 'pending'"),
       reports: await cnt("SELECT COUNT(*) AS n FROM reports WHERE status = 'pending'"),
       ads: await cnt("SELECT COUNT(*) AS n FROM ad_requests WHERE status = 'pending'"),
-      live: await cnt("SELECT COUNT(*) AS n FROM live_requests WHERE status = 'pending'")
+      live: await cnt("SELECT COUNT(*) AS n FROM live_requests WHERE status = 'pending'"),
+      coins: await cnt("SELECT COUNT(*) AS n FROM coin_topups WHERE status = 'pending'"),
+      party: await cnt("SELECT COUNT(*) AS n FROM party_reports WHERE handled = FALSE")
     };
     const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
     const items = [].concat(
@@ -4434,7 +4472,9 @@ app.post('/api/admin/inbox', async (req, res) => {
       cr.rows.map((x) => ({ kind: 'creator', tab: 'monetization', title: nm(x), sub: 'Creator (monetization) application', at: x.at })),
       rp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: String(x.target_type || 'report'), sub: String(x.reason || '').slice(0, 90), at: x.at })),
       ad.rows.map((x) => ({ kind: 'ad', tab: 'ads', title: String(x.business_name || 'Ad'), sub: 'Advertising request', at: x.at })),
-      lv.rows.map((x) => ({ kind: 'live', tab: 'live', title: nm(x), sub: 'Live video request' + (x.purpose ? ' (' + x.purpose + ')' : ''), at: x.at }))
+      lv.rows.map((x) => ({ kind: 'live', tab: 'live', title: nm(x), sub: 'Live video request' + (x.purpose ? ' (' + x.purpose + ')' : ''), at: x.at })),
+      ct.rows.map((x) => ({ kind: 'coins', tab: 'coins', title: nm(x) + ' · $' + Number(x.usd).toFixed(2), sub: 'Coin top-up (' + x.method + ')', at: x.at })),
+      pr.rows.map((x) => ({ kind: 'party', tab: 'party', title: 'Party Room #' + x.id, sub: 'Room report: ' + String(x.reason || '').slice(0, 80), at: x.at }))
     ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
     res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
   } catch (err) { console.error('[admin] inbox error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }

@@ -2,7 +2,16 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['system', '⚙️ System']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['system', '⚙️ System']];
+  // the menu, in groups (left side on a computer, on top on a phone)
+  var GROUPS = [
+    ['🏠 Start', ['inbox', 'overview', 'audit']],
+    ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
+    ['🛡️ Content & safety', ['reports', 'content', 'posts', 'live']],
+    ['💰 Money', ['monetization', 'coins', 'ads']],
+    ['🎉 Fun', ['party', 'sounds']],
+    ['⚙️ Settings', ['system']],
+  ];
 
   // ---------- helpers ----------
   function el(tag, props, kids) {
@@ -93,6 +102,16 @@
     '.at-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.at-ok{color:#176f35;font-weight:800}.at-warn{color:#b45309;font-weight:800}' +
     '.at-chk{display:flex;gap:12px;align-items:flex-start;padding:11px 4px;border-bottom:1px solid #f0f2f5}.at-chk b{display:block}.at-chk small{color:#65676b}' });
   document.head.appendChild(css);
+  // grouped menu: a left column on a computer, scrolling groups on a phone
+  document.head.appendChild(el('style', { text:
+    '.admin-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:18px;align-items:start}' +
+    '.admin-layout>*{grid-column:2}.admin-layout>.tabs-bar{grid-column:1;grid-row:1/span 60;position:sticky;top:12px;flex-direction:column;flex-wrap:nowrap;gap:12px;margin:0;' +
+    'background:#fff;border:1px solid #e4e6eb;border-radius:14px;padding:12px;max-height:calc(100vh - 24px);overflow-y:auto}' +
+    '.nav-group{display:flex;flex-direction:column;gap:4px}.nav-title{font-size:11.5px;font-weight:800;color:#8a8d91;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px 4px}' +
+    '.nav-group .tab-btn{text-align:left;border:none;background:transparent;padding:9px 10px;border-radius:9px;font-size:14px;color:#1c1e21;width:100%}' +
+    '.nav-group .tab-btn:hover{background:#f0f2f5}.nav-group .tab-btn.active{background:#e7f3ff;color:#1877f2}' +
+    '@media (max-width:900px){.admin-layout{display:block}.admin-layout>.tabs-bar{position:static;flex-direction:row;overflow-x:auto;max-height:none;margin-bottom:14px}' +
+    '.nav-group{min-width:170px}}' }));
 
   // ---------- tabs ----------
   function build() {
@@ -101,11 +120,17 @@
       bar.insertBefore(el('button', { class: 'tab-btn', id: 'tabBtn-' + t[0], text: t[1], onclick: function () { switchAdminTab(t[0]); } }), bar.firstChild && t[0] === 'overview' ? bar.firstChild : null);
       dash.appendChild(el('div', { class: 'panel', id: 'panel-' + t[0], style: 'display:none' }));
     });
-    // keep the order: Overview, Users, Content, (existing: Monetization, Reports, All Users, Posts, Accounts), Activity Log, System
-    var order = ['inbox', 'overview', 'umanage', 'chats', 'content', 'monetization', 'ads', 'reports', 'users', 'posts', 'accounts', 'audit', 'system'];
-    order.forEach(function (id) { var b = document.getElementById('tabBtn-' + id); if (b) bar.appendChild(b); });
-    var panels = {}; order.forEach(function (id) { panels[id] = document.getElementById('panel-' + id); });
-    order.forEach(function (id) { if (panels[id]) dash.appendChild(panels[id]); });
+    // the menu in groups; any button not in a group goes to the last one
+    var placed = {};
+    var loose = Array.prototype.slice.call(bar.querySelectorAll('.tab-btn'));
+    GROUPS.forEach(function (g) {
+      var box = el('div', { class: 'nav-group' }, [el('div', { class: 'nav-title', text: g[0] })]);
+      g[1].forEach(function (id) { var b = document.getElementById('tabBtn-' + id); if (b) { box.appendChild(b); placed[id] = 1; } });
+      bar.appendChild(box);
+    });
+    var last = bar.lastChild;
+    loose.forEach(function (b) { if (!placed[b.id.replace('tabBtn-', '')]) last.appendChild(b); });
+    dash.classList.add('admin-layout');
   }
 
   // ---------- Overview ----------
@@ -295,8 +320,6 @@
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Check again', onclick: loadSystem }), el('span', { style: 'color:#65676b;font-size:13px', text: 'Only yes / no is shown here. Secret values are never displayed.' })]));
       var c = d.checks;
       var appBox = el('div'); p.appendChild(appBox); monRules(appBox, 'app');      // settings the Super Admin changes here (name change days, group call size ...)
-      var partyBox = el('div'); p.appendChild(partyBox); partyAdmin(partyBox);       // 🎉 Party Room: LiveKit keys, open rooms, reports
-      var coinBox = el('div'); p.appendChild(coinBox); coinsAdmin(coinBox);          // 🪙 coins: top-ups to approve, packs, gifts
       Object.keys(HINTS).forEach(function (k) {
         var ok = k === 'supportTelegram' ? !!c[k] : !!c[k]; var extra = k === 'database' && c.databaseMs !== null ? ' (' + c.databaseMs + ' ms)' : (k === 'supportTelegram' && c[k] ? ' ' + c[k] : '');
         p.appendChild(el('div', { class: 'at-chk' }, [el('span', { class: ok ? 'at-ok' : 'at-warn', text: ok ? '✅' : '⚠️' }), el('div', {}, [el('b', { text: HINTS[k][0] + extra }), el('small', { text: ok ? 'Working' : HINTS[k][1] })])]));
@@ -815,13 +838,13 @@
   window.loadAdsAdmin = loadAdsAdmin;
 
   // ---------- Inbox: everything waiting for an admin, in one place ----------
-  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴' };
-  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox' };
+  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '🪙', party: '🎉' };
+  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '🪙 Coins & Gifts', 'tabBtn-party': '🎉 Party Room' };
   var lastTotal = -1, baseTitle = document.title;
   function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
   function applyInbox(d) {
     var c = d.counts;
-    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', c.reports); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live);
+    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', c.reports); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0);
     document.title = (d.total > 0 ? '(' + d.total + ') ' : '') + baseTitle;
     var ib = document.getElementById('tabBtn-inbox'); if (ib) ib.style.color = d.total > 0 ? '#e41e3f' : '';
     if (lastTotal >= 0 && d.total > lastTotal) { try { var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05; o.start(); o.stop(ac.currentTime + 0.18); } catch (e) {} }
@@ -834,7 +857,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party']];
       p.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px' }, chips.map(function (x) {
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
@@ -942,7 +965,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

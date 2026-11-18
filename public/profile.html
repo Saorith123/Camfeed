@@ -922,7 +922,12 @@
                 currentProfileBio = user.bio || '';
 
                 document.getElementById('profileName').innerText = `${user.first_name || ''} ${user.last_name || ''}`;
-                document.getElementById('profileStats').innerText = `${user.followers_count || 0} Followers · ${user.following_count || 0} Following`;
+                {
+                    const en = localStorage.getItem('camfeed_lang') === 'en', n = (v, hid) => (hid ? '🔒' : (v || 0));
+                    document.getElementById('profileStats').innerText = en
+                        ? `${n(user.friends_count, user.friends_hidden)} Friends · ${n(user.followers_count, user.followers_hidden)} Followers · ${n(user.following_count, user.following_hidden)} Following`
+                        : `មិត្តភក្តិ ${n(user.friends_count, user.friends_hidden)} · អ្នកតាមដាន ${n(user.followers_count, user.followers_hidden)} · កំពុងតាមដាន ${n(user.following_count, user.following_hidden)}`;
+                }
                 document.getElementById('profileBio').innerText = currentProfileBio;
 
                 document.getElementById('friendBadge').style.display = user.is_friend ? 'inline-flex' : 'none';
@@ -1757,7 +1762,9 @@
                 } else if (tab === 'friends' || tab === 'followers' || tab === 'following') {
                     const res = await fetch(`/api/follow-list?email=${encodeURIComponent(profileEmail)}&type=${tab}`);
                     const data = await res.json();
-                    if (data.success && data.users && data.users.length > 0) {
+                    if (res.status === 403 && data.hidden) {
+                        content.innerHTML = `<div style="text-align:center; padding:30px; background:#fff; border-radius:10px; color:#65676b;">🔒 ${localStorage.getItem('camfeed_lang') === 'en' ? 'This list is private.' : 'បញ្ជីនេះត្រូវបានកំណត់ជាឯកជន។'}</div>`;
+                    } else if (data.success && data.users && data.users.length > 0) {
                         content.innerHTML = data.users.map(u => `
                             <div class="user-row">
                                 <div style="display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="window.location.href='profile.html?email=${encodeURIComponent(u.email)}'">
