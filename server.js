@@ -3748,6 +3748,51 @@ async function sweepStories() {
 }
 setTimeout(sweepStories, 2 * 60 * 1000); setInterval(sweepStories, 60 * 60 * 1000);
 
+// ---- 🕘 Videos I watched: where I stopped, so a half-watched video can be found again and go on from there ----
+let watchReady = false;
+async function watchEnsure() {
+  if (watchReady) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS watch_history (user_email TEXT NOT NULL, post_id INTEGER NOT NULL, secs INTEGER NOT NULL DEFAULT 0, duration INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, post_id))`);
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_watch_history_user ON watch_history (user_email, updated_at DESC)');
+  watchReady = true;
+}
+let watchSwept = 0;
+app.post('/api/watch', async (req, res) => {
+  const me = String(req.authEmail || '').toLowerCase(); const b = req.body || {};
+  const pid = parseInt(b.post_id, 10) || 0, secs = Math.max(0, Math.min(parseInt(b.secs, 10) || 0, 86400)), dur = Math.max(0, Math.min(parseInt(b.duration, 10) || 0, 86400));
+  if (!me || !pid) return res.json({ success: false });
+  try {
+    await watchEnsure();
+    await pool.query(`INSERT INTO watch_history (user_email, post_id, secs, duration, updated_at) VALUES ($1, $2, $3, $4, NOW())
+                      ON CONFLICT (user_email, post_id) DO UPDATE SET secs = $3, duration = GREATEST(watch_history.duration, $4), updated_at = NOW()`, [me, pid, secs, dur]);
+    if (Date.now() - watchSwept > 6 * 3600 * 1000) { watchSwept = Date.now(); pool.query("DELETE FROM watch_history WHERE updated_at < NOW() - INTERVAL '90 days'").catch(() => {}); }   // kept 90 days
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false }); }
+});
+app.get('/api/watch-history', async (req, res) => {
+  const me = String(req.authEmail || '').toLowerCase(); if (!me) return res.status(401).json({ success: false });
+  try {
+    await watchEnsure();
+    const r = await pool.query(`SELECT w.post_id, w.secs, w.duration, w.updated_at, p.content, p.media_url, p.media_type, p.thumb_url, p.feed_url, p.user_email, u.first_name, u.last_name, u.profile_pic
+      FROM watch_history w JOIN posts p ON p.id = w.post_id JOIN users u ON u.email = p.user_email
+      WHERE w.user_email = $1 AND (p.privacy IS NULL OR p.privacy = 'public' OR p.user_email = $1 OR p.privacy = 'friends')
+        AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (b.blocker_email = $1 AND b.blocked_email = p.user_email) OR (b.blocker_email = p.user_email AND b.blocked_email = $1))
+      ORDER BY w.updated_at DESC LIMIT 150`, [me]);
+    res.json({ success: true, videos: r.rows });
+  } catch (e) { console.error('[watch] list:', e.message); res.status(500).json({ success: false, videos: [] }); }
+});
+app.post('/api/watch-history/clear', async (req, res) => {
+  const me = String(req.authEmail || '').toLowerCase(); if (!me) return res.status(401).json({ success: false });
+  try {
+    await watchEnsure();
+    const pid = parseInt((req.body || {}).post_id, 10) || 0;
+    if (pid) await pool.query('DELETE FROM watch_history WHERE user_email = $1 AND post_id = $2', [me, pid]);
+    else await pool.query('DELETE FROM watch_history WHERE user_email = $1', [me]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ success: false }); }
+});
+
 // ---- Sounds (music for Stories): a library the admin fills, search, and "saved" sounds per person ----
 app.get('/api/sounds', async (req, res) => {
   const me = req.authEmail, q = String(req.query.q || '').trim().slice(0, 60), tab = req.query.tab === 'saved' ? 'saved' : 'all';
@@ -3784,6 +3829,8 @@ app.post('/api/sounds/from-post/:postId', async (req, res) => {
     if (!sd) {
       const nm = (String(row.first_name || '') + ' ' + String(row.last_name || '')).trim().slice(0, 60) || 'CamFeed';
       sd = (await pool.query("INSERT INTO sounds (title, artist, audio_url, duration, created_by, post_id) VALUES ($1, $2, $3, 30, $4, $5) ON CONFLICT (post_id) WHERE post_id IS NOT NULL DO UPDATE SET audio_url = EXCLUDED.audio_url RETURNING id", ['សំឡេងដើម · ' + nm, nm, v, row.user_email, pid])).rows[0];
+      const sid = sd.id;                                                         // the real length, so Story can choose any part of it
+      videoSecs(v).then((secs) => { if (secs > 0) pool.query('UPDATE sounds SET duration = $1 WHERE id = $2', [Math.round(secs), sid]).catch(() => {}); }).catch(() => {});
     }
     const ex = (await pool.query('SELECT 1 FROM saved_sounds WHERE user_email = $1 AND sound_id = $2', [me, sd.id])).rows[0];
     if (ex) return res.json({ success: true, saved: true, already: true });
