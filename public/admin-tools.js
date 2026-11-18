@@ -2,14 +2,14 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['system', '⚙️ System']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['system', '⚙️ System']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
     ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
     ['🛡️ Content & safety', ['reports', 'content', 'posts', 'live']],
     ['💰 Money', ['monetization', 'coins', 'ads']],
-    ['🎉 Fun', ['party', 'sounds']],
+    ['🎉 Fun', ['party', 'stars', 'sounds']],
     ['⚙️ Settings', ['system']],
   ];
 
@@ -429,6 +429,77 @@
     });
   }
   // ---------- 🪙 Coins & 🎁 gifts: top-ups waiting, packs, receiver share, waiting days, payment details, the gift list ----------
+  // ---------- ⭐ CamFeed Stars: applications (ID + selfie), stars (hours this month, pause / remove / warn), monthly bonuses, all rules ----------
+  function starsAdmin(body) {
+    var box = el('div', { class: 'at-card' }); body.appendChild(box);
+    function call(extra) { return adm('/api/admin/stars', extra || {}).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; }); }
+    function draw(d) {
+      box.textContent = '';
+      var su = d.isSuperAdmin, s = d.settings || {};
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '⭐ CamFeed Stars (Party Room hosts)' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'People apply in the app (18+, real name, ID card photo + selfie). You approve → trial → star. ID photos are deleted after you decide. Hours count only while a star sits on a seat in an open room with enough listeners.' }));
+      // rules
+      function num(v, w) { return el('input', { class: 'at-in', type: 'number', value: String(v), style: 'width:' + (w || 80) + 'px' }); }
+      var on = el('input', { type: 'checkbox' }); on.checked = s.on !== false;
+      var sh = num(s.share), md = num(s.minDays), ms = num(s.minSession), mx = num(s.maxDay), ml = num(s.minListeners), hf = num(s.half), tr_ = num(s.trialDays);
+      var ins = [on, sh, md, ms, mx, ml, hf, tr_];
+      function row(label, i) { return el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0' }, [el('span', { style: 'min-width:300px', text: label }), i]); }
+      box.appendChild(el('div', { style: 'font-weight:800;margin:6px 0' , text: 'Rules' }));
+      box.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700;margin:4px 0' }, [on, el('span', { text: 'Stars program open (applications + bigger share + bonus)' })]));
+      box.appendChild(row('Star share of gift value (%) — normal people get the Coins share', sh));
+      box.appendChild(row('Days needed in a month (days with the minimum session)', md));
+      box.appendChild(row('Minimum minutes for a day to count', ms));
+      box.appendChild(row('Most minutes counted in one day', mx));
+      box.appendChild(row('Listeners needed in the room for minutes to count', ml));
+      box.appendChild(row('Bonus % when coins are reached but hours / days are not', hf));
+      box.appendChild(row('Trial days after approval (0 = star at once)', tr_));
+      box.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 4px', text: 'Monthly bonus tiers (hours + gift coins received → $)' }));
+      var tiers = (s.tiers || []).map(function (t) { return { h: num(t.hours), c: num(t.coins, 110), u: el('input', { class: 'at-in', value: (Number(t.cents || 0) / 100).toFixed(2), style: 'width:80px' }) }; });
+      if (su) tiers.push({ h: num(''), c: num('', 110), u: el('input', { class: 'at-in', value: '', style: 'width:80px', placeholder: '$' }) });
+      tiers.forEach(function (t) { ins.push(t.h, t.c, t.u); });
+      box.appendChild(table(['⭐', 'Hours', 'Gift coins received', 'Bonus $'], tiers.map(function (t, i) { return el('tr', {}, [el('td', { text: '⭐' + (i + 1) }), el('td', {}, [t.h]), el('td', {}, [t.c]), el('td', {}, [t.u])]); })));
+      if (!su) ins.forEach(function (i) { i.disabled = true; });
+      if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin:8px 0', text: 'Save rules', onclick: function () {
+        call({ action: 'settings', on: on.checked, share: sh.value, minDays: md.value, minSession: ms.value, maxDay: mx.value, minListeners: ml.value, half: hf.value, trialDays: tr_.value,
+          tiers: tiers.filter(function (t) { return t.h.value !== '' && t.c.value !== '' && t.u.value !== ''; }).map(function (t) { return { hours: t.h.value, coins: t.c.value, usd: t.u.value }; }) });
+      } }));
+      // applications + stars
+      var pend = d.list.filter(function (x) { return x.status === 'pending'; }), others = d.list.filter(function (x) { return x.status !== 'pending'; });
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '📝 Applications waiting (' + pend.length + ')' }));
+      pend.forEach(function (x) {
+        var pics = el('div', { style: 'display:flex;gap:8px;margin:6px 0' });
+        var card = el('div', { style: 'border:1px solid #ddd;border-radius:12px;padding:10px;margin:6px 0' }, [
+          el('div', { style: 'font-weight:700', text: nm(x) + ' · real name: ' + (x.real_name || '—') + ' · ' + x.user_email + ' · ' + ago(x.applied_at) }), pics,
+          el('button', { class: 'btn-sm', text: '👁 Show ID + selfie', onclick: function () { adm('/api/admin/stars', { action: 'doc', user: x.user_email }).then(function (r) {
+            pics.textContent = ''; [r.id_photo, r.selfie].forEach(function (u) { if (u) pics.appendChild(el('img', { src: u, style: 'max-width:260px;max-height:260px;border-radius:8px;border:1px solid #ccc' })); });
+            if (!r.id_photo && !r.selfie) pics.appendChild(el('span', { text: 'No pictures.' })); }); } }), ' ',
+          su ? el('button', { class: 'btn-sm btn-blue', text: '✅ Approve', onclick: function () { if (confirm('Approve ' + nm(x) + ' as a Star? (ID photos will be deleted)')) call({ action: 'decide', user: x.user_email, ok: true }); } }) : '', ' ',
+          su ? el('button', { class: 'btn-sm', text: '✖ Reject', onclick: function () { var r = prompt('Reason (the person sees it):'); if (r) call({ action: 'decide', user: x.user_email, ok: false, note: r }); } }) : '']);
+        box.appendChild(card);
+      });
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '⭐ Stars and past applications (' + others.length + ')' }));
+      box.appendChild(table(['Name', 'Status', 'This month: hours / days / coins', 'Warnings', 'Note', ''], others.map(function (x) {
+        var m = x.month || {};
+        var acts = !su ? [] : [
+          x.status !== 'star' && x.status !== 'rejected' ? el('button', { class: 'btn-sm btn-blue', text: '⭐ Star', onclick: function () { call({ action: 'status', user: x.user_email, status: 'star' }); } }) : '',
+          x.status === 'star' || x.status === 'trial' ? el('button', { class: 'btn-sm', text: '⚠️ Warn', onclick: function () { var r = prompt('Warning (the person sees it):'); if (r) call({ action: 'status', user: x.user_email, status: 'warn', note: r }); } }) : '',
+          x.status === 'star' || x.status === 'trial' ? el('button', { class: 'btn-sm', text: '⏸ Pause', onclick: function () { var r = prompt('Why paused (the person sees it):'); if (r !== null) call({ action: 'status', user: x.user_email, status: 'paused', note: r }); } }) : '',
+          x.status !== 'removed' && x.status !== 'rejected' ? el('button', { class: 'btn-sm', text: '🗑 Remove', onclick: function () { var r = prompt('Why removed (the person sees it):'); if (r !== null && confirm('Remove ' + nm(x) + ' from Stars?')) call({ action: 'status', user: x.user_email, status: 'removed', note: r }); } }) : ''];
+        return el('tr', {}, [el('td', { text: nm(x) }), el('td', { text: x.status + (x.trial_until && x.status === 'trial' ? ' (until ' + String(x.trial_until).slice(0, 10) + ')' : '') }),
+          el('td', { text: x.month ? (m.hours + ' h / ' + m.days + ' d / ' + m.coins + ' coins') : '—' }), el('td', { text: String(x.warnings || 0) }), el('td', { text: x.note || '' }), el('td', {}, acts)]);
+      })));
+      // bonuses
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '💵 Monthly bonuses (worked out at the start of each month — check, then pay into the wallet)' }));
+      box.appendChild(table(['Name', 'Month', 'Hours / days / coins', 'Tier', 'Amount', 'Status', ''], (d.bonuses || []).map(function (b) {
+        return el('tr', {}, [el('td', { text: nm(b) }), el('td', { text: b.month }), el('td', { text: b.hours + ' h / ' + b.days + ' d / ' + b.coins }), el('td', { text: b.tier ? '⭐' + b.tier + (b.half ? ' (half)' : '') : '—' }),
+          el('td', { text: '$' + (Number(b.amount_cents || 0) / 100).toFixed(2) }), el('td', { text: b.status }),
+          el('td', {}, su && b.status === 'pending' ? [el('button', { class: 'btn-sm btn-blue', text: 'Pay', onclick: function () { if (confirm('Pay $' + (b.amount_cents / 100).toFixed(2) + ' to ' + nm(b) + '?')) call({ action: 'bonus', id: b.id, pay: true }); } }), ' ',
+            el('button', { class: 'btn-sm', text: 'Cancel', onclick: function () { if (confirm('Cancel this bonus?')) call({ action: 'bonus', id: b.id, pay: false }); } })] : [])]);
+      })));
+    }
+    call();
+  }
+
   function coinsAdmin(body) {
     var box = el('div', { style: 'max-width:900px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' }, [empty('Loading…')]);
     body.appendChild(box);
@@ -1009,7 +1080,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

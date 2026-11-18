@@ -8,7 +8,7 @@
 // LiveKit "tickets" (tokens) that allow talking only to the people who sit on a seat.
 const crypto = require('crypto');
 
-module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf, badgesOf }) {
+module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf, badgesOf, starsOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const SEAT_CHOICES = [4, 8, 12];
   const STALE_SEC = 40;                 // not heard from for this long = gone (the app asks every ~2 s)
@@ -226,7 +226,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const fr = framesOf ? await framesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 🖼️ the frame each one wears
       for (const p of people) { const x = fr.get(norm(p.email)); if (x) p.frame = x; }
       const bd = badgesOf ? await badgesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 👑 level + VIP
-      for (const p of people) { const x = bd.get(norm(p.email)); if (x) { p.level = x.level; p.vip = x.vip; } }
+      for (const p of people) { const x = bd.get(norm(p.email)); if (x) { p.level = x.level; p.vip = x.vip; p.star = !!x.star; } }
     }
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
@@ -314,7 +314,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         ORDER BY (LOWER(r.owner_email) = $1) DESC, 1 DESC LIMIT 300`, [e, String(STALE_SEC)]);
       const myAge = await ageOf(e);
       let rows = r.rows.filter((x) => norm(x.owner_email) === e || ((x.privacy !== 'friends' || x.friend) && ageFits(x, myAge)));
-      rows.sort((a, b) => (norm(b.owner_email) === e) - (norm(a.owner_email) === e) || (b.room_followed - a.room_followed) || (b.friend - a.friend) || (b.following - a.following) || (Number(b.people) - Number(a.people)) || (b.id - a.id));
+      const starSet = starsOf ? await starsOf(rows.map((x) => x.owner_email)).catch(() => new Set()) : new Set();   // ⭐ Stars' rooms high in the list
+      rows.forEach((x) => { x.star = starSet.has(norm(x.owner_email)); });
+      rows.sort((a, b) => (norm(b.owner_email) === e) - (norm(a.owner_email) === e) || (b.room_followed - a.room_followed) || (b.star - a.star) || (b.friend - a.friend) || (b.following - a.following) || (Number(b.people) - Number(a.people)) || (b.id - a.id));
       rows = rows.slice(0, 100);
       // a few faces of the people sitting in each room
       const ids = rows.map((x) => x.id);
@@ -323,7 +325,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const mineNow = await pool.query(`SELECT m.room_id FROM party_members m JOIN party_rooms r ON r.id = m.room_id WHERE m.user_email = $1 AND r.status = 'open' LIMIT 1`, [e]);
       res.json({ success: true, current: mineNow.rows[0] ? mineNow.rows[0].room_id : null, rooms: rows.map((x) => ({
         id: x.id, title: x.title, privacy: x.privacy, seats: x.seats, people: Number(x.people) || 0, friend: !!x.friend, age_min: x.age_min, age_max: x.age_max,
-        followed: !!x.room_followed, followers: Number(x.followers) || 0,
+        followed: !!x.room_followed, followers: Number(x.followers) || 0, star: !!x.star,
         owner: { email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '' },
         faces: faces.filter((f) => f.room_id === x.id).map((f) => f.profile_pic || '').slice(0, 4),
       })) });

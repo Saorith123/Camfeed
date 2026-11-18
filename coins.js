@@ -4,7 +4,7 @@
 //  * In a Party Room a person spends coins on a gift for somebody on a seat. The receiver gets a share of the gift's value
 //    (Admin sets the %, start 50%) in the same wallet as the creator money; it can be withdrawn after a few days (Admin sets).
 //  * 1 coin = 1 US cent. Packs, the share, the waiting days, the payment details and every gift are set in the Admin panel.
-module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents }) {
+module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents, starShare, starsOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const COIN_CENTS = 1;
   // 👑 levels: the coins a person has SPENT in Party Rooms (gifts, frames, VIP) — level N starts at DEFAULT_LEVELS[N-1] coins
@@ -229,7 +229,8 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
       const have = await balance(e, c);
       if (have < cost) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, error: 'Not enough coins.' }); }
-      const share = cost * COIN_CENTS * s.share / 100;               // cents for the receiver (may have a fraction)
+      const ss = starShare ? await starShare(to) : null;             // ⭐ a CamFeed Star gets the Stars' share (Admin sets it)
+      const share = cost * COIN_CENTS * (ss != null ? ss : s.share) / 100;   // cents for the receiver (may have a fraction)
       const ev = await c.query('INSERT INTO gift_events (room_id, from_email, to_email, gift_id, count, coins, receiver_cents) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [roomId, e, to, g.id, count, cost, share]);
       const evId = ev.rows[0].id;
       await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'gift', $3, $4, $1)", [e, -cost, 'Gift ' + g.code + ' x' + count, evId]);
@@ -324,7 +325,8 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const s = await settings();
       const sp = await spentOf(emails);
       const v = new Set((await pool.query('SELECT user_email FROM user_vip WHERE user_email = ANY($1) AND expires_at > NOW()', [emails.map(norm)])).rows.map((x) => x.user_email));
-      for (const e of emails.map(norm)) m.set(e, { level: levelOf(sp.get(e) || 0, s.levels), vip: s.vipOn && v.has(e) });
+      const st = starsOf ? await starsOf(emails) : new Set();
+      for (const e of emails.map(norm)) m.set(e, { level: levelOf(sp.get(e) || 0, s.levels), vip: s.vipOn && v.has(e), star: st.has(e) });
     } catch (e) { /* nothing yet */ }
     return m;
   }

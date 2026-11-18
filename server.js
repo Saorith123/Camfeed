@@ -32,7 +32,7 @@ app.use(security.securityHeaders);                 // no framing, no sniffing, C
 // small bodies everywhere (an attacker can not push megabytes into every route); posts may carry a video thumbnail
 const jsonSmall = express.json({ limit: '1mb' });
 const jsonLarge = express.json({ limit: '6mb' });
-app.use((req, res, next) => (/^\/api\/(posts|videos)(\/|$)/.test(req.path) ? jsonLarge : jsonSmall)(req, res, next));
+app.use((req, res, next) => (/^\/api\/(posts|videos)(\/|$)/.test(req.path) || req.path === '/api/stars/apply' ? jsonLarge : jsonSmall)(req, res, next));   // ⭐ a Star application carries 2 photos
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Typed logins and codes are cleaned before any route reads them: Khmer digits (០-៩) -> 0-9, invisible characters that Khmer keyboards
@@ -2299,9 +2299,12 @@ const push = require('./push')({ app, pool });                 // phone notifica
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d),
   restrictedBy: (to, from) => chatPrefs.isRestricted(to, from) });   // a person I restricted: their calls do not ring
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
-const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), framesOf: (emails) => coins.framesOf(emails), badgesOf: (emails) => coins.badgesOf(emails) });
+// ⭐ CamFeed Stars (Party Room hosts): applications with ID + selfie, hours, a bigger gift share, monthly bonus (Admin pays)
+const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });
+const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), framesOf: (emails) => coins.framesOf(emails), badgesOf: (emails) => coins.badgesOf(emails), starsOf: (emails) => stars.starsOf(emails) });
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
-  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e), starShare: (e) => stars.starShare(e), starsOf: (e) => stars.starsOf(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
 if (push.setMessageFilter) push.setMessageFilter((to, from, peerKey) => chatPrefs.shouldNotify(to, from, peerKey));
 
 // Send Chat Message
