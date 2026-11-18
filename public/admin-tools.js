@@ -683,7 +683,7 @@
   function loadSoundsAdmin() {
     var p = document.getElementById('panel-sounds'); if (!p) return; p.textContent = '';
     var out = el('div'), form = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:10px;padding:12px;margin-bottom:12px;max-width:560px' }), list = el('div');
-    p.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Music for Stories. Only add songs you are ALLOWED to use (royalty-free / your own / licensed). People pick these sounds in the Story maker. Upload an .mp3 or .m4a (up to 100 MB).' }));
+    p.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Music for Stories AND for 🎉 Party Rooms (the room owner / helpers play these songs in their room; every phone plays them in step). Only add songs you are ALLOWED to use (royalty-free / your own / licensed). Turn a song off here to remove it everywhere. Upload an .mp3 or .m4a (up to 100 MB).' }));
     var title = el('input', { class: 'at-in', maxlength: '100', placeholder: 'Song name' }), artist = el('input', { class: 'at-in', maxlength: '80', placeholder: 'Artist (optional)' });
     var file = el('input', { type: 'file', accept: 'audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/ogg,audio/wav,.mp3,.m4a,.aac,.ogg,.wav', style: 'font-size:13px;margin-top:6px' }), st = el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:4px' });
     var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:8px', text: 'Upload & add', onclick: function () {

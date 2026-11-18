@@ -87,6 +87,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
           PRIMARY KEY (owner_email, user_email))`);
         await pool.query('CREATE INDEX IF NOT EXISTS idx_party_follows_user ON party_follows (user_email)');
         await pool.query('CREATE TABLE IF NOT EXISTS party_open_notes (owner_email TEXT PRIMARY KEY, sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
+        // 🎵 music in the room: every phone plays the SAME file itself, in step (the server only says which song and since when);
+        // it does not go through the voice line, so it sounds clear and costs nothing more
+        for (const col of ['music_id INTEGER', 'music_url TEXT', 'music_title TEXT', 'music_artist TEXT', 'music_at TIMESTAMPTZ', 'music_paused_at TIMESTAMPTZ', 'music_by TEXT'])
+          await pool.query(`ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS ${col}`);
         const n = await pool.query('SELECT COUNT(*)::int AS n FROM party_fx');
         if (!n.rows[0].n) {
           let i = 0;
@@ -205,7 +209,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     return {
       room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
         owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at,
-        followers: await followersOf(room.owner_email), following: await follows(room.owner_email, email) },
+        followers: await followersOf(room.owner_email), following: await follows(room.owner_email, email),
+        music: room.music_url ? { id: room.music_id, url: room.music_url, title: room.music_title || '', artist: room.music_artist || '', at: room.music_at, paused_at: room.music_paused_at || null } : null },
+      now: new Date().toISOString(),                         // the server's clock: the phones play the music at the same point
       people,
       me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand } : null,
       messages: msgs.rows.reverse().map((m) => ({ id: m.id, kind: m.kind, text: m.text, created_at: m.created_at,
@@ -298,6 +304,37 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         faces: faces.filter((f) => f.room_id === x.id).map((f) => f.profile_pic || '').slice(0, 4),
       })) });
     } catch (err) { console.error('[party] rooms:', err.message); res.status(500).json({ success: false, error: 'Could not load the rooms.' }); }
+  });
+
+  // 🎵 the owner / a helper plays, pauses, goes on or stops the room's music (a song from the CamFeed library or the sounds they saved)
+  app.post('/api/party/rooms/:id/music', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const b = req.body || {};
+    try {
+      await ensure();
+      const room = await roomOf(req.params.id);
+      if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
+      const m = await memberOf(room.id, e);
+      if (!canManage(m)) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
+      const act = String(b.action || '');
+      if (act === 'play') {
+        const sd = await pool.query(`SELECT s.id, s.title, s.artist, s.audio_url FROM sounds s
+                                     WHERE s.id = $1 AND s.active = TRUE AND (s.post_id IS NULL OR EXISTS (SELECT 1 FROM saved_sounds ss WHERE ss.sound_id = s.id AND ss.user_email = $2))`,
+                                     [parseInt(b.sound_id, 10) || 0, e]).catch(() => ({ rows: [] }));
+        const x = sd.rows[0]; if (!x) return res.status(404).json({ success: false, error: 'This song is not available.' });
+        await pool.query('UPDATE party_rooms SET music_id = $2, music_url = $3, music_title = $4, music_artist = $5, music_at = NOW(), music_paused_at = NULL, music_by = $6 WHERE id = $1',
+          [room.id, x.id, x.audio_url, x.title || '', x.artist || '', e]);
+        pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [x.id]).catch(() => {});
+        sys(room.id, 'music:' + (x.title || ''), e);
+      } else if (act === 'pause') {
+        await pool.query('UPDATE party_rooms SET music_paused_at = NOW() WHERE id = $1 AND music_url IS NOT NULL AND music_paused_at IS NULL', [room.id]);
+      } else if (act === 'resume') {      // the time it was paused does not count
+        await pool.query('UPDATE party_rooms SET music_at = music_at + (NOW() - music_paused_at), music_paused_at = NULL WHERE id = $1 AND music_paused_at IS NOT NULL', [room.id]);
+      } else if (act === 'stop') {
+        await pool.query('UPDATE party_rooms SET music_id = NULL, music_url = NULL, music_title = NULL, music_artist = NULL, music_at = NULL, music_paused_at = NULL WHERE id = $1', [room.id]);
+      } else return res.status(400).json({ success: false });
+      res.json({ success: true, state: await stateOf(await roomOf(room.id), e, 0) });
+    } catch (err) { console.error('[party] music:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
 
   // ❤️ follow / unfollow a room (= its owner's room, kept for every time it opens)
