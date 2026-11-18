@@ -23,6 +23,7 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
           accepted BOOLEAN DEFAULT FALSE,
           PRIMARY KEY (user_email, peer))`);
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS msg_requests_on BOOLEAN DEFAULT FALSE');
+        await pool.query('ALTER TABLE chat_prefs ADD COLUMN IF NOT EXISTS muted_until TIMESTAMP DEFAULT NULL');   // mute for 1 h / 8 h / 24 h … (NULL = until turned back on)
       })().catch((e) => { ready = null; throw e; });
     }
     return ready;
@@ -34,9 +35,11 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
     if (/^group:\d+$/.test(g)) return g;
     return norm(b.peer_email || '');
   };
+  // a mute with an end time is over by itself
+  const mutedNow = (r) => !!(r && r.muted && (!r.muted_until || new Date(r.muted_until) > new Date()));
   const out = (r) => {
     const o = {
-      pinned: !!r.pinned, archived_at: r.archived_at, muted: !!r.muted, restricted: !!r.restricted,
+      pinned: !!r.pinned, archived_at: r.archived_at, muted: mutedNow(r), muted_until: r.muted && r.muted_until ? r.muted_until : null, restricted: !!r.restricted,
       unread: !!r.marked_unread, cleared_at: r.cleared_at, accepted: !!r.accepted,
     };
     if (String(r.peer).startsWith('group:')) o.peer = r.peer; else o.peer_email = r.peer;
@@ -74,7 +77,14 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
       const add = (col, v) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
       if (b.pinned !== undefined) add('pinned', !!b.pinned);
       if (b.archived !== undefined) { if (b.archived) sets.push('archived_at = NOW()'); else sets.push('archived_at = NULL'); }
-      if (b.muted !== undefined) add('muted', !!b.muted);
+      if (b.muted !== undefined) {
+        add('muted', !!b.muted);
+        const h = parseInt(b.mute_hours, 10) || 0;          // 0 = until I turn it back on
+        if (b.muted && h > 0) sets.push(`muted_until = NOW() + INTERVAL '${Math.min(h, 24 * 365)} hours'`); else sets.push('muted_until = NULL');
+        // the website's chat settings keep their own list: kept the same, so both places agree
+        if (b.muted) await pool.query('INSERT INTO chat_mutes (user_email, peer_email) VALUES ($1,$2) ON CONFLICT DO NOTHING', [me, peer]).catch(() => {});
+        else await pool.query('DELETE FROM chat_mutes WHERE user_email=$1 AND peer_email=$2', [me, peer]).catch(() => {});
+      }
       if (b.restricted !== undefined) add('restricted', !!b.restricted);
       if (b.unread !== undefined) add('marked_unread', !!b.unread);
       if (b.accepted !== undefined) add('accepted', !!b.accepted);
@@ -160,9 +170,13 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
     try {
       await ensure();
       const peer = peerKey || norm(from);
-      const r = await pool.query('SELECT muted, restricted, accepted FROM chat_prefs WHERE user_email = $1 AND peer = $2', [norm(to), peer]);
+      const r = await pool.query('SELECT muted, muted_until, restricted, accepted FROM chat_prefs WHERE user_email = $1 AND peer = $2', [norm(to), peer]);
       const p = r.rows[0];
-      if (p && (p.muted || p.restricted)) return false;
+      if (p && (mutedNow(p) || p.restricted)) return false;
+      if (!p || !p.muted) {                                  // muted on the website (its own list)
+        const w = await pool.query('SELECT 1 FROM chat_mutes WHERE user_email = $1 AND peer_email = $2', [norm(to), peer]).catch(() => ({ rows: [] }));
+        if (w.rows.length && !(p && p.muted_until)) return false;
+      }
       if (peer.startsWith('group:')) return true;
       if (p && p.accepted) return true;
       const u = await pool.query('SELECT COALESCE(msg_requests_on, FALSE) AS on FROM users WHERE LOWER(email) = $1', [norm(to)]);
@@ -173,5 +187,14 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
     } catch (e) { return true; }
   }
 
-  return { clearedAt, shouldNotify };
+  // calls: has `to` restricted `from`? (then a call from `from` does not ring; it shows later as a missed call)
+  async function isRestricted(to, from) {
+    try {
+      await ensure();
+      const r = await pool.query('SELECT restricted FROM chat_prefs WHERE user_email = $1 AND peer = $2', [norm(to), norm(from)]);
+      return !!(r.rows[0] && r.rows[0].restricted);
+    } catch (e) { return false; }
+  }
+
+  return { clearedAt, shouldNotify, isRestricted };
 };

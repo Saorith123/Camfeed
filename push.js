@@ -127,7 +127,7 @@ module.exports = function createPush({ app, pool }) {
   }
 
   // ---- new messages and new notifications are found by looking at the tables every few seconds (no change to the code that writes them) ----
-  let lastMsg = null, lastNote = null, busy = false;
+  let lastMsg = null, lastNote = null, lastGroup = null, busy = false;
   async function tick() {
     if (!enabled || busy) return;
     busy = true;
@@ -136,6 +136,7 @@ module.exports = function createPush({ app, pool }) {
       if (lastMsg === null) {                       // first run after a restart: start from "now", never replay old things
         lastMsg = +((await pool.query('SELECT COALESCE(MAX(id),0) AS m FROM messages')).rows[0].m);
         lastNote = +((await pool.query('SELECT COALESCE(MAX(id),0) AS m FROM notifications')).rows[0].m);
+        lastGroup = +((await pool.query('SELECT COALESCE(MAX(id),0) AS m FROM group_messages').catch(() => ({ rows: [{ m: 0 }] }))).rows[0].m);
         return;
       }
       const ms = (await pool.query(
@@ -155,6 +156,28 @@ module.exports = function createPush({ app, pool }) {
         else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
         else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
         sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages' });
+      }
+      // group chats: every member except the sender (a muted / restricted group stays quiet for that member)
+      if (lastGroup !== null) {
+        const gs = (await pool.query(
+          `SELECT gm.id, gm.group_id, gm.sender_email, gm.message, gm.message_type, g.name AS group_name, u.first_name, u.last_name
+             FROM group_messages gm JOIN chat_groups g ON g.id = gm.group_id LEFT JOIN users u ON LOWER(u.email) = LOWER(gm.sender_email)
+            WHERE gm.id > $1 ORDER BY gm.id LIMIT 40`, [lastGroup]).catch(() => ({ rows: [] }))).rows;
+        for (const g of gs) {
+          lastGroup = Math.max(lastGroup, +g.id);
+          if (['system', 'call'].includes(g.message_type)) continue;
+          let text = { image: '📷 រូបភាព', video: '🎬 វីដេអូ', audio: '🎙️ សារសំឡេង', location: '📍 ទីតាំង', sticker: 'Sticker' }[g.message_type] || String(g.message || '').replace(/\s+/g, ' ');
+          if (text.startsWith('STICKER_EMOJI:')) text = text.slice(14) || '🙂';
+          else if (text.startsWith('BIG_EMOJI:')) text = text.split(':').slice(2).join(':') || '👍';
+          else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
+          else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
+          const members = (await pool.query('SELECT user_email FROM chat_group_members WHERE group_id = $1', [g.group_id]).catch(() => ({ rows: [] }))).rows;
+          for (const mb of members) {
+            if (norm(mb.user_email) === norm(g.sender_email)) continue;
+            if (msgFilter && !(await msgFilter(mb.user_email, g.sender_email, 'group:' + g.group_id).catch(() => true))) continue;
+            sendToUser(mb.user_email, { title: g.group_name || 'CamFeed', body: `${fullName(g)}: ${text}`, data: { type: 'message', url: '/messages.html', group: String(g.group_id) }, channel: 'messages' });
+          }
+        }
       }
       const ns = (await pool.query(
         `SELECT n.id, n.recipient_email, n.sender_email, n.message, n.type FROM notifications n WHERE n.id > $1 ORDER BY n.id LIMIT 60`, [lastNote])).rows;

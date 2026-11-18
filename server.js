@@ -866,8 +866,22 @@ setTimeout(() => { backfillAspects(); setInterval(backfillAspects, 60 * 1000); }
 
 // ---- "feed version" of every video: a small MP4 (540 px wide, ~1 Mbps, moov at the front) so the phone app starts it at once, like Facebook ----
 // The original stays untouched (full screen / website). Turn on in Render: FEED_VIDEOS = on. One video at a time, newest first.
+// how long a video is (seconds), read from its header by ffmpeg; null when unknown
+function videoSecs(src) {
+  const { execFile } = require('child_process');
+  let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
+  return new Promise((ok) => execFile(bin, ['-hide_banner', '-i', src], { timeout: 45 * 1000, maxBuffer: 1024 * 1024 * 4 }, (e, so, se) => {
+    const m = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(String(se || '') + String(so || ''));
+    ok(m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null);
+  }));
+}
+const FEED_MAX_SECS = 300;   // the small feed version is made only for videos up to 5 minutes; longer ones play the original (whole)
+
 async function makeFeedVideo(src) {
   if (!thumbsReady()) return null;
+  // a long video must NEVER get a small version cut at 5:00 (the app would show only the first 5 minutes)
+  const secs = await videoSecs(src).catch(() => null);
+  if (secs === null || secs > FEED_MAX_SECS + 1) return null;
   const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
   const out = path.join(os.tmpdir(), 'camfeed-fv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.mp4');
   let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
@@ -881,6 +895,25 @@ async function makeFeedVideo(src) {
   } catch (e) { console.error('[feedvideo] ffmpeg:', String(e.message || e).slice(0, 200)); return null; } finally { try { fs.unlinkSync(out); } catch (e) {} }
 }
 let feedVideoBusy = false;
+let cutCheckReady = false;
+async function fixCutFeedVideos() {
+  if (!thumbsReady()) return;
+  try {
+    if (!cutCheckReady) { await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_checked BOOLEAN DEFAULT FALSE'); cutCheckReady = true; }
+    const rows = (await pool.query("SELECT id, feed_url FROM posts WHERE feed_url LIKE 'http%' AND COALESCE(feed_checked, FALSE) = FALSE ORDER BY id DESC LIMIT 3")).rows;
+    for (const r of rows) {
+      const secs = await videoSecs(r.feed_url).catch(() => null);
+      if (secs !== null && secs >= FEED_MAX_SECS - 1) {
+        await pool.query("UPDATE posts SET feed_url = '', feed_checked = TRUE WHERE id = $1", [r.id]);   // '' = do not make it again; the app plays the original
+        console.log('[feedvideo] post', r.id, 'was cut at 5:00 → original is used now');
+      } else {
+        await pool.query('UPDATE posts SET feed_checked = TRUE WHERE id = $1', [r.id]);
+      }
+    }
+  } catch (e) { console.error('[feedvideo] check:', e.message); }
+}
+setTimeout(() => { fixCutFeedVideos(); setInterval(fixCutFeedVideos, 20 * 1000); }, 60 * 1000);
+
 async function backfillFeedVideos() {
   if (process.env.FEED_VIDEOS !== 'on' || feedVideoBusy || !thumbsReady()) return; feedVideoBusy = true;
   try {
@@ -1859,6 +1892,10 @@ app.get('/api/user-profile', async (req, res) => {
           if (pv === 'private' || (pv === 'friends' && !u.is_friend)) { u[cnt] = null; u[flag] = true; }
         }
       }
+      if (!isSelf && viewerEmail) {
+        const rs = await restrictedWith(viewerEmail);
+        if (rs.has(String(u.email || email).toLowerCase())) { u.is_online = false; u.last_seen = null; }
+      }
       if (!isSelf) for (const k of ['role', 'is_banned', 'name_changed_at', 'last_active', 'country', 'show_active_status']) delete u[k];   // internal details of other people
       res.json({ success: true, user: u });
     } else {
@@ -1911,6 +1948,15 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Follow List
+// restricted (either way) = no "active now" and no "active 5m ago" between the two people
+async function restrictedWith(me) {
+  try {
+    const m = String(me || '').toLowerCase(); if (!m) return new Set();
+    const r = await pool.query("SELECT peer AS e FROM chat_prefs WHERE user_email = $1 AND restricted = TRUE AND peer NOT LIKE 'group:%' UNION SELECT user_email AS e FROM chat_prefs WHERE peer = $1 AND restricted = TRUE", [m]);
+    return new Set(r.rows.map((x) => String(x.e).toLowerCase()));
+  } catch (e) { return new Set(); }
+}
+
 app.get('/api/follow-list', async (req, res) => {
   const { email, type } = req.query;
   try {
@@ -1955,6 +2001,8 @@ app.get('/api/follow-list', async (req, res) => {
     if (req.authEmail) {
       const v = await pool.query('SELECT COALESCE(show_active_status, TRUE) AS on FROM users WHERE email = $1', [req.authEmail]).catch(() => ({ rows: [] }));
       if (v.rows[0] && v.rows[0].on === false) result.rows.forEach((r) => { r.is_online = false; r.last_active = null; });
+      const rs = await restrictedWith(req.authEmail);
+      if (rs.size) result.rows.forEach((r) => { if (rs.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } });
     }
     res.json({ success: true, users: result.rows });
   } catch (err) {
@@ -2064,12 +2112,9 @@ app.get('/api/chat-conversations', async (req, res) => {
         const m = new Map(cp.rows.map((x) => [x.peer, x.cleared_at]));
         rows = rows.filter((r) => { const c = m.get(String(r.email).toLowerCase()); return !c || (r.last_message !== 'Start a conversation' && new Date(r.last_time) > new Date(c)); });
       }
-      // people who restricted me: I do not see when they are active
-      const rs = await pool.query('SELECT user_email FROM chat_prefs WHERE peer = $1 AND restricted = TRUE', [String(req.authEmail || email || '').toLowerCase()]);
-      if (rs.rows.length) {
-        const hide = new Set(rs.rows.map((x) => String(x.user_email).toLowerCase()));
-        rows.forEach((r) => { if (hide.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } });
-      }
+      // restricted either way (I restricted them, or they restricted me): no active status between us
+      const hide = await restrictedWith(req.authEmail || email);
+      if (hide.size) rows.forEach((r) => { if (hide.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } });
     } catch (e) { /* the table may not exist yet */ }
     res.json({ success: true, conversations: rows });
   } catch (err) {
@@ -2136,6 +2181,7 @@ app.get('/api/search-users', async (req, res) => {
       if (digits.startsWith('855')) identities.push('0' + digits.slice(3));
     }
     const result = await pool.query(query, [email, `%${likeSafe}%`, identities, e164 ? e164.slice(1) : '']);
+    { const rs = await restrictedWith(req.authEmail); if (rs.size) result.rows.forEach((r) => { if (rs.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } }); }
     res.json({ success: true, users: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2155,7 +2201,8 @@ app.get('/api/chat-notifications', async (req, res) => {
     let result;
     try {
       result = await pool.query(query.replace("WHERE m.receiver_email = $1 AND m.is_read = FALSE",
-        "WHERE m.receiver_email = $1 AND m.is_read = FALSE AND NOT EXISTS (SELECT 1 FROM chat_mutes cm WHERE cm.user_email = LOWER(m.receiver_email) AND cm.peer_email = LOWER(m.sender_email))"), [email]);
+        "WHERE m.receiver_email = $1 AND m.is_read = FALSE AND NOT EXISTS (SELECT 1 FROM chat_mutes cm WHERE cm.user_email = LOWER(m.receiver_email) AND cm.peer_email = LOWER(m.sender_email))" +
+        " AND NOT EXISTS (SELECT 1 FROM chat_prefs cp WHERE cp.user_email = LOWER(m.receiver_email) AND cp.peer = LOWER(m.sender_email) AND (cp.restricted OR (cp.muted AND (cp.muted_until IS NULL OR cp.muted_until > NOW()))))"), [email]);
     } catch (e) { result = await pool.query(query, [email]); }
     res.json({ success: true, unreadMessages: result.rows });
   } catch (err) {
@@ -2247,12 +2294,13 @@ app.post('/api/presence/offline', async (req, res) => {
 });
 
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
-const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d) });
+const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d),
+  restrictedBy: (to, from) => chatPrefs.isRestricted(to, from) });   // a person I restricted: their calls do not ring
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
 const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
-if (push.setMessageFilter) push.setMessageFilter((to, from) => chatPrefs.shouldNotify(to, from));
+if (push.setMessageFilter) push.setMessageFilter((to, from, peerKey) => chatPrefs.shouldNotify(to, from, peerKey));
 
 // Send Chat Message
 app.post('/api/messages', (req, res, next) => {

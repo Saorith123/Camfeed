@@ -10,7 +10,7 @@ const CALL_RING_MS = 35 * 1000;
 const CALL_STALE_MS = 25 * 1000;
 const CALL_TALK_STALE_MS = 90 * 1000;   // a call in progress: a phone that stops asking for a while (weak internet, screen off) is NOT cut at once — the voice goes phone-to-phone
 
-module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting }) {
+module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting, restrictedBy }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
   // the longest a chat message is kept (months): Admin > System > App settings (CHAT_MAX_MONTHS), else Render env, else 12
   const envMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
@@ -206,6 +206,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       if (body.muted !== undefined) {
         if (body.muted) await pool.query('INSERT INTO chat_mutes (user_email, peer_email) VALUES ($1,$2) ON CONFLICT DO NOTHING', [norm(me), norm(peer)]);
         else await pool.query('DELETE FROM chat_mutes WHERE user_email=$1 AND peer_email=$2', [norm(me), norm(peer)]);
+        // the app's list (chat_prefs) is kept the same, so muting in one place mutes everywhere
+        await pool.query(`INSERT INTO chat_prefs (user_email, peer, muted) VALUES ($1,$2,$3) ON CONFLICT (user_email, peer) DO UPDATE SET muted = $3, muted_until = NULL`, [norm(me), norm(peer), !!body.muted]).catch(() => {});
       }
       res.json({ success: true, settings: await settingsFor(me, peer) });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
@@ -333,8 +335,10 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       if (busyWith(peer)) return res.json({ success: false, error: 'busy' });
       const c = { id: newId(), caller: me, callee: peer, kind, status: 'ringing', offer: b.offer, answer: null,
         ice: { caller: [], callee: [] }, created: Date.now(), answeredAt: 0, seen: { [me]: Date.now(), [peer]: 0 } };
+      // restricted (like Messenger): the call does not ring on their phone; the caller is not told — it ends as "missed"
+      c.quiet = restrictedBy ? await restrictedBy(peer, me).catch(() => false) : false;
       calls.set(c.id, c);
-      if (push && push.notifyCall) push.notifyCall(peer, me, kind, c.id);   // ring the phone even if the app is closed
+      if (!c.quiet && push && push.notifyCall) push.notifyCall(peer, me, kind, c.id);   // ring the phone even if the app is closed
       res.json({ success: true, id: c.id });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
@@ -342,7 +346,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   app.get('/api/calls/poll', async (req, res) => {
     const me = norm(req.authEmail); if (!me) return res.json({ success: true });
     for (const c of calls.values()) {
-      if (c.callee === me && c.status === 'ringing') {
+      if (c.callee === me && c.status === 'ringing' && !c.quiet) {
         c.rang = true;                                        // the call reached the other person's screen: the caller now hears "ringing"
         const u = await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE LOWER(email)=LOWER($1)', [c.caller]).catch(() => ({ rows: [] }));
         const p = u.rows[0] || {};
