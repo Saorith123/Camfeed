@@ -2202,7 +2202,7 @@ const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUr
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });   // pin / archive / mute / restrict / delete chat / message requests
 const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
-  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
 if (push.setMessageFilter) push.setMessageFilter((to, from) => chatPrefs.shouldNotify(to, from));
 
 // Send Chat Message

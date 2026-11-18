@@ -49,7 +49,7 @@
 <body>
 <div class="top"><button class="back" onclick="history.length > 1 ? history.back() : (location.href = 'feed.html')">←</button><div class="title" id="tTitle"></div><button class="lang" id="langBtn"></button></div>
 <div class="wrap">
-    <div class="bal"><div style="font-size:42px">🪙</div><div><span id="tBal"></span><b id="balNum">—</b></div></div>
+    <div class="bal"><div style="font-size:42px">🪙</div><div style="flex:1"><span id="tBal"></span><b id="balNum">—</b></div><div style="text-align:right"><span id="tWallet" style="font-size:12.5px;opacity:.9"></span><div id="walletNum" style="font-weight:800;font-size:18px">—</div></div></div>
     <div class="msg" id="msg"></div>
     <div class="card">
         <div class="h" id="tStep1"></div>
@@ -61,6 +61,8 @@
         <div class="pay" id="payinfo" style="margin-top:12px"></div>
     </div>
     <div class="card">
+        <div id="walletBox" style="display:none"><div class="pay" id="walletMsg"></div><button class="btn" id="wSend"></button></div>
+        <div id="payBox">
         <div class="h" id="tStep3"></div>
         <label id="tRef"></label>
         <input type="text" id="ref" maxlength="80">
@@ -69,6 +71,7 @@
         <div class="muted" id="upState" style="margin-top:6px"></div>
         <button class="btn" id="send"></button>
         <div class="muted" id="tNote" style="margin-top:10px"></div>
+        </div>
     </div>
     <div class="card"><div class="h" id="tMine"></div><div id="mine"></div></div>
     <div class="card"><div class="h" id="tGifts"></div><div class="gifts" id="gifts"></div></div>
@@ -83,11 +86,15 @@ var T = {
     send: 'ផ្ញើសំណើបញ្ចូលកាក់', note: 'CamFeed នឹងពិនិត្យការបង់ប្រាក់ ហើយបញ្ចូលកាក់ឲ្យអ្នក (ជាធម្មតាក្នុងថ្ងៃដដែល)។ អ្នកនឹងទទួលបានការជូនដំណឹងពេលកាក់ចូល។ កាក់ប្រើបានតែក្នុង CamFeed ប៉ុណ្ណោះ។',
     mine: '🧾 សំណើរបស់ខ្ញុំ', none: 'មិនទាន់មានទេ', gifts: '🎁 កាដូក្នុង Party Room', coins: 'កាក់', pick: 'សូមជ្រើសកញ្ចប់កាក់', pickM: 'សូមជ្រើសវិធីបង់ប្រាក់', needRef: 'សូមដាក់លេខប្រតិបត្តិការ ឬរូបវិក្កយបត្រ',
     uploading: 'កំពុងអាប់ឡូត...', uploaded: '✅ អាប់ឡូតរួចរាល់', upFail: '❌ អាប់ឡូតមិនបាន', sent: '✅ បានផ្ញើហើយ! CamFeed នឹងពិនិត្យ ហើយបញ្ចូលកាក់ឲ្យអ្នក។', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server',
+    wallet: 'លុយក្នុងកាបូប', mWallet: '💰 ពីកាបូបរបស់ខ្ញុំ', wNote: 'ប្រើលុយក្នុងកាបូប (រង្វាន់ ចំណូលវីដេអូ កាដូ...) ប្ដូរជាកាក់ — ចូលភ្លាម។ កាក់មិនអាចប្ដូរត្រឡប់ជាលុយវិញបានទេ។',
+    wNo: '⚠️ កាបូបរបស់អ្នកមិនមានលុយគ្រប់គ្រាន់ទេ', wHave: 'លុយក្នុងកាបូប៖', wNeed: 'កញ្ចប់នេះត្រូវការ៖', wSmaller: 'អ្នកអាចជ្រើសកញ្ចប់តូចជាងនេះ។', wBtn: '💰 ប្ដូរពីកាបូប', wDone: '✅ បានប្ដូរហើយ! កាក់បានចូលគណនីរបស់អ្នក។', wConfirm: 'ប្ដូរលុយក្នុងកាបូប {0} ជា 🪙 {1} កាក់?',
     pending: '⏳ រង់ចាំពិនិត្យ', approved: '✅ បានបញ្ចូល', rejected: '❌ មិនអនុម័ត', noPay: 'CamFeed មិនទាន់ដាក់ព័ត៌មានបង់ប្រាក់នៅឡើយទេ។ សូមទាក់ទង Telegram @Camfeed។', lang: 'English', bonus: 'ថែម' },
   en: { title: '🪙 Buy coins', bal: 'Your coins', step1: '1. Choose a coin pack', step2: '2. Pay', step3: '3. Send the receipt', ref: 'Transaction ID (or the last digits)', receipt: 'Photo of the receipt (optional, but better)',
     send: 'Send top-up request', note: 'CamFeed checks the payment and adds the coins (usually the same day). You get a notification when they arrive. Coins can only be used inside CamFeed.',
     mine: '🧾 My requests', none: 'Nothing yet', gifts: '🎁 Gifts in Party Room', coins: 'coins', pick: 'Please choose a coin pack', pickM: 'Please choose how you pay', needRef: 'Please add the transaction ID or a photo of the receipt',
     uploading: 'Uploading...', uploaded: '✅ Uploaded', upFail: '❌ Upload failed', sent: '✅ Sent! CamFeed will check it and add your coins.', net: 'Could not reach the server',
+    wallet: 'Wallet money', mWallet: '💰 From my wallet', wNote: 'Use the money in your wallet (rewards, video earnings, gifts...) to get coins — at once. Coins can not be changed back into money.',
+    wNo: '⚠️ Your wallet does not have enough money', wHave: 'In your wallet:', wNeed: 'This pack needs:', wSmaller: 'You can choose a smaller pack.', wBtn: '💰 Change from my wallet', wDone: '✅ Done! The coins are in your account.', wConfirm: 'Change {0} from your wallet into 🪙 {1} coins?',
     pending: '⏳ Waiting', approved: '✅ Added', rejected: '❌ Not approved', noPay: 'CamFeed has not added the payment details yet. Please contact Telegram @Camfeed.', lang: 'ខ្មែរ', bonus: 'bonus' }
 };
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : 'km'; })();
@@ -99,13 +106,14 @@ async function api(path, body) {
   try { var r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined); return await r.json(); } catch (e) { return { success: false, error: t('net') }; }
 }
 function texts() {
-  ['title', 'bal', 'step1', 'step2', 'step3', 'ref', 'receipt', 'note', 'mine', 'gifts'].forEach(function (k) { var e = $('t' + k.charAt(0).toUpperCase() + k.slice(1)); if (e) e.textContent = t(k); });
+  ['title', 'bal', 'step1', 'step2', 'step3', 'ref', 'receipt', 'note', 'mine', 'gifts', 'wallet'].forEach(function (k) { var e = $('t' + k.charAt(0).toUpperCase() + k.slice(1)); if (e) e.textContent = t(k); });
   $('send').textContent = t('send'); $('langBtn').textContent = t('lang'); document.title = 'CamFeed - ' + t('title');
 }
 function draw() {
   texts();
   if (!data) return;
   $('balNum').textContent = Number(data.balance || 0).toLocaleString();
+  $('walletNum').textContent = '$' + (Number(data.walletCents || 0) / 100).toFixed(2);
   var ps = $('packs'); ps.textContent = '';
   data.packs.forEach(function (p) {
     var base = Math.round(p.usd * 100 / (data.coinCents || 1)), extra = p.coins - base;
@@ -115,11 +123,30 @@ function draw() {
     ps.appendChild(d);
   });
   var ms = $('methods'); ms.textContent = '';
-  ['ABA', 'ACLEDA', 'Wing', 'KHQR'].forEach(function (m) {
-    var b = document.createElement('button'); b.className = 'm' + (st.method === m ? ' on' : ''); b.textContent = (m === 'Wing' ? '🟢 ' : (m === 'KHQR' ? '🔳 ' : '🏦 ')) + m;
+  (data.walletOn ? ['Wallet', 'ABA', 'ACLEDA', 'Wing', 'KHQR'] : ['ABA', 'ACLEDA', 'Wing', 'KHQR']).forEach(function (m) {
+    var b = document.createElement('button'); b.className = 'm' + (st.method === m ? ' on' : ''); b.textContent = m === 'Wallet' ? t('mWallet') : (m === 'Wing' ? '🟢 ' : (m === 'KHQR' ? '🔳 ' : '🏦 ')) + m;
     b.onclick = function () { st.method = m; draw(); }; ms.appendChild(b);
   });
+  var isW = st.method === 'Wallet';
+  $('payinfo').style.display = isW ? 'none' : ''; $('payBox').style.display = isW ? 'none' : ''; $('walletBox').style.display = isW ? '' : 'none';
   $('payinfo').textContent = data.payinfo || t('noPay');
+  if (isW) {
+    var pk = data.packs.filter(function (p) { return p.i === st.pack; })[0], have = Number(data.walletCents || 0);
+    var wm = $('walletMsg'); wm.textContent = ''; $('wSend').textContent = t('wBtn');
+    if (!pk) { wm.textContent = t('wNote'); $('wSend').disabled = true; }
+    else {
+      var need = Math.round(pk.usd * 100);
+      if (have >= need) { wm.textContent = t('wNote'); $('wSend').disabled = false; $('wSend').textContent = t('wBtn') + ' ($' + pk.usd.toFixed(2) + ')'; }
+      else {
+        var small = data.packs.some(function (p) { return Math.round(p.usd * 100) <= have; });
+        wm.innerHTML = '<b style="color:#b91c1c"></b><div></div><div></div>';
+        wm.children[0].textContent = t('wNo');
+        wm.children[1].textContent = t('wHave') + ' $' + (have / 100).toFixed(2) + ' · ' + t('wNeed') + ' $' + pk.usd.toFixed(2);
+        wm.children[2].textContent = small ? t('wSmaller') : '';
+        $('wSend').disabled = true;
+      }
+    }
+  }
   var mine = $('mine'); mine.textContent = '';
   if (!data.topups.length) mine.innerHTML = '<div class="muted">' + t('none') + '</div>';
   data.topups.forEach(function (x) {
@@ -159,6 +186,14 @@ $('send').onclick = async function () {
   $('send').disabled = false;
   if (d.success) { msg(true, t('sent')); $('ref').value = ''; $('file').value = ''; st.receipt = ''; $('upState').textContent = ''; load(); }
   else msg(false, d.error || t('net'));
+};
+$('wSend').onclick = async function () {
+  var pk = data && data.packs.filter(function (p) { return p.i === st.pack; })[0]; if (!pk) return msg(false, t('pick'));
+  if (!confirm(t('wConfirm').replace('{0}', '$' + pk.usd.toFixed(2)).replace('{1}', pk.coins.toLocaleString()))) return;
+  $('wSend').disabled = true;
+  var d = await api('/api/coins/from-wallet', { pack: st.pack });
+  if (d.success) { msg(true, t('wDone')); load(); }
+  else { msg(false, d.code === 'wallet' ? t('wNo') : (d.error || t('net'))); $('wSend').disabled = false; }
 };
 texts(); load();
 })();

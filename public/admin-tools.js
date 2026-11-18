@@ -446,13 +446,15 @@
       if (su) box.appendChild(el('button', { class: 'btn-sm btn-gray', text: '+ Add pack', onclick: function () { packRow({ usd: 1, web: 100, app: 100 }); } }));
       var share = el('input', { class: 'at-in', type: 'number', value: String(s.share) }), hold = el('input', { class: 'at-in', type: 'number', value: String(s.holdDays) });
       var pay = el('textarea', { class: 'at-in', rows: '5', style: 'width:100%' }); pay.value = s.payinfo || '';
+      var wOn = el('input', { type: 'checkbox' }); wOn.checked = s.walletOn !== false; if (!su) wOn.disabled = true;
+      box.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin:10px 0;font-weight:700' }, [wOn, el('span', { text: '💰 People can change wallet money into coins (same coins as the website packs, at once)' })]));
       box.appendChild(el('div', { class: 'at-lbl', text: 'Receiver gets … % of a gift\'s value (start 50)' })); box.appendChild(share);
       box.appendChild(el('div', { class: 'at-lbl', text: 'Gift money can be withdrawn after … days' })); box.appendChild(hold);
       box.appendChild(el('div', { class: 'at-lbl', text: 'Payment details shown on the website (ABA / ACLEDA / Wing account name and number, KHQR …)' })); box.appendChild(pay);
       if (!su) [share, hold, pay].forEach(function (i) { i.disabled = true; });
       if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Save', onclick: function () {
         var packs = Array.prototype.map.call(rows.children, function (r) { return r._get(); });
-        call({ action: 'settings', packs: packs, share: share.value, hold: hold.value, payinfo: pay.value }).then(function (x) { if (x.success) alert('✅ Saved'); });
+        call({ action: 'settings', packs: packs, share: share.value, hold: hold.value, payinfo: pay.value, walletOn: wOn.checked }).then(function (x) { if (x.success) alert('✅ Saved'); });
       } }));
       // gifts
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Gifts (' + d.gifts.length + ')' }));
@@ -530,6 +532,30 @@
           el('td', { text: r.reporter_email }), el('td', { text: ago(r.created_at) }),
           el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Done', onclick: function () { adm('/api/admin/party', { handled: r.room_id }).then(function (x) { if (x.success) draw(x); }); } })])]);
       })));
+      // 😘 actions and 😊 emotes + how often one person may send them
+      var su = !!d.isSuperAdmin, gaps = d.gaps || {}, anims = d.anims || { action: [], emote: [] };
+      box.appendChild(el('div', { style: 'font-weight:800;margin:18px 0 6px', text: '⏱️ Spam guard (seconds between two, per person)' }));
+      var ag = el('input', { class: 'at-in', type: 'number', value: String(gaps.actionGap), style: 'width:110px;display:inline-block' }), eg = el('input', { class: 'at-in', type: 'number', value: String(gaps.emoteGap), style: 'width:110px;display:inline-block' });
+      if (!su) { ag.disabled = true; eg.disabled = true; }
+      box.appendChild(el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, [el('span', { text: '😘 Actions:' }), ag, el('span', { text: '😊 Emotes:' }), eg,
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save', onclick: function () { adm('/api/admin/party', { gaps: { actionGap: ag.value, emoteGap: eg.value } }).then(function (x) { if (x.success) { draw(x); alert('✅ Saved'); } else alert(x.error || 'Failed'); }); } }) : null]));
+      ['action', 'emote'].forEach(function (kind) {
+        var list = (d.fx || []).filter(function (f) { return f.kind === kind; });
+        box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: kind === 'action' ? '😘 Actions — sent to somebody on a seat (flies from the sender to them)' : '😊 Emotes — shown on the sender\'s own seat' }));
+        function row(f) {
+          var e = el('input', { class: 'at-in', value: f.emoji || '', style: 'width:60px' }), km = el('input', { class: 'at-in', value: f.name_km || '' }), en = el('input', { class: 'at-in', value: f.name_en || '' });
+          var an = el('select', { class: 'at-in', style: 'width:110px' }); (anims[kind] || []).forEach(function (a) { var o = el('option', { value: a, text: a }); if (a === f.anim) o.selected = true; an.appendChild(o); });
+          var c = el('input', { class: 'at-in', type: 'number', value: String(f.coins || 0), style: 'width:80px' }), so = el('input', { class: 'at-in', type: 'number', value: String(f.sort || 0), style: 'width:70px' });
+          var on = el('input', { type: 'checkbox' }); on.checked = f.active !== false;
+          if (!su) [e, km, en, an, c, so, on].forEach(function (i) { i.disabled = true; });
+          return el('tr', {}, [el('td', {}, [e]), el('td', {}, [km]), el('td', {}, [en]), el('td', {}, [an]), el('td', {}, [c]), el('td', {}, [so]), el('td', {}, [on]),
+            el('td', {}, su ? [el('button', { class: 'btn-sm btn-blue', text: f.id ? 'Save' : 'Add', onclick: function () {
+              adm('/api/admin/party', { fx: { id: f.id, kind: kind, emoji: e.value, name_km: km.value, name_en: en.value, anim: an.value, coins: c.value, sort: so.value, active: on.checked } }).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); });
+            } })] : [])]);
+        }
+        var rows = list.map(row); if (su) rows.push(row({ kind: kind, anim: (anims[kind] || [])[0], coins: 0 }));
+        box.appendChild(table(['Emoji', 'Khmer', 'English', 'Move', 'Coins (0 = free)', 'Order', 'On', ''], rows));
+      });
     }
     adm('/api/admin/party', {}).then(draw);
   }

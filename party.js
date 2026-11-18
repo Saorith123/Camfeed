@@ -13,6 +13,35 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
   const SEAT_CHOICES = [4, 8, 12];
   const STALE_SEC = 40;                 // not heard from for this long = gone (the app asks every ~2 s)
   const OWNER_GONE_SEC = 180;           // the owner's phone disappeared for 3 minutes: the room closes
+  // the moves the app knows how to draw (the Admin picks one for each action / emote)
+  const ACTION_ANIMS = ['fly', 'arc', 'rain', 'burst'];
+  const EMOTE_ANIMS = ['pop', 'wave', 'bow', 'shake', 'bounce', 'float', 'sway', 'drip', 'pulse', 'spin'];
+  const FX_SEED = [
+    ['action', '😘', 'ថើប', 'Kiss', 'arc'], ['action', '❤️', 'ផ្ញើបេះដូង', 'Send a heart', 'rain'], ['action', '🤗', 'ឱប', 'Hug', 'fly'],
+    ['action', '👏', 'ទះដៃ', 'Applause', 'burst'], ['action', '🌹', 'បោះផ្កា', 'Throw a rose', 'arc'], ['action', '🥂', 'លើកកែវ', 'Cheers', 'fly'], ['action', '😂', 'សើចដាក់', 'Laugh at', 'burst'],
+    ['emote', '👋', 'បាយៗ', 'Bye-bye', 'wave'], ['emote', '🙏', 'សំពះ', 'Sampeah', 'bow'], ['emote', '😂', 'សើច', 'Laugh', 'shake'], ['emote', '😭', 'យំ', 'Cry', 'drip'],
+    ['emote', '😍', 'ស្រលាញ់', 'Love', 'float'], ['emote', '😡', 'ខឹង', 'Angry', 'shake'], ['emote', '😴', 'ងងុយ', 'Sleepy', 'float'], ['emote', '💃', 'រាំ', 'Dance', 'sway'],
+    ['emote', '🎤', 'ច្រៀង', 'Sing', 'float'], ['emote', '👍', 'ល្អ', 'Nice', 'bounce'], ['emote', '✌️', 'ជ័យជំនះ', 'Victory', 'bounce'], ['emote', '🤔', 'គិត', 'Thinking', 'pulse'],
+  ];
+  const fxGaps = async () => {
+    const m = {};
+    try { (await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('party:action_gap', 'party:emote_gap')")).rows.forEach((r) => { m[r.key] = Number(r.value); }); } catch (e) { /* default */ }
+    const ok = (v, d) => (Number.isFinite(v) && v >= 0 && v <= 3600 ? v : d);
+    return { actionGap: ok(m['party:action_gap'], 3), emoteGap: ok(m['party:emote_gap'], 2) };
+  };
+  // the age choices the app shows when opening a room (server side: changing them needs no app update)
+  const AGE_CHOICES = { min: [13, 16, 18, 20, 25, 30, 40, 50], max: [17, 20, 25, 30, 35, 40, 50, 60] };
+  const ageArg = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 10 && n <= 100 ? n : null; };
+  // a person's age from their birthday (null = no birthday saved)
+  async function ageOf(email) {
+    try {
+      const r = await pool.query(`SELECT CASE WHEN CAST(birthdate AS TEXT) ~ '^\\d{4}-\\d{2}-\\d{2}' THEN DATE_PART('year', AGE(CAST(SUBSTRING(CAST(birthdate AS TEXT), 1, 10) AS DATE)))::int END AS a
+                                  FROM users WHERE LOWER(email) = $1`, [norm(email)]);
+      return r.rows[0] ? r.rows[0].a : null;
+    } catch (e) { return null; }
+  }
+  const ageFits = (room, age) => (room.age_min == null && room.age_max == null) || (age != null && (room.age_min == null || age >= room.age_min) && (room.age_max == null || age <= room.age_max));
+  const lastFx = new Map();             // "email|kind" -> time of the last one (spam guard)
 
   let ready = null;
   function ensure() {
@@ -44,6 +73,18 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         await pool.query(`CREATE TABLE IF NOT EXISTS gift_catalog (
           id SERIAL PRIMARY KEY, code VARCHAR(30) UNIQUE, emoji VARCHAR(16) NOT NULL, name_km VARCHAR(60) NOT NULL, name_en VARCHAR(60) NOT NULL,
           coins INTEGER NOT NULL, tier INTEGER NOT NULL DEFAULT 1, active BOOLEAN NOT NULL DEFAULT TRUE, sort INTEGER NOT NULL DEFAULT 0)`);
+        // 😘 actions (sent to somebody on a seat) and 😊 emotes (shown on my own seat): all set by the Admin
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_fx (
+          id SERIAL PRIMARY KEY, kind VARCHAR(10) NOT NULL, emoji VARCHAR(16) NOT NULL, name_km VARCHAR(60) NOT NULL, name_en VARCHAR(60) NOT NULL,
+          anim VARCHAR(20) NOT NULL DEFAULT 'pop', coins INTEGER NOT NULL DEFAULT 0, active BOOLEAN NOT NULL DEFAULT TRUE, sort INTEGER NOT NULL DEFAULT 0)`);
+        await pool.query('ALTER TABLE party_messages ADD COLUMN IF NOT EXISTS fx_id INTEGER');
+        await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_min INTEGER');      // who may see the room, by age (empty = everybody)
+        await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_max INTEGER');
+        const n = await pool.query('SELECT COUNT(*)::int AS n FROM party_fx');
+        if (!n.rows[0].n) {
+          let i = 0;
+          for (const [kind, emoji, km, en, anim] of FX_SEED) await pool.query('INSERT INTO party_fx (kind, emoji, name_km, name_en, anim, sort) VALUES ($1, $2, $3, $4, $5, $6)', [kind, emoji, km, en, anim, i++]);
+        }
       })().catch((e) => { ready = null; throw e; });
     }
     return ready;
@@ -110,7 +151,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     if (!room || room.status !== 'open') return false;
     if (norm(room.owner_email) === email) return true;
     if (await blockedEither(room.owner_email, email)) return false;
-    if (room.privacy === 'friends') return isFriend(room.owner_email, email);
+    if (room.privacy === 'friends' && !(await isFriend(room.owner_email, email))) return false;
+    if ((room.age_min != null || room.age_max != null) && !ageFits(room, await ageOf(email))) return false;
     return true;
   }
   const sys = (roomId, text, who) => pool.query("INSERT INTO party_messages (room_id, user_email, kind, text) VALUES ($1, $2, 'system', $3)", [roomId, who || null, text]).catch(() => {});
@@ -145,21 +187,25 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     const people = mem.rows.map((x) => ({ email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '',
       role: x.role, seat: x.seat, muted: !!x.host_muted, hand: !!x.hand_at, hand_at: x.hand_at }));
     const msgs = await pool.query(`SELECT p.id, p.kind, p.text, p.created_at, ${userCols}, p.to_email, t.first_name AS to_first_name, t.last_name AS to_last_name,
-                                     g.emoji AS gift_emoji, g.name_km AS gift_km, g.name_en AS gift_en, g.tier AS gift_tier, g.coins AS gift_coins
+                                     g.emoji AS gift_emoji, g.name_km AS gift_km, g.name_en AS gift_en, g.tier AS gift_tier, g.coins AS gift_coins,
+                                     f.emoji AS fx_emoji, f.name_km AS fx_km, f.name_en AS fx_en, f.anim AS fx_anim
                                    FROM party_messages p LEFT JOIN users u ON LOWER(u.email) = p.user_email
                                    LEFT JOIN users t ON LOWER(t.email) = p.to_email LEFT JOIN gift_catalog g ON g.id = p.gift_id
+                                   LEFT JOIN party_fx f ON f.id = p.fx_id
                                    WHERE p.room_id = $1 AND p.id > $2 ORDER BY p.id DESC LIMIT 60`, [room.id, parseInt(after, 10) || 0]);
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
     return {
-      room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status,
+      room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max,
         owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at },
       people,
       me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand } : null,
       messages: msgs.rows.reverse().map((m) => ({ id: m.id, kind: m.kind, text: m.text, created_at: m.created_at,
         email: m.email || null, first_name: m.first_name || '', last_name: m.last_name || '', profile_pic: m.profile_pic || '',
         ...(m.kind === 'gift' ? { to_email: m.to_email, to_first_name: m.to_first_name || '', to_last_name: m.to_last_name || '',
-          gift: { emoji: m.gift_emoji || '🎁', name_km: m.gift_km || '', name_en: m.gift_en || '', tier: m.gift_tier || 1, coins: m.gift_coins || 0 }, count: parseInt(m.text, 10) || 1 } : {}) })),
+          gift: { emoji: m.gift_emoji || '🎁', name_km: m.gift_km || '', name_en: m.gift_en || '', tier: m.gift_tier || 1, coins: m.gift_coins || 0 }, count: parseInt(m.text, 10) || 1 } : {}),
+        ...((m.kind === 'action' || m.kind === 'emote') ? { to_email: m.to_email || null, to_first_name: m.to_first_name || '', to_last_name: m.to_last_name || '',
+          fx: { emoji: m.fx_emoji || '✨', name_km: m.fx_km || '', name_en: m.fx_en || '', anim: m.fx_anim || 'pop' } } : {}) })),
     };
   }
 
@@ -176,7 +222,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
   // ---- what the app shows -----------------------------------------------------------------------------------------------
   app.get('/api/party/config', async (req, res) => {
     const c = await lk();
-    res.json({ success: true, ready: lkReady(c), seatChoices: SEAT_CHOICES });
+    res.json({ success: true, ready: lkReady(c), seatChoices: SEAT_CHOICES, ageChoices: AGE_CHOICES, myAge: req.authEmail ? await ageOf(req.authEmail) : null });
   });
 
   // the rooms I can enter: friends' rooms first, then the busiest
@@ -185,7 +231,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     try {
       await ensure(); await sweep();
       const r = await pool.query(`
-        SELECT r.id, r.title, r.privacy, r.seats, r.owner_email, r.created_at, ${userCols},
+        SELECT r.id, r.title, r.privacy, r.seats, r.age_min, r.age_max, r.owner_email, r.created_at, ${userCols},
           (SELECT COUNT(*) FROM party_members m WHERE m.room_id = r.id AND m.last_seen >= NOW() - ($2 || ' seconds')::interval) AS people,
           EXISTS (SELECT 1 FROM follows f1 JOIN follows f2 ON f2.follower_email = f1.following_email AND f2.following_email = f1.follower_email
                   WHERE LOWER(f1.follower_email) = $1 AND LOWER(f1.following_email) = r.owner_email) AS friend,
@@ -195,7 +241,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
           AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = r.owner_email) OR (LOWER(b.blocker_email) = r.owner_email AND LOWER(b.blocked_email) = $1))
           AND NOT EXISTS (SELECT 1 FROM party_bans pb WHERE pb.room_id = r.id AND pb.user_email = $1)
         ORDER BY (LOWER(r.owner_email) = $1) DESC, 1 DESC LIMIT 300`, [e, String(STALE_SEC)]);
-      let rows = r.rows.filter((x) => x.privacy !== 'friends' || x.friend || norm(x.owner_email) === e);
+      const myAge = await ageOf(e);
+      let rows = r.rows.filter((x) => norm(x.owner_email) === e || ((x.privacy !== 'friends' || x.friend) && ageFits(x, myAge)));
       rows.sort((a, b) => (norm(b.owner_email) === e) - (norm(a.owner_email) === e) || (b.friend - a.friend) || (b.following - a.following) || (Number(b.people) - Number(a.people)) || (b.id - a.id));
       rows = rows.slice(0, 100);
       // a few faces of the people sitting in each room
@@ -204,7 +251,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
                                                     WHERE m.room_id = ANY($1::int[]) AND m.seat IS NOT NULL AND m.last_seen >= NOW() - ($2 || ' seconds')::interval ORDER BY m.seat`, [ids, String(STALE_SEC)])).rows : [];
       const mineNow = await pool.query(`SELECT m.room_id FROM party_members m JOIN party_rooms r ON r.id = m.room_id WHERE m.user_email = $1 AND r.status = 'open' LIMIT 1`, [e]);
       res.json({ success: true, current: mineNow.rows[0] ? mineNow.rows[0].room_id : null, rooms: rows.map((x) => ({
-        id: x.id, title: x.title, privacy: x.privacy, seats: x.seats, people: Number(x.people) || 0, friend: !!x.friend,
+        id: x.id, title: x.title, privacy: x.privacy, seats: x.seats, people: Number(x.people) || 0, friend: !!x.friend, age_min: x.age_min, age_max: x.age_max,
         owner: { email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '' },
         faces: faces.filter((f) => f.room_id === x.id).map((f) => f.profile_pic || '').slice(0, 4),
       })) });
@@ -221,10 +268,12 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       const seats = SEAT_CHOICES.includes(parseInt(b.seats, 10)) ? parseInt(b.seats, 10) : 8;
       const privacy = b.privacy === 'friends' ? 'friends' : 'public';
       const title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      let amin = ageArg(b.age_min), amax = ageArg(b.age_max);
+      if (amin != null && amax != null && amin > amax) [amin, amax] = [amax, amin];
       const old = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [e]);
       for (const o of old.rows) await closeRoom(o.id, e, 'new room');
       await pool.query('DELETE FROM party_members WHERE user_email = $1', [e]);   // I can only be in one room at a time
-      const r = await pool.query('INSERT INTO party_rooms (owner_email, title, privacy, seats) VALUES ($1, $2, $3, $4) RETURNING *', [e, title, privacy, seats]);
+      const r = await pool.query('INSERT INTO party_rooms (owner_email, title, privacy, seats, age_min, age_max) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [e, title, privacy, seats, amin, amax]);
       const room = r.rows[0];
       await pool.query("INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, 'owner', 0)", [room.id, e]);
       res.json({ success: true, id: room.id, live: await ticket(room, e, true, false), state: await stateOf(room, e, 0) });
@@ -237,7 +286,12 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       await ensure();
       const room = await roomOf(req.params.id);
       if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true, error: 'This room has ended.' });
-      if (!(await canSee(room, e))) return res.status(403).json({ success: false, error: 'You can not enter this room.' });
+      if (!(await canSee(room, e))) {
+        const ageLocked = room.age_min != null || room.age_max != null;
+        const noBd = ageLocked && (await ageOf(e)) == null;
+        return res.status(403).json({ success: false, code: ageLocked ? 'age' : 'private', noBirthday: noBd, age_min: room.age_min, age_max: room.age_max,
+          message: ageLocked ? (noBd ? 'age:nobirthday' : 'age:' + (room.age_min || '') + '-' + (room.age_max || '')) : 'private', error: 'You can not enter this room.' });
+      }
       const ban = await pool.query('SELECT 1 FROM party_bans WHERE room_id = $1 AND user_email = $2', [room.id, e]);
       if (ban.rows.length) return res.status(403).json({ success: false, error: 'You were removed from this room.' });
       // leaving any other room first (one room at a time)
@@ -337,8 +391,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
       const m = await memberOf(room.id, e);
       if (!canManage(m)) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
-      // the person is sent as their public id: turn it back into the e-mail ("user" is not one of the keys the id layer reads)
-      let who = norm(b.user_email || b.user);
+      // the person: "target_email" (the id layer turns the public id back into the e-mail). Never "user_email" / "email":
+      // the login layer overwrites those with the person who is asking (auth.js BODY_ACTOR_FIELDS).
+      let who = norm(b.target_email || b.user);
       if (/^1\d{14}$/.test(who)) { try { const mp = await publicIds.toEmails([who]); who = norm(mp.get(who) || who); } catch (e) { /* keep */ } }
       const t = await memberOf(room.id, who);
       if (!t) return res.status(404).json({ success: false, error: 'This person has left the room.' });
@@ -381,7 +436,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       const privacy = b.privacy === 'friends' ? 'friends' : (b.privacy === 'public' ? 'public' : room.privacy);
       const title = b.title === undefined ? room.title : String(b.title).replace(/\s+/g, ' ').trim().slice(0, 60);
       const free = b.free_seats === undefined ? room.free_seats : !!b.free_seats;
-      await pool.query('UPDATE party_rooms SET seats = $2, privacy = $3, title = $4, free_seats = $5 WHERE id = $1', [room.id, seats, privacy, title, free]);
+      let amin = b.age_min === undefined ? room.age_min : ageArg(b.age_min), amax = b.age_max === undefined ? room.age_max : ageArg(b.age_max);
+      if (amin != null && amax != null && amin > amax) [amin, amax] = [amax, amin];
+      await pool.query('UPDATE party_rooms SET seats = $2, privacy = $3, title = $4, free_seats = $5, age_min = $6, age_max = $7 WHERE id = $1', [room.id, seats, privacy, title, free, amin, amax]);
       if (seats < room.seats) {
         const off = await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND seat >= $2 RETURNING user_email', [room.id, seats]);
         off.rows.forEach((x) => setTalk(room.id, x.user_email, false));
@@ -412,6 +469,59 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
     } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
 
+  // the actions / emotes the app shows, and how often one person may send them (all from the Admin panel)
+  app.get('/api/party/fx', async (req, res) => {
+    try {
+      await ensure();
+      const r = await pool.query('SELECT id, kind, emoji, name_km, name_en, anim, coins FROM party_fx WHERE active = TRUE ORDER BY sort, id');
+      res.json(Object.assign({ success: true, actions: r.rows.filter((x) => x.kind === 'action'), emotes: r.rows.filter((x) => x.kind === 'emote') }, await fxGaps()));
+    } catch (err) { res.status(500).json({ success: false }); }
+  });
+
+  // 😘 send an action to somebody on a seat, or 😊 show an emote on my own seat
+  app.post('/api/party/rooms/:id/fx', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const b = req.body || {};
+    try {
+      await ensure();
+      const room = await roomOf(req.params.id);
+      if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
+      const f = (await pool.query('SELECT * FROM party_fx WHERE id = $1 AND active = TRUE', [parseInt(b.fx_id, 10) || 0])).rows[0];
+      if (!f) return res.status(400).json({ success: false, code: 'fx' });
+      const m = await memberOf(room.id, e);
+      if (!m) return res.status(403).json({ success: false });
+      let to = null;
+      if (f.kind === 'emote') {
+        if (m.seat === null) return res.status(403).json({ success: false, code: 'seat', error: 'Sit on a seat first.' });
+      } else {
+        to = norm(b.target_email);
+        if (/^1\d{14}$/.test(to)) { try { const mp = await publicIds.toEmails([to]); to = norm(mp.get(to) || to); } catch (x) { /* keep */ } }
+        const t = to && to !== e ? await memberOf(room.id, to) : null;
+        if (!t || t.seat === null) return res.status(404).json({ success: false, code: 'gone' });
+      }
+      const gaps = await fxGaps();
+      const gap = (f.kind === 'emote' ? gaps.emoteGap : gaps.actionGap) * 1000;
+      const k = e + '|' + f.kind, now = Date.now();
+      if (gap > 0 && now - (lastFx.get(k) || 0) < gap) return res.status(429).json({ success: false, code: 'wait', wait: Math.ceil((gap - (now - lastFx.get(k))) / 1000) });
+      if (f.coins > 0) {
+        // a paid one: take the coins (all of it stays with CamFeed)
+        const c = await pool.connect();
+        try {
+          await c.query('BEGIN');
+          await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
+          const have = (await c.query('SELECT COALESCE(SUM(coins), 0)::int AS n FROM coin_ledger WHERE user_email = $1', [e])).rows[0].n;
+          if (have < f.coins) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins' }); }
+          await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'fx', $3, $4, $1)", [e, -f.coins, f.kind + ' ' + f.name_en, f.id]);
+          await c.query('COMMIT'); c.release();
+        } catch (x) { try { await c.query('ROLLBACK'); } catch (y) { /* nothing */ } c.release(); throw x; }
+      }
+      lastFx.set(k, now);
+      if (lastFx.size > 20000) lastFx.clear();
+      await pool.query('INSERT INTO party_messages (room_id, user_email, kind, text, to_email, fx_id) VALUES ($1, $2, $3, $4, $5, $6)', [room.id, e, f.kind, f.emoji, to, f.id]);
+      res.json({ success: true });
+    } catch (err) { console.error('[party] fx:', err.message); res.status(500).json({ success: false }); }
+  });
+
   // ---- Admin › System › 🎉 Party Room ---------------------------------------------------------------------------------
   app.post('/api/admin/party', async (req, res) => {
     const b = req.body || {};
@@ -436,6 +546,27 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         if (audit) audit(a.adminEmail, 'party-close', String(b.close), String(b.reason || '').slice(0, 200));
       }
       if (b.handled) await pool.query('UPDATE party_reports SET handled = TRUE WHERE room_id = $1', [parseInt(b.handled, 10) || 0]);
+      if (b.fx && typeof b.fx === 'object') {
+        if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+        const f = b.fx, kind = f.kind === 'emote' ? 'emote' : 'action';
+        const emoji = String(f.emoji || '').trim().slice(0, 16), km = String(f.name_km || '').trim().slice(0, 60), en = String(f.name_en || '').trim().slice(0, 60);
+        const anims = kind === 'emote' ? EMOTE_ANIMS : ACTION_ANIMS;
+        const anim = anims.includes(f.anim) ? f.anim : anims[0];
+        const coins = Math.max(0, Math.min(parseInt(f.coins, 10) || 0, 1000000)), sort = parseInt(f.sort, 10) || 0;
+        if (!emoji || !km || !en) return res.status(400).json({ success: false, error: 'Fill in the emoji and both names.' });
+        if (f.id) await pool.query('UPDATE party_fx SET emoji = $2, name_km = $3, name_en = $4, anim = $5, coins = $6, active = $7, sort = $8 WHERE id = $1', [parseInt(f.id, 10), emoji, km, en, anim, coins, f.active !== false, sort]);
+        else await pool.query('INSERT INTO party_fx (kind, emoji, name_km, name_en, anim, coins, sort) VALUES ($1, $2, $3, $4, $5, $6, $7)', [kind, emoji, km, en, anim, coins, sort || 999]);
+        if (audit) audit(a.adminEmail, 'party-fx', String(f.id || 'new'), kind + ' ' + en + (f.active === false ? ' (off)' : ''));
+      }
+      if (b.gaps && typeof b.gaps === 'object') {
+        if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+        for (const [k, key] of [['actionGap', 'party:action_gap'], ['emoteGap', 'party:emote_gap']]) {
+          if (b.gaps[k] === undefined) continue;
+          const v = Number(b.gaps[k]);
+          if (!(v >= 0 && v <= 3600)) return res.status(400).json({ success: false, error: 'Seconds must be 0 to 3600.' });
+          await pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', [key, String(v)]);
+        }
+      }
       await sweep();
       const c = await lk();
       const rooms = await pool.query(`SELECT r.id, r.title, r.privacy, r.seats, r.created_at, r.owner_email, u.first_name, u.last_name,
@@ -446,7 +577,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         LEFT JOIN party_rooms r ON r.id = p.room_id WHERE p.handled = FALSE ORDER BY p.id DESC LIMIT 100`);
       res.json({ success: true, isSuperAdmin: a.isSuperAdmin, ready: lkReady(c),
         settings: { url: c.url, key: c.key, secretSet: !!c.secret },
-        rooms: rooms.rows, reports: reports.rows });
+        rooms: rooms.rows, reports: reports.rows,
+        fx: (await pool.query('SELECT * FROM party_fx ORDER BY kind, sort, id')).rows, gaps: await fxGaps(), anims: { action: ACTION_ANIMS, emote: EMOTE_ANIMS } });
     } catch (err) { console.error('[party] admin:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 

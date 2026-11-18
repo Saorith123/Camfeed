@@ -4,7 +4,7 @@
 //  * In a Party Room a person spends coins on a gift for somebody on a seat. The receiver gets a share of the gift's value
 //    (Admin sets the %, start 50%) in the same wallet as the creator money; it can be withdrawn after a few days (Admin sets).
 //  * 1 coin = 1 US cent. Packs, the share, the waiting days, the payment details and every gift are set in the Admin panel.
-module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, noticeFrom, publicIds }) {
+module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const COIN_CENTS = 1;
   const DEFAULT_PACKS = [{ usd: 1, web: 120, app: 100 }, { usd: 5, web: 620, app: 500 }, { usd: 10, web: 1250, app: 1000 }, { usd: 20, web: 2550, app: 2000 }];
@@ -65,7 +65,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     let packs = DEFAULT_PACKS;
     try { const p = JSON.parse(m.packs || 'null'); if (Array.isArray(p) && p.length) packs = p; } catch (e) { /* default */ }
     const num = (v, d, lo, hi) => { const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
-    return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 3, 0, 60), payinfo: m.payinfo || '' };
+    return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 3, 0, 60), payinfo: m.payinfo || '', walletOn: m.wallet_on !== '0' };
   }
   const setSetting = (k, v) => pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['coin:' + k, String(v)]);
 
@@ -94,6 +94,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const gifts = await pool.query('SELECT * FROM gift_catalog WHERE active = TRUE ORDER BY tier, coins, sort');
       const tops = await pool.query('SELECT id, usd, coins, method, status, note, created_at, decided_at FROM coin_topups WHERE user_email = $1 ORDER BY id DESC LIMIT 10', [e]);
       res.json({ success: true, balance: await balance(e), coinCents: COIN_CENTS, share: s.share, holdDays: s.holdDays,
+        walletOn: s.walletOn, walletCents: walletCents ? await walletCents(e) : 0,
         packs: s.packs.map((p, i) => ({ i, usd: Number(p.usd) || 0, coins: Number(p.web) || 0, appCoins: Number(p.app) || 0 })),
         payinfo: s.payinfo, gifts: gifts.rows.map(giftOut), topups: tops.rows });
     } catch (err) { console.error('[coins] get:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -138,6 +139,37 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       } catch (x) { /* best effort */ }
       res.json({ success: true, id: r.rows[0].id });
     } catch (err) { console.error('[coins] topup:', err.message); res.status(500).json({ success: false, error: 'Could not send.' }); }
+  });
+
+  // ---- 💰 change money in my wallet (rewards, video earnings, gifts...) into coins: at once, no checking needed ----
+  //      The money never leaves CamFeed, so it is allowed even for gift money still waiting its days.
+  app.post('/api/coins/from-wallet', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const c = await pool.connect();
+    try {
+      await ensure();
+      const s = await settings();
+      if (!s.walletOn) { c.release(); return res.status(403).json({ success: false, code: 'off', error: 'Not available now.' }); }
+      const p = s.packs[parseInt((req.body || {}).pack, 10)];
+      if (!p) { c.release(); return res.status(400).json({ success: false, error: 'Please choose a pack.' }); }
+      const cents = Math.round((Number(p.usd) || 0) * 100), coins = Number(p.web) || 0;
+      if (!(cents > 0 && coins > 0)) { c.release(); return res.status(400).json({ success: false }); }
+      await c.query('BEGIN');
+      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['wallet:' + e]);
+      const w = await c.query('SELECT COALESCE(SUM(amount_cents), 0)::int AS n FROM wallet_ledger WHERE LOWER(user_email) = $1', [e]);
+      const have = w.rows[0].n;
+      if (have < cents) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'wallet', walletCents: have, needCents: cents, error: 'Your wallet does not have enough money.' }); }
+      const ins = await c.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'coins', $3, $1) RETURNING id", [e, -cents, 'Changed into ' + coins + ' coins']);
+      await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'wallet', $3, $4, $1)", [e, coins, 'From wallet $' + (cents / 100).toFixed(2), ins.rows[0].id]);
+      await c.query('COMMIT');
+      c.release();
+      res.json({ success: true, balance: await balance(e), walletCents: have - cents, coins });
+    } catch (err) {
+      try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
+      c.release();
+      console.error('[coins] wallet:', err.message);
+      res.status(500).json({ success: false, error: 'Could not change.' });
+    }
   });
 
   // ---- 🎁 send a gift in a Party Room ----
@@ -208,6 +240,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (b.share !== undefined) { const v = Number(b.share); if (!(v >= 0 && v <= 100)) return res.status(400).json({ success: false, error: 'Share must be 0 to 100.' }); await setSetting('share', v); }
         if (b.hold !== undefined) { const v = Number(b.hold); if (!(v >= 0 && v <= 60)) return res.status(400).json({ success: false, error: 'Waiting days must be 0 to 60.' }); await setSetting('hold', v); }
         if (b.payinfo !== undefined) await setSetting('payinfo', String(b.payinfo).slice(0, 2000));
+        if (b.walletOn !== undefined) await setSetting('wallet_on', b.walletOn ? '1' : '0');
         audit(a.adminEmail, 'coin-settings', 'settings', 'packs / share / hold / pay info changed');
       } else if (act === 'gift') {
         if (!superOnly()) return;
