@@ -494,6 +494,28 @@
       }
       var list = d.gifts.map(giftRow); if (su) list.push(giftRow({}));
       box.appendChild(table(['Picture', 'Khmer name', 'English name', 'Coins', 'Size', 'On', ''], list));
+      // 🖼️ Party Room picture frames (our own designs: 2–4 colours + one emoji, the app draws them)
+      var frames = d.frames || [];
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '🖼️ Party Room frames (' + frames.length + ')' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'People buy a frame with coins for some days; it shows around their picture on the seats, in the room chat and the room list. Colours: #RRGGBB, comma between (2–4). Move: none / pulse / spin.' }));
+      function frameRow(g) {
+        var km = el('input', { class: 'at-in', value: g.name_km || '' }), en = el('input', { class: 'at-in', value: g.name_en || '' });
+        var co = el('input', { class: 'at-in', value: g.colors || '', style: 'width:150px', placeholder: '#FDE047,#B45309' }), em = el('input', { class: 'at-in', value: g.emoji || '', style: 'width:55px' });
+        var an = el('select', { class: 'at-in', style: 'width:80px' });
+        ['none', 'pulse', 'spin'].forEach(function (n) { var o = el('option', { value: n, text: n }); if (n === (g.anim || 'none')) o.selected = true; an.appendChild(o); });
+        var c = el('input', { class: 'at-in', type: 'number', value: String(g.coins || ''), style: 'width:90px' }), dy = el('input', { class: 'at-in', type: 'number', value: String(g.days || 7), style: 'width:60px' });
+        var on = el('input', { type: 'checkbox' }); on.checked = g.active !== false;
+        var cols = String(g.colors || '').split(',');
+        var look = el('div', { style: 'width:34px;height:34px;border-radius:50%;padding:3px;background:linear-gradient(135deg,' + (cols.length > 1 ? cols.join(',') : '#ccc,#999') + ')' }, [el('div', { style: 'width:100%;height:100%;border-radius:50%;background:#fff' })]);
+        if (!su) [km, en, co, em, an, c, dy, on].forEach(function (i) { i.disabled = true; });
+        return el('tr', {}, [el('td', {}, [look]), el('td', {}, [km]), el('td', {}, [en]), el('td', {}, [co]), el('td', {}, [em]), el('td', {}, [an]), el('td', {}, [c]), el('td', {}, [dy]), el('td', {}, [on]),
+          el('td', { text: g.id ? String(g.owners || 0) : '' }),
+          el('td', {}, su ? [el('button', { class: 'btn-sm btn-blue', text: g.id ? 'Save' : 'Add', onclick: function () {
+            call({ action: 'frame', frame: { id: g.id, name_km: km.value, name_en: en.value, colors: co.value, emoji: em.value, anim: an.value, coins: c.value, days: dy.value, active: on.checked } });
+          } })] : [])]);
+      }
+      var flist = frames.map(frameRow); if (su) flist.push(frameRow({}));
+      box.appendChild(table(['Look', 'Khmer name', 'English name', 'Colours', 'Emoji', 'Move', 'Coins', 'Days', 'On', 'Wearing now', ''], flist));
       // add / take coins by hand
       if (su) {
         box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));

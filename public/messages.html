@@ -1735,6 +1735,22 @@
             if (dot) dot.remove();
         }
 
+        // ▶️ voice messages one after another (same choice as the app): 'off' | 'theirs' | 'all'
+        function voiceAutoMode() { try { return localStorage.getItem('camfeed_voice_autoplay') || 'theirs'; } catch (e) { return 'theirs'; } }
+        function setVoiceAutoMode(v) { try { localStorage.setItem('camfeed_voice_autoplay', v); } catch (e) {} renderChatSettings(); }
+        function playNextVoice(msgId) {
+            const mode = voiceAutoMode();
+            const pills = Array.from(document.querySelectorAll('.cf-voice-pill[data-voice-id]'));
+            const i = pills.findIndex(p => p.dataset.voiceId === String(msgId));
+            if (i < 0 || mode === 'off') return;
+            if (mode === 'theirs' && pills[i].dataset.mine === '1') return;
+            for (const p of pills.slice(i + 1)) {
+                if (p.dataset.mine === '1' && mode !== 'all') continue;
+                setTimeout(() => { if (!activeAudioPlayer) togglePlayVoiceMessage(Number(p.dataset.voiceId), p.dataset.voiceUrl); }, 350);
+                return;
+            }
+        }
+
         async function togglePlayVoiceMessage(msgId, remoteUrl) {
             markVoiceAsPlayed(msgId);
             const btn = document.getElementById(`voice-btn-${msgId}`);
@@ -1777,6 +1793,7 @@
                 activeAudioPlayer = null;
                 activeAudioMsgId = null;
                 if (activeAnimFrame) cancelAnimationFrame(activeAnimFrame);
+                playNextVoice(msgId);
             };
 
             try {
@@ -2819,6 +2836,8 @@
                 <div class="cs-sec"><h4>🎨 ពណ៌ពពុះសារ</h4><div class="cs-grid"><div class="cs-sw ${!s.theme ? 'on' : ''}" onclick="saveChatSetting({theme:''})">∅</div>${ths}</div></div>
                 <div class="cs-sec"><h4>⏳ លុបសារស្វ័យប្រវត្តិ</h4><div class="cs-grid">${ttls}</div>
                     <small>សារថ្មីចាប់ពីពេលកំណត់នឹងត្រូវលុបបន្ទាប់ពីរយៈពេលដែលបានជ្រើស (រួមទាំងរូប/វីដេអូ)។ ទោះមិនកំណត់ក៏ដោយ ប្រព័ន្ធលុបសារចាស់ជាង ${s.maxMonths || 12} ខែដោយស្វ័យប្រវត្តិ។</small></div>
+                <div class="cs-sec"><h4>▶️ ចាក់សារសំឡេងបន្តដោយស្វ័យប្រវត្តិ</h4><div class="cs-grid">${[['off', 'បិទ'], ['theirs', 'តែសំឡេងរបស់គេ'], ['all', 'ទាំងរបស់គេ និងរបស់ខ្ញុំ']].map(o => `<button type="button" class="cs-chip ${voiceAutoMode() === o[0] ? 'on' : ''}" onclick="setVoiceAutoMode('${o[0]}')">${o[1]}</button>`).join('')}</div>
+                    <small>ស្ដាប់ចប់មួយ ចាក់មួយបន្ទាប់ដោយខ្លួនឯង រំលងរូបភាព និងសារអក្សរ។</small></div>
                 <div class="cs-sec"><div class="cs-row"><span>🔕 បិទសំឡេងជូនដំណឹងឆាតនេះ</span><button type="button" class="cs-switch ${s.muted ? 'on' : ''}" onclick="saveChatSetting({muted:${!s.muted}})"></button></div></div>
                 ${isG ? groupFooterHtml() : `<div class="cs-sec"><button type="button" class="cs-chip" onclick="if(activeFriend) window.location.href='profile.html?email='+encodeURIComponent(activeFriend.email)">👤 មើលប្រូហ្វាល</button></div>`}`;
         }
@@ -2935,7 +2954,7 @@
                     const playedSet = getPlayedVoicesSet();
                     const isUnplayedReceived = !isSent && !playedSet.has(String(m.id));
                     bodyHtml = `
-                        <div class="cf-voice-pill ${isUnplayedReceived ? 'is-unplayed' : ''}" id="voice-pill-${m.id}">
+                        <div class="cf-voice-pill ${isUnplayedReceived ? 'is-unplayed' : ''}" id="voice-pill-${m.id}" data-voice-id="${m.id}" data-voice-url="${m.media_url}" data-mine="${isSent ? '1' : '0'}">
                             <button type="button" class="cf-voice-play" id="voice-btn-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">▶</button>
                             <div class="cf-waveform" id="voice-wave-${m.id}" onclick="togglePlayVoiceMessage(${m.id}, '${m.media_url}')">${barsHtml}</div>
                             <span class="cf-voice-dur" id="voice-dur-${m.id}" data-total-dur="${initialDur}">${initialDur}</span>

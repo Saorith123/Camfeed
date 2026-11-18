@@ -23,6 +23,18 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     ['rocket', '🚀', 'យានអវកាស', 'Rocket', 10000, 4], ['palace', '🏰', 'វិមានមាស', 'Golden palace', 20000, 4],
   ];
 
+  // 🖼️ Party Room picture frames (our own designs, drawn by the app from colours + one emoji): bought with coins for N days
+  const FRAME_SEED = [
+    ['heart', 'ស៊ុមបេះដូង', 'Heart frame', '#FDA4AF,#E11D48', '💗', 'pulse', 100, 7],
+    ['rumdul', 'ស៊ុមផ្ការំដួល', 'Rumdul frame', '#FDE68A,#F59E0B', '🌸', 'none', 200, 7],
+    ['lotus', 'ស៊ុមផ្កាឈូក', 'Lotus frame', '#F9A8D4,#DB2777', '🪷', 'pulse', 300, 7],
+    ['fire', 'ស៊ុមភ្លើង', 'Fire frame', '#FB923C,#DC2626', '🔥', 'pulse', 500, 7],
+    ['kbach', 'ស៊ុមក្បាច់មាស', 'Golden kbach frame', '#FDE047,#B45309', '✨', 'spin', 800, 7],
+    ['crown', 'ស៊ុមមកុដ', 'Crown frame', '#FACC15,#A855F7', '👑', 'spin', 1500, 7],
+    ['naga', 'ស៊ុមនាគ', 'Naga frame', '#34D399,#0EA5E9', '🐉', 'spin', 2000, 7],
+    ['diamond', 'ស៊ុមពេជ្រ', 'Diamond frame', '#A5F3FC,#6366F1', '💎', 'spin', 3000, 7],
+  ];
+
   let ready = null;
   function ensure() {
     if (!ready) {
@@ -50,6 +62,18 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
           id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, usd NUMERIC(10,2) NOT NULL, coins INTEGER NOT NULL, method VARCHAR(20) NOT NULL,
           payer_ref TEXT, receipt_url TEXT, status VARCHAR(12) NOT NULL DEFAULT 'pending', note TEXT, decided_by TEXT,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ)`);
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_frames (
+          id SERIAL PRIMARY KEY, code VARCHAR(30) UNIQUE, name_km VARCHAR(60) NOT NULL, name_en VARCHAR(60) NOT NULL, colors VARCHAR(80) NOT NULL,
+          emoji VARCHAR(16) NOT NULL DEFAULT '', anim VARCHAR(10) NOT NULL DEFAULT 'none', coins INTEGER NOT NULL, days INTEGER NOT NULL DEFAULT 7,
+          active BOOLEAN NOT NULL DEFAULT TRUE, sort INTEGER NOT NULL DEFAULT 0)`);
+        await pool.query('CREATE TABLE IF NOT EXISTS user_frames (user_email TEXT NOT NULL, frame_id INTEGER NOT NULL, expires_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_email, frame_id))');
+        await pool.query('CREATE TABLE IF NOT EXISTS frame_wear (user_email TEXT PRIMARY KEY, frame_id INTEGER NOT NULL)');
+        if (!(await pool.query('SELECT COUNT(*)::int AS n FROM party_frames')).rows[0].n) {
+          let i = 0;
+          for (const [code, km, en, colors, emoji, anim, coins, days] of FRAME_SEED) {
+            await pool.query('INSERT INTO party_frames (code, name_km, name_en, colors, emoji, anim, coins, days, sort) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (code) DO NOTHING', [code, km, en, colors, emoji, anim, coins, days, i++]);
+          }
+        }
         await pool.query('ALTER TABLE party_messages ADD COLUMN IF NOT EXISTS to_email TEXT').catch(() => {});
         await pool.query('ALTER TABLE party_messages ADD COLUMN IF NOT EXISTS gift_id INTEGER').catch(() => {});
       })().catch((e) => { ready = null; throw e; });
@@ -221,6 +245,74 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     }
   });
 
+  // ---- 🖼️ frames: the shop, buy, wear ----
+  const frameOut = (f) => ({ id: f.id, code: f.code, name_km: f.name_km, name_en: f.name_en, colors: String(f.colors || '').split(',').map((x) => x.trim()).filter(Boolean),
+    emoji: f.emoji || '', anim: f.anim || 'none', coins: f.coins, days: f.days, active: f.active });
+  async function frameShop(e) {
+    const list = await pool.query('SELECT * FROM party_frames WHERE active = TRUE ORDER BY coins, sort');
+    const mine = await pool.query('SELECT frame_id, expires_at FROM user_frames WHERE user_email = $1 AND expires_at > NOW()', [e]);
+    const w = await pool.query('SELECT frame_id FROM frame_wear WHERE user_email = $1', [e]);
+    const until = new Map(mine.rows.map((x) => [x.frame_id, x.expires_at]));
+    const wearing = w.rows[0] && until.has(w.rows[0].frame_id) ? w.rows[0].frame_id : null;
+    return { success: true, balance: await balance(e), wearing, frames: list.rows.map((f) => ({ ...frameOut(f), until: until.get(f.id) || null })) };
+  }
+  app.get('/api/party/frames', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try { await ensure(); res.json(await frameShop(e)); } catch (err) { console.error('[coins] frames:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+  });
+  app.post('/api/party/frames/:id/buy', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const c = await pool.connect();
+    try {
+      await ensure();
+      const f = (await c.query('SELECT * FROM party_frames WHERE id = $1 AND active = TRUE', [parseInt(req.params.id, 10) || 0])).rows[0];
+      if (!f) { c.release(); return res.status(400).json({ success: false, code: 'frame', error: 'This frame is not available.' }); }
+      await c.query('BEGIN');
+      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
+      const have = await balance(e, c);
+      if (have < f.coins) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: f.coins, error: 'Not enough coins.' }); }
+      await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'frame', $3, $4, $1)", [e, -f.coins, 'Frame ' + f.code + ' ' + f.days + 'd', f.id]);
+      // bought again while still worn: the days are added on
+      await c.query(`INSERT INTO user_frames (user_email, frame_id, expires_at) VALUES ($1, $2, NOW() + ($3 || ' days')::interval)
+                     ON CONFLICT (user_email, frame_id) DO UPDATE SET expires_at = GREATEST(user_frames.expires_at, NOW()) + ($3 || ' days')::interval`, [e, f.id, String(f.days)]);
+      await c.query('INSERT INTO frame_wear (user_email, frame_id) VALUES ($1, $2) ON CONFLICT (user_email) DO UPDATE SET frame_id = $2', [e, f.id]);
+      await c.query('COMMIT');
+      c.release();
+      res.json(await frameShop(e));
+    } catch (err) {
+      try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
+      c.release();
+      console.error('[coins] frame buy:', err.message);
+      res.status(500).json({ success: false, error: 'Could not buy the frame.' });
+    }
+  });
+  app.post('/api/party/frames/wear', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const id = parseInt(req.body && req.body.frame_id, 10) || 0;
+      if (!id) await pool.query('DELETE FROM frame_wear WHERE user_email = $1', [e]);
+      else {
+        const ok = (await pool.query('SELECT 1 FROM user_frames WHERE user_email = $1 AND frame_id = $2 AND expires_at > NOW()', [e, id])).rows.length;
+        if (!ok) return res.status(400).json({ success: false, error: 'Buy this frame first.' });
+        await pool.query('INSERT INTO frame_wear (user_email, frame_id) VALUES ($1, $2) ON CONFLICT (user_email) DO UPDATE SET frame_id = $2', [e, id]);
+      }
+      res.json(await frameShop(e));
+    } catch (err) { res.status(500).json({ success: false, error: 'Could not change the frame.' }); }
+  });
+  /// the frames people in a room wear now (for party.js): Map email → {colors, emoji, anim}
+  async function framesOf(emails) {
+    const m = new Map();
+    if (!emails.length) return m;
+    try {
+      await ensure();
+      const r = await pool.query(`SELECT w.user_email, f.colors, f.emoji, f.anim FROM frame_wear w JOIN user_frames u ON u.user_email = w.user_email AND u.frame_id = w.frame_id AND u.expires_at > NOW()
+                                  JOIN party_frames f ON f.id = w.frame_id WHERE w.user_email = ANY($1)`, [emails.map(norm)]);
+      for (const x of r.rows) m.set(x.user_email, { colors: String(x.colors || '').split(',').map((y) => y.trim()).filter(Boolean), emoji: x.emoji || '', anim: x.anim || 'none' });
+    } catch (e) { /* no frames yet */ }
+    return m;
+  }
+
   // ---- Admin › System › 🪙 Coins & gifts ----
   app.post('/api/admin/coins', async (req, res) => {
     const b = req.body || {};
@@ -251,6 +343,17 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (g.id) await pool.query('UPDATE gift_catalog SET emoji = $2, name_km = $3, name_en = $4, coins = $5, tier = $6, active = $7 WHERE id = $1', [parseInt(g.id, 10), emoji, km, en, coins, tier, g.active !== false]);
         else await pool.query('INSERT INTO gift_catalog (code, emoji, name_km, name_en, coins, tier, sort) VALUES ($1, $2, $3, $4, $5, $6, 999)', ['g' + Date.now(), emoji, km, en, coins, tier]);
         audit(a.adminEmail, 'gift-catalog', String(g.id || 'new'), en + ' ' + coins + ' coins' + (g.active === false ? ' (off)' : ''));
+      } else if (act === 'frame') {
+        if (!superOnly()) return;
+        const g = b.frame || {};
+        const coins = parseInt(g.coins, 10), days = parseInt(g.days, 10);
+        const km = String(g.name_km || '').trim().slice(0, 60), en = String(g.name_en || '').trim().slice(0, 60), emoji = String(g.emoji || '').trim().slice(0, 16);
+        const colors = String(g.colors || '').split(',').map((x) => x.trim()).filter((x) => /^#[0-9a-fA-F]{6}$/.test(x)).slice(0, 4).join(',');
+        const anim = ['none', 'pulse', 'spin'].includes(g.anim) ? g.anim : 'none';
+        if (!(coins > 0 && coins <= 1000000) || !(days > 0 && days <= 365) || !km || !en || !colors) return res.status(400).json({ success: false, error: 'Fill in both names, colours (#RRGGBB, comma between), price in coins and days.' });
+        if (g.id) await pool.query('UPDATE party_frames SET name_km = $2, name_en = $3, colors = $4, emoji = $5, anim = $6, coins = $7, days = $8, active = $9 WHERE id = $1', [parseInt(g.id, 10), km, en, colors, emoji, anim, coins, days, g.active !== false]);
+        else await pool.query('INSERT INTO party_frames (code, name_km, name_en, colors, emoji, anim, coins, days, sort) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 999)', ['f' + Date.now(), km, en, colors, emoji, anim, coins, days]);
+        audit(a.adminEmail, 'party-frame', String(g.id || 'new'), en + ' ' + coins + ' coins / ' + days + ' days' + (g.active === false ? ' (off)' : ''));
       } else if (act === 'decide') {
         if (!superOnly()) return;
         const st = b.status === 'approved' ? 'approved' : 'rejected';
@@ -287,9 +390,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const tot = await pool.query(`SELECT (SELECT COALESCE(SUM(usd), 0) FROM coin_topups WHERE status = 'approved') AS sold_usd,
                                            (SELECT COALESCE(SUM(coins), 0) FROM gift_events) AS gift_coins,
                                            (SELECT COALESCE(SUM(receiver_cents), 0) FROM gift_events) AS receiver_cents`);
-      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, gifts: gifts.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
+      const frames = await pool.query(`SELECT f.*, (SELECT COUNT(*)::int FROM user_frames u WHERE u.frame_id = f.id AND u.expires_at > NOW()) AS owners FROM party_frames f ORDER BY f.coins, f.sort`);
+      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, gifts: gifts.rows, frames: frames.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
     } catch (err) { console.error('[coins] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
-  return { heldCents, balance };
+  return { heldCents, balance, framesOf };
 };

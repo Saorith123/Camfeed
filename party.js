@@ -8,7 +8,7 @@
 // LiveKit "tickets" (tokens) that allow talking only to the people who sit on a seat.
 const crypto = require('crypto');
 
-module.exports = function installParty({ app, pool, publicIds, adminGate, audit }) {
+module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const SEAT_CHOICES = [4, 8, 12];
   const STALE_SEC = 40;                 // not heard from for this long = gone (the app asks every ~2 s)
@@ -91,6 +91,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
         // it does not go through the voice line, so it sounds clear and costs nothing more
         for (const col of ['music_id INTEGER', 'music_url TEXT', 'music_title TEXT', 'music_artist TEXT', 'music_at TIMESTAMPTZ', 'music_paused_at TIMESTAMPTZ', 'music_by TEXT'])
           await pool.query(`ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS ${col}`);
+        await pool.query('ALTER TABLE party_members ADD COLUMN IF NOT EXISTS on_phone BOOLEAN NOT NULL DEFAULT FALSE');   // 📞 on a call right now
         // 🤝 people who were in the same room ≥ 10 minutes: "people you met in rooms" (make friends)
         await pool.query(`CREATE TABLE IF NOT EXISTS party_met (user_email TEXT NOT NULL, other_email TEXT NOT NULL, room_id INTEGER, met_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           hidden BOOLEAN NOT NULL DEFAULT FALSE, PRIMARY KEY (user_email, other_email))`);
@@ -205,10 +206,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
 
   const userCols = 'u.email, u.first_name, u.last_name, u.profile_pic';
   async function stateOf(room, email, after) {
-    const mem = await pool.query(`SELECT m.role, m.seat, m.host_muted, m.hand_at, ${userCols} FROM party_members m JOIN users u ON LOWER(u.email) = m.user_email
+    const mem = await pool.query(`SELECT m.role, m.seat, m.host_muted, m.hand_at, m.on_phone, ${userCols} FROM party_members m JOIN users u ON LOWER(u.email) = m.user_email
                                   WHERE m.room_id = $1 AND m.last_seen >= NOW() - ($2 || ' seconds')::interval ORDER BY m.seat NULLS LAST, m.joined_at`, [room.id, String(STALE_SEC)]);
     const people = mem.rows.map((x) => ({ email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '',
-      role: x.role, seat: x.seat, muted: !!x.host_muted, hand: !!x.hand_at, hand_at: x.hand_at }));
+      role: x.role, seat: x.seat, muted: !!x.host_muted, hand: !!x.hand_at, hand_at: x.hand_at, on_phone: !!x.on_phone }));
     const msgs = await pool.query(`SELECT p.id, p.kind, p.text, p.created_at, ${userCols}, p.to_email, t.first_name AS to_first_name, t.last_name AS to_last_name,
                                      g.emoji AS gift_emoji, g.name_km AS gift_km, g.name_en AS gift_en, g.tier AS gift_tier, g.coins AS gift_coins,
                                      f.emoji AS fx_emoji, f.name_km AS fx_km, f.name_en AS fx_en, f.anim AS fx_anim
@@ -222,6 +223,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
                                                   WHERE (LOWER(follower_email) = $1 AND LOWER(following_email) = ANY($2)) OR (LOWER(following_email) = $1 AND LOWER(follower_email) = ANY($2))`, [email, others]).catch(() => ({ rows: [] })) : { rows: [] };
       const iF = new Set(f.rows.filter((x) => x.a === email).map((x) => x.b)), fMe = new Set(f.rows.filter((x) => x.b === email).map((x) => x.a));
       for (const p of people) { const k = norm(p.email); p.i_follow = iF.has(k); p.follows_me = fMe.has(k); }
+      const fr = framesOf ? await framesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 🖼️ the frame each one wears
+      for (const p of people) { const x = fr.get(norm(p.email)); if (x) p.frame = x; }
     }
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
@@ -397,6 +400,16 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit 
       await ensure();
       const who = norm(req.body && (req.body.target_email || ''));
       if (who) await pool.query('UPDATE party_met SET hidden = TRUE WHERE user_email = $1 AND other_email = $2', [e, who]);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+  });
+
+  // 📞 I am on a call (CamFeed or phone): the others see 📞 on my seat; my mic is off meanwhile
+  app.post('/api/party/rooms/:id/busy', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      await pool.query('UPDATE party_members SET on_phone = $3 WHERE room_id = $1 AND user_email = $2', [parseInt(req.params.id, 10) || 0, e, !!(req.body && req.body.on)]);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false }); }
   });
