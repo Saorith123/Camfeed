@@ -1455,7 +1455,7 @@
       var fMetD = field('🤝 Keep "met in a room" for (days)', p.metDays, '1–365');
       var fNote = field('🔔 Tell room followers again after (minutes)', p.followNotifyMinutes, '0 = every time the room opens');
       var fMin = field('🎯 Room minutes count when at least N other people are in the room', p.challengeMinOthers, '0 = count even alone');
-      var fFeed = field('📰 A post already seen may come back in the feed after (days)', (c.feed || {}).reshowDays, 'only after "all caught up", never on top · 1–365');
+      var fFeed = field('📰 Seen posts: "seen long ago" means more than (days)', (c.feed || {}).reshowDays, 'seen posts come only after "all caught up" (never before new ones); seen longer ago first · 1–365');
       var fl = c.files || {};
       var fMax = field('📎 Biggest file in chat (MB)', fl.maxMB, '1–500 · bigger files cost more storage');
       var fDay = field('📎 Files one person may send a day', fl.perDay, '1–1000');

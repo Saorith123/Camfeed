@@ -1322,18 +1322,23 @@ app.get('/api/posts', async (req, res) => {
     // Like Facebook: the feed is RANKED, not sorted by posting time. Popular posts (likes, comments, shares, views) are pushed to more
     // people, and what you are interested in right now (the kinds of posts you watch / react to) comes first. Every refresh mixes it again.
     // FEED_MODE=latest switches back to "newest first".
-    // ONCE ONLY (like Facebook): a post you have seen (on screen ≥ 1.5 s, or a video you watched) never comes back in the feed;
-    // a post you liked or commented on neither. New posts always come first, ranked; when you have seen everything the app
-    // says "you're all caught up" and only then shows old posts again — the ones seen longest ago, after N days (Admin sets N).
+    // ONCE ONLY (like Facebook): posts you have not seen always come first (ranked). A post you have seen (on screen ≥ 1.5 s, or a
+    // video you watched) never comes before them again; after "you're all caught up" the seen ones follow, the one seen longest
+    // ago first (seen more than N days ago before seen lately, liked / commented last) — so the feed is never empty and never stuck.
     const useLatest = process.env.FEED_MODE === 'latest';
     const reshowDays = Math.max(1, Math.min(365, parseInt((appConfig.cfg().feed || {}).reshowDays, 10) || 7));
-    const seenExpr = '(fs.post_id IS NOT NULL OR pv.post_id IS NOT NULL)';
     const seenAt = "COALESCE(GREATEST(fs.seen_at, pv.at::timestamptz), 'epoch'::timestamptz)";
-    const feedOrder = useLatest ? 'seen_before ASC, p.created_at DESC, p.id DESC' : 'seen_before ASC, feed_rank_score DESC, p.created_at DESC';
+    const engaged = '(EXISTS (SELECT 1 FROM likes lk WHERE lk.post_id = p.id AND lk.user_email = $1) OR EXISTS (SELECT 1 FROM comments cm WHERE cm.post_id = p.id AND cm.user_email = $1))';
+    // 0 = never seen (ranked) · 1 = seen more than N days ago · 2 = seen lately · 3 = liked / commented — the seen ones by "seen longest ago",
+    // so nothing ever stays on top: each time a post is seen again it goes to the back of its group
+    const tierExpr = `(CASE WHEN fs.post_id IS NULL AND pv.post_id IS NULL AND NOT ${engaged} THEN 0 WHEN ${engaged} THEN 3
+                           WHEN ${seenAt} < NOW() - INTERVAL '${reshowDays} days' THEN 1 ELSE 2 END)`;
+    const feedOrder = useLatest ? 'feed_tier ASC, p.created_at DESC, p.id DESC' : 'feed_tier ASC, feed_rank_score DESC, p.created_at DESC';
     const feedQuery = `
       ${cteAndJoins},
-      ${seenExpr} AS seen_before,
-      CASE WHEN ${seenExpr} THEN EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 ELSE (
+      ${tierExpr} AS feed_tier,
+      (${tierExpr} > 0) AS seen_before,
+      CASE WHEN ${tierExpr} > 0 THEN EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 ELSE (
         CASE
           WHEN p.user_email = $1 THEN 25
           WHEN f.following_email IS NOT NULL THEN 65
@@ -1354,9 +1359,6 @@ app.get('/api/posts', async (req, res) => {
       LEFT JOIN (SELECT post_id, MAX(created_at) AS at FROM post_views WHERE viewer_email = $1 GROUP BY post_id) pv ON pv.post_id = p.id
       LEFT JOIN feed_seen fs ON fs.viewer_email = $1 AND fs.post_id = p.id
       WHERE (p.privacy = 'public' OR p.user_email = $1 OR (f.following_email IS NOT NULL AND p.privacy = 'friends'))
-        AND ${seenAt} < NOW() - INTERVAL '${reshowDays} days'
-        AND NOT EXISTS (SELECT 1 FROM likes lk WHERE lk.post_id = p.id AND lk.user_email = $1)
-        AND NOT EXISTS (SELECT 1 FROM comments cm WHERE cm.post_id = p.id AND cm.user_email = $1)
         ${videoOnlyCondition}
         ${excludeCondition}
         AND COALESCE(u.is_banned, FALSE) = FALSE
