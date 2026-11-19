@@ -138,6 +138,34 @@ module.exports = function installStars({ app, pool, adminGate, audit, sendNotice
     }
     return out;
   }
+  // 📊 day by day: the minutes counted each day (from → to, Cambodia days), today's live state, the months' totals
+  async function daysOf(email, from, to) {
+    const s = await settings();
+    const ok = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+    const today = (await pool.query(`SELECT to_char(${KH_DAY}, 'YYYY-MM-DD') AS d, to_char(date_trunc('month', NOW() AT TIME ZONE 'Asia/Phnom_Penh'), 'YYYY-MM-DD') AS m,
+      to_char((date_trunc('month', NOW() AT TIME ZONE 'Asia/Phnom_Penh') - INTERVAL '1 month'), 'YYYY-MM-DD') AS pm,
+      to_char(date_trunc('week', NOW() AT TIME ZONE 'Asia/Phnom_Penh'), 'YYYY-MM-DD') AS w`)).rows[0];
+    const f = ok(from) ? from : today.pm, t = ok(to) ? to : today.d;
+    const rows = (await pool.query(`SELECT to_char(day, 'YYYY-MM-DD') AS day, minutes FROM star_minutes WHERE user_email = $1 AND day >= $2::date AND day <= $3::date AND day >= ($3::date - INTERVAL '120 days') ORDER BY day`, [email, f, t])).rows;
+    // is it counting right now? (sitting on a seat in an open room with enough other people)
+    let live = { seated: false, others: 0 };
+    try {
+      const l = (await pool.query(`SELECT m.seat, (SELECT COUNT(*)::int FROM party_members x WHERE x.room_id = m.room_id AND x.user_email <> m.user_email AND x.last_seen >= NOW() - INTERVAL '40 seconds') AS others
+        FROM party_members m JOIN party_rooms r ON r.id = m.room_id AND r.status = 'open' WHERE m.user_email = $1 AND m.last_seen >= NOW() - INTERVAL '40 seconds' LIMIT 1`, [email])).rows[0];
+      if (l) live = { inRoom: true, seated: l.seat !== null, others: l.others };
+    } catch (e) { /* not in a room */ }
+    const todayMin = (rows.find((x) => x.day === today.d) || {}).minutes || 0;
+    live.counting = !!(live.inRoom && live.seated && live.others >= s.minListeners && todayMin < s.maxDay && s.on);
+    const cur = await monthOf(email, today.m, s), prev = await monthOf(email, today.pm, s);
+    return { success: true, today: today.d, weekStart: today.w, monthStart: today.m, prevMonthStart: today.pm, days: rows, live,
+      rules: { minSession: s.minSession, maxDay: s.maxDay, minListeners: s.minListeners, minDays: s.minDays },
+      tiers: s.tiers.map((x) => ({ hours: x.hours, coins: x.coins, usd: (x.cents / 100).toFixed(2) })),
+      month: { ...cur, tier: tierOf(cur, s) }, prevMonth: { ...prev, tier: tierOf(prev, s) } };
+  }
+  app.get('/api/stars/days', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try { await ensure(); res.json(await daysOf(e, req.query.from, req.query.to)); } catch (err) { console.error('[stars] days:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+  });
   app.get('/api/stars/me', async (req, res) => {
     const e = me(req, res); if (!e) return;
     try { await ensure(); res.json(await myInfo(e)); } catch (err) { console.error('[stars] me:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -178,6 +206,7 @@ module.exports = function installStars({ app, pool, adminGate, audit, sendNotice
         const d = (await pool.query('SELECT id_photo, selfie FROM star_docs WHERE user_email = $1', [who])).rows[0];
         return res.json({ success: true, id_photo: d && d.id_photo ? 'data:image/jpeg;base64,' + d.id_photo.toString('base64') : '', selfie: d && d.selfie ? 'data:image/jpeg;base64,' + d.selfie.toString('base64') : '' });
       }
+      if (act === 'days') return res.json(await daysOf(who, b.from, b.to));   // 📊 one star's minutes day by day
       if (act === 'settings') {
         if (!superOnly()) return;
         const n = (v, lo, hi) => { const x = Number(v); return Number.isFinite(x) && x >= lo && x <= hi; };

@@ -549,9 +549,30 @@
         box.appendChild(card);
       });
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '⭐ Stars and past applications (' + others.length + ')' }));
+      var daysBox = el('div');
+      function showDays(x) {
+        daysBox.textContent = 'Loading…';
+        adm('/api/admin/stars', { action: 'days', user: x.user_email }).then(function (r) {
+          daysBox.textContent = '';
+          if (!r.success) { daysBox.appendChild(empty(r.error || 'Could not load.')); return; }
+          var ru = r.rules || {}, m = r.month || {}, pm = r.prevMonth || {}, lv = r.live || {};
+          daysBox.appendChild(el('div', { style: 'border:1px solid #ddd;border-radius:12px;padding:10px;margin:8px 0' }, [
+            el('div', { style: 'font-weight:800', text: '📊 ' + nm(x) + ' — minutes counted day by day (a day counts with ≥ ' + ru.minSession + ' min, at most ' + ru.maxDay + ' a day)' }),
+            el('div', { text: 'This month: ' + m.hours + ' h · ' + m.days + ' / ' + ru.minDays + ' days · ' + m.coins + ' coins · tier ' + ((m.tier || {}).tier || '—') }),
+            el('div', { text: 'Last month: ' + pm.hours + ' h · ' + pm.days + ' days · ' + pm.coins + ' coins · tier ' + ((pm.tier || {}).tier || '—') }),
+            el('div', { text: 'Now: ' + (lv.counting ? '🟢 counting' : (lv.inRoom ? (lv.seated ? '⏸ ' + lv.others + ' listeners (needs ' + ru.minListeners + ')' : '⏸ in a room, not on a seat') : '⏸ not in a room')) }),
+            table(['Day', 'Minutes', 'Counts'], (r.days || []).slice().reverse().map(function (dd) {
+              return el('tr', {}, [el('td', { text: dd.day }), el('td', { text: String(dd.minutes) }), el('td', { text: dd.minutes >= ru.minSession ? '✅' : '—' })]);
+            })),
+            el('button', { class: 'btn-sm btn-gray', text: 'Close', onclick: function () { daysBox.textContent = ''; } })]));
+          daysBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+      box.appendChild(daysBox);
       box.appendChild(table(['Name', 'Status', 'This month: hours / days / coins', 'Warnings', 'Note', ''], others.map(function (x) {
         var m = x.month || {};
-        var acts = !su ? [] : [
+        var acts = !su ? [el('button', { class: 'btn-sm', text: '📊 Days', onclick: function () { showDays(x); } })] : [
+          el('button', { class: 'btn-sm', text: '📊 Days', onclick: function () { showDays(x); } }),
           x.status !== 'star' && x.status !== 'rejected' ? el('button', { class: 'btn-sm btn-blue', text: '⭐ Star', onclick: function () { call({ action: 'status', user: x.user_email, status: 'star' }); } }) : '',
           x.status === 'star' || x.status === 'trial' ? el('button', { class: 'btn-sm', text: '⚠️ Warn', onclick: function () { var r = prompt('Warning (the person sees it):'); if (r) call({ action: 'status', user: x.user_email, status: 'warn', note: r }); } }) : '',
           x.status === 'star' || x.status === 'trial' ? el('button', { class: 'btn-sm', text: '⏸ Pause', onclick: function () { var r = prompt('Why paused (the person sees it):'); if (r !== null) call({ action: 'status', user: x.user_email, status: 'paused', note: r }); } }) : '',
@@ -761,8 +782,47 @@
           el('td', { text: r.reporter_email }), el('td', { text: ago(r.created_at) }),
           el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Done', onclick: function () { adm('/api/admin/party', { handled: r.room_id }).then(function (x) { if (x.success) draw(x); }); } })])]);
       })));
-      // 😘 actions and 😊 emotes + how often one person may send them
+      // 🚫 CamFeed's ban from every Party Room + the room owners' bans + the ban times owners can choose
       var su = !!d.isSuperAdmin, gaps = d.gaps || {}, anims = d.anims || { action: [], emote: [] };
+      function banLen(m) { m = Number(m); if (!m) return 'for ever'; if (m % 1440 === 0 && m > 1440) return (m / 1440) + ' days'; if (m % 60 === 0) return (m / 60) + ' hours'; return m + ' min'; }
+      function untilTxt(u) { return u ? 'until ' + new Date(u).toLocaleString() : 'for ever'; }
+      box.appendChild(el('div', { style: 'font-weight:800;margin:18px 0 6px', text: '🚫 Ban from ALL Party Rooms (CamFeed)' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'The person can not enter or open any room until the time ends. If they are in a room now they are put out (their own room is closed). Kept in the audit log.' }));
+      var bWho = el('input', { class: 'at-in', placeholder: 'E-mail, ID or phone', style: 'width:220px;display:inline-block' });
+      var bLen = el('select', { class: 'at-in', style: 'width:130px;display:inline-block' });
+      [[60, '1 hour'], [1440, '24 hours'], [10080, '7 days'], [43200, '30 days'], [0, 'for ever']].forEach(function (o) { bLen.appendChild(el('option', { value: String(o[0]), text: o[1] })); });
+      bLen.value = '1440';
+      var bWhy = el('input', { class: 'at-in', placeholder: 'Reason', style: 'width:220px;display:inline-block' });
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, [bWho, bLen, bWhy, el('button', { class: 'btn-sm btn-red', text: '🚫 Ban', onclick: function () {
+        if (!bWho.value.trim()) return alert('Write the e-mail, ID or phone.');
+        if (!confirm('Ban ' + bWho.value.trim() + ' from all Party Rooms (' + banLen(bLen.value) + ')?')) return;
+        adm('/api/admin/party', { ban: { target_email: bWho.value.trim(), minutes: Number(bLen.value), reason: bWhy.value } }).then(function (x) { if (x.success) { draw(x); alert('✅ Banned'); } else alert(x.error || 'Failed'); });
+      } })]));
+      var gb = d.bans || [];
+      if (!gb.length) box.appendChild(empty('Nobody is banned from all rooms.'));
+      else box.appendChild(table(['Person', 'How long', 'Reason', 'By', 'When', ''], gb.map(function (b) {
+        return el('tr', {}, [el('td', { text: nm(b) + ' · ' + b.target }), el('td', { text: untilTxt(b.until) }), el('td', { text: b.reason || '' }), el('td', { text: b.by_admin || '' }), el('td', { text: ago(b.created_at) }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Unban', onclick: function () { if (confirm('Unban ' + nm(b) + '?')) adm('/api/admin/party', { unban: b.target }).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); }); } })])]);
+      })));
+      box.appendChild(el('div', { style: 'font-weight:800;margin:14px 0 6px', text: '⏳ Ban times a room owner can choose (minutes, 0 = for ever)' }));
+      var bc = el('input', { class: 'at-in', value: (d.banChoices || []).join(', '), style: 'width:260px;display:inline-block' });
+      if (!su) bc.disabled = true;
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, [bc, el('span', { style: 'color:#65676b;font-size:13px', text: 'Now: ' + (d.banChoices || []).map(banLen).join(' · ') }),
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save', onclick: function () {
+          var l = bc.value.split(/[\s,]+/).filter(Boolean).map(Number);
+          adm('/api/admin/party', { banChoices: l }).then(function (x) { if (x.success) { draw(x); alert('✅ Saved'); } else alert(x.error || 'Failed'); });
+        } }) : null]));
+      var ob = d.ownerBans || [];
+      box.appendChild(el('div', { style: 'font-weight:800;margin:14px 0 6px', text: '👑 Bans by room owners (newest ' + ob.length + ')' }));
+      if (!ob.length) box.appendChild(empty('No owner has banned anybody.'));
+      else box.appendChild(table(['Room owner', 'Banned person', 'How long', 'Reason', 'When'], ob.map(function (b) {
+        return el('tr', {}, [el('td', { text: b.owner }), el('td', { text: b.target }), el('td', { text: untilTxt(b.until) }), el('td', { text: b.reason || '' }), el('td', { text: ago(b.created_at) })]);
+      })));
+      var fc = d.followCounts || [];
+      box.appendChild(el('div', { style: 'font-weight:800;margin:14px 0 6px', text: '❤️ Rooms with the most followers' }));
+      if (!fc.length) box.appendChild(empty('Nobody follows a room yet.'));
+      else box.appendChild(table(['Room owner', 'Followers'], fc.slice(0, 30).map(function (f) { return el('tr', {}, [el('td', { text: f.owner }), el('td', { text: String(f.n) })]); })));
+      // 😘 actions and 😊 emotes + how often one person may send them
       box.appendChild(el('div', { style: 'font-weight:800;margin:18px 0 6px', text: '⏱️ Spam guard (seconds between two, per person)' }));
       var ag = el('input', { class: 'at-in', type: 'number', value: String(gaps.actionGap), style: 'width:110px;display:inline-block' }), eg = el('input', { class: 'at-in', type: 'number', value: String(gaps.emoteGap), style: 'width:110px;display:inline-block' });
       var ss = el('input', { type: 'checkbox' }); ss.checked = gaps.seatSound !== false;

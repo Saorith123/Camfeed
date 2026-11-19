@@ -59,6 +59,12 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
           joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           PRIMARY KEY (room_id, user_email))`);
         await pool.query(`CREATE TABLE IF NOT EXISTS party_bans (room_id INTEGER NOT NULL, user_email TEXT NOT NULL, PRIMARY KEY (room_id, user_email))`);
+        // 🚫 a room owner's ban (for all the owner's rooms, kept when the room closes, until its time runs out; until NULL = for ever)
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_owner_bans (owner_email TEXT NOT NULL, user_email TEXT NOT NULL, until TIMESTAMPTZ,
+          reason TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (owner_email, user_email))`);
+        // 🚫 CamFeed's ban: no Party Room at all (enter or open) until the time runs out
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_global_bans (user_email TEXT PRIMARY KEY, until TIMESTAMPTZ, reason TEXT NOT NULL DEFAULT '',
+          by_email TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
         await pool.query(`CREATE TABLE IF NOT EXISTS party_messages (
           id SERIAL PRIMARY KEY, room_id INTEGER NOT NULL, user_email TEXT, kind VARCHAR(10) NOT NULL DEFAULT 'text',
           text TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
@@ -200,6 +206,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       }
       await pool.query("DELETE FROM party_messages WHERE room_id IN (SELECT id FROM party_rooms WHERE status = 'closed' AND closed_at < NOW() - INTERVAL '1 day')");
       await pool.query("DELETE FROM party_bans WHERE room_id IN (SELECT id FROM party_rooms WHERE status = 'closed')");
+      await pool.query("DELETE FROM party_owner_bans WHERE until IS NOT NULL AND until < NOW() - INTERVAL '1 day'");
+      await pool.query("DELETE FROM party_global_bans WHERE until IS NOT NULL AND until < NOW() - INTERVAL '30 days'");
       await pool.query("DELETE FROM party_rooms WHERE status = 'closed' AND closed_at < NOW() - INTERVAL '30 days' AND id NOT IN (SELECT room_id FROM party_reports WHERE handled = FALSE)");
     } catch (e) { console.error('[party] sweep:', e.message); }
   }
@@ -257,6 +265,33 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
   }
   const canManage = (m) => m && (m.role === 'owner' || m.role === 'helper');
   async function followersOf(owner) { const r = await pool.query('SELECT COUNT(*)::int AS n FROM party_follows WHERE owner_email = $1', [norm(owner)]); return r.rows[0] ? r.rows[0].n : 0; }
+  // 🚫 bans
+  const BAN_DEFAULT = [60, 1440, 10080, 0];                          // minutes: 1 hour, 24 hours, 7 days, for ever (0) — Admin can change
+  async function banChoices() {
+    try {
+      const r = await pool.query("SELECT value FROM creator_settings WHERE key = 'party:ban_choices'");
+      const v = r.rows[0] ? JSON.parse(r.rows[0].value) : null;
+      if (Array.isArray(v)) { const l = [...new Set(v.map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x <= 525600))].slice(0, 8); if (l.length) return l; }
+    } catch (e) { /* default */ }
+    return BAN_DEFAULT;
+  }
+  async function ownerBan(owner, email) {
+    const r = await pool.query('SELECT until, reason FROM party_owner_bans WHERE owner_email = $1 AND user_email = $2 AND (until IS NULL OR until > NOW())', [norm(owner), norm(email)]);
+    return r.rows[0] || null;
+  }
+  async function globalBan(email) {
+    const r = await pool.query('SELECT until, reason FROM party_global_bans WHERE user_email = $1 AND (until IS NULL OR until > NOW())', [norm(email)]);
+    return r.rows[0] || null;
+  }
+  // put somebody out of the owner's open room now (after a ban)
+  async function putOut(owner, who) {
+    const open = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [norm(owner)]);
+    for (const o of open.rows) {
+      const d = await pool.query('DELETE FROM party_members WHERE room_id = $1 AND user_email = $2 RETURNING user_email', [o.id, norm(who)]);
+      await pool.query('INSERT INTO party_bans (room_id, user_email) VALUES ($1, $2) ON CONFLICT DO NOTHING', [o.id, norm(who)]);
+      if (d.rows.length) kickFromLk(o.id, norm(who));
+    }
+  }
   async function follows(owner, email) { const r = await pool.query('SELECT 1 FROM party_follows WHERE owner_email = $1 AND user_email = $2', [norm(owner), norm(email)]); return r.rows.length > 0; }
 
   // the room opened: its followers hear about it (at most once an hour per room, so opening/closing many times never spams)
@@ -291,7 +326,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         myFollowers = await followersOf(req.authEmail);
       } catch (e) {}
     }
-    res.json({ success: true, ready: lkReady(c), seatChoices: SEAT_CHOICES, ageChoices: AGE_CHOICES, myAge: req.authEmail ? await ageOf(req.authEmail) : null, myTitle, myFollowers });
+    res.json({ success: true, ready: lkReady(c), seatChoices: SEAT_CHOICES, ageChoices: AGE_CHOICES, myAge: req.authEmail ? await ageOf(req.authEmail) : null, myTitle, myFollowers, banChoices: await banChoices() });
   });
 
   // the rooms I can enter: friends' rooms first, then the busiest
@@ -311,6 +346,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         WHERE r.status = 'open'
           AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = r.owner_email) OR (LOWER(b.blocker_email) = r.owner_email AND LOWER(b.blocked_email) = $1))
           AND NOT EXISTS (SELECT 1 FROM party_bans pb WHERE pb.room_id = r.id AND pb.user_email = $1)
+          AND NOT EXISTS (SELECT 1 FROM party_owner_bans ob WHERE ob.owner_email = r.owner_email AND ob.user_email = $1 AND (ob.until IS NULL OR ob.until > NOW()))
         ORDER BY (LOWER(r.owner_email) = $1) DESC, 1 DESC LIMIT 300`, [e, String(STALE_SEC)]);
       const myAge = await ageOf(e);
       let rows = r.rows.filter((x) => norm(x.owner_email) === e || ((x.privacy !== 'friends' || x.friend) && ageFits(x, myAge)));
@@ -372,6 +408,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       if (!room) return res.status(404).json({ success: false });
       if (norm(room.owner_email) === e) return res.status(400).json({ success: false, error: 'This is your own room.' });
       const on = (req.body || {}).on !== false;
+      if (on && await ownerBan(room.owner_email, e)) return res.status(403).json({ success: false, code: 'banned', error: 'You can not follow this room.' });
       if (on) {
         const r = await pool.query('INSERT INTO party_follows (owner_email, user_email) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING owner_email', [room.owner_email, e]);
         if (r.rows.length && room.status === 'open') sys(room.id, 'follow', e);           // "X followed the room ❤️" in the room's chat
@@ -447,6 +484,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     try {
       await ensure();
       if (!lkReady(await lk())) return res.status(503).json({ success: false, error: 'Party Room is not ready yet. Please try again later.' });
+      const gb = await globalBan(e);
+      if (gb) return res.status(403).json({ success: false, code: 'banned_all', message: 'banned_all', until: gb.until, error: 'CamFeed does not let you into Party Rooms for now.' });
       const seats = SEAT_CHOICES.includes(parseInt(b.seats, 10)) ? parseInt(b.seats, 10) : 8;
       const privacy = b.privacy === 'friends' ? 'friends' : 'public';
       let title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 60);
@@ -478,6 +517,11 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       }
       const ban = await pool.query('SELECT 1 FROM party_bans WHERE room_id = $1 AND user_email = $2', [room.id, e]);
       if (ban.rows.length) return res.status(403).json({ success: false, error: 'You were removed from this room.' });
+      if (norm(room.owner_email) !== e) {
+        const gb = await globalBan(e);
+        if (gb) return res.status(403).json({ success: false, code: 'banned_all', message: 'banned_all', until: gb.until, error: 'CamFeed does not let you into Party Rooms for now.' });
+        if (await ownerBan(room.owner_email, e)) return res.status(403).json({ success: false, code: 'banned', error: 'You can not enter this room.' });
+      }
       // leaving any other room first (one room at a time)
       const other = await pool.query('SELECT room_id, role FROM party_members WHERE user_email = $1 AND room_id <> $2', [e, room.id]);
       for (const o of other.rows) { if (o.role === 'owner') await closeRoom(o.room_id, e, 'owner left'); }
@@ -732,6 +776,90 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     } catch (err) { console.error('[party] fx:', err.message); res.status(500).json({ success: false }); }
   });
 
+  // ---- 🚫 the room owner's bans + ❤️ the room's followers (only the owner sees the list) -------------------------------------------
+  // the person: "target_email" (turned back from the public id by the id layer)
+  const targetOf = async (b) => {
+    let who = norm(b.target_email || '');
+    if (/^1\d{14}$/.test(who)) { try { const mp = await publicIds.toEmails([who]); who = norm(mp.get(who) || who); } catch (e) { /* keep */ } }
+    return who;
+  };
+  app.post('/api/party/bans', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const b = req.body || {};
+    try {
+      await ensure();
+      const who = await targetOf(b);
+      if (!who || who === e) return res.status(400).json({ success: false, error: 'Choose a person.' });
+      const choices = await banChoices();
+      const mins = parseInt(b.minutes, 10);
+      if (!choices.includes(mins)) return res.status(400).json({ success: false, error: 'Choose how long.' });
+      const reason = String(b.reason || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      await pool.query(`INSERT INTO party_owner_bans (owner_email, user_email, until, reason) VALUES ($1, $2, CASE WHEN $3::int = 0 THEN NULL ELSE NOW() + ($3::int || ' minutes')::interval END, $4)
+                        ON CONFLICT (owner_email, user_email) DO UPDATE SET until = EXCLUDED.until, reason = EXCLUDED.reason, created_at = NOW()`, [e, who, mins, reason]);
+      await pool.query('DELETE FROM party_follows WHERE owner_email = $1 AND user_email = $2', [e, who]);   // no "my room opened" for them
+      await putOut(e, who);
+      res.json({ success: true });
+    } catch (err) { console.error('[party] ban:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+  app.get('/api/party/bans', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const r = await pool.query(`SELECT ${userCols}, ob.until, ob.reason, ob.created_at FROM party_owner_bans ob JOIN users u ON LOWER(u.email) = ob.user_email
+        WHERE ob.owner_email = $1 AND (ob.until IS NULL OR ob.until > NOW()) ORDER BY ob.created_at DESC LIMIT 300`, [e]);
+      res.json({ success: true, bans: r.rows, choices: await banChoices() });
+    } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+  app.post('/api/party/bans/remove', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const who = await targetOf(req.body || {});
+      await pool.query('DELETE FROM party_owner_bans WHERE owner_email = $1 AND user_email = $2', [e, who]);
+      const open = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [e]);
+      for (const o of open.rows) await pool.query('DELETE FROM party_bans WHERE room_id = $1 AND user_email = $2', [o.id, who]);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+  // ❤️ who follows my room (newest first, 50 a page); only for the owner
+  app.get('/api/party/followers', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const before = req.query.before ? new Date(String(req.query.before)) : null;
+      const q = String(req.query.q || '').trim().toLowerCase().slice(0, 60);
+      const args = [e, String(STALE_SEC)];
+      let where = '';
+      if (before && !isNaN(before)) { args.push(before.toISOString()); where += ` AND pf.created_at < $${args.length}`; }
+      if (q) { args.push('%' + q + '%'); where += ` AND LOWER(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) LIKE $${args.length}`; }
+      const r = await pool.query(`SELECT ${userCols}, pf.created_at AS followed_at,
+          EXISTS (SELECT 1 FROM party_members m JOIN party_rooms r ON r.id = m.room_id WHERE r.owner_email = $1 AND r.status = 'open' AND m.user_email = pf.user_email
+                  AND m.last_seen >= NOW() - ($2 || ' seconds')::interval) AS in_room,
+          EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = $1 AND LOWER(f.following_email) = pf.user_email) AS i_follow
+        FROM party_follows pf JOIN users u ON LOWER(u.email) = pf.user_email
+        WHERE pf.owner_email = $1
+          AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = pf.user_email) OR (LOWER(b.blocker_email) = pf.user_email AND LOWER(b.blocked_email) = $1))
+          ${where}
+        ORDER BY pf.created_at DESC LIMIT 50`, args);
+      let rows = r.rows;
+      if (badgesOf && rows.length) {
+        const bd = await badgesOf(rows.map((x) => norm(x.email))).catch(() => new Map());
+        rows = rows.map((x) => Object.assign({}, x, bd.get(norm(x.email)) || {}));
+      }
+      res.json({ success: true, followers: rows, total: await followersOf(e) });
+    } catch (err) { console.error('[party] followers:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+  // the owner takes somebody off the followers
+  app.post('/api/party/followers/remove', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const who = await targetOf(req.body || {});
+      await pool.query('DELETE FROM party_follows WHERE owner_email = $1 AND user_email = $2', [e, who]);
+      res.json({ success: true, total: await followersOf(e) });
+    } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
   // ---- Admin › System › 🎉 Party Room ---------------------------------------------------------------------------------
   app.post('/api/admin/party', async (req, res) => {
     const b = req.body || {};
@@ -756,6 +884,38 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         if (audit) audit(a.adminEmail, 'party-close', String(b.close), String(b.reason || '').slice(0, 200));
       }
       if (b.handled) await pool.query('UPDATE party_reports SET handled = TRUE WHERE room_id = $1', [parseInt(b.handled, 10) || 0]);
+      // 🚫 CamFeed's ban from every Party Room
+      if (b.ban && typeof b.ban === 'object') {
+        let who = norm(b.ban.target_email || '');
+        if (!who.includes('@') && !/^1\d{14}$/.test(who)) {                   // a phone number or a public id
+          const u = await pool.query('SELECT email FROM users WHERE phone = $1 OR phone = $2 LIMIT 1', [who, who.replace(/^0/, '+855')]).catch(() => ({ rows: [] }));
+          if (u.rows[0]) who = norm(u.rows[0].email);
+        }
+        if (/^1\d{14}$/.test(who)) { try { const mp = await publicIds.toEmails([who]); who = norm(mp.get(who) || who); } catch (e) { /* keep */ } }
+        const ex = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1', [who]);
+        if (!ex.rows.length) return res.status(404).json({ success: false, error: 'No account was found.' });
+        const mins = Math.max(0, Math.min(parseInt(b.ban.minutes, 10) || 0, 5256000));
+        const reason = String(b.ban.reason || '').trim().slice(0, 300);
+        await pool.query(`INSERT INTO party_global_bans (user_email, until, reason, by_email) VALUES ($1, CASE WHEN $2::int = 0 THEN NULL ELSE NOW() + ($2::int || ' minutes')::interval END, $3, $4)
+                          ON CONFLICT (user_email) DO UPDATE SET until = EXCLUDED.until, reason = EXCLUDED.reason, by_email = EXCLUDED.by_email, created_at = NOW()`, [who, mins, reason, a.adminEmail]);
+        const inRooms = await pool.query('DELETE FROM party_members WHERE user_email = $1 RETURNING room_id, role', [who]);
+        for (const x of inRooms.rows) { if (x.role === 'owner') await closeRoom(x.room_id, a.adminEmail, 'closed by CamFeed'); else kickFromLk(x.room_id, who); }
+        const open = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [who]);
+        for (const o of open.rows) await closeRoom(o.id, a.adminEmail, 'closed by CamFeed');
+        if (audit) audit(a.adminEmail, 'party-ban', who, (mins ? mins + ' min' : 'for ever') + (reason ? ' · ' + reason : ''));
+      }
+      if (b.unban) {
+        const who = norm(b.unban);
+        await pool.query('DELETE FROM party_global_bans WHERE user_email = $1', [who]);
+        if (audit) audit(a.adminEmail, 'party-unban', who, '');
+      }
+      if (Array.isArray(b.banChoices)) {
+        if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+        const l = [...new Set(b.banChoices.map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x <= 525600))].slice(0, 8);
+        if (!l.length) return res.status(400).json({ success: false, error: 'Write at least one time.' });
+        await pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['party:ban_choices', JSON.stringify(l)]);
+        if (audit) audit(a.adminEmail, 'party-ban-choices', 'settings', l.join(','));
+      }
       if (b.fx && typeof b.fx === 'object') {
         if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
         const f = b.fx, kind = f.kind === 'emote' ? 'emote' : 'action';
@@ -789,7 +949,13 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       res.json({ success: true, isSuperAdmin: a.isSuperAdmin, ready: lkReady(c),
         settings: { url: c.url, key: c.key, secretSet: !!c.secret },
         rooms: rooms.rows, reports: reports.rows,
-        fx: (await pool.query('SELECT * FROM party_fx ORDER BY kind, sort, id')).rows, gaps: await fxGaps(), anims: { action: ACTION_ANIMS, emote: EMOTE_ANIMS } });
+        fx: (await pool.query('SELECT * FROM party_fx ORDER BY kind, sort, id')).rows, gaps: await fxGaps(), anims: { action: ACTION_ANIMS, emote: EMOTE_ANIMS },
+        banChoices: await banChoices(),
+        bans: (await pool.query(`SELECT g.user_email AS target, g.until, g.reason, g.by_email AS by_admin, g.created_at, u.first_name, u.last_name, u.profile_pic
+          FROM party_global_bans g LEFT JOIN users u ON LOWER(u.email) = g.user_email WHERE g.until IS NULL OR g.until > NOW() ORDER BY g.created_at DESC LIMIT 200`)).rows,
+        ownerBans: (await pool.query(`SELECT ob.owner_email AS owner, ob.user_email AS target, ob.until, ob.reason, ob.created_at FROM party_owner_bans ob
+          WHERE ob.until IS NULL OR ob.until > NOW() ORDER BY ob.created_at DESC LIMIT 100`)).rows,
+        followCounts: (await pool.query(`SELECT pf.owner_email AS owner, COUNT(*)::int AS n FROM party_follows pf GROUP BY pf.owner_email ORDER BY n DESC LIMIT 100`)).rows });
     } catch (err) { console.error('[party] admin:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
