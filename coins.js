@@ -7,8 +7,9 @@
 module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents, starShare, starsOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const COIN_CENTS = 1;
-  // 👑 levels: the coins a person has SPENT in Party Rooms (gifts, frames, VIP) — level N starts at DEFAULT_LEVELS[N-1] coins
-  const DEFAULT_LEVELS = [0, 100, 500, 1000, 3000, 6000, 10000, 20000, 50000, 100000];
+  // 👑 levels by XP (like Bigo): XP comes from coins spent (gifts, frames, VIP), gift coins received, minutes in rooms and the
+  // daily check-in (VIP gets more of the time / check-in XP). Level N starts at DEFAULT_LEVELS[N-1] XP (50 levels; Admin can change)
+  const DEFAULT_LEVELS = Array.from({ length: 50 }, (_, i) => (i === 0 ? 0 : Math.round(50 * Math.pow(i, 1.8) / 10) * 10));
   const SPEND_KINDS = ['gift', 'frame', 'vip'];
   const DEFAULT_PACKS = [{ usd: 1, web: 120, app: 100 }, { usd: 5, web: 620, app: 500 }, { usd: 10, web: 1250, app: 1000 }, { usd: 20, web: 2550, app: 2000 }];
   const SEED = [
@@ -72,6 +73,9 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         await pool.query('CREATE TABLE IF NOT EXISTS user_frames (user_email TEXT NOT NULL, frame_id INTEGER NOT NULL, expires_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (user_email, frame_id))');
         await pool.query('CREATE TABLE IF NOT EXISTS frame_wear (user_email TEXT PRIMARY KEY, frame_id INTEGER NOT NULL)');
         await pool.query('CREATE TABLE IF NOT EXISTS party_checkin (user_email TEXT PRIMARY KEY, last_day DATE NOT NULL, streak INTEGER NOT NULL DEFAULT 0)');   // 📅 daily check-in
+        await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS deck TEXT');                     // this week's shuffled prizes
+        await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS deck_pos INTEGER NOT NULL DEFAULT 0');
+        await pool.query('CREATE TABLE IF NOT EXISTS user_xp (user_email TEXT PRIMARY KEY, xp BIGINT NOT NULL DEFAULT 0, day DATE, day_room INTEGER NOT NULL DEFAULT 0)');   // XP from time in rooms + check-in
         await pool.query('CREATE TABLE IF NOT EXISTS user_vip (user_email TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL)');      // 👑 VIP (bought by the month)
         if (!(await pool.query('SELECT COUNT(*)::int AS n FROM party_frames')).rows[0].n) {
           let i = 0;
@@ -95,10 +99,17 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     try { const p = JSON.parse(m.packs || 'null'); if (Array.isArray(p) && p.length) packs = p; } catch (e) { /* default */ }
     const num = (v, d, lo, hi) => { const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
     let levels = DEFAULT_LEVELS;
-    try { const l = JSON.parse(m.levels || 'null'); if (Array.isArray(l) && l.length) levels = l.map((x) => parseInt(x, 10)).filter((x) => x >= 0).sort((a, b) => a - b); } catch (e) { /* default */ }
+    try { const l = JSON.parse(m.xp_levels || 'null'); if (Array.isArray(l) && l.length) levels = l.map((x) => parseInt(x, 10)).filter((x) => x >= 0).sort((a, b) => a - b); } catch (e) { /* default */ }
     return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 3, 0, 60), payinfo: m.payinfo || '', walletOn: m.wallet_on !== '0',
+      // 🎁 the check-in gift box, by the week: in every 7 check-ins the prizes are fixed (default 0 coins ×2, 1 coin ×3, 2 coins ×2
+      // = 7 coins a week) and come in a shuffled order — Admin sets them
+      checkinDeck: (() => { try { const l = JSON.parse(m.checkin_deck || 'null'); if (Array.isArray(l) && l.length) { const d = l.map((x) => ({ coins: Math.max(0, parseInt(x.coins, 10) || 0), times: Math.max(0, parseInt(x.times, 10) || 0) })).filter((x) => x.times > 0); if (d.length) return d; } } catch (e) { /* default */ }
+        return [{ coins: 0, times: 2 }, { coins: 1, times: 3 }, { coins: 2, times: 2 }]; })(),
       checkinOn: m.checkin_on !== '0', checkin: (() => { try { const l = JSON.parse(m.checkin || 'null'); if (Array.isArray(l) && l.length === 7) return l.map((x) => Math.max(0, parseInt(x, 10) || 0)); } catch (e) { /* default */ } return [5, 5, 10, 10, 15, 20, 50]; })(),
-      levels, vipOn: m.vip_on !== '0', vipPrice: num(m.vip_price, 3000, 1, 10000000), vipDays: num(m.vip_days, 30, 1, 365) };
+      levels, vipOn: m.vip_on !== '0',
+      xp: { spend: num(m.xp_spend, 1, 0, 100), receive: num(m.xp_recv, 2, 0, 100), listen: num(m.xp_listen, 1, 0, 100), seat: num(m.xp_seat, 2, 0, 100),
+        roomMax: num(m.xp_room_max, 60, 0, 10000), checkin: num(m.xp_checkin, 20, 0, 100000), vipBonus: num(m.xp_vip_bonus, 20, 0, 500) },
+      perks: { nameColor: num(m.perk_name_color, 10, 0, 1000), entry: num(m.perk_entry, 20, 0, 1000) }, vipPrice: num(m.vip_price, 3000, 1, 10000000), vipDays: num(m.vip_days, 30, 1, 365) };
   }
   const setSetting = (k, v) => pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['coin:' + k, String(v)]);
 
@@ -311,11 +322,48 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     } catch (err) { res.status(500).json({ success: false, error: 'Could not change the frame.' }); }
   });
   // ---- 👑 VIP + levels ----
-  function levelOf(spent, levels) { let lv = 1; levels.forEach((t, i) => { if (spent >= t) lv = i + 1; }); return lv; }
+  function levelOf(xp, levels) { let lv = 1; levels.forEach((t, i) => { if (xp >= t) lv = i + 1; }); return lv; }
   async function spentOf(emails) {
     const r = await pool.query(`SELECT user_email, COALESCE(SUM(-coins), 0)::int AS n FROM coin_ledger WHERE user_email = ANY($1) AND coins < 0 AND kind = ANY($2) GROUP BY user_email`, [emails.map(norm), SPEND_KINDS]);
     return new Map(r.rows.map((x) => [x.user_email, x.n]));
   }
+  /// XP of each person: Map email → {xp, spent, received, activity}
+  async function xpOf(emails, s) {
+    const es = emails.map(norm);
+    const sp = await spentOf(es);
+    const rc = new Map((await pool.query('SELECT to_email AS e, COALESCE(SUM(coins), 0)::int AS n FROM gift_events WHERE to_email = ANY($1) GROUP BY to_email', [es]).catch(() => ({ rows: [] }))).rows.map((x) => [x.e, x.n]));
+    const ac = new Map((await pool.query('SELECT user_email AS e, xp FROM user_xp WHERE user_email = ANY($1)', [es])).rows.map((x) => [x.e, Number(x.xp) || 0]));
+    const m = new Map();
+    for (const e of es) {
+      const spent = sp.get(e) || 0, received = rc.get(e) || 0, activity = ac.get(e) || 0;
+      m.set(e, { spent, received, activity, xp: Math.round(spent * s.xp.spend + received * s.xp.receive + activity) });
+    }
+    return m;
+  }
+  // ⏱️ XP for time in rooms: once a minute, everybody really in an open room (a seat gives more), up to a daily limit
+  async function roomXpTick() {
+    try {
+      await ensure();
+      const s = await settings();
+      if (!s.xp.roomMax || (!s.xp.listen && !s.xp.seat)) return;
+      await pool.query(`
+        INSERT INTO user_xp (user_email, xp, day, day_room)
+        SELECT m.user_email, 0, (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date, 0 FROM party_members m JOIN party_rooms r ON r.id = m.room_id AND r.status = 'open'
+        WHERE m.last_seen >= NOW() - INTERVAL '40 seconds' ON CONFLICT (user_email) DO NOTHING`);
+      await pool.query(`
+        WITH here AS (
+          SELECT DISTINCT ON (m.user_email) m.user_email,
+                 CASE WHEN m.seat IS NOT NULL THEN $1::int ELSE $2::int END * CASE WHEN EXISTS (SELECT 1 FROM user_vip v WHERE v.user_email = m.user_email AND v.expires_at > NOW()) THEN (1 + $4::numeric / 100) ELSE 1 END AS add
+          FROM party_members m JOIN party_rooms r ON r.id = m.room_id AND r.status = 'open'
+          WHERE m.last_seen >= NOW() - INTERVAL '40 seconds' ORDER BY m.user_email, (m.seat IS NOT NULL) DESC)
+        UPDATE user_xp u SET
+          day_room = CASE WHEN u.day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date THEN LEAST(u.day_room + ROUND(h.add)::int, $3) ELSE LEAST(ROUND(h.add)::int, $3) END,
+          xp = u.xp + GREATEST(0, (CASE WHEN u.day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date THEN LEAST(u.day_room + ROUND(h.add)::int, $3) - u.day_room ELSE LEAST(ROUND(h.add)::int, $3) END)),
+          day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date
+        FROM here h WHERE u.user_email = h.user_email`, [s.xp.seat, s.xp.listen, s.xp.roomMax, s.vipOn ? s.xp.vipBonus : 0]);
+    } catch (e) { console.error('[coins] room xp:', e.message); }
+  }
+  setTimeout(() => { roomXpTick(); setInterval(roomXpTick, 60 * 1000); }, 80 * 1000);
   /// for party.js: Map email → {level, vip}
   async function badgesOf(emails) {
     const m = new Map();
@@ -323,19 +371,25 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     try {
       await ensure();
       const s = await settings();
-      const sp = await spentOf(emails);
+      const xp = await xpOf(emails, s);
       const v = new Set((await pool.query('SELECT user_email FROM user_vip WHERE user_email = ANY($1) AND expires_at > NOW()', [emails.map(norm)])).rows.map((x) => x.user_email));
       const st = starsOf ? await starsOf(emails) : new Set();
-      for (const e of emails.map(norm)) m.set(e, { level: levelOf(sp.get(e) || 0, s.levels), vip: s.vipOn && v.has(e), star: st.has(e) });
+      for (const e of emails.map(norm)) {
+        const lv = levelOf((xp.get(e) || {}).xp || 0, s.levels);
+        // level perks (Admin sets from which level; 0 = off): a coloured name, a "Lv.N came in" banner
+        m.set(e, { level: lv, vip: s.vipOn && v.has(e), star: st.has(e), nameColor: s.perks.nameColor > 0 && lv >= s.perks.nameColor, entry: s.perks.entry > 0 && lv >= s.perks.entry });
+      }
     } catch (e) { /* nothing yet */ }
     return m;
   }
   async function vipInfo(e) {
     const s = await settings();
-    const spent = (await spentOf([e])).get(e) || 0;
-    const lv = levelOf(spent, s.levels);
+    const x = (await xpOf([e], s)).get(e) || { xp: 0, spent: 0, received: 0, activity: 0 };
+    const lv = levelOf(x.xp, s.levels);
     const until = (await pool.query('SELECT expires_at FROM user_vip WHERE user_email = $1 AND expires_at > NOW()', [e])).rows[0];
-    return { success: true, balance: await balance(e), spent, level: lv, levelAt: s.levels[lv - 1] || 0, nextAt: s.levels[lv] == null ? null : s.levels[lv], maxLevel: s.levels.length,
+    const today = (await pool.query("SELECT CASE WHEN day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date THEN day_room ELSE 0 END AS n FROM user_xp WHERE user_email = $1", [e])).rows[0];
+    return { success: true, balance: await balance(e), xp: x.xp, spent: x.spent, received: x.received, activity: x.activity, todayRoomXp: today ? today.n : 0,
+      rules: s.xp, perks: s.perks, level: lv, levelAt: s.levels[lv - 1] || 0, nextAt: s.levels[lv] == null ? null : s.levels[lv], maxLevel: s.levels.length,
       vipOn: s.vipOn, vipUntil: until ? until.expires_at : null, vipPrice: s.vipPrice, vipDays: s.vipDays };
   }
   app.get('/api/party/vip', async (req, res) => {
@@ -375,7 +429,9 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     const done = !!(r && r.today);
     const streak = r && (r.today || r.yesterday) ? r.streak : 0;            // days in a row so far
     const nextDay = done ? null : (streak % 7) + 1;                          // the day (1–7) that today's check-in gives
-    return { success: true, on: s.checkinOn, rewards: s.checkin, doneToday: done, streak, day: done ? ((streak - 1) % 7) + 1 : nextDay, balance: await balance(e) };
+    const max = s.checkinDeck.reduce((a, x) => Math.max(a, x.coins), 0);
+    const week = s.checkinDeck.reduce((a, x) => a + x.coins * x.times, 0), len = s.checkinDeck.reduce((a, x) => a + x.times, 0);
+    return { success: true, on: s.checkinOn, box: true, maxCoins: max, weekCoins: week, cycle: len, xp: s.xp.checkin, rewards: s.checkin, doneToday: done, streak, day: done ? ((streak - 1) % 7) + 1 : nextDay, balance: await balance(e) };
   }
   app.get('/api/party/checkin', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -390,15 +446,32 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       if (!s.checkinOn) { c.release(); return res.status(400).json({ success: false, error: 'Check-in is not open now.' }); }
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['checkin:' + e]);
-      const r = (await c.query(`SELECT streak, (last_day = ${KH_DAY}) AS today, (last_day = ${KH_DAY} - 1) AS yesterday FROM party_checkin WHERE user_email = $1`, [e])).rows[0];
+      const r = (await c.query(`SELECT streak, deck, deck_pos, (last_day = ${KH_DAY}) AS today, (last_day = ${KH_DAY} - 1) AS yesterday FROM party_checkin WHERE user_email = $1`, [e])).rows[0];
       if (r && r.today) { await c.query('ROLLBACK'); c.release(); return res.status(409).json({ success: false, code: 'done', error: 'Already checked in today.' }); }
       const streak = (r && r.yesterday ? r.streak : 0) + 1;
-      const day = ((streak - 1) % 7) + 1, coins = s.checkin[day - 1] || 0;
-      await c.query(`INSERT INTO party_checkin (user_email, last_day, streak) VALUES ($1, ${KH_DAY}, $2) ON CONFLICT (user_email) DO UPDATE SET last_day = ${KH_DAY}, streak = $2`, [e, streak]);
+      // 🎁 open the box: the next prize of this week's shuffled deck (a new deck after every round of check-ins)
+      let deck = null, pos = r ? r.deck_pos : 0;
+      try { deck = r && r.deck ? JSON.parse(r.deck) : null; } catch (x) { deck = null; }
+      if (!Array.isArray(deck) || pos >= deck.length) {
+        deck = [];
+        for (const x of s.checkinDeck) for (let i = 0; i < x.times; i++) deck.push(x.coins);
+        for (let i = deck.length - 1; i > 0; i--) { const j = require('crypto').randomInt(0, i + 1); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+        pos = 0;
+      }
+      const coins = deck.length ? deck[pos] : 0;
+      const day = pos + 1;
+      await c.query(`INSERT INTO party_checkin (user_email, last_day, streak, deck, deck_pos) VALUES ($1, ${KH_DAY}, $2, $3, $4)
+                     ON CONFLICT (user_email) DO UPDATE SET last_day = ${KH_DAY}, streak = $2, deck = $3, deck_pos = $4`, [e, streak, JSON.stringify(deck), pos + 1]);
       if (coins > 0) await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'checkin', $3, 'system')", [e, coins, 'Check-in day ' + day]);
+      if (s.xp.checkin > 0) {                                       // ⭐ check-in XP (+ VIP bonus)
+        const isVip = s.vipOn && (await c.query('SELECT 1 FROM user_vip WHERE user_email = $1 AND expires_at > NOW()', [e])).rows.length > 0;
+        var gotXp = Math.round(s.xp.checkin * (isVip ? 1 + s.xp.vipBonus / 100 : 1));
+        const add = gotXp;
+        await c.query('INSERT INTO user_xp (user_email, xp) VALUES ($1, $2) ON CONFLICT (user_email) DO UPDATE SET xp = user_xp.xp + $2', [e, add]);
+      }
       await c.query('COMMIT');
       c.release();
-      res.json({ ...(await checkinInfo(e)), got: coins, gotDay: day });
+      res.json({ ...(await checkinInfo(e)), got: coins, gotDay: day, gotXp: typeof gotXp === 'number' ? gotXp : 0 });
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();
@@ -481,9 +554,23 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       } else if (act === 'vip') {
         if (!superOnly()) return;
         if (Array.isArray(b.levels)) {
-          const l = b.levels.map((x) => parseInt(x, 10)).filter((x) => x >= 0 && x <= 100000000).sort((x, y) => x - y);
-          if (l.length < 2 || l[0] !== 0) return res.status(400).json({ success: false, error: 'Levels: start with 0, then the coins for each next level (at least 2).' });
-          await setSetting('levels', JSON.stringify(l.slice(0, 50)));
+          const l = b.levels.map((x) => parseInt(x, 10)).filter((x) => x >= 0 && x <= 1000000000).sort((x, y) => x - y);
+          if (l.length < 2 || l[0] !== 0) return res.status(400).json({ success: false, error: 'Levels: start with 0, then the XP for each next level (at least 2).' });
+          await setSetting('xp_levels', JSON.stringify(l.slice(0, 200)));
+        }
+        if (b.xp && typeof b.xp === 'object') {                     // how much XP each thing gives
+          for (const [k, key, hi] of [['spend', 'xp_spend', 100], ['receive', 'xp_recv', 100], ['listen', 'xp_listen', 100], ['seat', 'xp_seat', 100], ['roomMax', 'xp_room_max', 10000], ['checkin', 'xp_checkin', 100000], ['vipBonus', 'xp_vip_bonus', 500]]) {
+            if (b.xp[k] === undefined) continue;
+            const v = Number(b.xp[k]); if (!(Number.isFinite(v) && v >= 0 && v <= hi)) return res.status(400).json({ success: false, error: 'XP "' + k + '" must be 0–' + hi + '.' });
+            await setSetting(key, v);
+          }
+        }
+        if (b.perks && typeof b.perks === 'object') {               // from which level (0 = off)
+          for (const [k, key] of [['nameColor', 'perk_name_color'], ['entry', 'perk_entry']]) {
+            if (b.perks[k] === undefined) continue;
+            const v = parseInt(b.perks[k], 10); if (!(v >= 0 && v <= 1000)) return res.status(400).json({ success: false, error: 'Perk level must be 0–1000.' });
+            await setSetting(key, v);
+          }
         }
         if (b.vipPrice !== undefined) { const v = parseInt(b.vipPrice, 10); if (!(v > 0 && v <= 10000000)) return res.status(400).json({ success: false, error: 'VIP price must be more than 0 coins.' }); await setSetting('vip_price', v); }
         if (b.vipDays !== undefined) { const v = parseInt(b.vipDays, 10); if (!(v > 0 && v <= 365)) return res.status(400).json({ success: false, error: 'VIP days must be 1 to 365.' }); await setSetting('vip_days', v); }
@@ -491,10 +578,15 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         audit(a.adminEmail, 'vip-settings', 'settings', 'levels / VIP price / days changed');
       } else if (act === 'checkin') {
         if (!superOnly()) return;
-        if (Array.isArray(b.checkin)) {
+        if (Array.isArray(b.checkin) && b.checkin.length) {
           const l = b.checkin.map((x) => parseInt(x, 10));
           if (l.length !== 7 || l.some((x) => !(x >= 0 && x <= 100000))) return res.status(400).json({ success: false, error: 'Write 7 numbers (coins for day 1 … day 7), 0 or more.' });
           await setSetting('checkin', JSON.stringify(l));
+        }
+        if (Array.isArray(b.checkinDeck)) {                           // "coins:times" pairs for one round (a week)
+          const l = b.checkinDeck.map((x) => ({ coins: parseInt(x.coins, 10), times: parseInt(x.times, 10) })).filter((x) => x.coins >= 0 && x.coins <= 100000 && x.times > 0 && x.times <= 31);
+          if (!l.length) return res.status(400).json({ success: false, error: 'Write the prizes like 0:2,1:3,2:2 (coins:how many times in a week).' });
+          await setSetting('checkin_deck', JSON.stringify(l.slice(0, 10)));
         }
         if (b.checkinOn !== undefined) await setSetting('checkin_on', b.checkinOn ? '1' : '0');
         audit(a.adminEmail, 'checkin-settings', 'settings', 'check-in coins changed');

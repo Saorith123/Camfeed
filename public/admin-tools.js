@@ -661,23 +661,41 @@
       // 👑 VIP + levels
       var st = d.settings || {};
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '👑 VIP & levels (VIP now: ' + (d.vipNow || 0) + ')' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Level = coins a person has spent in Party Rooms (gifts, frames, VIP). Write the coins where each level starts, comma between, first is 0 (Level 1). VIP: a month (or N days) bought with coins: 👑 badge, golden name, a big "VIP came in" banner, first in the ✋ list, a helper can not send them out.' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Level = XP (like Bigo). XP comes from: coins spent (gifts, frames, VIP), gift coins received, minutes in rooms (a seat gives more, up to a daily limit) and the daily check-in; VIP gets extra XP for time and check-in. Write the XP where each level starts, comma between, first is 0 (Level 1). VIP: N days bought with coins: 👑 badge, golden name, a big "VIP came in" banner, first in the ✋ list, a helper can not send them out.' }));
       var lv = el('input', { class: 'at-in', value: (st.levels || []).join(','), style: 'width:100%' });
+      var xr = st.xp || {}, pk = st.perks || {};
+      function xin(v) { var i = el('input', { class: 'at-in', type: 'number', value: String(v == null ? '' : v), style: 'width:80px' }); if (!su) i.disabled = true; return i; }
+      var xSpend = xin(xr.spend), xRecv = xin(xr.receive), xListen = xin(xr.listen), xSeat = xin(xr.seat), xMax = xin(xr.roomMax), xCk = xin(xr.checkin), xVip = xin(xr.vipBonus), pName = xin(pk.nameColor), pEntry = xin(pk.entry);
+      function xrow(label, i) { return el('div', { style: 'display:flex;gap:8px;align-items:center;margin:3px 0' }, [el('span', { style: 'min-width:330px', text: label }), i]); }
+      box.appendChild(el('div', { style: 'font-weight:700;margin:8px 0 4px', text: 'How much XP' }));
+      box.appendChild(xrow('XP for 1 coin spent', xSpend));
+      box.appendChild(xrow('XP for 1 gift coin received', xRecv));
+      box.appendChild(xrow('XP per minute listening in a room', xListen));
+      box.appendChild(xrow('XP per minute on a seat', xSeat));
+      box.appendChild(xrow('Most XP from rooms in one day', xMax));
+      box.appendChild(xrow('XP for the daily check-in', xCk));
+      box.appendChild(xrow('VIP extra XP for time + check-in (%)', xVip));
+      box.appendChild(el('div', { style: 'font-weight:700;margin:8px 0 4px', text: 'Level perks (from which level; 0 = off)' }));
+      box.appendChild(xrow('Coloured name in rooms (level colour)', pName));
+      box.appendChild(xrow('"Lv.N came in" banner when joining a room', pEntry));
       var vp = el('input', { class: 'at-in', type: 'number', value: String(st.vipPrice || 3000), style: 'width:110px' }), vd = el('input', { class: 'at-in', type: 'number', value: String(st.vipDays || 30), style: 'width:80px' });
       var vo = el('input', { type: 'checkbox' }); vo.checked = st.vipOn !== false;
       if (!su) [lv, vp, vd, vo].forEach(function (i) { i.disabled = true; });
-      box.appendChild(el('div', { class: 'at-lbl', text: 'Levels (coins where each level starts)' })); box.appendChild(lv);
+      box.appendChild(el('div', { class: 'at-lbl', text: 'Levels (XP where each level starts — ' + (st.levels || []).length + ' levels)' })); box.appendChild(lv);
       box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [vo, el('span', { text: 'VIP open' })]),
         el('span', { text: 'VIP price (coins)' }), vp, el('span', { text: 'days' }), vd,
-        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save VIP & levels', onclick: function () { call({ action: 'vip', levels: lv.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean), vipPrice: vp.value, vipDays: vd.value, vipOn: vo.checked }); } }) : '']));
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save VIP & levels', onclick: function () { call({ action: 'vip', levels: lv.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean), vipPrice: vp.value, vipDays: vd.value, vipOn: vo.checked,
+          xp: { spend: xSpend.value, receive: xRecv.value, listen: xListen.value, seat: xSeat.value, roomMax: xMax.value, checkin: xCk.value, vipBonus: xVip.value }, perks: { nameColor: pName.value, entry: pEntry.value } }); } }) : '']));
       // 📅 daily check-in
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '📅 Daily check-in (today: ' + (d.checkinToday || 0) + ' people · coins given in 30 days: ' + Number(d.checkinCoins30 || 0).toLocaleString() + ')' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'People tap check-in once a day in Party Room; 7 days in a row, then it starts again. A missed day starts again at day 1. Coins for day 1 … day 7 (comma between). Careful: these coins are free money — keep them small.' }));
-      var ckv = el('input', { class: 'at-in', value: (st.checkin || [5, 5, 10, 10, 15, 20, 50]).join(','), style: 'width:260px' });
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Once a day people open a 🎁 gift box (+ the check-in XP set in VIP & levels). The prizes of one round (a week) are fixed and come in a shuffled order. Write coins:times with a comma between — e.g. 0:2,1:3,2:2 = in 7 check-ins: nothing 2 times, 1 coin 3 times, 2 coins 2 times (7 coins a week). Careful: coins can be gifted, and gifts turn into real money for the receiver — keep them small.' }));
+      var deckNow = st.checkinDeck || [{ coins: 0, times: 2 }, { coins: 1, times: 3 }, { coins: 2, times: 2 }];
+      var ckv = el('input', { class: 'at-in', value: deckNow.map(function (x) { return x.coins + ':' + x.times; }).join(','), style: 'width:260px' });
+      box.appendChild(el('div', { style: 'font-size:13px;margin-bottom:4px', text: 'Now: ' + deckNow.reduce(function (a, x) { return a + x.times; }, 0) + ' check-ins a round · ' + deckNow.reduce(function (a, x) { return a + x.coins * x.times; }, 0) + ' coins a round per person' }));
       var cko = el('input', { type: 'checkbox' }); cko.checked = st.checkinOn !== false;
       if (!su) [ckv, cko].forEach(function (i) { i.disabled = true; });
       box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [cko, el('span', { text: 'Check-in open' })]), ckv,
-        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save check-in', onclick: function () { call({ action: 'checkin', checkin: ckv.value.split(',').map(function (x) { return x.trim(); }), checkinOn: cko.checked }); } }) : '']));
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save check-in', onclick: function () { call({ action: 'checkin', checkinDeck: ckv.value.split(',').map(function (x) { var p = x.split(':'); return { coins: (p[0] || '').trim(), times: (p[1] || '').trim() }; }).filter(function (x) { return x.coins !== '' && x.times !== ''; }), checkinOn: cko.checked }); } }) : '']));
       // add / take coins by hand
       if (su) {
         box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));

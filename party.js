@@ -226,7 +226,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const fr = framesOf ? await framesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 🖼️ the frame each one wears
       for (const p of people) { const x = fr.get(norm(p.email)); if (x) p.frame = x; }
       const bd = badgesOf ? await badgesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 👑 level + VIP
-      for (const p of people) { const x = bd.get(norm(p.email)); if (x) { p.level = x.level; p.vip = x.vip; p.star = !!x.star; } }
+      for (const p of people) { const x = bd.get(norm(p.email)); if (x) { p.level = x.level; p.vip = x.vip; p.star = !!x.star; p.name_color = !!x.nameColor; p.entry = !!x.entry; } }
     }
     const mine = people.find((p) => norm(p.email) === email) || null;
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
