@@ -3012,12 +3012,13 @@
                 } else if (m.media_type === 'sticker' && m.media_url) {
                     bodyHtml = `<img src="${m.media_url}" class="cf-sent-sticker-img" onclick="openPhotoLightbox('${m.media_url}')" alt="Sticker">`;
                 } else if (displayText.startsWith('PARTY_ROOM:')) {
-                    // 🎉 a Party Room sent from the app: the rooms are in the CamFeed app (the website gets them later)
+                    // 🎉 a Party Room card: one tap = into the room (party.html on the website, the room screen in the app)
+                    const pid = parseInt(displayText.split(':')[1], 10) || 0;
                     const pt = displayText.split(':').slice(2).join(':');
-                    bodyHtml = `<div style="width:240px;padding:12px;border-radius:18px;background:linear-gradient(135deg,#7C3AED,#EC4899);color:#fff">
+                    bodyHtml = `<a href="party.html?room=${pid}" style="display:block;width:240px;padding:12px;border-radius:18px;background:linear-gradient(135deg,#7C3AED,#EC4899);color:#fff;text-decoration:none">
                         <div style="font-size:12px;opacity:.8;font-weight:700">🎉 Party Room</div>
                         <div style="font-size:15px;font-weight:800;margin:2px 0 8px">${escapeHtml(pt || 'Party Room')}</div>
-                        <div style="font-size:12px;opacity:.9">បើកក្នុងកម្មវិធី CamFeed ដើម្បីចូលបន្ទប់</div></div>`;
+                        <div style="background:#fff;color:#7C3AED;border-radius:12px;padding:7px;text-align:center;font-weight:800;font-size:13.5px">ចូលបន្ទប់</div></a>`;
                 } else if (displayText.startsWith('BIG_EMOJI:')) {
                     // 👍 sent with the finger held in the app: as big as it was made (1× – 3×)
                     const bp = displayText.split(':'); const pct = Math.max(100, Math.min(300, parseInt(bp[1], 10) || 100));

@@ -190,12 +190,12 @@ function securityHeaders(req, res, next) {
   const media = [...allowedHosts()].map((h) => 'https://' + h).join(' ');
   const full = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://translate.google.com https://translate.googleapis.com https://www.gstatic.com",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://challenges.cloudflare.com https://translate.google.com https://translate.googleapis.com https://www.gstatic.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com https://translate.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     `img-src 'self' data: blob: ${media} https://via.placeholder.com https://tile.openstreetmap.org https://www.gstatic.com https://translate.google.com https://translate.googleapis.com`,
     `media-src 'self' blob: ${media}`,
-    `connect-src 'self' ${media} https://*.r2.cloudflarestorage.com https://*.cloudflarestream.com https://translate.googleapis.com`,
+    `connect-src 'self' ${media} wss: https://*.livekit.cloud https://*.r2.cloudflarestorage.com https://*.cloudflarestream.com https://translate.googleapis.com`,
     "frame-src 'self' https://challenges.cloudflare.com https://translate.google.com https://*.cloudflarestream.com",
     "worker-src 'self'", "manifest-src 'self'"
   ].join('; ');
@@ -345,4 +345,3 @@ module.exports = {
   securityHeaders, hideServerErrors, createRateLimits, createVisibility, cspReport, neutralizeExistingData,
   TEXT_LIMITS, REACTIONS, LT, GT
 };
-

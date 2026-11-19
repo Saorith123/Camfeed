@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <script src="auth-client.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1b4b">
+    <title>CamFeed - Party Room</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- the voice of the room (the same LiveKit rooms the app uses) -->
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.7/dist/livekit-client.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, input, button, select, textarea { font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+        body { background: #f0f2f5; color: #050505; min-height: 100vh; }
+        button { cursor: pointer; }
+        .top { background: #fff; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); position: sticky; top: 0; z-index: 20; }
+        .back { background: #f0f2f5; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; }
+        .title { font-size: 18px; font-weight: 800; background: linear-gradient(135deg, #7c3aed, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; flex: 1; }
+        .pill { background: #f0f2f5; border: none; border-radius: 18px; padding: 7px 13px; font-weight: 700; font-size: 14px; }
+        .wrap { max-width: 720px; margin: 14px auto 40px; padding: 0 12px; display: flex; flex-direction: column; gap: 12px; }
+        .banner { background: linear-gradient(135deg, #7c3aed, #ec4899); color: #fff; border-radius: 18px; padding: 18px; display: flex; gap: 14px; align-items: center; }
+        .banner b { font-size: 17px; display: block; }
+        .big { border: none; border-radius: 14px; padding: 13px 18px; font-size: 15.5px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #7c3aed, #ec4899); }
+        .big.white { background: #fff; color: #7c3aed; }
+        .card { background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.07); display: flex; gap: 12px; align-items: center; cursor: pointer; }
+        .card:hover { box-shadow: 0 3px 12px rgba(0,0,0,.1); }
+        .av { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #e4e6eb; flex: 0 0 auto; }
+        .rt { font-weight: 800; font-size: 15.5px; }
+        .muted { color: #65676b; font-size: 13px; }
+        .faces { display: flex; margin-top: 6px; }
+        .faces img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; margin-left: -6px; background: #e4e6eb; }
+        .faces img:first-child { margin-left: 0; }
+        .tag { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+        .empty { text-align: center; color: #65676b; padding: 30px 10px; }
+        .msg { display: none; padding: 11px 13px; border-radius: 12px; font-size: 14px; }
+        /* the room */
+        #room { display: none; position: fixed; inset: 0; z-index: 30; background: linear-gradient(180deg, #1e1b4b, #3b0764 60%, #1e1b4b); color: #fff; flex-direction: column; }
+        .rhead { display: flex; align-items: center; gap: 10px; padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); }
+        .rhead .av { width: 40px; height: 40px; }
+        .rname { font-weight: 800; font-size: 16px; }
+        .rsub { font-size: 12.5px; opacity: .8; }
+        .rbtn { background: rgba(255,255,255,.14); color: #fff; border: none; border-radius: 18px; padding: 7px 12px; font-weight: 700; font-size: 13.5px; }
+        .rbtn.red { background: #e11d48; }
+        .rbody { flex: 1; overflow-y: auto; padding: 4px 12px 8px; display: flex; flex-direction: column; gap: 12px; }
+        .seats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 6px; padding: 8px 0; }
+        .seat { text-align: center; cursor: pointer; position: relative; }
+        .seat .ring { width: 62px; height: 62px; margin: 0 auto; border-radius: 50%; padding: 3px; background: rgba(255,255,255,.12); transition: box-shadow .15s; position: relative; }
+        .seat.talk .ring { box-shadow: 0 0 0 3px #22d3ee, 0 0 16px #22d3ee; }
+        .seat .ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #312e81; }
+        .seat .ring .free { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; color: rgba(255,255,255,.6); border: 2px dashed rgba(255,255,255,.3); }
+        .seat .nm { font-size: 12px; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .95; }
+        .seat .badge { position: absolute; right: 2px; bottom: 0; font-size: 14px; background: #1e1b4b; border-radius: 50%; width: 22px; height: 22px; line-height: 22px; }
+        .seat .crown { position: absolute; left: 2px; top: -2px; font-size: 15px; }
+        .lst { display: flex; flex-wrap: wrap; gap: 8px; }
+        .lst .p { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.1); border-radius: 18px; padding: 3px 10px 3px 3px; font-size: 12.5px; cursor: pointer; }
+        .lst .p img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: #312e81; }
+        .sect { font-size: 13px; font-weight: 800; opacity: .85; }
+        .chat { display: flex; flex-direction: column; gap: 6px; }
+        .line { background: rgba(0,0,0,.25); border-radius: 12px; padding: 7px 10px; font-size: 14px; line-height: 1.5; align-self: flex-start; max-width: 92%; word-wrap: break-word; }
+        .line b { color: #fde68a; }
+        .line.sys { background: rgba(255,255,255,.08); font-size: 13px; opacity: .9; }
+        .line.gift { background: linear-gradient(135deg, rgba(236,72,153,.45), rgba(124,58,237,.45)); }
+        .rfoot { display: flex; gap: 8px; align-items: center; padding: 8px 10px; padding-bottom: max(10px, env(safe-area-inset-bottom)); background: rgba(0,0,0,.25); }
+        .rfoot input { flex: 1; min-width: 0; border: none; border-radius: 20px; padding: 11px 14px; font-size: 15px; background: rgba(255,255,255,.15); color: #fff; }
+        .rfoot input::placeholder { color: rgba(255,255,255,.6); }
+        .circ { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; background: rgba(255,255,255,.15); color: #fff; flex: 0 0 auto; }
+        .circ.on { background: #22c55e; }
+        .circ.off { background: #e11d48; }
+        .circ.pink { background: linear-gradient(135deg, #ec4899, #7c3aed); }
+        /* sheets */
+        .veil { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50; align-items: flex-end; justify-content: center; }
+        .sheet { background: #fff; color: #050505; width: 100%; max-width: 560px; border-radius: 20px 20px 0 0; padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); max-height: 85vh; overflow-y: auto; }
+        .sheet h3 { font-size: 17px; margin-bottom: 10px; }
+        .sheet label { display: block; font-weight: 700; font-size: 14px; margin: 12px 0 6px; }
+        .sheet input[type=text], .sheet select { width: 100%; border: 1px solid #ccd0d5; border-radius: 10px; padding: 11px 12px; font-size: 15px; background: #fff; }
+        .opt { display: block; width: 100%; text-align: left; border: none; background: #f7f8fa; border-radius: 12px; padding: 12px 14px; font-size: 15px; font-weight: 600; margin-top: 8px; }
+        .opt.red { color: #e11d48; }
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .chip { border: 2px solid #e4e6eb; border-radius: 18px; padding: 7px 13px; font-weight: 700; background: #fff; font-size: 14px; }
+        .chip.on { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+        .ggrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .g { border: 2px solid #e4e6eb; border-radius: 12px; padding: 8px 4px; text-align: center; background: #fff; font-size: 12px; }
+        .g.on { border-color: #ec4899; background: #fdf2f8; }
+        .g .e { font-size: 28px; display: block; }
+        .toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); background: rgba(17,17,17,.92); color: #fff; padding: 10px 16px; border-radius: 20px; font-size: 14px; z-index: 80; display: none; max-width: 90vw; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="top"><button class="back" id="backBtn">←</button><div class="title" id="tTitle">🎉 Party Room</div><button class="pill" id="langBtn"></button></div>
+<div class="wrap" id="list">
+    <div class="banner">
+        <div style="font-size:40px">🎙️</div>
+        <div style="flex:1"><b id="tBan1"></b><span id="tBan2" style="font-size:13.5px;opacity:.9"></span></div>
+        <button class="big white" id="createBtn"></button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <button class="big" id="mineBtn" style="display:none"></button>
+    <div id="rooms"></div>
+</div>
+
+<div id="room">
+    <div class="rhead">
+        <img class="av" id="rPic" alt="">
+        <div style="flex:1;min-width:0"><div class="rname" id="rName"></div><div class="rsub" id="rSub"></div></div>
+        <button class="rbtn" id="followBtn"></button>
+        <button class="rbtn" id="moreBtn">⋯</button>
+        <button class="rbtn red" id="leaveBtn"></button>
+    </div>
+    <div class="rbody" id="rBody">
+        <div class="seats" id="seats"></div>
+        <div id="hands"></div>
+        <div><div class="sect" id="tListen"></div><div class="lst" id="listeners" style="margin-top:6px"></div></div>
+        <div class="chat" id="chat"></div>
+    </div>
+    <div class="rfoot">
+        <button class="circ" id="micBtn" title="">🎤</button>
+        <button class="circ" id="handBtn" title="">✋</button>
+        <input type="text" id="chatIn" maxlength="300" autocomplete="off">
+        <button class="circ pink" id="giftBtn">🎁</button>
+        <button class="circ" id="musicBtn" style="display:none">🎵</button>
+    </div>
+    <div id="lkAudio" style="display:none"></div>
+    <audio id="music" loop preload="auto"></audio>
+</div>
+
+<div class="veil" id="veil"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+'use strict';
+var currentUser = null; try { currentUser = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
+if (!currentUser) { location.href = 'index.html?next=' + encodeURIComponent('/party.html' + location.search); return; }
+var T = {
+  km: { ban1: 'និយាយលេង ច្រៀង រាប់អានមិត្ត', ban2: 'បើកបន្ទប់របស់អ្នក ហើយអញ្ជើញមិត្តភក្តិ', create: '+ បើកបន្ទប់', mine: '🎙️ ត្រឡប់ទៅបន្ទប់របស់ខ្ញុំ', none: 'ឥឡូវមិនទាន់មានបន្ទប់បើកទេ។ បើកបន្ទប់ដំបូងទៅ!',
+    notReady: 'Party Room មកដល់ឆាប់ៗ', people: '{0} នាក់', friends: '👥 មិត្តភក្តិ', friendTag: 'មិត្ត', starTag: '⭐ តារា', followedTag: '❤️ Follow', net: 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត',
+    newRoom: 'បើកបន្ទប់ថ្មី', rTitle: 'ឈ្មោះបន្ទប់', rTitleHint: 'ឧ. និយាយលេងពេលល្ងាច', who: 'អ្នកណាចូលបាន', pub: '🌍 គ្រប់គ្នា', fr: '👥 តែមិត្តភក្តិ', seatsN: 'ចំនួនកៅអីនិយាយ', open: 'បើកបន្ទប់',
+    leave: 'ចេញ', close: 'បិទបន្ទប់', closeQ: 'បិទបន្ទប់នេះ? អ្នកទាំងអស់នឹងចេញ។', leaveQ: 'ចេញពីបន្ទប់?', follow: '+ Follow', following: '❤️ {0}', listeners: 'អ្នកស្ដាប់ ({0})',
+    chatHint: 'និយាយអ្វីមួយ...', joined: '👋 {0} បានចូលបន្ទប់', said: '{0}', gift: '🎁 {0} ផ្ញើ {1} ×{2} ទៅ {3}', music: '🎵 {0} ចាក់ចម្រៀង "{1}"', followed: '❤️ {0} បាន Follow បន្ទប់',
+    fx: '{0} {1}', fxTo: '{0} {1} → {2}', ended: 'បន្ទប់នេះបានបិទហើយ', removed: 'អ្នកត្រូវបានឲ្យចេញពីបន្ទប់នេះ', outNow: 'អ្នកបានចេញពីបន្ទប់', hand: '✋ លើកដៃ', handDown: '✋ ដាក់ដៃចុះ',
+    handWait: 'បានលើកដៃ — រង់ចាំម្ចាស់បន្ទប់អញ្ជើញ', sit: 'អង្គុយលើកៅអីនេះ', move: 'ប្ដូរទៅកៅអីលេខ {0}?', standUp: '⬇️ ចុះពីកៅអី', micOn: '🎤 បើកមីក្រូហ្វូន', micOff: '🔇 បិទមីក្រូហ្វូន', micDenied: 'សូមអនុញ្ញាតមីក្រូហ្វូនក្នុង browser',
+    hostMuted: 'ម្ចាស់បន្ទប់បានបិទសំឡេងអ្នក', locked: '🔒 កៅអីនេះត្រូវបានចាក់សោ', askHand: 'លើកដៃ ✋ ហើយរង់ចាំម្ចាស់បន្ទប់អញ្ជើញ', profile: '👤 មើល Profile', sendGift: '🎁 ផ្ញើកាដូ', invite: '⬆️ អញ្ជើញឡើងកៅអី',
+    unseat: '⬇️ យកចេញពីកៅអី', mute: '🔇 បិទសំឡេង', unmute: '🎤 បើកសំឡេង', kick: '👢 ឲ្យចេញពីបន្ទប់', kickQ: 'ឲ្យ {0} ចេញពីបន្ទប់? គេចូលវិញមិនបានទេ។', helper: '⭐ ដាក់ជាអ្នកជួយ', unhelper: '☆ ដកពីអ្នកជួយ',
+    hands: '✋ អ្នកលើកដៃ', giftTitle: '🎁 ផ្ញើកាដូ', giftTo: 'ផ្ញើទៅ', giftNone: 'មិនទាន់មាននរណាលើកៅអីដើម្បីទទួលកាដូទេ', myCoins: '🪙 កាក់របស់អ្នក៖ {0}', buy: 'បញ្ចូលកាក់', send: 'ផ្ញើ', noCoins: 'កាក់មិនគ្រប់គ្រាន់', giftSent: '🎁 បានផ្ញើហើយ',
+    settings: '⚙️ កំណត់បន្ទប់', freeSeats: 'អ្នកណាក៏ឡើងកៅអីទំនេរបាន', save: 'រក្សាទុក', saved: '✅ បានរក្សាទុក', report: '🚩 រាយការណ៍បន្ទប់នេះ', reported: 'បានរាយការណ៍ទៅ CamFeed ហើយ។ សូមអរគុណ!', copy: '🔗 ចម្លងតំណបន្ទប់', copied: '✅ បានចម្លងតំណ',
+    musicOn: '🎵 បើកតន្ត្រី', musicOff: '🔇 បិទតន្ត្រីសម្រាប់ខ្ញុំ', age: 'បន្ទប់នេះសម្រាប់តែអាយុ {0}', ageNo: 'សូមដាក់ថ្ងៃខែឆ្នាំកំណើតក្នុងការកំណត់ Profile ជាមុនសិន', priv: 'បន្ទប់នេះសម្រាប់តែមិត្តភក្តិរបស់ម្ចាស់បន្ទប់',
+    banned: 'អ្នកមិនអាចចូលបន្ទប់នេះបានទេ', bannedAll: 'CamFeed មិនទាន់អនុញ្ញាតឲ្យអ្នកចូល Party Room ទេ', noVoice: 'មិនអាចភ្ជាប់សំឡេងបានទេ សូមបើកទំព័រម្ដងទៀត', tapSound: '🔊 ចុចដើម្បីស្ដាប់សំឡេង', you: '(អ្នក)', lang: 'English', cancel: 'បោះបង់', yes: 'យល់ព្រម' },
+  en: { ban1: 'Talk, sing, make friends', ban2: 'Open your room and invite your friends', create: '+ Open a room', mine: '🎙️ Back to my room', none: 'No room is open right now. Open the first one!',
+    notReady: 'Party Room is coming soon', people: '{0} people', friends: '👥 Friends', friendTag: 'Friend', starTag: '⭐ Star', followedTag: '❤️ Following', net: 'Network problem, please try again',
+    newRoom: 'Open a new room', rTitle: 'Room name', rTitleHint: 'e.g. Evening chat', who: 'Who can come in', pub: '🌍 Everybody', fr: '👥 Friends only', seatsN: 'Speaking seats', open: 'Open the room',
+    leave: 'Leave', close: 'Close room', closeQ: 'Close this room? Everybody will leave.', leaveQ: 'Leave the room?', follow: '+ Follow', following: '❤️ {0}', listeners: 'Listening ({0})',
+    chatHint: 'Say something...', joined: '👋 {0} came in', said: '{0}', gift: '🎁 {0} sent {1} ×{2} to {3}', music: '🎵 {0} plays "{1}"', followed: '❤️ {0} followed the room',
+    fx: '{0} {1}', fxTo: '{0} {1} → {2}', ended: 'This room has ended', removed: 'You were removed from this room', outNow: 'You left the room', hand: '✋ Raise hand', handDown: '✋ Lower hand',
+    handWait: 'Hand raised — wait for the owner to invite you', sit: 'Sit on this seat', move: 'Move to seat {0}?', standUp: '⬇️ Leave the seat', micOn: '🎤 Turn the mic on', micOff: '🔇 Turn the mic off', micDenied: 'Please allow the microphone in your browser',
+    hostMuted: 'The room owner muted you', locked: '🔒 This seat is locked', askHand: 'Raise your hand ✋ and wait for the owner to invite you', profile: '👤 See profile', sendGift: '🎁 Send a gift', invite: '⬆️ Invite to a seat',
+    unseat: '⬇️ Take off the seat', mute: '🔇 Mute', unmute: '🎤 Unmute', kick: '👢 Remove from the room', kickQ: 'Remove {0} from the room? They can not come back.', helper: '⭐ Make a helper', unhelper: '☆ Not a helper',
+    hands: '✋ Hands raised', giftTitle: '🎁 Send a gift', giftTo: 'To', giftNone: 'Nobody is on a seat to receive a gift yet', myCoins: '🪙 Your coins: {0}', buy: 'Buy coins', send: 'Send', noCoins: 'Not enough coins', giftSent: '🎁 Sent',
+    settings: '⚙️ Room settings', freeSeats: 'Anybody can take a free seat', save: 'Save', saved: '✅ Saved', report: '🚩 Report this room', reported: 'Reported to CamFeed. Thank you!', copy: '🔗 Copy the room link', copied: '✅ Link copied',
+    musicOn: '🎵 Music on', musicOff: '🔇 Music off for me', age: 'This room is for ages {0}', ageNo: 'Please add your birthday in your profile settings first', priv: "This room is only for the owner's friends",
+    banned: 'You can not enter this room', bannedAll: 'CamFeed does not let you into Party Rooms for now', noVoice: 'Could not connect the sound, please open the page again', tapSound: '🔊 Tap to hear the room', you: '(you)', lang: 'ខ្មែរ', cancel: 'Cancel', yes: 'OK' }
+};
+var lang = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km';
+function t(k) { return T[lang][k] || T.en[k] || k; }
+function tf(k, a) { return t(k).replace(/\{(\d)\}/g, function (m, i) { return a[i] == null ? '' : a[i]; }); }
+var $ = function (id) { return document.getElementById(id); };
+var DEFAULT_PIC = 'logo-icon.png';
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function pic(u) { u = String(u || ''); return /^(https:\/\/|\/)/.test(u) ? u : DEFAULT_PIC; }
+function img(u, cls) { var i = el('img', cls); i.src = pic(u); i.alt = ''; i.onerror = function () { this.onerror = null; this.src = DEFAULT_PIC; }; return i; }
+function nm(p) { return ((p && p.first_name || '') + ' ' + (p && p.last_name || '')).trim() || 'CamFeed'; }
+async function api(path, body) {
+  try {
+    var r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
+    var j = await r.json().catch(function () { return { success: false }; }); if (!r.ok && j.success !== false) j.success = false; return j;
+  } catch (e) { return { success: false, error: t('net') }; }
+}
+var toastT = null;
+function toast(s) { var b = $('toast'); b.textContent = s; b.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(function () { b.style.display = 'none'; }, 2800); }
+function msg(text, ok) { var b = $('msg'); b.textContent = text || ''; b.style.display = text ? 'block' : 'none'; b.style.background = ok ? '#e6f4ea' : '#fdecee'; b.style.color = ok ? '#176f35' : '#9b1229'; }
+function sheet(build) { var s = $('sheet'); s.textContent = ''; build(s); $('veil').style.display = 'flex'; }
+function closeSheet() { $('veil').style.display = 'none'; }
+$('veil').addEventListener('click', function (e) { if (e.target === $('veil')) closeSheet(); });
+function ask(q) { return new Promise(function (ok) { sheet(function (s) { s.appendChild(el('h3', '', q)); var y = el('button', 'big', t('yes')); y.style.width = '100%'; y.style.marginTop = '8px'; y.onclick = function () { closeSheet(); ok(true); }; var n = el('button', 'opt', t('cancel')); n.style.textAlign = 'center'; n.onclick = function () { closeSheet(); ok(false); }; s.appendChild(y); s.appendChild(n); }); }); }
+
+var cfg = null, roomId = null, st = null, lastId = 0, pollT = null, lk = null, ticketKey = '', speaking = new Set(), myMicOff = false, musicOff = false, skew = 0, gifts = null, giftCounts = [1, 10];
+var meId = (currentUser && (currentUser.email || currentUser.id)) || null;   // my public id (the room's "email" for me; LiveKit tells it too)
+
+// ------------------------------------------------------------------ the list of rooms
+function texts() {
+  $('tBan1').textContent = t('ban1'); $('tBan2').textContent = t('ban2'); $('createBtn').textContent = t('create'); $('mineBtn').textContent = t('mine');
+  $('langBtn').textContent = t('lang'); $('chatIn').placeholder = t('chatHint'); $('leaveBtn').textContent = t('leave');
+}
+async function loadList() {
+  var c = await api('/api/party/config'); cfg = c && c.success ? c : cfg;
+  if (cfg && cfg.ready === false) { $('rooms').textContent = ''; $('rooms').appendChild(el('div', 'empty', t('notReady'))); $('createBtn').style.display = 'none'; return; }
+  var d = await api('/api/party/rooms');
+  var box = $('rooms'); box.textContent = '';
+  if (!d.success) { box.appendChild(el('div', 'empty', d.error || t('net'))); return; }
+  $('mineBtn').style.display = d.current ? 'block' : 'none';
+  $('mineBtn').onclick = function () { join(d.current); };
+  if (!d.rooms || !d.rooms.length) { box.appendChild(el('div', 'empty', t('none'))); return; }
+  d.rooms.forEach(function (r) {
+    var c = el('div', 'card'); c.style.marginBottom = '10px';
+    c.appendChild(img(r.owner && r.owner.profile_pic, 'av'));
+    var mid = el('div'); mid.style.flex = '1'; mid.style.minWidth = '0';
+    var tt = el('div', 'rt', r.title || nm(r.owner));
+    if (r.star) { var s1 = el('span', 'tag', t('starTag')); s1.style.background = '#fef3c7'; s1.style.color = '#92400e'; tt.appendChild(s1); }
+    if (r.followed) { var s2 = el('span', 'tag', t('followedTag')); s2.style.background = '#fce7f3'; s2.style.color = '#be185d'; tt.appendChild(s2); }
+    else if (r.friend) { var s3 = el('span', 'tag', t('friendTag')); s3.style.background = '#e0e7ff'; s3.style.color = '#3730a3'; tt.appendChild(s3); }
+    mid.appendChild(tt);
+    mid.appendChild(el('div', 'muted', nm(r.owner) + ' · ' + tf('people', [r.people]) + (r.privacy === 'friends' ? ' · ' + t('friends') : '')));
+    if (r.faces && r.faces.length) { var f = el('div', 'faces'); r.faces.forEach(function (u) { f.appendChild(img(u)); }); mid.appendChild(f); }
+    c.appendChild(mid);
+    c.appendChild(el('div', '', '🎧'));
+    c.onclick = function () { join(r.id); };
+    box.appendChild(c);
+  });
+}
+$('createBtn').onclick = function () {
+  var seats = (cfg && cfg.seatChoices) || [4, 8, 12], pickS = seats.indexOf(8) >= 0 ? 8 : seats[0], priv = 'public';
+  sheet(function (s) {
+    s.appendChild(el('h3', '', t('newRoom')));
+    s.appendChild(el('label', '', t('rTitle')));
+    var inp = el('input'); inp.type = 'text'; inp.maxLength = 60; inp.placeholder = t('rTitleHint'); inp.value = (cfg && cfg.myTitle) || ''; s.appendChild(inp);
+    s.appendChild(el('label', '', t('who')));
+    var pc = el('div', 'chips'); [['public', t('pub')], ['friends', t('fr')]].forEach(function (o) { var b = el('button', 'chip' + (o[0] === priv ? ' on' : ''), o[1]); b.onclick = function () { priv = o[0]; Array.prototype.forEach.call(pc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; pc.appendChild(b); }); s.appendChild(pc);
+    s.appendChild(el('label', '', t('seatsN')));
+    var sc = el('div', 'chips'); seats.forEach(function (n) { var b = el('button', 'chip' + (n === pickS ? ' on' : ''), String(n)); b.onclick = function () { pickS = n; Array.prototype.forEach.call(sc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; sc.appendChild(b); }); s.appendChild(sc);
+    var go = el('button', 'big', t('open')); go.style.width = '100%'; go.style.marginTop = '16px';
+    go.onclick = async function () {
+      go.disabled = true;
+      var r = await api('/api/party/rooms', { title: inp.value.trim(), privacy: priv, seats: pickS });
+      go.disabled = false;
+      if (!r.success) { toast(errText(r)); return; }
+      closeSheet(); enter(r.id, r);
+    };
+    s.appendChild(go);
+  });
+};
+function errText(r) {
+  if (!r) return t('net');
+  if (r.code === 'banned_all') return t('bannedAll');
+  if (r.code === 'banned') return t('banned');
+  if (r.code === 'private') return t('priv');
+  if (r.code === 'age') return r.noBirthday ? t('ageNo') : tf('age', [(r.age_min || '') + '–' + (r.age_max || '')]);
+  if (r.closed) return t('ended');
+  return r.error || t('net');
+}
+async function join(id) {
+  var r = await api('/api/party/rooms/' + id + '/join', {});
+  if (!r.success) { msg(errText(r)); toast(errText(r)); loadList(); return; }
+  enter(id, r);
+}
+
+// ------------------------------------------------------------------ inside a room
+function enter(id, r) {
+  roomId = id; st = null; lastId = 0; ticketKey = ''; myMicOff = false; $('chat').textContent = '';
+  $('room').style.display = 'flex'; document.body.style.overflow = 'hidden';
+  history.replaceState(null, '', 'party.html?room=' + id);
+  apply(r.state);
+  voice(r.live);
+  clearInterval(pollT); pollT = setInterval(poll, 2000);
+}
+function exitRoom(why) {
+  clearInterval(pollT); pollT = null;
+  try { if (lk) lk.disconnect(); } catch (e) {} lk = null;
+  $('lkAudio').textContent = ''; var mu = $('music'); try { mu.pause(); } catch (e) {} mu.removeAttribute('src');
+  $('room').style.display = 'none'; document.body.style.overflow = '';
+  roomId = null; st = null;
+  history.replaceState(null, '', 'party.html');
+  if (why) { msg(why); toast(why); }
+  loadList();
+}
+async function poll() {
+  if (!roomId) return;
+  var d = await api('/api/party/rooms/' + roomId + '/state?after=' + lastId);
+  if (!roomId || !d.success) return;
+  if (d.closed) return exitRoom(t('ended'));
+  if (d.out) return exitRoom(d.removed ? t('removed') : t('outNow'));
+  apply(d);
+}
+var isOwner = function () { return st && st.me && st.me.role === 'owner'; };
+var canManage = function () { return st && st.me && (st.me.role === 'owner' || st.me.role === 'helper'); };
+function apply(s) {
+  if (!s) return;
+  var firstTime = !st;
+  st = s;
+  if (s.now) skew = Date.parse(s.now) - Date.now();
+  var me = s.me || {};
+  var room = s.room || {};
+  $('rPic').src = pic(room.owner && room.owner.profile_pic); $('rPic').onerror = function () { this.onerror = null; this.src = DEFAULT_PIC; };
+  $('rName').textContent = room.title || nm(room.owner);
+  $('rSub').textContent = nm(room.owner) + ' · ' + tf('people', [(s.people || []).length]);
+  $('leaveBtn').textContent = isOwner() ? t('close') : t('leave');
+  $('followBtn').style.display = isOwner() ? 'none' : '';
+  $('followBtn').textContent = room.following ? tf('following', [room.followers || 0]) : t('follow');
+  seats(s); listeners(s); handsBox(s); controls(s); music(s);
+  (s.messages || []).forEach(line);
+  if (firstTime) $('rBody').scrollTop = $('rBody').scrollHeight;
+  // my seat or my mute changed (the owner invited me / took me off / muted me): a new voice ticket
+  var key = (me.seat != null) + ':' + !!me.muted;
+  if (ticketKey && key !== ticketKey) refreshTicket();
+  ticketKey = key;
+}
+function personById(id) { return (st && st.people || []).find(function (p) { return p.email === id; }); }
+function seats(s) {
+  var box = $('seats'); box.textContent = '';
+  var n = (s.room && s.room.seats) || 8, locked = (s.room && s.room.locked_seats) || [];
+  for (var i = 0; i < n; i++) (function (i) {
+    var p = (s.people || []).find(function (x) { return x.seat === i; });
+    var c = el('div', 'seat' + (p && speaking.has(p.email) ? ' talk' : '')); c.dataset.id = p ? p.email : '';
+    var ring = el('div', 'ring');
+    if (p) {
+      ring.appendChild(img(p.profile_pic));
+      if (p.role === 'owner') c.appendChild(el('span', 'crown', '👑'));
+      else if (p.role === 'helper') c.appendChild(el('span', 'crown', '⭐'));
+      if (p.muted || p.on_phone) ring.appendChild(el('span', 'badge', p.on_phone ? '📞' : '🔇'));
+    } else ring.appendChild(el('div', 'free', locked.indexOf(i) >= 0 ? '🔒' : '+'));
+    c.appendChild(ring);
+    c.appendChild(el('div', 'nm', p ? nm(p) + (p.email === meId ? ' ' + t('you') : '') : String(i + 1)));
+    c.onclick = function () { p ? personMenu(p) : seatTap(i, locked.indexOf(i) >= 0); };
+    box.appendChild(c);
+  })(i);
+}
+function listeners(s) {
+  var l = (s.people || []).filter(function (p) { return p.seat == null; });
+  $('tListen').textContent = tf('listeners', [l.length]);
+  var box = $('listeners'); box.textContent = '';
+  l.forEach(function (p) { var b = el('div', 'p'); b.appendChild(img(p.profile_pic)); b.appendChild(el('span', '', (p.hand ? '✋ ' : '') + nm(p))); b.onclick = function () { personMenu(p); }; box.appendChild(b); });
+}
+function handsBox(s) {
+  var box = $('hands'); box.textContent = '';
+  if (!canManage()) return;
+  var l = (s.people || []).filter(function (p) { return p.hand && p.seat == null; });
+  if (!l.length) return;
+  box.appendChild(el('div', 'sect', t('hands')));
+  var w = el('div', 'lst'); w.style.marginTop = '6px';
+  l.forEach(function (p) { var b = el('div', 'p'); b.appendChild(img(p.profile_pic)); b.appendChild(el('span', '', nm(p) + ' · ' + t('invite'))); b.onclick = function () { manage(p, 'invite'); }; w.appendChild(b); });
+  box.appendChild(w);
+}
+function controls(s) {
+  var me = s.me || {}, seated = me.seat != null;
+  var mic = $('micBtn'); mic.style.display = seated ? '' : 'none';
+  mic.className = 'circ ' + (me.muted || myMicOff ? 'off' : 'on'); mic.textContent = me.muted || myMicOff ? '🔇' : '🎤';
+  mic.title = myMicOff ? t('micOn') : t('micOff');
+  var h = $('handBtn'); h.style.display = seated ? 'none' : ''; h.className = 'circ' + (me.hand ? ' on' : ''); h.title = me.hand ? t('handDown') : t('hand');
+}
+function line(m) {
+  if (m.id <= lastId) return;
+  lastId = Math.max(lastId, m.id);
+  var who = nm(m), d = null;
+  if (m.kind === 'join') d = el('div', 'line sys', tf('joined', [who]));
+  else if (m.kind === 'gift') d = el('div', 'line gift', tf('gift', [who, (m.gift && m.gift.emoji || '🎁') + ' ' + (lang === 'en' ? (m.gift && m.gift.name_en) : (m.gift && m.gift.name_km)), m.count || 1, ((m.to_first_name || '') + ' ' + (m.to_last_name || '')).trim()]));
+  else if (m.kind === 'action' || m.kind === 'emote') { var fx = m.fx || {}; d = el('div', 'line sys', m.to_first_name ? tf('fxTo', [who, fx.emoji || '✨', ((m.to_first_name || '') + ' ' + (m.to_last_name || '')).trim()]) : tf('fx', [who, fx.emoji || '✨'])); }
+  else if (m.kind === 'system') {
+    var tx = String(m.text || '');
+    if (tx.indexOf('music:') === 0) d = el('div', 'line sys', tf('music', [who, tx.slice(6)]));
+    else if (tx === 'follow') d = el('div', 'line sys', tf('followed', [who]));
+    else return;
+  } else { d = el('div', 'line'); d.appendChild(el('b', '', who + ': ')); d.appendChild(document.createTextNode(String(m.text || ''))); }
+  var box = $('chat'), body = $('rBody');
+  var atEnd = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+  box.appendChild(d);
+  while (box.children.length > 150) box.removeChild(box.firstChild);
+  if (atEnd) body.scrollTop = body.scrollHeight;
+}
+
+// seats and people
+async function seatTap(i, locked) {
+  var me = st.me || {};
+  if (i === 0) return;
+  if (locked) { toast(t('locked')); return; }
+  if (me.role === 'owner') return;
+  if (me.seat != null) { if (!(await ask(tf('move', [i + 1])))) return; }
+  else if (!(st.room && st.room.free_seats) && !canManage()) { toast(t('askHand')); return; }
+  var r = await api('/api/party/rooms/' + roomId + '/seat', { seat: i });
+  if (!r.success) { toast(r.message === 'locked' ? t('locked') : (r.error || t('net'))); return; }
+  if (r.live) await voice(r.live);
+  poll();
+}
+function personMenu(p) {
+  var mine = p.email === meId, me = st.me || {};
+  sheet(function (s) {
+    var head = el('div'); head.style.cssText = 'display:flex;gap:12px;align-items:center;margin-bottom:6px';
+    head.appendChild(img(p.profile_pic, 'av')); var hn = el('div'); hn.appendChild(el('div', 'rt', nm(p))); if (p.level) hn.appendChild(el('div', 'muted', 'Lv.' + p.level + (p.vip ? ' · 👑 VIP' : ''))); head.appendChild(hn); s.appendChild(head);
+    function opt(text, fn, red) { var b = el('button', 'opt' + (red ? ' red' : ''), text); b.onclick = function () { closeSheet(); fn(); }; s.appendChild(b); }
+    opt(t('profile'), function () { location.href = 'profile.html?email=' + encodeURIComponent(p.email); });
+    if (mine) {
+      if (p.seat != null && p.role !== 'owner') opt(t('standUp'), standUp);
+      return;
+    }
+    opt(t('sendGift'), function () { giftSheet(p.email); });
+    if (canManage() && p.role !== 'owner' && !(p.role === 'helper' && me.role !== 'owner')) {
+      if (p.seat == null) opt(t('invite'), function () { manage(p, 'invite'); });
+      else { opt(t('unseat'), function () { manage(p, 'unseat'); }); opt(p.muted ? t('unmute') : t('mute'), function () { manage(p, p.muted ? 'unmute' : 'mute'); }); }
+      if (me.role === 'owner') opt(p.role === 'helper' ? t('unhelper') : t('helper'), function () { manage(p, p.role === 'helper' ? 'unhelper' : 'helper'); });
+      opt(t('kick'), async function () { if (await ask(tf('kickQ', [nm(p)]))) manage(p, 'kick'); }, true);
+    }
+  });
+}
+async function manage(p, action) {
+  var r = await api('/api/party/rooms/' + roomId + '/manage', { target_email: p.email, action: action });
+  if (!r.success) toast(r.error || t('net'));
+  poll();
+}
+async function standUp() {
+  var r = await api('/api/party/rooms/' + roomId + '/seat', { action: 'leave' });
+  if (!r.success) { toast(r.error || t('net')); return; }
+  if (r.live) await voice(r.live);
+  poll();
+}
+$('handBtn').onclick = async function () {
+  var up = !(st && st.me && st.me.hand);
+  await api('/api/party/rooms/' + roomId + '/hand', { up: up });
+  if (up) toast(t('handWait'));
+  poll();
+};
+$('micBtn').onclick = function () {
+  if (st && st.me && st.me.muted) { toast(t('hostMuted')); return; }
+  myMicOff = !myMicOff; micApply(); controls(st);
+};
+$('chatIn').addEventListener('keydown', async function (e) {
+  if (e.key !== 'Enter') return;
+  var v = this.value.trim(); if (!v || !roomId) return;
+  this.value = '';
+  var r = await api('/api/party/rooms/' + roomId + '/message', { text: v });
+  if (!r.success) toast(r.error || t('net')); else poll();
+});
+$('leaveBtn').onclick = async function () {
+  if (!(await ask(isOwner() ? t('closeQ') : t('leaveQ')))) return;
+  await api('/api/party/rooms/' + roomId + '/leave', {});
+  exitRoom('');
+};
+$('followBtn').onclick = async function () {
+  var on = !(st && st.room && st.room.following);
+  await api('/api/party/rooms/' + roomId + '/follow', { on: on });
+  poll();
+};
+$('moreBtn').onclick = function () {
+  sheet(function (s) {
+    function opt(text, fn, red) { var b = el('button', 'opt' + (red ? ' red' : ''), text); b.onclick = function () { closeSheet(); fn(); }; s.appendChild(b); }
+    opt(t('copy'), function () { var u = location.origin + '/party.html?room=' + roomId; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { toast(t('copied')); }).catch(function () { prompt('', u); }); });
+    if (st && st.room && st.room.music) opt(musicOff ? t('musicOn') : t('musicOff'), function () { musicOff = !musicOff; music(st); });
+    if (isOwner()) opt(t('settings'), settingsSheet);
+    if (!isOwner()) opt(t('report'), async function () { await api('/api/party/rooms/' + roomId + '/report', { reason: 'Website' }); toast(t('reported')); }, true);
+  });
+};
+function settingsSheet() {
+  var r = st.room || {}, priv = r.privacy || 'public', seatsN = r.seats || 8, free = !!r.free_seats;
+  sheet(function (s) {
+    s.appendChild(el('h3', '', t('settings')));
+    s.appendChild(el('label', '', t('rTitle')));
+    var inp = el('input'); inp.type = 'text'; inp.maxLength = 60; inp.value = r.title || ''; s.appendChild(inp);
+    s.appendChild(el('label', '', t('who')));
+    var pc = el('div', 'chips'); [['public', t('pub')], ['friends', t('fr')]].forEach(function (o) { var b = el('button', 'chip' + (o[0] === priv ? ' on' : ''), o[1]); b.onclick = function () { priv = o[0]; Array.prototype.forEach.call(pc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; pc.appendChild(b); }); s.appendChild(pc);
+    s.appendChild(el('label', '', t('seatsN')));
+    var sc = el('div', 'chips'); ((cfg && cfg.seatChoices) || [4, 8, 12]).forEach(function (n) { var b = el('button', 'chip' + (n === seatsN ? ' on' : ''), String(n)); b.onclick = function () { seatsN = n; Array.prototype.forEach.call(sc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; sc.appendChild(b); }); s.appendChild(sc);
+    var lab = el('label'); lab.style.cssText = 'display:flex;gap:8px;align-items:center'; var cb = el('input'); cb.type = 'checkbox'; cb.checked = free; lab.appendChild(cb); lab.appendChild(el('span', '', t('freeSeats'))); s.appendChild(lab);
+    var go = el('button', 'big', t('save')); go.style.width = '100%'; go.style.marginTop = '14px';
+    go.onclick = async function () { var x = await api('/api/party/rooms/' + roomId + '/settings', { title: inp.value.trim(), privacy: priv, seats: seatsN, free_seats: cb.checked }); closeSheet(); toast(x.success ? t('saved') : (x.error || t('net'))); poll(); };
+    s.appendChild(go);
+  });
+}
+
+// 🎁 gifts
+async function giftSheet(toId) {
+  if (!gifts) {
+    var c = await api('/api/coins'); gifts = c.success ? c : null;
+    var a = await api('/api/app-config'); if (a && a.config && Array.isArray(a.config.giftCounts) && a.config.giftCounts.length) giftCounts = a.config.giftCounts;
+  } else { var c2 = await api('/api/coins'); if (c2.success) gifts.balance = c2.balance; }
+  var seated = (st.people || []).filter(function (p) { return p.email !== meId; });
+  var to = toId || ((seated.find(function (p) { return p.seat != null; }) || {}).email), pick = null, count = giftCounts[0];
+  sheet(function (s) {
+    s.appendChild(el('h3', '', t('giftTitle')));
+    if (!gifts) { s.appendChild(el('div', 'muted', t('net'))); return; }
+    var bal = el('div', 'muted', tf('myCoins', [gifts.balance || 0])); var buy = el('a', '', ' · ' + t('buy')); buy.href = 'coins.html'; buy.style.color = '#7c3aed'; buy.style.fontWeight = '800'; bal.appendChild(buy); s.appendChild(bal);
+    if (!seated.length) { s.appendChild(el('div', 'empty', t('giftNone'))); return; }
+    s.appendChild(el('label', '', t('giftTo')));
+    var tc = el('div', 'chips'); seated.forEach(function (p) { var b = el('button', 'chip' + (p.email === to ? ' on' : ''), nm(p)); b.onclick = function () { to = p.email; Array.prototype.forEach.call(tc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; tc.appendChild(b); }); s.appendChild(tc);
+    s.appendChild(el('label', '', '🎁'));
+    var gg = el('div', 'ggrid');
+    (gifts.gifts || []).forEach(function (g) { var b = el('button', 'g'); b.appendChild(el('span', 'e', g.emoji)); b.appendChild(el('div', '', lang === 'en' ? g.name_en : g.name_km)); b.appendChild(el('div', 'muted', '🪙 ' + g.coins)); b.onclick = function () { pick = g; Array.prototype.forEach.call(gg.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; gg.appendChild(b); });
+    s.appendChild(gg);
+    var cc = el('div', 'chips'); cc.style.marginTop = '12px'; giftCounts.forEach(function (n) { var b = el('button', 'chip' + (n === count ? ' on' : ''), '×' + n); b.onclick = function () { count = n; Array.prototype.forEach.call(cc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; cc.appendChild(b); }); s.appendChild(cc);
+    var go = el('button', 'big', t('send')); go.style.width = '100%'; go.style.marginTop = '14px';
+    go.onclick = async function () {
+      if (!pick || !to) return;
+      go.disabled = true;
+      var r = await api('/api/party/rooms/' + roomId + '/gift', { to_email: to, gift_id: pick.id, count: count });
+      go.disabled = false;
+      if (!r.success) { toast(/coin/i.test(String(r.error || r.code || '')) ? t('noCoins') : (r.error || t('net'))); return; }
+      closeSheet(); toast(t('giftSent')); poll();
+    };
+    s.appendChild(go);
+  });
+}
+$('giftBtn').onclick = function () { giftSheet(null); };
+
+// 🎵 the room's music: every browser plays the same song at the same point (the server's clock)
+function music(s) {
+  var m = s.room && s.room.music, a = $('music');
+  $('musicBtn').style.display = m ? '' : 'none';
+  $('musicBtn').textContent = musicOff ? '🔇' : '🎵';
+  if (!m || musicOff) { try { a.pause(); } catch (e) {} if (!m) a.removeAttribute('src'); return; }
+  if (a.dataset.url !== m.url) { a.dataset.url = m.url; a.src = m.url; }
+  var dur = a.duration && isFinite(a.duration) ? a.duration : 0;
+  var at = Date.parse(m.at), now = m.paused_at ? Date.parse(m.paused_at) : Date.now() + skew;
+  var pos = Math.max(0, (now - at) / 1000); if (dur > 0) pos = pos % dur;
+  if (dur > 0 && Math.abs(a.currentTime - pos) > 2.5) { try { a.currentTime = pos; } catch (e) {} }
+  if (m.paused_at) { try { a.pause(); } catch (e) {} } else if (a.paused) { a.volume = 0.6; a.play().catch(function () {}); }
+}
+$('musicBtn').onclick = function () { musicOff = !musicOff; music(st); };
+
+// 🎙️ the voice (LiveKit)
+async function voice(live) {
+  var LK = window.LivekitClient;
+  if (!live || !live.url || !live.token) return;
+  if (!LK) { toast(t('noVoice')); return; }
+  try { if (lk) await lk.disconnect(); } catch (e) {}
+  $('lkAudio').textContent = '';
+  var room = new LK.Room({ adaptiveStream: true, dynacast: true });
+  lk = room;
+  room.on(LK.RoomEvent.TrackSubscribed, function (track) { if (track.kind === 'audio') { var a = track.attach(); $('lkAudio').appendChild(a); } });
+  room.on(LK.RoomEvent.TrackUnsubscribed, function (track) { track.detach().forEach(function (x) { x.remove(); }); });
+  room.on(LK.RoomEvent.ActiveSpeakersChanged, function (sp) { speaking = new Set(sp.map(function (p) { return p.identity; })); if (st) seats(st); });
+  room.on(LK.RoomEvent.AudioPlaybackStatusChanged, function () { if (!room.canPlaybackAudio) askSound(room); });
+  try {
+    await room.connect(live.url, live.token);
+    if (lk !== room) { room.disconnect(); return; }
+    meId = room.localParticipant.identity || meId;
+    try { await room.startAudio(); } catch (e) {}
+    if (!room.canPlaybackAudio) askSound(room);
+    micApply();
+  } catch (e) { toast(t('noVoice')); }
+}
+function askSound(room) {
+  sheet(function (s) { var b = el('button', 'big', t('tapSound')); b.style.width = '100%'; b.onclick = function () { room.startAudio().catch(function () {}); closeSheet(); }; s.appendChild(b); });
+}
+async function micApply() {
+  if (!lk || !st || !st.me) return;
+  var on = st.me.seat != null && !st.me.muted && !myMicOff;
+  try { await lk.localParticipant.setMicrophoneEnabled(on, { echoCancellation: true, noiseSuppression: true, autoGainControl: true }); }
+  catch (e) { if (on) { toast(t('micDenied')); myMicOff = true; controls(st); } }
+}
+async function refreshTicket() {
+  var r = await api('/api/party/rooms/' + roomId + '/ticket');
+  if (r.success && r.live) await voice(r.live);
+}
+
+// ------------------------------------------------------------------ start
+$('langBtn').onclick = function () { lang = lang === 'en' ? 'km' : 'en'; try { localStorage.setItem('camfeed_lang', lang); } catch (e) {} texts(); if (st) apply(st); else loadList(); };
+$('backBtn').onclick = function () { if (roomId) { $('room').style.display === 'flex' && $('leaveBtn').click(); } else if (history.length > 1) history.back(); else location.href = 'feed.html'; };
+texts();
+var q = new URLSearchParams(location.search).get('room');
+loadList().then(function () { if (q && /^\d+$/.test(q)) join(parseInt(q, 10)); });
+})();
+</script>
+</body>
+</html>
