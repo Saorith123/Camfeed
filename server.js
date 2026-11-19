@@ -961,7 +961,7 @@ async function backfillFeedVideos() {
       return;
     }
     // waiting: videos with no light copy yet, and long videos that so far have only their 5-minute preview
-    const rows = (await pool.query("SELECT id, media_type, media_url, feed_url FROM posts WHERE (feed_url IS NULL OR (feed_url LIKE '%/feed/%' AND video_secs > 301)) AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') AND NOT (id = ANY($1::int[])) ORDER BY id DESC LIMIT 1", [[...longWait, ...longFailed]])).rows;
+    const rows = (await pool.query("SELECT id, media_type, media_url, feed_url FROM posts WHERE (feed_url IS NULL OR (feed_url LIKE '%/feed/%' AND video_secs > 301)) AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') AND NOT (id = ANY($1::int[])) ORDER BY (feed_url IS NULL) DESC, id DESC LIMIT 1", [[...longWait, ...longFailed]])).rows;   // videos with nothing light come first
     for (const row of rows) {
       const v = pubMedia(row).video;
       const secs = v ? await videoSecs(v).catch(() => null) : null;
@@ -977,8 +977,9 @@ async function backfillFeedVideos() {
             // first a 5-minute preview (made in a minute or two: the video starts at once in the Feed meanwhile),
             // then the light copy of the WHOLE video (may take hours) replaces it
             if (!row.feed_url) {
+              // every long video first gets its preview (a minute or two each); the slow full copies come after ALL previews
               const pv = await makeFeedVideo(v, secs, true);
-              if (pv) { await pool.query('UPDATE posts SET feed_url = $2, feed_checked = TRUE WHERE id = $1', [row.id, pv]).catch(() => {}); console.log('[feedvideo] long post', row.id, 'preview ready'); }
+              if (pv) { await pool.query('UPDATE posts SET feed_url = $2, feed_checked = TRUE WHERE id = $1', [row.id, pv]).catch(() => {}); console.log('[feedvideo] long post', row.id, 'preview ready'); return; }
             }
             const u = await makeFeedVideo(v, secs);
             if (u) { await pool.query('UPDATE posts SET feed_url = $2, feed_checked = TRUE WHERE id = $1', [row.id, u]).catch(() => {}); console.log('[feedvideo] long post', row.id, 'full light copy ready'); }
