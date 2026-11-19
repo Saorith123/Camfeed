@@ -27,7 +27,7 @@
     if (bar || !document.body) return;
     bar = document.createElement('div');
     bar.setAttribute('role', 'dialog');
-    bar.style.cssText = 'position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:99999;background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.25);padding:12px 14px;display:flex;align-items:center;gap:12px;font-family:"Noto Sans Khmer",-apple-system,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto';
+    bar.style.cssText = 'position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:99999;background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.25);padding:12px 14px;display:flex;align-items:center;gap:12px;font-family:"Battambang",-apple-system,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto';
     var img = document.createElement('img'); img.src = '/icons/icon-192.png'; img.alt = ''; img.style.cssText = 'width:42px;height:42px;border-radius:10px;flex-shrink:0';
     var mid = document.createElement('div'); mid.style.cssText = 'flex:1;min-width:0';
     var h = document.createElement('div'); h.textContent = T.title; h.style.cssText = 'font-weight:800;font-size:14.5px;color:#1c1e21';

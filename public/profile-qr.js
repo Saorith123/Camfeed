@@ -13,7 +13,7 @@
   function chat() { location.href = 'messages.html?chat=' + encodeURIComponent(id); }
   function render(u) {
     if (document.getElementById('qrSheet') || !document.body) return;
-    var sheet = el('div', 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#fff;color:#1c1e21;border-radius:20px 20px 0 0;box-shadow:0 -6px 30px rgba(0,0,0,.35);padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;font-family:"Plus Jakarta Sans","Noto Sans Khmer",sans-serif');
+    var sheet = el('div', 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#fff;color:#1c1e21;border-radius:20px 20px 0 0;box-shadow:0 -6px 30px rgba(0,0,0,.35);padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;font-family:"Plus Jakarta Sans","Battambang",sans-serif');
     sheet.id = 'qrSheet';
     var top = el('div', 'display:flex;align-items:center;gap:12px;margin-bottom:12px');
     var av = el('div', 'width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#1877f2,#42a5ff);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;overflow:hidden;flex-shrink:0');

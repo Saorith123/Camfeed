@@ -239,7 +239,7 @@ module.exports = function installStars({ app, pool, adminGate, audit, sendNotice
                                     WHERE user_email = $1 AND status = 'pending' RETURNING user_email`, [who, to, note || null, a.adminEmail, String(s.trialDays), to]);
         if (!r.rows.length) return res.status(409).json({ success: false, error: 'Already decided.' });
         await pool.query('DELETE FROM star_docs WHERE user_email = $1', [who]);       // the ID pictures are not kept
-        await sendNotice(a.adminEmail, who, ok ? '⭐ អបអរសាទរ! អ្នកបានក្លាយជាតារា CamFeed (សាកល្បង ' + s.trialDays + ' ថ្ងៃ)។ បើកបន្ទប់ Party Room ហើយអង្គុយលើកៅអីជាមួយអ្នកស្ដាប់ ដើម្បីរាប់ម៉ោង។'
+        await sendNotice(a.adminEmail, who, ok ? '⭐ អបអរសាទរ! អ្នកបានក្លាយជាតារា CamFeed (រយៈពេលសាកល្បង ' + String(s.trialDays).replace(/\d/g, (d) => '០១២៣៤៥៦៧៨៩'[d]) + ' ថ្ងៃ)។ បើកបន្ទប់ Party Room ហើយអង្គុយលើកៅអីជាមួយអ្នកស្ដាប់ ដើម្បីរាប់ម៉ោង។'
           : 'សំណើចូលជាតារា CamFeed របស់អ្នកមិនត្រូវបានអនុម័តទេ។ មូលហេតុ៖ ' + note).catch(() => {});
         audit(a.adminEmail, 'star-' + (ok ? 'approve' : 'reject'), who, note);
       } else if (act === 'status') {                            // a star: star / paused / removed / warn

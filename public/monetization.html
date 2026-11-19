@@ -16,10 +16,10 @@
     <link rel="icon" type="image/png" href="logo-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, input, button, select { font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', sans-serif; }
+        body, input, button, select { font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
         body { background-color: #f0f2f5; color: #050505; min-height: 100vh; padding-bottom: 40px; }
 
         body.in-app .top-nav { display: none; }       /* inside the phone app: the app shows its own title bar */
@@ -87,6 +87,12 @@
 <button class="withdraw-btn" id="withdrawBtn" type="button"></button>
 </div>
 <div class="mz-note" id="tNote"></div>
+
+<!-- 🎯 Challenges for earning (set in Admin › 🎯 Challenges; shown only when there is one) -->
+<div class="card" id="chCard" style="display:none">
+<div class="card-title" id="chTitle">🎯 Challenge</div>
+<div id="chBox"></div>
+</div>
 
 <!-- Way 1: invited by CamFeed — always shown; its button works only after CamFeed invites this person -->
 <div class="card" id="inviteCard">
@@ -350,6 +356,50 @@ $('withdrawBtn').addEventListener('click', function () {
   document.body.appendChild(modal);
 });
 applyTexts(); load();
+})();
+</script>
+<script>
+// 🎯 Challenges (Monetize): free to join; steps → rewards; Top places at the end. Everything comes from the server.
+(function () {
+  var en = (function () { try { var l = localStorage.getItem('camfeed_lang'); return l === 'en' || (l && l !== 'km'); } catch (e) { return false; } })();
+  var L = en ? { join: '✅ Join (free)', joined: 'You joined', mine: 'Yours: ', left: ' left', ended: 'Ended', full: 'All places are taken', places: 'Places: ', of: ' of ', step: 'Step ', got: '🎉 received', net: 'Network problem. Please try again.', counts: 'Counts: ', top: '🏆 Top places (at the end): ', soon: 'Starts soon' }
+    : { join: '✅ ចូលរួម (ឥតគិតថ្លៃ)', joined: 'អ្នកបានចូលរួមហើយ', mine: 'របស់អ្នក៖ ', left: '', ended: 'បានបញ្ចប់', full: 'កន្លែងពេញហើយ', places: 'កន្លែង៖ ', of: ' ក្នុងចំណោម ', step: 'ជាន់ទី ', got: '🎉 បានទទួលរង្វាន់ហើយ', net: 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត', counts: 'រាប់៖ ', top: '🏆 រង្វាន់ចំណាត់ថ្នាក់ (ពេលបញ្ចប់)៖ ', soon: 'ចាប់ផ្ដើមឆាប់ៗ' };
+  var MET = en ? { gift_recv: 'Gift coins you received', gift_sent: 'Gift coins you sent', room_minutes: 'Time in Party Rooms', seat_minutes: 'Time on a seat', xp: 'XP you gained', checkins: 'Check-in days', room_followers: 'New room followers', video_views: 'Views of your videos', posts: 'Your posts', followers: 'New followers' }
+    : { gift_recv: 'កាក់កាដូដែលអ្នកទទួល', gift_sent: 'កាក់កាដូដែលអ្នកផ្ញើ', room_minutes: 'ពេលនៅក្នុងបន្ទប់ Party Room', seat_minutes: 'ពេលអង្គុយលើកៅអីក្នុងបន្ទប់', xp: 'XP ដែលអ្នកបាន', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នក Follow បន្ទប់ថ្មី', video_views: 'ចំនួនអ្នកមើលវីដេអូរបស់អ្នក', posts: 'ការបង្ហោះរបស់អ្នក', followers: 'អ្នកតាមដានថ្មី' };
+  function val(m, n) { n = Math.round(n || 0); if (m === 'room_minutes' || m === 'seat_minutes') { var h = Math.floor(n / 60), mm = n % 60; return en ? (h ? h + 'h ' : '') + mm + 'm' : (h ? h + ' ម៉ោង ' : '') + mm + ' នាទី'; } return n.toLocaleString(); }
+  function rw(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '💵 $' + (n / 100).toFixed(2) : r.type === 'coins' ? '🪙 ' + n : r.type === 'vip' ? '👑 VIP ' + n + (en ? ' days' : ' ថ្ងៃ') : r.type === 'xp' ? '⚡ ' + n + ' XP' : r.type === 'frame' ? '🖼️ ' + (r.days || 7) + (en ? ' days' : ' ថ្ងៃ') : '🎁 ' + (r.label || ''); }
+  function left(end) { var d = (new Date(end) - Date.now()) / 1000; if (d <= 0) return L.ended; var dd = Math.floor(d / 86400), h = Math.floor(d % 86400 / 3600), m = Math.floor(d % 3600 / 60); return en ? (dd ? dd + 'd ' : '') + h + 'h ' + m + 'm left' : 'នៅសល់ ' + (dd ? dd + ' ថ្ងៃ ' : '') + h + ' ម៉ោង ' + m + ' នាទី'; }
+  function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
+  function load() {
+    fetch('/api/challenges?area=monetize').then(function (r) { return r.json(); }).then(function (d) {
+      var card = document.getElementById('chCard'), box = document.getElementById('chBox');
+      if (!d || !d.success || !d.challenges || !d.challenges.length) { card.style.display = 'none'; return; }
+      card.style.display = ''; box.textContent = '';
+      d.challenges.forEach(function (c) {
+        var live = c.status === 'live' && new Date(c.ends_at) > new Date();
+        var w = el('div', 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin:8px 0');
+        var title = (en && c.title_en) ? c.title_en : c.title_km, body = (en && c.body_en) ? c.body_en : c.body_km;
+        w.appendChild(el('div', 'font-weight:800;font-size:16px', (c.icon || '🎯') + ' ' + title));
+        w.appendChild(el('div', 'color:#65676b;font-size:13.5px;margin:2px 0', L.counts + (MET[c.metric] || c.metric) + ' · ' + (live ? (new Date(c.starts_at) > new Date() ? L.soon : left(c.ends_at)) : L.ended)));
+        if (body) w.appendChild(el('div', 'font-size:14px;line-height:1.5;margin:6px 0;white-space:pre-line', body));
+        (c.tiers || []).forEach(function (t, i) {
+          w.appendChild(el('div', 'font-size:14px;margin:3px 0;' + (t.done && c.joined ? 'color:#16a34a;font-weight:700' : ''), (t.done && c.joined ? '✅ ' : '▫️ ') + L.step + (i + 1) + ': ' + val(c.metric, t.need) + ' → ' + rw(t.reward) + (t.got ? ' · ' + L.got : '')));
+        });
+        if ((c.ranks || []).length) w.appendChild(el('div', 'font-size:13.5px;margin:6px 0', L.top + c.ranks.map(function (r) { return '#' + r.from + (r.to !== r.from ? '–' + r.to : '') + ' ' + rw(r.reward); }).join(' · ')));
+        if (c.joined) w.appendChild(el('div', 'font-weight:800;color:#7c3aed;margin-top:6px', L.mine + val(c.metric, c.mine)));
+        else if (live) {
+          var full = c.join_mode === 'join' && c.max_people > 0 && c.people >= c.max_people;
+          if (c.join_mode === 'join' && c.max_people > 0) w.appendChild(el('div', 'font-size:13.5px;color:#65676b', L.places + c.people + L.of + c.max_people));
+          var b = el('button', 'margin-top:8px;padding:10px 18px;border:none;border-radius:20px;background:linear-gradient(90deg,#f59e0b,#ec4899);color:#fff;font-weight:800;font-size:14.5px;cursor:pointer', full ? L.full : L.join);
+          b.disabled = full;
+          b.onclick = function () { b.disabled = true; b.textContent = '⏳'; fetch('/api/challenges/' + c.id + '/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function (r) { return r.json(); }).then(function (x) { if (x && x.success) load(); else { b.disabled = false; b.textContent = L.join; alert(x && x.message === 'full' ? L.full : ((x && x.error) || L.net)); } }).catch(function () { b.disabled = false; b.textContent = L.join; alert(L.net); }); };
+          w.appendChild(b);
+        }
+        box.appendChild(w);
+      });
+    }).catch(function () {});
+  }
+  load();
 })();
 </script>
 </body>

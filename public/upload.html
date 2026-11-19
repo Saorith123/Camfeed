@@ -18,11 +18,11 @@
     <link rel="apple-touch-icon" href="logo-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@500;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             background-color: #f0f2f5;
             color: #050505;
             min-height: 100vh;
@@ -32,7 +32,7 @@
         }
 
         body, textarea, input, select, button {
-            font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
         }
 
         /* Facebook-Style Text Background Canvas & Aa Style Picker */
@@ -698,7 +698,7 @@
 
         function toggleStyleDrawer() {
             if (selectedFiles.length > 0) {
-                alert('ផ្ទៃខាងក្រោយអត្ថបទប្រើបានតែសម្រាប់ការបង្ហោះអត្ថបទសុទ្ធ (គ្មានរូបភាព/វីដេអូ) ប៉ុណ្ណោះ!');
+                alert('ផ្ទៃខាងក្រោយអត្ថបទប្រើបានតែសម្រាប់ការបង្ហោះអត្ថបទសុទ្ធ (គ្មានរូបភាព ឬវីដេអូ) ប៉ុណ្ណោះ!');
                 return;
             }
             const drawer = document.getElementById('styleDrawerSheet');
@@ -712,7 +712,7 @@
 
         function selectTextBgStyle(styleId) {
             if (selectedFiles.length > 0 && styleId !== 'none') {
-                alert('សូមលុបរូបភាព/វីដេអូចេញសិន ប្រសិនបើអ្នកចង់ប្រើផ្ទៃខាងក្រោយអត្ថបទ!');
+                alert('សូមលុបរូបភាព ឬវីដេអូចេញសិន ប្រសិនបើអ្នកចង់ប្រើផ្ទៃខាងក្រោយអត្ថបទ!');
                 return;
             }
             selectedTextStyleId = styleId;
@@ -1231,7 +1231,7 @@
             const botBtn = document.getElementById('bottomPostBtn');
 
             if (!content.trim() && selectedFiles.length === 0) {
-                msgEl.innerText = 'សូមសរសេរអត្ថបទ ឬជ្រើសរើសរូបភាព/វីដេអូយ៉ាងតិច ១!';
+                msgEl.innerText = 'សូមសរសេរអត្ថបទ ឬជ្រើសរើសរូបភាព ឬវីដេអូយ៉ាងតិច ១!';
                 return;
             }
             msgEl.innerText = '';

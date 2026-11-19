@@ -2,14 +2,14 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['system', '⚙️ System']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
     ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
     ['🛡️ Content & safety', ['reports', 'content', 'posts', 'live']],
     ['💰 Money', ['monetization', 'coins', 'ads']],
-    ['🎉 Fun', ['party', 'stars', 'sounds']],
+    ['🎉 Fun', ['party', 'challenges', 'stars', 'sounds']],
     ['⚙️ Settings', ['system']],
   ];
 
@@ -645,6 +645,115 @@
     call();
   }
 
+  // ---------- 🎯 Challenges: goals for a time with steps (tier 1, 2, 3…) and/or Top N places; rewards = coins / frame / VIP / XP / a note / money ----------
+  var CH_METRIC = { gift_recv: '🎁 Gift coins received', gift_sent: '🎁 Gift coins sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
+  var CH_REWARD = { coins: '🪙 Coins', money: '💵 Money ($, Admin approves)', frame: '🖼️ Frame', vip: '👑 VIP days', xp: '⚡ XP', note: '📝 Note only (e.g. a chance to become a Star)' };
+  function challengesAdmin(body) {
+    var box = el('div', { class: 'at-card' }); body.appendChild(box);
+    var frames = [];
+    function call(extra) { return adm('/api/admin/challenges', extra || {}).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; }); }
+    function local(d) { if (!d) return ''; var x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); }
+    function rewardTxt(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '$' + (n / 100).toFixed(2) : r.type === 'coins' ? n + ' coins' : r.type === 'vip' ? 'VIP ' + n + ' days' : r.type === 'xp' ? n + ' XP' : r.type === 'frame' ? 'Frame #' + r.frame_id + ' ' + (r.days || 7) + ' days' : (r.label || '—'); }
+    function rewardEditor(r) {
+      r = r || { type: 'coins', amount: 0 };
+      var t = el('select', { class: 'at-in', style: 'width:150px;display:inline-block' }); Object.keys(CH_REWARD).forEach(function (k) { var o = el('option', { value: k, text: CH_REWARD[k] }); if (k === r.type) o.selected = true; t.appendChild(o); });
+      var amt = el('input', { class: 'at-in', type: 'number', step: 'any', style: 'width:100px;display:inline-block', value: r.type === 'money' ? String((Number(r.amount) || 0) / 100) : String(r.amount || '') });
+      var fr = el('select', { class: 'at-in', style: 'width:130px;display:inline-block' }); frames.forEach(function (f) { var o = el('option', { value: String(f.id), text: (f.emoji || '') + ' ' + f.name_en }); if (Number(r.frame_id) === f.id) o.selected = true; fr.appendChild(o); });
+      var days = el('input', { class: 'at-in', type: 'number', style: 'width:70px;display:inline-block', placeholder: 'days', value: String(r.days || 7) });
+      var lab = el('input', { class: 'at-in', style: 'width:220px;display:inline-block', placeholder: 'Note in Khmer (e.g. ឱកាសក្លាយជាតារា)', value: r.label || '' });
+      var hint = el('span', { style: 'color:#65676b;font-size:12px' });
+      function show() { var k = t.value; amt.style.display = (k === 'frame' || k === 'note') ? 'none' : 'inline-block'; fr.style.display = days.style.display = k === 'frame' ? 'inline-block' : 'none'; hint.textContent = k === 'money' ? '$' : k === 'vip' ? 'days' : k === 'coins' ? 'coins' : k === 'xp' ? 'XP' : ''; }
+      t.addEventListener('change', show); show();
+      var w = el('span', { style: 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap' }, [t, amt, hint, fr, days, lab]);
+      w.read = function () { var k = t.value, o = { type: k, amount: k === 'money' ? Math.round(Number(amt.value || 0) * 100) : Number(amt.value || 0) }; if (k === 'frame') { o.frame_id = Number(fr.value); o.days = Number(days.value || 7); } if (lab.value.trim()) o.label = lab.value.trim(); return o; };
+      return w;
+    }
+    function form(c) {
+      c = c || { icon: '🎯', area: 'party', metric: 'gift_recv', join_mode: 'join', max_people: 50, tiers: [{ need: 1000, reward: { type: 'coins', amount: 50 } }, { need: 5000, reward: { type: 'coins', amount: 300 } }, { need: 20000, reward: { type: 'money', amount: 500 } }], ranks: [], status: 'live',
+        starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 7 * 86400000).toISOString() };
+      var f = el('div', { style: 'border:2px solid #7c3aed;border-radius:14px;padding:12px;margin:10px 0;background:#faf7ff' });
+      function inp(v, w, ph, type) { return el('input', { class: 'at-in', value: v == null ? '' : String(v), placeholder: ph || '', type: type || 'text', style: 'width:' + (w || 220) + 'px;display:inline-block' }); }
+      function sel(map, v) { var x = el('select', { class: 'at-in', style: 'width:auto;display:inline-block' }); Object.keys(map).forEach(function (k) { var o = el('option', { value: k, text: map[k] }); if (k === v) o.selected = true; x.appendChild(o); }); return x; }
+      function row(label, kids) { return el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0' }, [el('span', { style: 'min-width:170px;font-weight:700', text: label })].concat(kids)); }
+      var icon = inp(c.icon, 60), tk = inp(c.title_km, 320, 'ចំណងជើង (ខ្មែរ)'), te = inp(c.title_en, 320, 'Title (English)');
+      var bk = el('textarea', { class: 'at-in', rows: '3', style: 'width:100%', placeholder: 'អ្វីដែលអ្នកចូលរួមទទួលបាន (ខ្មែរ) — ឧ. ឱកាសក្លាយជាតារា ឱកាសរកលុយពីវីដេអូ…' }); bk.value = c.body_km || '';
+      var be = el('textarea', { class: 'at-in', rows: '2', style: 'width:100%', placeholder: 'What people get (English)' }); be.value = c.body_en || '';
+      var area = sel({ party: '🎉 Party Room', monetize: '💰 Monetize', both: 'Both' }, c.area), metric = sel(CH_METRIC, c.metric);
+      var st = inp(local(c.starts_at), 200, '', 'datetime-local'), en = inp(local(c.ends_at), 200, '', 'datetime-local');
+      var jm = sel({ join: 'People press "Join" (places can be limited)', auto: 'Everybody is in automatically' }, c.join_mode), mp = inp(c.max_people, 90, '0 = no limit', 'number');
+      var ml = inp(c.min_level, 70, '0', 'number'), md = inp(c.min_days, 70, '0', 'number'), so = inp(c.sort, 70, '0', 'number');
+      var stt = sel({ live: '🟢 Live', draft: '📝 Draft (hidden)', paused: '⏸ Paused (hidden)' }, c.status === 'ended' ? 'live' : c.status);
+      var notify = el('input', { type: 'checkbox' });
+      var tiersBox = el('div'), ranksBox = el('div'), tiers = [], ranks = [];
+      function addTier(t) { t = t || {}; var need = inp(t.need, 100, 'need', 'number'), rw = rewardEditor(t.reward), line = el('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0' }); var o = { need: need, rw: rw };
+        line.appendChild(el('b', { text: 'Step ' + (tiers.length + 1) + ': reach' })); line.appendChild(need); line.appendChild(el('span', { text: '→' })); line.appendChild(rw);
+        line.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { tiers.splice(tiers.indexOf(o), 1); line.remove(); } })); tiers.push(o); tiersBox.appendChild(line); }
+      function addRank(r) { r = r || {}; var fr = inp(r.from || (ranks.length + 1), 60, 'from', 'number'), to = inp(r.to || r.from || (ranks.length + 1), 60, 'to', 'number'), rw = rewardEditor(r.reward), line = el('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0' }); var o = { fr: fr, to: to, rw: rw };
+        line.appendChild(el('b', { text: 'Place' })); line.appendChild(fr); line.appendChild(el('span', { text: 'to' })); line.appendChild(to); line.appendChild(el('span', { text: '→' })); line.appendChild(rw);
+        line.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { ranks.splice(ranks.indexOf(o), 1); line.remove(); } })); ranks.push(o); ranksBox.appendChild(line); }
+      (c.tiers || []).forEach(addTier); (c.ranks || []).forEach(addRank);
+      f.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:6px', text: c.id ? '✏️ Edit challenge #' + c.id : '➕ New challenge' }));
+      f.appendChild(row('Icon + title', [icon, tk, te]));
+      f.appendChild(el('div', { style: 'font-weight:700;margin-top:6px', text: 'What people get (shown to them)' })); f.appendChild(bk); f.appendChild(be);
+      f.appendChild(row('Shown in', [area]));
+      f.appendChild(row('What is counted', [metric]));
+      f.appendChild(row('Start → end', [st, el('span', { text: '→' }), en]));
+      f.appendChild(row('Who takes part', [jm, el('span', { text: 'places:' }), mp]));
+      f.appendChild(row('Needs (0 = none)', [el('span', { text: 'level Lv ≥' }), ml, el('span', { text: 'account age (days) ≥' }), md]));
+      f.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 2px', text: '🪜 Steps — reach the number → get the reward (everybody who reaches it)' })); f.appendChild(tiersBox);
+      f.appendChild(el('button', { class: 'btn-sm', text: '+ Step', onclick: function () { addTier(); } }));
+      f.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 2px', text: '🏆 Top places — given when the challenge ends' })); f.appendChild(ranksBox);
+      f.appendChild(el('button', { class: 'btn-sm', text: '+ Place', onclick: function () { addRank(); } }));
+      f.appendChild(row('Status / order', [stt, el('span', { text: 'order' }), so]));
+      if (!c.id) f.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin:6px 0' }, [notify, el('span', { text: '🔔 Tell everybody active in the last 30 days (a notification)' })]));
+      f.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin:6px 0', text: 'Joining is always free. Coins, frames, VIP and XP are given at once; money waits here for a Super Admin to pay. Gifts between the same person\'s accounts should be checked before paying money.' }));
+      f.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:8px' }, [
+        el('button', { class: 'btn-sm btn-blue', text: c.id ? '💾 Save' : '✅ Create', onclick: function () {
+          var data = { id: c.id, icon: icon.value, title_km: tk.value, title_en: te.value, body_km: bk.value, body_en: be.value, area: area.value, metric: metric.value,
+            starts_at: new Date(st.value).toISOString(), ends_at: new Date(en.value).toISOString(), join_mode: jm.value, max_people: mp.value, min_level: ml.value, min_days: md.value, status: stt.value, sort: so.value,
+            tiers: tiers.map(function (t) { return { need: Number(t.need.value), reward: t.rw.read() }; }), ranks: ranks.map(function (r) { return { from: Number(r.fr.value), to: Number(r.to.value), reward: r.rw.read() }; }) };
+          if (!st.value || !en.value) return alert('Choose the start and end time.');
+          call({ action: 'save', challenge: data, notify: notify.checked });
+        } }),
+        el('button', { class: 'btn-sm btn-gray', text: 'Cancel', onclick: function () { f.remove(); } })]));
+      return f;
+    }
+    function draw(d) {
+      box.textContent = ''; frames = d.frames || [];
+      var su = d.isSuperAdmin;
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🎯 Challenges' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'The 🎯 Challenge button in the app (Party Room top right) and the Monetize page show the live ones. Everything here can change at any time without an app update.' }));
+      var formBox = el('div'); box.appendChild(formBox);
+      if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', text: '➕ New challenge', onclick: function () { formBox.textContent = ''; formBox.appendChild(form()); } }));
+      var peopleBox = el('div');
+      box.appendChild(table(['', 'Challenge', 'Counts', 'When', 'Who', 'Joined', 'Rewards', 'Status', ''], (d.challenges || []).map(function (c) {
+        return el('tr', {}, [el('td', { text: c.icon }), el('td', { text: c.title_km + (c.title_en ? ' · ' + c.title_en : '') + ' (' + c.area + ')' }), el('td', { text: CH_METRIC[c.metric] || c.metric }),
+          el('td', { text: new Date(c.starts_at).toLocaleString() + ' → ' + new Date(c.ends_at).toLocaleString() }), el('td', { text: c.join_mode === 'join' ? 'Join' + (c.max_people ? ' (max ' + c.max_people + ')' : '') : 'Everybody' }),
+          el('td', { text: c.join_mode === 'join' ? String(c.joined) : '—' }), el('td', { text: String(c.rewards) }), el('td', { text: c.status }),
+          el('td', {}, [
+            el('button', { class: 'btn-sm', text: '👥 People', onclick: function () { adm('/api/admin/challenges', { action: 'people', id: c.id }).then(function (r) {
+              peopleBox.textContent = ''; if (!r.success) return;
+              peopleBox.appendChild(el('div', { style: 'font-weight:800;margin:12px 0 4px', text: '👥 ' + c.title_km + ' — numbers now' }));
+              peopleBox.appendChild(table(['#', 'Person', 'Number'], r.people.map(function (p) { return el('tr', {}, [el('td', { text: String(p.place) }), el('td', { text: nm(p) + ' · ' + p.user_email }), el('td', { text: String(p.value) })]); })));
+              peopleBox.scrollIntoView({ behavior: 'smooth' }); }); } }),
+            su ? el('button', { class: 'btn-sm', text: '✏️ Edit', onclick: function () { formBox.textContent = ''; formBox.appendChild(form(c)); formBox.scrollIntoView({ behavior: 'smooth' }); } }) : '',
+            su && c.status === 'live' ? el('button', { class: 'btn-sm', text: '⏸ Pause', onclick: function () { call({ action: 'status', id: c.id, status: 'paused' }); } }) : '',
+            su && (c.status === 'paused' || c.status === 'draft') ? el('button', { class: 'btn-sm btn-blue', text: '▶ Live', onclick: function () { call({ action: 'status', id: c.id, status: 'live' }); } }) : '',
+            su && c.status === 'live' ? el('button', { class: 'btn-sm btn-red', text: '⏹ End now', onclick: function () { if (confirm('End "' + c.title_km + '" now and give the Top places?')) call({ action: 'status', id: c.id, status: 'end' }); } }) : '',
+            su && !Number(c.rewards) ? el('button', { class: 'btn-sm btn-gray', text: '🗑', onclick: function () { if (confirm('Delete this challenge?')) call({ action: 'status', id: c.id, status: 'delete' }); } }) : ''])]);
+      })));
+      box.appendChild(peopleBox);
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '💵 Rewards (money waits here; others were given at once)' }));
+      box.appendChild(table(['Person', 'Challenge', 'For', 'Number', 'Reward', 'Status', ''], (d.rewards || []).map(function (r) {
+        return el('tr', {}, [el('td', { text: nm(r) + ' · ' + r.user_email }), el('td', { text: r.title_km }), el('td', { text: r.kind === 'rank' ? 'Place ' + r.level : 'Step ' + r.level }), el('td', { text: String(r.value) }),
+          el('td', { text: rewardTxt(r.reward) }), el('td', { text: r.status }),
+          el('td', {}, su && r.status === 'pending' ? [el('button', { class: 'btn-sm btn-blue', text: 'Pay', onclick: function () { if (confirm('Pay ' + rewardTxt(r.reward) + ' to ' + nm(r) + '?')) call({ action: 'pay', id: r.id, pay: true }); } }), ' ',
+            el('button', { class: 'btn-sm', text: 'Cancel', onclick: function () { if (confirm('Cancel this reward?')) call({ action: 'pay', id: r.id, pay: false }); } })] : [])]);
+      })));
+    }
+    call();
+  }
+
   function coinsAdmin(body) {
     var box = el('div', { style: 'max-width:900px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' }, [empty('Loading…')]);
     body.appendChild(box);
@@ -1159,13 +1268,13 @@
   window.loadAdsAdmin = loadAdsAdmin;
 
   // ---------- Inbox: everything waiting for an admin, in one place ----------
-  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '🪙', party: '🎉', star: '⭐' };
-  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '🪙 Coins & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars' };
+  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '🪙', party: '🎉', star: '⭐', challenge: '🎯' };
+  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '🪙 Coins & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars', 'tabBtn-challenges': '🎯 Challenges' };
   var lastTotal = -1, baseTitle = document.title;
   function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
   function applyInbox(d) {
     var c = d.counts;
-    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0); setBadge('tabBtn-stars', (c.stars || 0) + (c.starBonus || 0));
+    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0); setBadge('tabBtn-stars', (c.stars || 0) + (c.starBonus || 0)); setBadge('tabBtn-challenges', c.challengeRewards || 0);
     document.title = (d.total > 0 ? '(' + d.total + ') ' : '') + baseTitle;
     var ib = document.getElementById('tabBtn-inbox'); if (ib) ib.style.color = d.total > 0 ? '#e41e3f' : '';
     if (lastTotal >= 0 && d.total > lastTotal) { try { var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05; o.start(); o.stop(ac.currentTime + 0.18); } catch (e) {} }
@@ -1178,7 +1287,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges']];
       p.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px' }, chips.map(function (x) {
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
@@ -1286,7 +1395,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

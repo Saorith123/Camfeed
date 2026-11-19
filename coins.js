@@ -77,6 +77,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS deck_pos INTEGER NOT NULL DEFAULT 0');
         await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS last_win DATE');                  // the last day this person won coins
         await pool.query('CREATE TABLE IF NOT EXISTS checkin_days (day DATE PRIMARY KEY, checkins INTEGER NOT NULL DEFAULT 0, winners INTEGER NOT NULL DEFAULT 0)');
+        await pool.query('CREATE TABLE IF NOT EXISTS checkin_log (user_email TEXT NOT NULL, day DATE NOT NULL, PRIMARY KEY (user_email, day))');   // 📅 every check-in day (🎯 challenges count them)
         await pool.query('CREATE TABLE IF NOT EXISTS user_xp (user_email TEXT PRIMARY KEY, xp BIGINT NOT NULL DEFAULT 0, day DATE, day_room INTEGER NOT NULL DEFAULT 0)');   // XP from time in rooms + check-in
         await pool.query('CREATE TABLE IF NOT EXISTS user_vip (user_email TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL)');      // 👑 VIP (bought by the month)
         if (!(await pool.query('SELECT COUNT(*)::int AS n FROM party_frames')).rows[0].n) {
@@ -474,6 +475,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         }
       }
       await c.query(`UPDATE checkin_days SET checkins = checkins + 1, winners = winners + $1 WHERE day = ${KH_DAY}`, [coins > 0 ? 1 : 0]);
+      await c.query(`INSERT INTO checkin_log (user_email, day) VALUES ($1, ${KH_DAY}) ON CONFLICT DO NOTHING`, [e]);
       await c.query(`INSERT INTO party_checkin (user_email, last_day, streak, last_win) VALUES ($1, ${KH_DAY}, $2, CASE WHEN $3 THEN ${KH_DAY} ELSE NULL END)
                      ON CONFLICT (user_email) DO UPDATE SET last_day = ${KH_DAY}, streak = $2, last_win = CASE WHEN $3 THEN ${KH_DAY} ELSE party_checkin.last_win END`, [e, streak, coins > 0]);
       if (coins > 0) await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'checkin', $3, 'system')", [e, coins, 'Check-in day ' + day]);
@@ -661,5 +663,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     } catch (err) { console.error('[coins] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
-  return { heldCents, balance, framesOf, badgesOf };
+  // 🎯 challenges: everybody's XP right now
+  async function xpNowOf(emails) { await ensure(); return xpOf(emails, await settings()); }
+  return { heldCents, balance, framesOf, badgesOf, xpNowOf };
 };

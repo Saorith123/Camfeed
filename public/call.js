@@ -205,9 +205,9 @@
   // ---------- media + peer ----------
   function mediaError(e) {
     var n = e && e.name;
-    if (n === 'NotAllowedError' || n === 'PermissionDeniedError') return 'សូមអនុញ្ញាតឱ្យប្រើមីក្រូ/កាមេរ៉ា ក្នុងការកំណត់ browser';
+    if (n === 'NotAllowedError' || n === 'PermissionDeniedError') return 'សូមអនុញ្ញាតឱ្យប្រើមីក្រូ ឬកាមេរ៉ា ក្នុងការកំណត់ browser';
     if (n === 'NotFoundError') return 'រកមិនឃើញមីក្រូ ឬកាមេរ៉ា';
-    return 'មិនអាចបើកមីក្រូ/កាមេរ៉ាបានទេ';
+    return 'មិនអាចបើកមីក្រូ ឬកាមេរ៉ាបានទេ';
   }
   function getMedia(kind) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject({ name: 'NotSupported' });

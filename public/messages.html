@@ -37,7 +37,7 @@
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             background-color: var(--cf-bg);
             color: var(--cf-text);
             position: fixed;
@@ -1345,6 +1345,7 @@
             .cf-mobile-back { display: flex; }
         }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -2359,7 +2360,7 @@
             if (rawMsg.startsWith('STICKER_EMOJI:') || rawMsg === '[Sticker]') return '💟 Sticker';
             if (rawMsg.startsWith('BIG_EMOJI:')) return rawMsg.split(':').slice(2).join(':');
             if (rawMsg.startsWith('PARTY_ROOM:')) return '🎉 Party Room: ' + rawMsg.split(':').slice(2).join(':');
-            if (rawMsg.startsWith('CALL:')) { const q = rawMsg.split(':'); return (q[2] === 'video' ? '📹 ' : '📞 ') + (q[1] === 'ended' ? 'ការហៅ' : 'ខកខាន/បោះបង់ការហៅ'); }
+            if (rawMsg.startsWith('CALL:')) { const q = rawMsg.split(':'); return (q[2] === 'video' ? '📹 ' : '📞 ') + (q[1] === 'ended' ? 'ការហៅ' : 'ខកខាន ឬបោះបង់ការហៅ'); }
             return rawMsg;
         }
 
@@ -2856,7 +2857,7 @@
                 <div class="cs-sec"><h4>😊 អ៊ីម៉ូជីរហ័ស (ជំនួស 👍)</h4><div class="cs-grid">${ems}</div></div>
                 <div class="cs-sec"><h4>🎨 ពណ៌ពពុះសារ</h4><div class="cs-grid"><div class="cs-sw ${!s.theme ? 'on' : ''}" onclick="saveChatSetting({theme:''})">∅</div>${ths}</div></div>
                 <div class="cs-sec"><h4>⏳ លុបសារស្វ័យប្រវត្តិ</h4><div class="cs-grid">${ttls}</div>
-                    <small>សារថ្មីចាប់ពីពេលកំណត់នឹងត្រូវលុបបន្ទាប់ពីរយៈពេលដែលបានជ្រើស (រួមទាំងរូប/វីដេអូ)។ ទោះមិនកំណត់ក៏ដោយ ប្រព័ន្ធលុបសារចាស់ជាង ${s.maxMonths || 12} ខែដោយស្វ័យប្រវត្តិ។</small></div>
+                    <small>សារថ្មីចាប់ពីពេលកំណត់នឹងត្រូវលុបបន្ទាប់ពីរយៈពេលដែលបានជ្រើស (រួមទាំងរូប និងវីដេអូ)។ ទោះមិនកំណត់ក៏ដោយ ប្រព័ន្ធលុបសារចាស់ជាង ${s.maxMonths || 12} ខែដោយស្វ័យប្រវត្តិ។</small></div>
                 <div class="cs-sec"><h4>▶️ ចាក់សារសំឡេងបន្តដោយស្វ័យប្រវត្តិ</h4><div class="cs-grid">${[['off', 'បិទ'], ['theirs', 'តែសំឡេងរបស់គេ'], ['all', 'ទាំងរបស់គេ និងរបស់ខ្ញុំ']].map(o => `<button type="button" class="cs-chip ${voiceAutoMode() === o[0] ? 'on' : ''}" onclick="setVoiceAutoMode('${o[0]}')">${o[1]}</button>`).join('')}</div>
                     <small>ស្ដាប់ចប់មួយ ចាក់មួយបន្ទាប់ដោយខ្លួនឯង រំលងរូបភាព និងសារអក្សរ។</small></div>
                 <div class="cs-sec"><div class="cs-row"><span>🔕 បិទសំឡេងជូនដំណឹងឆាតនេះ</span><button type="button" class="cs-switch ${s.muted ? 'on' : ''}" onclick="saveChatSetting({muted:${!s.muted}})"></button></div></div>
@@ -3153,7 +3154,7 @@
 
         async function deleteSentMessage(msgId) {
             document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
-            if (!confirm('តើអ្នកចង់លុបសារ/ឯកសារនេះមែនទេ? (នឹងបន្សល់ទុកដានថា Message deleted)')) return;
+            if (!confirm('តើអ្នកចង់លុបសារ ឬឯកសារនេះមែនទេ? (នឹងបន្សល់ទុកដានថា Message deleted)')) return;
 
             setLocalOverride(msgId, { deleted: true });
             forceRenderCurrentFeed(false);

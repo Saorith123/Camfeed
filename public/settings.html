@@ -14,12 +14,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CamFeed - Settings</title>
 <link rel="icon" type="image/png" href="logo-icon.png">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f0f2f5;--card:#fff;--text:#1c1e21;--muted:#65676b;--line:#e4e6eb;--hover:#f2f3f5;--input:#fff;--inputline:#ccd0d5;--primary:#1877f2;--primary-dark:#1464cc;--primary-soft:#e7f3ff;--primary-text:#0b4fb3;--danger:#e41e3f;--danger-soft:#fdecee;--danger-text:#9b1229;--warn-soft:#fff6e0;--warn:#8a5a00;--chip:#e4e6eb;--radius:14px;--shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04)}
 html[data-theme="dark"]{--bg:#18191a;--card:#242526;--text:#e4e6eb;--muted:#b0b3b8;--line:#3a3b3c;--hover:#303132;--input:#3a3b3c;--inputline:#4e4f50;--primary:#2d88ff;--primary-dark:#1f6fd6;--primary-soft:#263951;--primary-text:#8cb8ff;--danger:#ff5468;--danger-soft:#4a2229;--danger-text:#ff9aa6;--warn-soft:#3f3417;--warn:#f3c97a;--chip:#3a3b3c;--shadow:0 1px 3px rgba(0,0,0,.5)}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%;color-scheme:light}html[data-theme="dark"]{color-scheme:dark}
-body{margin:0;background:var(--bg);color:var(--text);line-height:1.5;font-family:'Plus Jakarta Sans','Noto Sans Khmer',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+body{margin:0;background:var(--bg);color:var(--text);line-height:1.5;font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif}
 button,input,select{font-family:inherit}button{cursor:pointer}a{color:var(--primary);text-decoration:none}.hidden{display:none!important}
 .topbar{position:sticky;top:0;z-index:30;background:var(--card);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;display:flex;align-items:center;gap:12px}
 .icon-btn{width:40px;height:40px;border-radius:50%;border:0;background:var(--chip);font-size:20px;color:var(--text);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -118,7 +118,7 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 
 <section class="view" id="v-contact"><div class="card"><h2 data-i18n="ct_t">លេខទូរស័ព្ទ ឬ Gmail</h2><p class="desc" data-i18n="acc_contact_d">ព័ត៌មានដែលអ្នកប្រើដើម្បីចូលគណនី។</p>
 <div class="row"><span class="r-ic">✉️</span><div class="r-main"><div class="r-title" id="contactLabel">…</div><div class="r-sub" id="contactValue">…</div></div></div>
-<div class="note warn" style="margin-top:14px" data-i18n="ct_soon">ការប្តូរលេខទូរស័ព្ទ ឬ Gmail ដោយប្រើលេខកូដផ្ទៀងផ្ទាត់ទៅលេខ/អ៊ីមែលថ្មី នឹងមកដល់ឆាប់ៗ។ ក្នុងពេលនេះ បើអ្នកត្រូវការប្តូរ សូមទាក់ទងផ្នែកជំនួយ។</div>
+<div class="note warn" style="margin-top:14px" data-i18n="ct_soon">ការប្តូរលេខទូរស័ព្ទ ឬ Gmail ដោយប្រើលេខកូដផ្ទៀងផ្ទាត់ទៅលេខ ឬអ៊ីមែលថ្មី នឹងមកដល់ឆាប់ៗ។ ក្នុងពេលនេះ បើអ្នកត្រូវការប្តូរ សូមទាក់ទងផ្នែកជំនួយ។</div>
 <a class="btn outline" href="mailto:support@camfeedkh.com?subject=Change%20my%20login%20phone%20or%20email" data-i18n="ct_contact">ទាក់ទងផ្នែកជំនួយ</a></div></section>
 
 <section class="view" id="v-password">
@@ -187,7 +187,7 @@ acc_contact_t:'លេខសម្គាល់ និងតំណ',acc_contact_d:
 acc_more_t:'រូបភាព និងការណែនាំខ្លួន',acc_more_d:'ប្តូររូបប្រវត្តិរូប រូបគម្រប និងការណែនាំខ្លួន',
 det_t:'ព័ត៌មានផ្ទាល់ខ្លួន',det_d:'ជ្រើសរើសអ្នកណាអាចឃើញពីផ្នែក «ឯកជនភាព»។',det_location:'ទីតាំង',det_work:'ការងារ',det_birth:'ថ្ងៃកំណើត',det_gender:'ភេទ',det_rel:'ស្ថានភាពទំនាក់ទំនង',det_phone:'លេខទូរស័ព្ទបង្ហាញលើប្រវត្តិរូប',
 g_male:'ប្រុស',g_female:'ស្រី',g_other:'ផ្សេងៗ',det_saved:'បានរក្សាទុកព័ត៌មានហើយ',det_wait:'សូមរង់ចាំឱ្យការកំណត់ផ្ទុករួចសិន',
-ct_t:'លេខទូរស័ព្ទ ឬ Gmail',ct_soon:'ការប្តូរលេខទូរស័ព្ទ ឬ Gmail ដោយប្រើលេខកូដផ្ទៀងផ្ទាត់ទៅលេខ/អ៊ីមែលថ្មី នឹងមកដល់ឆាប់ៗ។ ក្នុងពេលនេះ បើអ្នកត្រូវការប្តូរ សូមទាក់ទងផ្នែកជំនួយ។',ct_contact:'ទាក់ទងផ្នែកជំនួយ',
+ct_t:'លេខទូរស័ព្ទ ឬ Gmail',ct_soon:'ការប្តូរលេខទូរស័ព្ទ ឬ Gmail ដោយប្រើលេខកូដផ្ទៀងផ្ទាត់ទៅលេខ ឬអ៊ីមែលថ្មី នឹងមកដល់ឆាប់ៗ។ ក្នុងពេលនេះ បើអ្នកត្រូវការប្តូរ សូមទាក់ទងផ្នែកជំនួយ។',ct_contact:'ទាក់ទងផ្នែកជំនួយ',
 tf_t:'ការផ្ទៀងផ្ទាត់ពីរជំហាន (Two-factor)',tf_d:'បន្ថែមលេខកូដមួយទៀតពេលចូលគណនី ដើម្បីកុំឱ្យអ្នកផ្សេងចូលបានទោះដឹងពាក្យសម្ងាត់។',tf_soon:'មុខងារនេះនឹងមកដល់ឆាប់ៗ។ ក្នុងពេលនេះ សូមប្រើពាក្យសម្ងាត់ខ្លាំង ហើយពិនិត្យ «កន្លែងដែលអ្នកបានចូល» ជាប្រចាំ។',tf_check:'ពិនិត្យកន្លែងដែលបានចូល',
 dv_t:'កន្លែងដែលអ្នកបានចូលគណនី',dv_d:'ឧបករណ៍ដែលកំពុងចូល ឬបានចូលថ្មីៗ។ បើមិនស្គាល់ សូមចាកចេញ ហើយប្តូរពាក្យសម្ងាត់។',dv_others:'ចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់',dv_this:'ឧបករណ៍នេះ',dv_logout:'ចាកចេញ',dv_empty:'មិនមានឧបករណ៍ផ្សេងទេ',dv_unknown:'មិនស្គាល់ទីតាំង',
 dv_conf_t:'ចាកចេញពីឧបករណ៍នេះ?',dv_conf_b:(n)=>`${n} នឹងត្រូវចូលគណនីម្តងទៀត។`,dv_done:'បានចាកចេញពីឧបករណ៍ហើយ',dv_others_t:'ចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់?',dv_others_b:'ឧបករណ៍នេះនៅតែចូលបាន ឧបករណ៍ផ្សេងទាំងអស់នឹងត្រូវចូលគណនីម្តងទៀត។',dv_others_ok:'ចាកចេញទាំងអស់',dv_others_done:'បានចាកចេញពីឧបករណ៍ផ្សេងហើយ',dv_old:'ការចូលពីមុន (ចូលម្តងទៀតដើម្បីឃើញព័ត៌មានលម្អិត)',

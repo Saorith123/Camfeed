@@ -10,10 +10,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Ads Manager</title>
     <link rel="icon" type="image/png" href="logo-icon.png">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, input, button, select, textarea { font-family: 'Plus Jakarta Sans', 'Noto Sans Khmer', sans-serif; }
+        body, input, button, select, textarea { font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
         body { background: #f0f2f5; color: #050505; min-height: 100vh; padding-bottom: 60px; }
         .top-nav { background: #fff; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); position: sticky; top: 0; z-index: 50; }
         .back-btn { background: #f0f2f5; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer; }
@@ -126,7 +126,7 @@
                 <select id="fCountry"><option value="">ទាំងអស់ (All)</option><option>Cambodia</option><option>Thailand</option><option>Vietnam</option><option>Laos</option><option>Malaysia</option><option>Singapore</option><option>China</option><option>United States</option></select>
                 <label>ចំណាប់អារម្មណ៍ (ជ្រើសបានច្រើន — ទុកចោលបើចង់បានមនុស្សគ្រប់គ្នា)</label>
                 <div class="chips" id="interests"></div>
-                <p class="muted" style="margin-top:8px;">យើងបង្ហាញដល់មនុស្សដែលតែងមើល/ចូលចិត្តខ្លឹមសារប្រភេទនេះ។ បើយើងមិនទាន់ដឹងចំណាប់អារម្មណ៍របស់អ្នកមើលណាម្នាក់ គាត់នៅតែអាចឃើញ។</p>
+                <p class="muted" style="margin-top:8px;">យើងបង្ហាញដល់មនុស្សដែលតែងមើល ឬចូលចិត្តខ្លឹមសារប្រភេទនេះ។ បើយើងមិនទាន់ដឹងចំណាប់អារម្មណ៍របស់អ្នកមើលណាម្នាក់ គាត់នៅតែអាចឃើញ។</p>
             </div>
 
             <div class="card">
@@ -162,7 +162,7 @@
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
         if (!currentUser) window.location.href = 'index.html';
         const GOALS = [
-            { id: 'reach', icon: '👀', t: 'ឲ្យមនុស្សច្រើនឃើញ', d: 'ស្គាល់ម៉ាក / ហាងរបស់អ្នក' },
+            { id: 'reach', icon: '👀', t: 'ឲ្យមនុស្សច្រើនឃើញ', d: 'ស្គាល់ម៉ាក ឬហាងរបស់អ្នក' },
             { id: 'traffic', icon: '🔗', t: 'ទៅមើលតំណរបស់អ្នក', d: 'ចុចចូល Telegram / គេហទំព័រ' },
             { id: 'engagement', icon: '👍', t: 'Like / Comment / Share', d: 'ត្រូវ Boost ប្រកាស' },
             { id: 'messages', icon: '💬', t: 'ឲ្យគេឆាតមករក', d: 'ប៊ូតុងផ្ញើសារឆាតភ្លាម' },
@@ -204,7 +204,7 @@
             } catch (e) { $('postList').innerHTML = '<div class="muted">ផ្ទុកមិនបាន</div>'; }
         }
         function drawPreview() {
-            let media = '<div class="muted" style="padding:20px;">រូបភាព / វីដេអូរបស់អ្នក</div>', cap = $('fCaption').value, nm = $('fName').value || 'ឈ្មោះអាជីវកម្ម';
+            let media = '<div class="muted" style="padding:20px;">រូបភាព ឬវីដេអូរបស់អ្នក</div>', cap = $('fCaption').value, nm = $('fName').value || 'ឈ្មោះអាជីវកម្ម';
             if (st.mode === 'new' && st.mediaUrl) media = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(st.mediaUrl) ? `<video src="${esc(st.mediaUrl)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(st.mediaUrl)}" alt="">`;
             if (st.mode === 'post') { const p = st.posts.find(x => x.id === st.postId); if (p) { cap = p.content; media = p.media_type === 'image' ? `<img src="${esc(p.media_url)}" alt="">` : (p.media_type === 'video' ? `<video src="${esc(p.media_url)}" muted playsinline preload="metadata"></video>` : '<div class="muted" style="padding:20px;">📝 ប្រកាសអត្ថបទ</div>'); } }
             $('preview').innerHTML = `<div class="ph"><span><span class="badge-s">Sponsored · ពាណិជ្ជកម្ម</span> <span class="notranslate" translate="no">${esc(nm)}</span></span><span class="muted">Ad</span></div>${cap ? `<div class="notranslate" translate="no" style="padding:0 12px 8px;font-size:14px;white-space:pre-wrap;">${esc(cap)}</div>` : ''}<div class="pm">${media}</div>`;
@@ -228,8 +228,8 @@
                 if (!r.success) throw new Error('x');
                 const low = r.canDeliver < r.views;
                 $('est').innerHTML = `<div class="muted">ប៉ាន់ស្មានចំនួនបង្ហាញ (Views)</div><div class="big">${r.views.toLocaleString()}</div>
-                    <div class="muted">≈ ${r.viewsPerDay.toLocaleString()} ដង/ថ្ងៃ · ថវិកា $${(b / d).toFixed(2)}/ថ្ងៃ · តម្លៃ $${r.cpm.toFixed(2)} ក្នុង ១០០០ ដង</div>
-                    ${low ? `<div class="muted" style="margin-top:8px;color:#92580a;"><b>ចំណាំ:</b> ពេលនេះមានអ្នកប្រើសកម្ម ${r.activeUsers.toLocaleString()} នាក់ ហើយម្នាក់ឃើញបានអតិបរមា ៣ ដង/ថ្ងៃ។ ដូច្នេះអាចបង្ហាញបានត្រឹម ~${r.canDeliver.toLocaleString()} ដងក្នុង ${d} ថ្ងៃ។ ថវិកាដែលមិនបានចំណាយនឹងមិនត្រូវកាត់ទេ។</div>` : ''}
+                    <div class="muted">≈ ${r.viewsPerDay.toLocaleString()} ដង ក្នុងមួយថ្ងៃ · ថវិកា $${(b / d).toFixed(2)} ក្នុងមួយថ្ងៃ · តម្លៃ $${r.cpm.toFixed(2)} ក្នុង ១០០០ ដង</div>
+                    ${low ? `<div class="muted" style="margin-top:8px;color:#92580a;"><b>ចំណាំ:</b> ពេលនេះមានអ្នកប្រើសកម្ម ${r.activeUsers.toLocaleString()} នាក់ ហើយម្នាក់ឃើញបានអតិបរមា ៣ ដង ក្នុងមួយថ្ងៃ។ ដូច្នេះអាចបង្ហាញបានត្រឹម ~${r.canDeliver.toLocaleString()} ដងក្នុង ${d} ថ្ងៃ។ ថវិកាដែលមិនបានចំណាយនឹងមិនត្រូវកាត់ទេ។</div>` : ''}
                     <div class="muted" style="margin-top:8px;">អ្នកបង់តាមចំនួនអ្នកមើលពិតប្រាកដ។ ពាណិជ្ជកម្មឈប់ពេលថវិកាអស់ ឬគ្រប់ថ្ងៃ។</div>`;
             } catch (e) { $('est').textContent = 'គណនាមិនបាន'; }
         }

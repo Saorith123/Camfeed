@@ -102,8 +102,8 @@ app.get('/p/:id', async (req, res) => {
 <meta property="og:site_name" content="CamFeed"><meta property="og:title" content="${pubEsc(title)}"><meta property="og:description" content="${pubEsc(desc)}">
 ${image ? `<meta property="og:image" content="${pubEsc(image)}"><meta name="twitter:image" content="${pubEsc(image)}">` : ''}
 <meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}"><meta name="twitter:title" content="${pubEsc(title)}"><meta name="twitter:description" content="${pubEsc(desc)}">
-<link rel="icon" type="image/png" href="/icons/favicon-48.png"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;600;700&display=swap" rel="stylesheet">
-<style>*{box-sizing:border-box}body{margin:0;background:#f0f2f5;color:#050505;font-family:'Noto Sans Khmer',system-ui,sans-serif}
+<link rel="icon" type="image/png" href="/icons/favicon-48.png"><link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box}body{margin:0;background:#f0f2f5;color:#050505;font-family:'Battambang',system-ui,sans-serif}
 .top{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:0;z-index:5}
 .brand{font-size:24px;font-weight:700;color:#1877f2;text-decoration:none}.btns{display:flex;gap:8px}
 .b{display:inline-block;padding:9px 16px;border-radius:20px;font-weight:700;font-size:14px;text-decoration:none;border:0;cursor:pointer}.b1{background:#1877f2;color:#fff}.b2{background:#e7f3ff;color:#1877f2}
@@ -148,7 +148,7 @@ ${image ? `<meta property="og:image" content="${pubEsc(image)}"><meta name="twit
       ${(media.video || media.images.length) ? `<div class="md">${media.video ? `<video src="${pubEsc(media.video)}" controls playsinline preload="metadata"></video>` : ''}${media.images.map((u) => `<img src="${pubEsc(u)}" alt="" loading="lazy">`).join('')}</div>` : ''}
       <div class="st"><span>👍 ${Number(post.likes) || 0}</span><span>💬 ${Number(post.comments) || 0}</span><span>↗️ ${Number(post.shares) || 0}</span></div></div>
     <div class="card cta"><h2>ចូលរួម CamFeed</h2><p>ចុះឈ្មោះ ឬចូល ដើម្បី Like, Comment, ចែករំលែក និងតាមដាន ${pubEsc(name)}។<br>Log in to like, comment and share.</p>
-      <a class="b b1" href="/index.html?next=${pubEsc('/p/' + id)}">ចូល / ចុះឈ្មោះ</a></div>
+      <a class="b b1" href="/index.html?next=${pubEsc('/p/' + id)}">ចូល ឬចុះឈ្មោះ</a></div>
     <script>try{if(localStorage.getItem('camfeed_user'))location.replace('/feed.html?post=${id}');}catch(e){}</script>`;
     page(200, title, desc, ogImage, body, meta);
   } catch (err) {
@@ -2308,6 +2308,8 @@ const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate
 const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), framesOf: (emails) => coins.framesOf(emails), badgesOf: (emails) => coins.badgesOf(emails), starsOf: (emails) => stars.starsOf(emails) });
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e), starShare: (e) => stars.starShare(e), starsOf: (e) => stars.starsOf(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
+const challenges = require('./challenges')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), xpNowOf: (e) => coins.xpNowOf(e), badgesOf: (e) => coins.badgesOf(e) });   // 🎯 challenges
 if (push.setMessageFilter) push.setMessageFilter((to, from, peerKey) => chatPrefs.shouldNotify(to, from, peerKey));
 
 // Send Chat Message
@@ -4622,6 +4624,7 @@ app.post('/api/admin/inbox', async (req, res) => {
       q("SELECT p.room_id AS id, p.reason, p.created_at AS at FROM party_reports p WHERE p.handled = FALSE ORDER BY p.created_at DESC LIMIT 15")]);
     const crp = await q("SELECT c.id, c.reason, c.kind, c.created_at AS at, u.first_name, u.last_name FROM chat_reports c LEFT JOIN users u ON LOWER(u.email) = c.target_email WHERE c.status = 'pending' ORDER BY c.created_at DESC LIMIT 15");
     const sta = await q("SELECT s.applied_at AS at, s.real_name, u.first_name, u.last_name FROM party_stars s LEFT JOIN users u ON LOWER(u.email) = s.user_email WHERE s.status = 'pending' ORDER BY s.applied_at DESC LIMIT 15");
+    const chr = await q("SELECT r.reward, r.created_at AS at, c.title_km, u.first_name, u.last_name FROM challenge_rewards r JOIN challenges c ON c.id = r.challenge_id LEFT JOIN users u ON LOWER(u.email) = r.user_email WHERE r.status = 'pending' ORDER BY r.created_at DESC LIMIT 15");
     const stb = await q("SELECT b.month, b.amount_cents, b.created_at AS at, u.first_name, u.last_name FROM star_bonus b LEFT JOIN users u ON LOWER(u.email) = b.user_email WHERE b.status = 'pending' ORDER BY b.created_at DESC LIMIT 15");
     const cnt = async (sql) => { try { return Number((await pool.query(sql)).rows[0].n); } catch (e) { return 0; } };
     const counts = {
@@ -4635,7 +4638,8 @@ app.post('/api/admin/inbox', async (req, res) => {
       party: await cnt("SELECT COUNT(*) AS n FROM party_reports WHERE handled = FALSE"),
       chatReports: await cnt("SELECT COUNT(*) AS n FROM chat_reports WHERE status = 'pending'"),
       stars: await cnt("SELECT COUNT(*) AS n FROM party_stars WHERE status = 'pending'"),
-      starBonus: await cnt("SELECT COUNT(*) AS n FROM star_bonus WHERE status = 'pending'")
+      starBonus: await cnt("SELECT COUNT(*) AS n FROM star_bonus WHERE status = 'pending'"),
+      challengeRewards: await cnt("SELECT COUNT(*) AS n FROM challenge_rewards WHERE status = 'pending'")
     };
     const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
     const items = [].concat(
@@ -4649,6 +4653,7 @@ app.post('/api/admin/inbox', async (req, res) => {
       pr.rows.map((x) => ({ kind: 'party', tab: 'party', title: 'Party Room #' + x.id, sub: 'Room report: ' + String(x.reason || '').slice(0, 80), at: x.at })),
       crp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: '💬 ' + nm(x), sub: 'Chat report (' + x.kind + '): ' + x.reason, at: x.at })),
       sta.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '⭐ ' + nm(x), sub: 'Star application' + (x.real_name ? ' (real name: ' + x.real_name + ')' : ''), at: x.at })),
+      chr.rows.map((x) => ({ kind: 'challenge', tab: 'challenges', title: '🎯 ' + nm(x) + ' · $' + (Number((x.reward || {}).amount || 0) / 100).toFixed(2), sub: 'Challenge reward to pay: ' + x.title_km, at: x.at })),
       stb.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '💵 ' + nm(x) + ' · $' + (Number(x.amount_cents || 0) / 100).toFixed(2), sub: 'Star bonus to pay (' + x.month + ')', at: x.at }))
     ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
     res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
