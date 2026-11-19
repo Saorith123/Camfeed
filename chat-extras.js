@@ -419,7 +419,9 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   app.post('/api/calls/:callId/neg', (req, res) => {
     const me = norm(req.authEmail); const c = calls.get(req.params.callId); const b = req.body || {};
     if (!involved(c, me) || c.status !== 'accepted') return res.status(400).json({ success: false });
-    if (typeof b.offer === 'string' && b.offer.length < 60000 && c.v && c.v.by === me && c.v.state === 'ok') { c.negOffer = b.offer; c.negAns = null; c.negBy = me; c.negSeq = (c.negSeq || 0) + 1; return res.json({ success: true }); }
+    // b.direct: one side turns its own camera on at once (no asking, like Messenger); the other side answers and keeps its camera off
+    const direct = b.direct === true && !(c.negOffer && c.negBy !== me);
+    if (typeof b.offer === 'string' && b.offer.length < 60000 && (direct || (c.v && c.v.by === me && c.v.state === 'ok'))) { if (direct) c.kind = 'video'; c.negOffer = b.offer; c.negAns = null; c.negBy = me; c.negSeq = (c.negSeq || 0) + 1; return res.json({ success: true }); }
     if (typeof b.answer === 'string' && b.answer.length < 60000 && c.negOffer && c.negBy !== me) { c.negAns = b.answer; c.negOffer = null; return res.json({ success: true }); }
     res.status(400).json({ success: false });
   });

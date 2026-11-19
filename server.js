@@ -877,13 +877,14 @@ function videoSecs(src) {
     ok(m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null);
   }));
 }
-const FEED_MAX_SECS = 300;   // the small feed version is made only for videos up to 5 minutes; longer ones play the original (whole)
+const FEED_MAX_SECS = 300;   // the small feed version holds the first 5 minutes; a longer video gets it too as a quick-start PREVIEW
+                             // (the app sees it is cut at 5:00 and opens the whole original when the person taps it)
 
 async function makeFeedVideo(src) {
   if (!thumbsReady()) return null;
-  // a long video must NEVER get a small version cut at 5:00 (the app would show only the first 5 minutes)
+  // a long video gets its first 5 minutes as a small quick-start preview (starts at once in the Feed instead of loading a huge file)
   const secs = await videoSecs(src).catch(() => null);
-  if (secs === null || secs > FEED_MAX_SECS + 1) return null;
+  if (secs === null) return null;
   const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
   const out = path.join(os.tmpdir(), 'camfeed-fv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.mp4');
   let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
@@ -905,20 +906,27 @@ async function fixCutFeedVideos() {
     const rows = (await pool.query("SELECT id, feed_url FROM posts WHERE feed_url LIKE 'http%' AND COALESCE(feed_checked, FALSE) = FALSE ORDER BY id DESC LIMIT 3")).rows;
     for (const r of rows) {
       const secs = await videoSecs(r.feed_url).catch(() => null);
-      if (secs !== null && secs >= FEED_MAX_SECS - 1) {
-        await pool.query("UPDATE posts SET feed_url = '', feed_checked = TRUE WHERE id = $1", [r.id]);   // '' = do not make it again; the app plays the original
-        console.log('[feedvideo] post', r.id, 'was cut at 5:00 → original is used now');
-      } else {
-        await pool.query('UPDATE posts SET feed_checked = TRUE WHERE id = $1', [r.id]);
-      }
+      // a clip cut at 5:00 is kept now (a quick-start preview; the app opens the full original)
+      await pool.query('UPDATE posts SET feed_checked = TRUE WHERE id = $1', [r.id]);
     }
   } catch (e) { console.error('[feedvideo] check:', e.message); }
 }
 setTimeout(() => { fixCutFeedVideos(); setInterval(fixCutFeedVideos, 20 * 1000); }, 60 * 1000);
 
+let longRequeued = false;
 async function backfillFeedVideos() {
   if (process.env.FEED_VIDEOS !== 'on' || feedVideoBusy || !thumbsReady()) return; feedVideoBusy = true;
   try {
+    // once: long videos that were left without a small version (the old 5-minute rule) are queued again for their preview
+    if (!longRequeued) {
+      longRequeued = true;
+      const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'feed:long_preview_v1'").catch(() => ({ rows: [1] }));
+      if (!done.rows.length) {
+        const r = await pool.query("UPDATE posts SET feed_url = NULL, feed_checked = FALSE WHERE feed_url = '' AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%')").catch(() => ({ rowCount: 0 }));
+        await pool.query("INSERT INTO creator_settings (key, value) VALUES ('feed:long_preview_v1', '1') ON CONFLICT (key) DO NOTHING").catch(() => {});
+        console.log('[feedvideo] queued again for a preview:', r.rowCount);
+      }
+    }
     // story videos first: they are the raw files from the phone camera (very big, slow to start) and they only live 24 hours
     const sv = (await pool.query("SELECT id, media_url FROM stories WHERE media_type = 'video' AND feed_url IS NULL AND expires_at > NOW() + INTERVAL '10 minutes' ORDER BY id DESC LIMIT 1").catch(() => ({ rows: [] }))).rows[0];
     if (sv) {
@@ -1336,15 +1344,24 @@ app.get('/api/posts', async (req, res) => {
     // so nothing ever stays on top: each time a post is seen again it goes to the back of its group
     // a share of a post I have already seen counts as seen too (the same video must not come back as "new")
     const shareSeen = '(p.shared_post_id IS NOT NULL AND (EXISTS (SELECT 1 FROM feed_seen x WHERE x.viewer_email = $1 AND x.post_id = p.shared_post_id) OR EXISTS (SELECT 1 FROM post_views y WHERE y.viewer_email = $1 AND y.post_id = p.shared_post_id)))';
+    // 1 = seen a while ago (more than 6 h) · 2 = seen in the last 6 h · 3 = liked / commented
     const tierExpr = `(CASE WHEN fs.post_id IS NULL AND pv.post_id IS NULL AND NOT ${shareSeen} AND NOT ${engaged} THEN 0 WHEN ${engaged} THEN 3
-                           WHEN ${seenAt} < NOW() - INTERVAL '${reshowDays} days' THEN 1 ELSE 2 END)`;
+                           WHEN ${seenAt} < NOW() - INTERVAL '6 hours' THEN 1 ELSE 2 END)`;
     const feedOrder = useLatest ? 'feed_tier ASC, p.created_at DESC, p.id DESC' : 'feed_tier ASC, feed_rank_score DESC, p.created_at DESC';
     const newOnly = req.query.newOnly === '1';             // the app asks "anything new?" while you scroll (only never-seen posts)
     const feedQuery = `
       ${cteAndJoins},
       ${tierExpr} AS feed_tier,
       (${tierExpr} > 0) AS seen_before,
-      CASE WHEN ${tierExpr} > 0 THEN EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 ELSE (
+      CASE WHEN ${tierExpr} > 0 THEN (
+        -- after "all caught up" the feed goes on like Facebook: posts of the people I follow / my friends first, popular ones,
+        -- the ones seen longest ago, mixed by chance (never the same order twice)
+        CASE WHEN p.user_email = $1 THEN 10 WHEN f.following_email IS NOT NULL THEN 60 ELSE 0 END
+        + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 4.0)
+        + (COALESCE(uis.score, 0) * 2.5)
+        + LEAST(EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 / (24.0 * ${reshowDays}), 1.0) * 30.0
+        + (RANDOM() * 45.0)
+      ) ELSE (
         CASE
           WHEN p.user_email = $1 THEN 25
           WHEN f.following_email IS NOT NULL THEN 65
@@ -1391,11 +1408,10 @@ app.get('/api/posts', async (req, res) => {
       while (out.length < unseen.length) { const slot = out.length; out.push((slot % 3 === 2 && fresh.length) ? takeFresh() : takeOld()); }
       mixed = out;
     }
-    // like Facebook: only a FEW old (already seen) posts after "all caught up" — then the app waits for new ones
-    const oldRaw = parseInt((appConfig.cfg().feed || {}).oldMax, 10), oldMax = Math.max(0, Math.min(30, Number.isFinite(oldRaw) ? oldRaw : 3));
-    const oldShown = Math.max(0, parseInt(req.query.oldShown, 10) || 0);
-    rows = [...mixed, ...seenRows.slice(0, Math.max(0, oldMax - oldShown))];
-    if (!useLatest) return res.json({ success: true, posts: rows, hasMore: unseen.length >= parsedLimit });
+    // the feed never stops (like Facebook): after the new posts come posts of the people I follow / friends and other ones
+    // seen before (ranked above). The app sends the ids it already shows (excludeIds), so nothing repeats while scrolling.
+    rows = [...mixed, ...seenRows];
+    if (!useLatest) return res.json({ success: true, posts: rows, hasMore: rows.length >= parsedLimit });
     res.json({ success: true, posts: rows, hasMore: rows.length === parsedLimit });
   } catch (err) {
     console.error('Error loading posts:', err);
