@@ -25,9 +25,9 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
   ];
   const fxGaps = async () => {
     const m = {};
-    try { (await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('party:action_gap', 'party:emote_gap', 'party:seat_sound')")).rows.forEach((r) => { m[r.key] = Number(r.value); }); } catch (e) { /* default */ }
+    try { (await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('party:action_gap', 'party:emote_gap', 'party:seat_sound', 'party:show_timer')")).rows.forEach((r) => { m[r.key] = Number(r.value); }); } catch (e) { /* default */ }
     const ok = (v, d) => (Number.isFinite(v) && v >= 0 && v <= 3600 ? v : d);
-    return { actionGap: ok(m['party:action_gap'], 3), emoteGap: ok(m['party:emote_gap'], 2), seatSound: m['party:seat_sound'] !== 0 };
+    return { actionGap: ok(m['party:action_gap'], 3), emoteGap: ok(m['party:emote_gap'], 2), seatSound: m['party:seat_sound'] !== 0, showTimer: m['party:show_timer'] !== 0 };
   };
   // the age choices the app shows when opening a room (server side: changing them needs no app update)
   const AGE_CHOICES = { min: [13, 16, 18, 20, 25, 30, 40, 50], max: [17, 20, 25, 30, 35, 40, 50, 60] };
@@ -240,7 +240,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
     return {
       room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
-        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at,
+        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at, show_timer: (await fxGaps()).showTimer,
         followers: await followersOf(room.owner_email), following: await follows(room.owner_email, email),
         music: room.music_url ? { id: room.music_id, url: room.music_url, title: room.music_title || '', artist: room.music_artist || '', at: room.music_at, paused_at: room.music_paused_at || null } : null },
       now: new Date().toISOString(),                         // the server's clock: the phones play the music at the same point
@@ -630,6 +630,28 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
 
+  // ⏱️ my time: how long the room is open, how long I am in it / on a seat, and what counted today (challenges, ⭐ stars)
+  app.get('/api/party/rooms/:id/time', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      const room = await roomOf(req.params.id);
+      if (!room) return res.status(404).json({ success: false });
+      const m = (await pool.query('SELECT joined_at, seat FROM party_members WHERE room_id = $1 AND user_email = $2', [room.id, e])).rows[0] || null;
+      const others = Number((await pool.query("SELECT COUNT(*)::int AS n FROM party_members WHERE room_id = $1 AND user_email <> $2 AND last_seen >= NOW() - INTERVAL '40 seconds'", [room.id, e])).rows[0].n);
+      const day = "date_trunc('day', NOW() AT TIME ZONE 'Asia/Phnom_Penh') AT TIME ZONE 'Asia/Phnom_Penh'";
+      const t = (await pool.query(`SELECT COALESCE(SUM(seat), 0)::int AS seat, COALESCE(SUM(listen), 0)::int AS listen FROM party_minutes WHERE user_email = $1 AND hour >= ${day}`, [e]).catch(() => ({ rows: [{ seat: 0, listen: 0 }] }))).rows[0];
+      let star = null;
+      const st = (await pool.query("SELECT status FROM party_stars WHERE user_email = $1 AND status IN ('trial', 'star')", [e]).catch(() => ({ rows: [] }))).rows[0];
+      if (st) {
+        const sm = (await pool.query("SELECT minutes FROM star_minutes WHERE user_email = $1 AND day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date", [e]).catch(() => ({ rows: [] }))).rows[0];
+        let need = 3; try { const v = (await pool.query("SELECT value FROM creator_settings WHERE key = 'star:listeners'")).rows[0]; if (v && Number.isFinite(Number(v.value))) need = Number(v.value); } catch (x) { /* default */ }
+        star = { minutes: sm ? sm.minutes : 0, counting: !!(m && m.seat !== null && others >= need), need };
+      }
+      res.json({ success: true, now: new Date().toISOString(), opened_at: room.created_at, joined_at: m ? m.joined_at : null, seated: !!(m && m.seat !== null), others,
+        today: { seat: t.seat, listen: t.listen }, counting: !!(m && others >= 1), star });
+    } catch (err) { console.error('[party] time:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
   // owner / helpers: invite to a seat, take off a seat, mute / unmute, remove from the room, make / unmake a helper
   app.post('/api/party/rooms/:id/manage', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -930,6 +952,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       }
       if (b.gaps && typeof b.gaps === 'object') {
         if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+        if (b.gaps.showTimer !== undefined) await pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['party:show_timer', b.gaps.showTimer ? '1' : '0']);
         if (b.gaps.seatSound !== undefined) await pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', ['party:seat_sound', b.gaps.seatSound ? '1' : '0']);
         for (const [k, key] of [['actionGap', 'party:action_gap'], ['emoteGap', 'party:emote_gap']]) {
           if (b.gaps[k] === undefined) continue;

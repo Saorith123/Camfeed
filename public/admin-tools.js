@@ -988,10 +988,12 @@
       box.appendChild(el('div', { style: 'font-weight:800;margin:18px 0 6px', text: '⏱️ Spam guard (seconds between two, per person)' }));
       var ag = el('input', { class: 'at-in', type: 'number', value: String(gaps.actionGap), style: 'width:110px;display:inline-block' }), eg = el('input', { class: 'at-in', type: 'number', value: String(gaps.emoteGap), style: 'width:110px;display:inline-block' });
       var ss = el('input', { type: 'checkbox' }); ss.checked = gaps.seatSound !== false;
-      if (!su) { ag.disabled = true; eg.disabled = true; ss.disabled = true; }
+      var stm = el('input', { type: 'checkbox' }); stm.checked = gaps.showTimer !== false;
+      if (!su) { ag.disabled = true; eg.disabled = true; ss.disabled = true; stm.disabled = true; }
       box.appendChild(el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap' }, [el('span', { text: '😘 Actions:' }), ag, el('span', { text: '😊 Emotes:' }), eg,
         el('label', { style: 'display:flex;gap:6px;align-items:center' }, [ss, el('span', { text: '🔔 Sound when somebody sits down / leaves a seat' })]),
-        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save', onclick: function () { adm('/api/admin/party', { gaps: { actionGap: ag.value, emoteGap: eg.value, seatSound: ss.checked } }).then(function (x) { if (x.success) { draw(x); alert('✅ Saved'); } else alert(x.error || 'Failed'); }); } }) : null]));
+        el('label', { style: 'display:flex;gap:6px;align-items:center' }, [stm, el('span', { text: '⏱️ Show the room clock (how long it is open)' })]),
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save', onclick: function () { adm('/api/admin/party', { gaps: { actionGap: ag.value, emoteGap: eg.value, seatSound: ss.checked, showTimer: stm.checked } }).then(function (x) { if (x.success) { draw(x); alert('✅ Saved'); } else alert(x.error || 'Failed'); }); } }) : null]));
       ['action', 'emote'].forEach(function (kind) {
         var list = (d.fx || []).filter(function (f) { return f.kind === kind; });
         box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: kind === 'action' ? '😘 Actions — sent to somebody on a seat (flies from the sender to them)' : '😊 Emotes — shown on the sender\'s own seat' }));

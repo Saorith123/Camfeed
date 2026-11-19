@@ -4384,6 +4384,9 @@ app.get('/api/monetization/status', async (req, res) => {
       `SELECT r.status, r.days_done, r.posts_done, r.created_at, r.completed_at, r.note, u.first_name, u.last_name FROM referrals r JOIN users u ON u.email = r.referred_email
        WHERE r.referrer_email = $1 ORDER BY r.created_at DESC LIMIT 50`, [email])).rows;
     const earned = Number((await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE user_email = $1 AND kind = 'referral'", [email])).rows[0].n) || 0;
+    // 💰 the native wallet page: money that still waits (Party Room gifts) and where the money came from
+    const held = await coins.heldCents(email).catch(() => 0);
+    const sources = (await pool.query("SELECT kind, SUM(amount_cents)::bigint AS cents FROM wallet_ledger WHERE user_email = $1 AND amount_cents > 0 AND kind NOT IN ('withdrawal_refund') GROUP BY kind ORDER BY 2 DESC", [email])).rows.map((x) => ({ kind: x.kind, amount: Number(x.cents) / 100 }));
     res.json({ success: true, creatorProgramOpen: process.env.CREATOR_PROGRAM_OPEN === 'true', walletBalance: cents / 100, referralCount: Number(refs.rows[0] && refs.rows[0].n) || 0, referralCode: (me.rows[0] && me.rows[0].public_id) || '',
       referralRules: { reward: rr.rewardCents / 100, days: rr.days, posts: rr.posts, windowDays: rr.windowDays }, referralEarned: earned / 100,
       referrals: invited.map((x) => { const done = Math.min(steps, (x.days_done || 0) + (x.posts_done || 0)); return { name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), status: x.status, daysDone: x.days_done || 0, postsDone: x.posts_done || 0, joined: x.created_at, note: x.status === 'review' || x.status === 'rejected' ? '' : '', progress: x.status === 'rewarded' ? rr.rewardCents / 100 : (x.status === 'progress' ? Math.round(rr.rewardCents * done / steps) / 100 : 0), reward: rr.rewardCents / 100 }; }),
@@ -4392,7 +4395,8 @@ app.get('/api/monetization/status', async (req, res) => {
       criteria: { followers: rules.followers, views: rules.views, ageDays: rules.ageDays, posts: rules.posts }, minWithdraw: rules.minWithdrawCents / 100, payPerView: (await earnSettings(a && a.source)).rpm,
       creatorSource: a ? (a.source || 'applied') : null, paths: await pathSettings(),
       withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, accountName: w.account_name || '', accountNumber: w.account_number || '', status: w.status, created_at: w.created_at, decided_at: w.decided_at, note: w.note || '', hasCode: !!w.has_code, usesCode: CODE_METHODS.includes(w.method), codeIssuedAt: w.code_issued_at, codeSeen: !!w.code_viewed_at, reissuePending: !!w.reissue_requested_at, reissueLeft: Math.max(0, 3 - (w.reissue_count || 0)) })),
-      ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at })) });
+      ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at })),
+      heldAmount: Math.min(held, cents) / 100, availableAmount: Math.max(0, cents - held) / 100, sources, payoutMethods: PAYOUT_METHODS, carriers: CARRIERS });
   } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 
