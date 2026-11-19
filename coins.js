@@ -75,6 +75,8 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         await pool.query('CREATE TABLE IF NOT EXISTS party_checkin (user_email TEXT PRIMARY KEY, last_day DATE NOT NULL, streak INTEGER NOT NULL DEFAULT 0)');   // 📅 daily check-in
         await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS deck TEXT');                     // this week's shuffled prizes
         await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS deck_pos INTEGER NOT NULL DEFAULT 0');
+        await pool.query('ALTER TABLE party_checkin ADD COLUMN IF NOT EXISTS last_win DATE');                  // the last day this person won coins
+        await pool.query('CREATE TABLE IF NOT EXISTS checkin_days (day DATE PRIMARY KEY, checkins INTEGER NOT NULL DEFAULT 0, winners INTEGER NOT NULL DEFAULT 0)');
         await pool.query('CREATE TABLE IF NOT EXISTS user_xp (user_email TEXT PRIMARY KEY, xp BIGINT NOT NULL DEFAULT 0, day DATE, day_room INTEGER NOT NULL DEFAULT 0)');   // XP from time in rooms + check-in
         await pool.query('CREATE TABLE IF NOT EXISTS user_vip (user_email TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL)');      // 👑 VIP (bought by the month)
         if (!(await pool.query('SELECT COUNT(*)::int AS n FROM party_frames')).rows[0].n) {
@@ -105,6 +107,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       // = 7 coins a week) and come in a shuffled order — Admin sets them
       checkinDeck: (() => { try { const l = JSON.parse(m.checkin_deck || 'null'); if (Array.isArray(l) && l.length) { const d = l.map((x) => ({ coins: Math.max(0, parseInt(x.coins, 10) || 0), times: Math.max(0, parseInt(x.times, 10) || 0) })).filter((x) => x.times > 0); if (d.length) return d; } } catch (e) { /* default */ }
         return [{ coins: 0, times: 2 }, { coins: 1, times: 3 }, { coins: 2, times: 2 }]; })(),
+      checkinWinners: num(m.checkin_winners, 20, 0, 1000000), checkinCooldown: num(m.checkin_cooldown, 7, 0, 365),
       checkinOn: m.checkin_on !== '0', checkin: (() => { try { const l = JSON.parse(m.checkin || 'null'); if (Array.isArray(l) && l.length === 7) return l.map((x) => Math.max(0, parseInt(x, 10) || 0)); } catch (e) { /* default */ } return [5, 5, 10, 10, 15, 20, 50]; })(),
       levels, vipOn: m.vip_on !== '0',
       xp: { spend: num(m.xp_spend, 1, 0, 100), receive: num(m.xp_recv, 2, 0, 100), listen: num(m.xp_listen, 1, 0, 100), seat: num(m.xp_seat, 2, 0, 100),
@@ -431,7 +434,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     const nextDay = done ? null : (streak % 7) + 1;                          // the day (1–7) that today's check-in gives
     const max = s.checkinDeck.reduce((a, x) => Math.max(a, x.coins), 0);
     const week = s.checkinDeck.reduce((a, x) => a + x.coins * x.times, 0), len = s.checkinDeck.reduce((a, x) => a + x.times, 0);
-    return { success: true, on: s.checkinOn, box: true, maxCoins: max, weekCoins: week, cycle: len, xp: s.xp.checkin, rewards: s.checkin, doneToday: done, streak, day: done ? ((streak - 1) % 7) + 1 : nextDay, balance: await balance(e) };
+    return { success: true, on: s.checkinOn, box: true, maxCoins: max, weekCoins: 0, cycle: len, winnersPerDay: s.checkinWinners, xp: s.xp.checkin, rewards: s.checkin, doneToday: done, streak, day: done ? ((streak - 1) % 7) + 1 : nextDay, balance: await balance(e) };
   }
   app.get('/api/party/checkin', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -449,19 +452,30 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const r = (await c.query(`SELECT streak, deck, deck_pos, (last_day = ${KH_DAY}) AS today, (last_day = ${KH_DAY} - 1) AS yesterday FROM party_checkin WHERE user_email = $1`, [e])).rows[0];
       if (r && r.today) { await c.query('ROLLBACK'); c.release(); return res.status(409).json({ success: false, code: 'done', error: 'Already checked in today.' }); }
       const streak = (r && r.yesterday ? r.streak : 0) + 1;
-      // 🎁 open the box: the next prize of this week's shuffled deck (a new deck after every round of check-ins)
-      let deck = null, pos = r ? r.deck_pos : 0;
-      try { deck = r && r.deck ? JSON.parse(r.deck) : null; } catch (x) { deck = null; }
-      if (!Array.isArray(deck) || pos >= deck.length) {
-        deck = [];
-        for (const x of s.checkinDeck) for (let i = 0; i < x.times; i++) deck.push(x.coins);
-        for (let i = deck.length - 1; i > 0; i--) { const j = require('crypto').randomInt(0, i + 1); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-        pos = 0;
+      const day = ((streak - 1) % 7) + 1;
+      // 🎁 coins go round between people: only N winners a day (Admin), picked by chance through the whole day
+      // (chance = N ÷ yesterday's check-ins, so morning and evening people have the same luck), and a winner waits
+      // some days before winning again; everybody else gets the XP
+      const rand = () => require('crypto').randomInt(0, 1000000) / 1000000;
+      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['checkin:winners']);
+      await c.query(`INSERT INTO checkin_days (day) VALUES (${KH_DAY}) ON CONFLICT (day) DO NOTHING`);
+      const today = (await c.query(`SELECT winners FROM checkin_days WHERE day = ${KH_DAY}`)).rows[0];
+      const yest = (await c.query(`SELECT checkins FROM checkin_days WHERE day = ${KH_DAY} - 1`)).rows[0];
+      const lw = (await c.query(`SELECT (last_win IS NOT NULL AND last_win > ${KH_DAY} - $2::int) AS waiting FROM party_checkin WHERE user_email = $1`, [e, s.checkinCooldown])).rows[0];
+      let coins = 0;
+      const prizes = s.checkinDeck.filter((x) => x.coins > 0);
+      if (s.checkinWinners > 0 && prizes.length && today.winners < s.checkinWinners && !(lw && lw.waiting)) {
+        const expect = Math.max(s.checkinWinners, yest ? yest.checkins : 0);
+        if (rand() < s.checkinWinners / expect) {
+          const tw = prizes.reduce((a, x) => a + x.times, 0);
+          let roll = rand() * tw;
+          for (const x of prizes) { if (roll < x.times) { coins = x.coins; break; } roll -= x.times; }
+          if (!coins) coins = prizes[prizes.length - 1].coins;
+        }
       }
-      const coins = deck.length ? deck[pos] : 0;
-      const day = pos + 1;
-      await c.query(`INSERT INTO party_checkin (user_email, last_day, streak, deck, deck_pos) VALUES ($1, ${KH_DAY}, $2, $3, $4)
-                     ON CONFLICT (user_email) DO UPDATE SET last_day = ${KH_DAY}, streak = $2, deck = $3, deck_pos = $4`, [e, streak, JSON.stringify(deck), pos + 1]);
+      await c.query(`UPDATE checkin_days SET checkins = checkins + 1, winners = winners + $1 WHERE day = ${KH_DAY}`, [coins > 0 ? 1 : 0]);
+      await c.query(`INSERT INTO party_checkin (user_email, last_day, streak, last_win) VALUES ($1, ${KH_DAY}, $2, CASE WHEN $3 THEN ${KH_DAY} ELSE NULL END)
+                     ON CONFLICT (user_email) DO UPDATE SET last_day = ${KH_DAY}, streak = $2, last_win = CASE WHEN $3 THEN ${KH_DAY} ELSE party_checkin.last_win END`, [e, streak, coins > 0]);
       if (coins > 0) await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'checkin', $3, 'system')", [e, coins, 'Check-in day ' + day]);
       if (s.xp.checkin > 0) {                                       // ⭐ check-in XP (+ VIP bonus)
         const isVip = s.vipOn && (await c.query('SELECT 1 FROM user_vip WHERE user_email = $1 AND expires_at > NOW()', [e])).rows.length > 0;
@@ -588,6 +602,8 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
           if (!l.length) return res.status(400).json({ success: false, error: 'Write the prizes like 0:2,1:3,2:2 (coins:how many times in a week).' });
           await setSetting('checkin_deck', JSON.stringify(l.slice(0, 10)));
         }
+        if (b.checkinWinners !== undefined) { const v = parseInt(b.checkinWinners, 10); if (!(v >= 0 && v <= 1000000)) return res.status(400).json({ success: false, error: 'Winners a day: 0 or more.' }); await setSetting('checkin_winners', v); }
+        if (b.checkinCooldown !== undefined) { const v = parseInt(b.checkinCooldown, 10); if (!(v >= 0 && v <= 365)) return res.status(400).json({ success: false, error: 'Days before winning again: 0–365.' }); await setSetting('checkin_cooldown', v); }
         if (b.checkinOn !== undefined) await setSetting('checkin_on', b.checkinOn ? '1' : '0');
         audit(a.adminEmail, 'checkin-settings', 'settings', 'check-in coins changed');
       } else if (act === 'frame') {
@@ -639,8 +655,9 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
                                            (SELECT COALESCE(SUM(receiver_cents), 0) FROM gift_events) AS receiver_cents`);
       const frames = await pool.query(`SELECT f.*, (SELECT COUNT(*)::int FROM user_frames u WHERE u.frame_id = f.id AND u.expires_at > NOW()) AS owners FROM party_frames f ORDER BY f.coins, f.sort`);
       const vips = await pool.query('SELECT COUNT(*)::int AS n FROM user_vip WHERE expires_at > NOW()');
+      const ckd = (await pool.query(`SELECT checkins, winners FROM checkin_days WHERE day = ${KH_DAY}`)).rows[0] || { checkins: 0, winners: 0 };
       const ck = await pool.query(`SELECT COUNT(*)::int AS n, COALESCE((SELECT SUM(coins) FROM coin_ledger WHERE kind = 'checkin' AND created_at > NOW() - INTERVAL '30 days'), 0)::int AS coins FROM party_checkin WHERE last_day = ${KH_DAY}`);
-      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, vipNow: vips.rows[0].n, checkinToday: ck.rows[0].n, checkinCoins30: ck.rows[0].coins, gifts: gifts.rows, frames: frames.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
+      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, vipNow: vips.rows[0].n, checkinToday: ck.rows[0].n, checkinCoins30: ck.rows[0].coins, checkinWinnersToday: ckd.winners, gifts: gifts.rows, frames: frames.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
     } catch (err) { console.error('[coins] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 

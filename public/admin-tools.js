@@ -688,14 +688,18 @@
           xp: { spend: xSpend.value, receive: xRecv.value, listen: xListen.value, seat: xSeat.value, roomMax: xMax.value, checkin: xCk.value, vipBonus: xVip.value }, perks: { nameColor: pName.value, entry: pEntry.value } }); } }) : '']));
       // 📅 daily check-in
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '📅 Daily check-in (today: ' + (d.checkinToday || 0) + ' people · coins given in 30 days: ' + Number(d.checkinCoins30 || 0).toLocaleString() + ')' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Once a day people open a 🎁 gift box (+ the check-in XP set in VIP & levels). The prizes of one round (a week) are fixed and come in a shuffled order. Write coins:times with a comma between — e.g. 0:2,1:3,2:2 = in 7 check-ins: nothing 2 times, 1 coin 3 times, 2 coins 2 times (7 coins a week). Careful: coins can be gifted, and gifts turn into real money for the receiver — keep them small.' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Once a day people open a 🎁 gift box (+ the check-in XP set in VIP & levels). Coins go round between people: only N winners a day get coins (picked by chance through the whole day), a winner waits some days before winning again, everybody else finds the box empty. Prize of a winner: coins:weight, e.g. 1:3,2:2 = 1 coin (3 of 5) or 2 coins (2 of 5). Careful: coins can be gifted, and gifts turn into real money for the receiver — keep them small.' }));
       var deckNow = st.checkinDeck || [{ coins: 0, times: 2 }, { coins: 1, times: 3 }, { coins: 2, times: 2 }];
       var ckv = el('input', { class: 'at-in', value: deckNow.map(function (x) { return x.coins + ':' + x.times; }).join(','), style: 'width:260px' });
-      box.appendChild(el('div', { style: 'font-size:13px;margin-bottom:4px', text: 'Now: ' + deckNow.reduce(function (a, x) { return a + x.times; }, 0) + ' check-ins a round · ' + deckNow.reduce(function (a, x) { return a + x.coins * x.times; }, 0) + ' coins a round per person' }));
+      var ckW = el('input', { class: 'at-in', type: 'number', value: String(st.checkinWinners == null ? 20 : st.checkinWinners), style: 'width:90px' });
+      var ckC = el('input', { class: 'at-in', type: 'number', value: String(st.checkinCooldown == null ? 7 : st.checkinCooldown), style: 'width:80px' });
+      if (!su) [ckW, ckC].forEach(function (i) { i.disabled = true; });
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0' }, [el('span', { text: 'Winners a day' }), ckW, el('span', { text: 'Days before the same person can win again' }), ckC,
+        el('span', { style: 'color:#65676b', text: 'Today: ' + (d.checkinWinnersToday || 0) + ' winners' })]));
       var cko = el('input', { type: 'checkbox' }); cko.checked = st.checkinOn !== false;
       if (!su) [ckv, cko].forEach(function (i) { i.disabled = true; });
       box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [cko, el('span', { text: 'Check-in open' })]), ckv,
-        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save check-in', onclick: function () { call({ action: 'checkin', checkinDeck: ckv.value.split(',').map(function (x) { var p = x.split(':'); return { coins: (p[0] || '').trim(), times: (p[1] || '').trim() }; }).filter(function (x) { return x.coins !== '' && x.times !== ''; }), checkinOn: cko.checked }); } }) : '']));
+        su ? el('button', { class: 'btn-sm btn-blue', text: 'Save check-in', onclick: function () { call({ action: 'checkin', checkinWinners: ckW.value, checkinCooldown: ckC.value, checkinDeck: ckv.value.split(',').map(function (x) { var p = x.split(':'); return { coins: (p[0] || '').trim(), times: (p[1] || '').trim() }; }).filter(function (x) { return x.coins !== '' && x.times !== ''; }), checkinOn: cko.checked }); } }) : '']));
       // add / take coins by hand
       if (su) {
         box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));
