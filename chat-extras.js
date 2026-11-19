@@ -439,6 +439,8 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
     const room = gcalls.get(req.params.callId);                // "Decline" on a group call: stop ringing for me only, the call goes on
     if (room) { room.declined.add(me); if (push && push.notifyCallEnd) push.notifyCallEnd(me, room.id); return res.json({ success: true }); }
     if (!involved(c, me)) return res.status(404).json({ success: false });
+    // "Decline" from the phone's ringing screen: only while it still rings (an answered call is never ended by it)
+    if ((req.body || {}).onlyIfRinging === true && c.status !== 'ringing') return res.json({ success: true, ignored: true });
     if (live(c)) {
       c.why = (c.caller === me ? 'caller:' : 'callee:') + String((req.body || {}).why || '').slice(0, 60);
       console.log('[call] end', c.id, c.status, c.why);
