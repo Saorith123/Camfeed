@@ -163,8 +163,10 @@
     '.nav-group{display:flex;flex-direction:column;gap:4px}.nav-title{font-size:11.5px;font-weight:800;color:#8a8d91;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px 4px}' +
     '.nav-group .tab-btn{text-align:left;border:none;background:transparent;padding:9px 10px;border-radius:9px;font-size:14px;color:#1c1e21;width:100%}' +
     '.nav-group .tab-btn:hover{background:#f0f2f5}.nav-group .tab-btn.active{background:#e7f3ff;color:#1877f2}' +
-    '@media (max-width:900px){.admin-layout{display:block}.admin-layout>.tabs-bar{position:static;flex-direction:row;overflow-x:auto;max-height:none;margin-bottom:14px}' +
-    '.nav-group{min-width:170px}}' }));
+    // a narrow screen (phone, small window): the menu groups in 3 columns, everything seen at once (no sideways scrolling)
+    '@media (max-width:900px){.admin-layout{display:block}.admin-layout>.tabs-bar{position:static;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 8px;overflow:visible;max-height:none;margin-bottom:14px}' +
+    '.nav-group{min-width:0}.nav-group .tab-btn{padding:8px 6px;font-size:13px;white-space:normal;line-height:1.3}.nav-title{padding:2px 6px 4px;font-size:10.5px}}' +
+    '.at-chips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 14px}.at-chips .btn-sm{width:100%;text-align:left;white-space:normal;line-height:1.3}' }));
 
   // ---------- tabs ----------
   function build() {
@@ -1290,7 +1292,7 @@
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
       var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges']];
-      p.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px' }, chips.map(function (x) {
+      p.appendChild(el('div', { class: 'at-chips' }, chips.map(function (x) {          // 3 columns
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
       if (!d.items.length) { p.appendChild(empty('✅ Nothing is waiting. All requests are handled.')); return; }
