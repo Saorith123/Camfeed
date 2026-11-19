@@ -7,7 +7,10 @@
 //  • the person who reported hears "CamFeed checked your report"
 module.exports = function installChatReports({ app, pool, adminGate, audit, sendNotice, cleanup, extractMediaUrls, ensureChat }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
-  const REASONS = ['sexual', 'scam', 'harass', 'violence', 'child', 'spam', 'other'];
+  const BASE_REASONS = ['sexual', 'scam', 'harass', 'violence', 'child', 'spam', 'other'];
+  const appCfg = require('./app-config');
+  const reasonIds = () => { try { return [...BASE_REASONS, ...appCfg.cfg().reportReasons.chat.map((x) => x.id)]; } catch (e) { return BASE_REASONS; } };
+  const reasonKm = (id) => { try { const x = appCfg.cfg().reportReasons.chat.find((y) => y.id === id); return x ? x.km.replace(/^[^\u1780-\u17FFA-Za-z]+/, '') : id; } catch (e) { return id; } };
   const REASON_KM = { sexual: 'អាសអាភាស ឬផ្លូវភេទ', scam: 'បោកប្រាស់', harass: 'ជេរប្រមាថ ឬរំលោភ', violence: 'ហិង្សា ឬគំរាមកំហែង', child: 'ពាក់ព័ន្ធកុមារ', spam: 'Spam', other: 'ផ្សេងៗ' };
 
   let ready = null;
@@ -38,7 +41,7 @@ module.exports = function installChatReports({ app, pool, adminGate, audit, send
     try {
       await ensure();
       const b = req.body || {};
-      const reason = REASONS.includes(b.reason) ? b.reason : 'other';
+      const reason = reasonIds().includes(b.reason) ? b.reason : 'other';
       const note = String(b.note || '').trim().slice(0, 500);
       const today = Number((await pool.query("SELECT COUNT(*)::int AS n FROM chat_reports WHERE reporter_email = $1 AND created_at > NOW() - INTERVAL '1 day'", [e])).rows[0].n);
       if (today >= 30) return res.status(429).json({ success: false, error: 'Too many reports today.' });
@@ -112,7 +115,7 @@ module.exports = function installChatReports({ app, pool, adminGate, audit, send
       if (act === 'delete') {                                      // 🗑 delete at once, for both sides
         await deleteMessage(r);
         audit(a.adminEmail, 'chat-report-delete', r.target_email + ' #' + r.message_id, why || r.reason);
-        if (b.notify !== false) await sendNotice(a.adminEmail, r.target_email, '🚫 CamFeed បានលុបសាររបស់អ្នក ព្រោះរំលោភច្បាប់សហគមន៍ (' + (REASON_KM[r.reason] || r.reason) + ')' + (why ? '។ ' + why : '។') + ' បើធ្វើម្ដងទៀត គណនីរបស់អ្នកអាចត្រូវផ្អាក។').catch(() => {});
+        if (b.notify !== false) await sendNotice(a.adminEmail, r.target_email, '🚫 CamFeed បានលុបសាររបស់អ្នក ព្រោះរំលោភច្បាប់សហគមន៍ (' + (REASON_KM[r.reason] || reasonKm(r.reason)) + ')' + (why ? '។ ' + why : '។') + ' បើធ្វើម្ដងទៀត គណនីរបស់អ្នកអាចត្រូវផ្អាក។').catch(() => {});
         await close('resolved', 'deleted');
       } else if (act === 'notice') {                               // ✉️ a message to the person (the report stays open unless "close")
         const text = String(b.text || '').trim().slice(0, 700);
@@ -149,7 +152,7 @@ module.exports = function installChatReports({ app, pool, adminGate, audit, send
                                         ${b.target ? 'AND cr.target_email = $1' : ''}
                                       ORDER BY cr.created_at ${status === 'pending' ? 'ASC' : 'DESC'} LIMIT 100`, b.target ? [norm(b.target)] : []).catch((e) => { console.error('[chat-reports] list:', e.message); return { rows: [] }; })).rows;
       const pending = Number((await pool.query("SELECT COUNT(*)::int AS n FROM chat_reports WHERE status = 'pending'")).rows[0].n);
-      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, pending, reasons: REASON_KM, reports: rows });
+      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, pending, reasons: { ...Object.fromEntries((() => { try { return appCfg.cfg().reportReasons.chat.map((x) => [x.id, reasonKm(x.id)]); } catch (e) { return []; } })()), ...REASON_KM }, reports: rows });
     } catch (err) { console.error('[chat-reports] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 

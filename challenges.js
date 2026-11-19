@@ -3,6 +3,7 @@
 // a note (e.g. "a chance to become a Star"), or money (money always waits for an Admin to approve it).
 // Everything is set in Admin › 🎯 Challenges; the app only shows what the server sends (no app update to change a challenge).
 // Joining is always FREE (paying to take part would be gambling).
+const appCfg = require('./app-config');
 module.exports = function installChallenges({ app, pool, adminGate, audit, sendNotice, xpNowOf, badgesOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const me = (req, res) => { const e = norm(req.authEmail); if (!e) res.status(401).json({ success: false, error: 'Please log in.' }); return e; };
@@ -41,8 +42,8 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
         SELECT m.user_email, date_trunc('hour', NOW()), CASE WHEN m.seat IS NOT NULL THEN 1 ELSE 0 END, CASE WHEN m.seat IS NULL THEN 1 ELSE 0 END
         FROM party_members m JOIN party_rooms r ON r.id = m.room_id AND r.status = 'open'
         WHERE m.last_seen >= NOW() - INTERVAL '40 seconds'
-          AND EXISTS (SELECT 1 FROM party_members x WHERE x.room_id = m.room_id AND x.user_email <> m.user_email AND x.last_seen >= NOW() - INTERVAL '40 seconds')
-        ON CONFLICT (user_email, hour) DO UPDATE SET seat = party_minutes.seat + EXCLUDED.seat, listen = party_minutes.listen + EXCLUDED.listen`);
+          AND (SELECT COUNT(*) FROM party_members x WHERE x.room_id = m.room_id AND x.user_email <> m.user_email AND x.last_seen >= NOW() - INTERVAL '40 seconds') >= $1
+        ON CONFLICT (user_email, hour) DO UPDATE SET seat = party_minutes.seat + EXCLUDED.seat, listen = party_minutes.listen + EXCLUDED.listen`, [appCfg.cfg().party.challengeMinOthers]);
       await pool.query("DELETE FROM party_minutes WHERE hour < NOW() - INTERVAL '120 days'");
     } catch (e) { /* party tables not there yet */ }
   }

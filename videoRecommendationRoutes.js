@@ -410,7 +410,7 @@ module.exports = function createVideoRouter(pool) {
             key = parsed.pathname.replace(/^\//, '');
           }
         }
-        if (key && (key.startsWith('videos/') || key.startsWith('images/') || key.startsWith('audio/'))) {
+        if (key && (key.startsWith('videos/') || key.startsWith('images/') || key.startsWith('audio/') || key.startsWith('files/'))) {
           await r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: decodeURIComponent(key) }));
           if (key.startsWith('videos/')) {
             await pool.query('DELETE FROM videos WHERE r2_key = $1 OR video_url LIKE $2', [key, `%${key}%`]).catch(() => {});

@@ -149,7 +149,7 @@ module.exports = function createPush({ app, pool }) {
         if (/^group:/i.test(String(m.receiver_email || '')) || norm(m.sender_email) === norm(m.receiver_email)) continue;
         // muted / restricted chats, and strangers' messages for people who turned on "Message requests", do not ring
         if (msgFilter && !(await msgFilter(m.receiver_email, m.sender_email).catch(() => true))) continue;
-        const media = { image: '📷 រូបភាព', video: '🎬 វីដេអូ', audio: '🎙️ សារសំឡេង', location: '📍 ទីតាំង' }[m.message_type];
+        const media = { image: '📷 រូបភាព', video: '🎬 វីដេអូ', audio: '🎙️ សារសំឡេង', location: '📍 ទីតាំង' }[m.message_type];   // a 📎 file keeps its own text ("📎 name")
         let text = media || String(m.message || '').replace(/\s+/g, ' ');
         if (text.startsWith('STICKER_EMOJI:')) text = text.slice(14) || '🙂';
         else if (text.startsWith('BIG_EMOJI:')) text = text.split(':').slice(2).join(':') || '👍';

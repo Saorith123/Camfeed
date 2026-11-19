@@ -2295,6 +2295,100 @@ app.post('/api/presence/offline', async (req, res) => {
   }
 });
 
+// ---- 🔐 Admin permissions by section (Super Admin decides; an admin with no list set yet keeps full access) ----
+const ADMIN_SECTIONS = ['inbox', 'overview', 'audit', 'users', 'chats', 'content', 'live', 'sounds', 'ads', 'money', 'coins', 'party', 'challenges', 'stars', 'system'];
+const ADMIN_LEVEL = { view: 1, edit: 2, approve: 3 };
+let adminPermsReady = null, adminPermsCache = { at: 0, map: new Map() };
+function ensureAdminPerms() {
+  if (!adminPermsReady) adminPermsReady = pool.query('CREATE TABLE IF NOT EXISTS admin_perms (admin_email TEXT PRIMARY KEY, sections JSONB NOT NULL DEFAULT \'{}\', updated_by TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())').catch((e) => { adminPermsReady = null; throw e; });
+  return adminPermsReady;
+}
+async function adminPermsOf(email) {
+  await ensureAdminPerms();
+  if (Date.now() - adminPermsCache.at > 30000) {
+    const r = await pool.query('SELECT admin_email, sections FROM admin_perms');
+    adminPermsCache = { at: Date.now(), map: new Map(r.rows.map((x) => [String(x.admin_email).toLowerCase(), x.sections || {}])) };
+  }
+  return adminPermsCache.map.get(String(email || '').toLowerCase()) || null;   // null = not limited
+}
+// which section a request belongs to, and how much right it needs (view / edit / approve money)
+function adminNeed(path, body) {
+  const p = path.replace(/^\/api\/admin\/?/, '');
+  const first = p.split('/')[0];
+  const sec = ({ inbox: 'inbox', dashboard: 'overview', overview: 'overview', audit: 'audit', system: 'system',
+    users: 'users', 'ban-user': 'users', 'set-role': 'users', 'create-user': 'users', 'reset-password': 'users', notice: 'users',
+    chat: 'chats', 'chat-reports': 'content', reports: 'content', posts: 'content', comments: 'content',
+    live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
+    withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
+    'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
+    coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', 'app-config': 'system' })[first];
+  if (!sec) return null;
+  const b = body || {}, act = String(b.action || '');
+  const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
+  const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
+  const READ_PATHS = /^(inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
+  const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
+    || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
+  if (MONEY) return { sec, level: 'approve' };
+  const single = ['coins', 'party', 'challenges', 'stars', 'chat-reports', 'app-config'].includes(first);
+  const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (!act && keys.every((k) => FILTER.includes(k))))
+    : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
+  return { sec, level: read ? 'view' : 'edit' };
+}
+app.use('/api/admin', async (req, res, next) => {
+  try {
+    const p = '/api/admin' + req.path;
+    if (p === '/api/admin/my-perms' || p === '/api/admin/perms') return next();     // they check by themselves
+    const email = String((req.body && req.body.adminEmail) || req.authEmail || '').trim().toLowerCase();
+    if (!email || SUPER_ADMIN_EMAILS.includes(email)) return next();
+    const u = (await pool.query('SELECT role FROM users WHERE LOWER(email) = $1', [email])).rows[0];
+    if (!u || u.role !== 'admin') return next();                                     // super admins: everything; not an admin: the route says no
+    const perms = await adminPermsOf(email);
+    if (!perms) return next();                                                       // not limited yet
+    const need = adminNeed(p, req.body);
+    if (!need || need.sec === 'inbox') return next();
+    const have = ADMIN_LEVEL[perms[need.sec]] || 0;
+    if (have >= ADMIN_LEVEL[need.level]) return next();
+    return res.status(403).json({ success: false, code: 'perm', section: need.sec, need: need.level,
+      error: have ? 'You can only ' + (have === 1 ? 'look at' : 'change') + ' this section. Ask a Super Admin for more rights.' : 'You do not have the right to use this section. Ask a Super Admin.' });
+  } catch (e) { console.error('[admin perms]', e.message); next(); }
+});
+// my own rights (the Admin page hides what I can not use)
+app.post('/api/admin/my-perms', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const perms = a.isSuperAdmin ? null : await adminPermsOf(a.adminEmail);
+    res.json({ success: true, isSuperAdmin: a.isSuperAdmin, limited: !!perms, sections: perms || {}, all: ADMIN_SECTIONS });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+// 👮 Super Admin: every admin's rights by section
+app.post('/api/admin/perms', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
+    await ensureAdminPerms();
+    if (b.set && typeof b.set === 'object') {
+      const who = String(b.set.target || '').trim().toLowerCase();
+      if (!who) return res.status(400).json({ success: false, error: 'Choose an admin.' });
+      if (b.set.unlimited === true) {
+        await pool.query('DELETE FROM admin_perms WHERE admin_email = $1', [who]);
+        audit(a.adminEmail, 'admin-perms', who, 'all sections (not limited)');
+      } else {
+        const out = {};
+        for (const [k, v] of Object.entries(b.set.sections || {})) if (ADMIN_SECTIONS.includes(k) && ADMIN_LEVEL[v]) out[k] = v;
+        await pool.query(`INSERT INTO admin_perms (admin_email, sections, updated_by, updated_at) VALUES ($1, $2, $3, NOW())
+          ON CONFLICT (admin_email) DO UPDATE SET sections = $2, updated_by = $3, updated_at = NOW()`, [who, JSON.stringify(out), a.adminEmail]);
+        audit(a.adminEmail, 'admin-perms', who, Object.entries(out).map(([k, v]) => k + ':' + v).join(', ') || 'no section');
+      }
+      adminPermsCache.at = 0;
+    }
+    const admins = (await pool.query(`SELECT LOWER(u.email) AS email, u.first_name, u.last_name, u.role, p.sections, p.updated_by, p.updated_at
+      FROM users u LEFT JOIN admin_perms p ON p.admin_email = LOWER(u.email) WHERE u.role IN ('admin', 'super_admin') ORDER BY u.role DESC, u.first_name LIMIT 200`)).rows;
+    res.json({ success: true, admins: admins.map((x) => Object.assign(x, { super: x.role === 'super_admin' || SUPER_ADMIN_EMAILS.includes(x.email), limited: !!x.sections })), sections: ADMIN_SECTIONS });
+  } catch (err) { console.error('[admin perms] list:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d),
   restrictedBy: (to, from) => chatPrefs.isRestricted(to, from) });   // a person I restricted: their calls do not ring
@@ -2303,6 +2397,9 @@ const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), cleanup, extractMediaUrls, ensureChat: () => chatExtras.ensureSchema() });   // pin / archive / mute / restrict / delete chat / message requests
 // ⭐ CamFeed Stars (Party Room hosts): applications with ID + selfie, hours, a bigger gift share, monthly bonus (Admin pays)
+const appConfig = require('./app-config');
+appConfig.install({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });
+const chatFiles = require('./chat-files')({ app, pool });   // 📎 files in chat
 const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });
 const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), framesOf: (emails) => coins.framesOf(emails), badgesOf: (emails) => coins.badgesOf(emails), starsOf: (emails) => stars.starsOf(emails) });
@@ -2388,12 +2485,18 @@ app.post('/api/messages', (req, res, next) => {
       if (!rr.rows.length) replyTo = null;
     }
     if (['system', 'call'].includes(messageType)) messageType = 'text';   // only the server may write these
+    let msgText = message;
+    if (messageType === 'file') {                                          // 📎 a file: only from our own storage (files/ folder)
+      const f = chatFiles.checkFileMessage(message, mediaUrl);
+      if (!f) return res.status(400).json({ success: false, error: 'Invalid file' });
+      msgText = f.message; mediaUrl = f.mediaUrl;
+    }
     const query = `
       INSERT INTO messages (sender_email, receiver_email, message, media_url, message_type, is_read, reply_to) 
       VALUES ($1, $2, $3, $4, $5, FALSE, $6) 
       RETURNING *
     `;
-    const result = await pool.query(query, [sender, receiver, message, mediaUrl, messageType, replyTo]);
+    const result = await pool.query(query, [sender, receiver, msgText, mediaUrl, messageType, replyTo]);
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
     console.error("Error saving message in DB:", err);
@@ -3776,7 +3879,7 @@ app.post('/api/watch', async (req, res) => {
     await watchEnsure();
     await pool.query(`INSERT INTO watch_history (user_email, post_id, secs, duration, updated_at) VALUES ($1, $2, $3, $4, NOW())
                       ON CONFLICT (user_email, post_id) DO UPDATE SET secs = $3, duration = GREATEST(watch_history.duration, $4), updated_at = NOW()`, [me, pid, secs, dur]);
-    if (Date.now() - watchSwept > 6 * 3600 * 1000) { watchSwept = Date.now(); pool.query("DELETE FROM watch_history WHERE updated_at < NOW() - INTERVAL '90 days'").catch(() => {}); }   // kept 90 days
+    if (Date.now() - watchSwept > 6 * 3600 * 1000) { watchSwept = Date.now(); pool.query("DELETE FROM watch_history WHERE updated_at < NOW() - ($1::text || ' days')::interval", [String(appConfig.cfg().watchHistoryDays)]).catch(() => {}); }   // kept N days (Admin > System > App features)
     res.json({ success: true });
   } catch (e) { res.json({ success: false }); }
 });
@@ -3881,6 +3984,7 @@ setTimeout(() => { fixVideoSounds(); setInterval(fixVideoSounds, 30 * 1000); }, 
 app.post('/api/sounds/from-post/:postId', async (req, res) => {
   try {
     const me = req.authEmail, pid = parseInt(req.params.postId, 10); if (!me || !pid) return res.status(400).json({ success: false });
+    if (!appConfig.cfg().features.saveSound) return res.status(403).json({ success: false, error: 'This is turned off for now.' });
     const row = (await pool.query("SELECT p.id, p.user_email, p.media_type, p.media_url, p.privacy, p.content FROM posts p WHERE p.id = $1", [pid])).rows[0];
     if (!row || (row.privacy && row.privacy !== 'public' && row.user_email !== me)) return res.status(404).json({ success: false });
     const v = pubMedia(row).video; if (!v) return res.status(400).json({ success: false, error: 'No video.' });

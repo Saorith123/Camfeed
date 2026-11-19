@@ -371,9 +371,10 @@ applyTexts(); load();
   function left(end) { var d = (new Date(end) - Date.now()) / 1000; if (d <= 0) return L.ended; var dd = Math.floor(d / 86400), h = Math.floor(d % 86400 / 3600), m = Math.floor(d % 3600 / 60); return en ? (dd ? dd + 'd ' : '') + h + 'h ' + m + 'm left' : 'នៅសល់ ' + (dd ? dd + ' ថ្ងៃ ' : '') + h + ' ម៉ោង ' + m + ' នាទី'; }
   function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
   function load() {
-    fetch('/api/challenges?area=monetize').then(function (r) { return r.json(); }).then(function (d) {
+    Promise.all([fetch('/api/challenges?area=monetize').then(function (r) { return r.json(); }), fetch('/api/app-config').then(function (r) { return r.json(); }).catch(function () { return {}; })]).then(function (both) {
+      var d = both[0], f = (both[1] && both[1].config && both[1].config.features) || {};
       var card = document.getElementById('chCard'), box = document.getElementById('chBox');
-      if (!d || !d.success || !d.challenges || !d.challenges.length) { card.style.display = 'none'; return; }
+      if (f.challenge === false || !d || !d.success || !d.challenges || !d.challenges.length) { card.style.display = 'none'; return; }
       card.style.display = ''; box.textContent = '';
       d.challenges.forEach(function (c) {
         var live = c.status === 'live' && new Date(c.ends_at) > new Date();

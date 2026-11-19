@@ -2945,12 +2945,13 @@
                     isEdited = true;
                 }
 
-                const isVideo = !ov.deleted && m.media_url && (m.message_type === 'video' || (m.media_url.match(/\.(mp4|webm|mov|m4v)$/i) && m.message_type !== 'audio'));
-                const isAudio = !ov.deleted && m.media_url && (m.message_type === 'audio' || displayText === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
+                const isFile = !ov.deleted && m.media_url && m.message_type === 'file';   // 📎 a file (PDF, Word, ZIP ...)
+                const isVideo = !isFile && !ov.deleted && m.media_url && (m.message_type === 'video' || (m.media_url.match(/\.(mp4|webm|mov|m4v)$/i) && m.message_type !== 'audio'));
+                const isAudio = !isFile && !ov.deleted && m.media_url && (m.message_type === 'audio' || displayText === '[Voice Message]' || m.media_url.match(/\.(mp3|wav|ogg|m4a)$/i));
                 const isLocation = !ov.deleted && !m.media_url && (m.message_type === 'location' || displayText.includes('📍 ទីតាំងរបស់ខ្ញុំ'));
                 const isTextOnly = !m.media_url && displayText && !isBigEmoji(displayText) && !displayText.startsWith('STICKER_EMOJI:') && !displayText.startsWith('BIG_EMOJI:');
 
-                const canDl = !ov.deleted && m.media_url && !isAudio && m.media_type !== 'sticker' && m.message_type !== 'sticker';
+                const canDl = !isFile && !ov.deleted && m.media_url && !isAudio && m.media_type !== 'sticker' && m.message_type !== 'sticker';
                 const menuItems = `
                     <div class="cf-react-pick">${['❤️','😂','😮','😢','😡','👍'].map(e => `<button type="button" onclick="reactToMessage(${m.id}, '${e}')">${e}</button>`).join('')}</div>
                     <button type="button" onclick="startReply(${m.id})">↩️ ឆ្លើយតប (Reply)</button>
@@ -2969,7 +2970,20 @@
                 `;
 
                 let bodyHtml = '';
-                if (isAudio) {
+                if (isFile) {
+                    const fUrl = String(m.media_url).split('#')[0];
+                    const fSize = parseInt((String(m.media_url).match(/#size=(\d+)/) || [])[1] || '0', 10);
+                    const fName = displayText.replace(/^📎\s*/, '') || 'ឯកសារ';
+                    const fExt = (fName.match(/\.([A-Za-z0-9]{1,8})$/) || [])[1] || '';
+                    const sizeTxt = fSize <= 0 ? '' : fSize < 1048576 ? Math.round(fSize / 1024) + ' KB' : (fSize / 1048576).toFixed(1) + ' MB';
+                    const fIcon = /^pdf$/i.test(fExt) ? '📕' : /^(docx?|odt|rtf|txt)$/i.test(fExt) ? '📘' : /^(xlsx?|ods|csv)$/i.test(fExt) ? '📗' : /^(pptx?|odp)$/i.test(fExt) ? '📙' : /^(zip|rar|7z)$/i.test(fExt) ? '🗜️' : /^(mp3|m4a|wav|ogg)$/i.test(fExt) ? '🎵' : '📄';
+                    if (/^https:\/\//.test(fUrl)) {
+                        bodyHtml = `<a href="${escapeHtml(fUrl)}" download="${escapeHtml(fName)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;width:250px;padding:10px 12px;border-radius:16px;text-decoration:none;background:${isSent ? '#2563eb' : '#f1f5f9'};color:${isSent ? '#fff' : '#0f172a'};">
+                            <span style="font-size:30px;line-height:1;">${fIcon}</span>
+                            <span style="min-width:0;flex:1;"><span style="display:block;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(fName)}</span>
+                            <span style="display:block;font-size:12px;opacity:.75;">${sizeTxt ? sizeTxt + ' · ' : ''}⬇️ ទាញយក</span></span></a>`;
+                    }
+                } else if (isAudio) {
                     audioUrlsToPreload.push({ url: m.media_url, id: m.id });
                     const cached = audioBlobCache.get(m.media_url);
                     const initialDur = (cached && cached.durationSec > 0) ? formatSeconds(cached.durationSec) : '0:00';

@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
@@ -10,7 +10,7 @@
     ['🛡️ Content & safety', ['reports', 'content', 'posts', 'live']],
     ['💰 Money', ['monetization', 'coins', 'ads']],
     ['🎉 Fun', ['party', 'challenges', 'stars', 'sounds']],
-    ['⚙️ Settings', ['system']],
+    ['⚙️ Settings', ['system', 'appcfg', 'perms']],
   ];
 
   // ---------- helpers ----------
@@ -1395,12 +1395,137 @@
     card.appendChild(list); card.appendChild(thread); c.appendChild(card); c.scrollIntoView({ behavior: 'smooth' });
   }
 
+  // ---------- 🔐 rights by section: hide what this admin can not use; Super Admin sets them in 👮 Admins & rights ----------
+  var TAB_SECTION = { inbox: 'inbox', overview: 'overview', audit: 'audit', umanage: 'users', users: 'users', accounts: 'users', chats: 'chats', reports: 'content', content: 'content', posts: 'content',
+    live: 'live', sounds: 'sounds', ads: 'ads', monetization: 'money', coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', system: 'system', appcfg: 'system' };
+  var SECTION_NAME = { inbox: '🔔 Inbox', overview: '📊 Overview', audit: '🧾 Activity Log', users: '👥 Users', chats: '💬 Chats', content: '🛡️ Content & reports', live: '🔴 Live', sounds: '🎵 Sounds', ads: '📢 Ads',
+    money: '💰 Money (withdrawals, creators, referrals)', coins: '🪙 Coins & Gifts', party: '🎉 Party Room', challenges: '🎯 Challenges', stars: '⭐ Stars', system: '⚙️ System' };
+  function applyPerms() {
+    adm('/api/admin/my-perms', {}).then(function (d) {
+      if (!d || !d.success) return;
+      var pb = document.getElementById('tabBtn-perms'); if (pb) pb.style.display = d.isSuperAdmin ? '' : 'none';
+      if (d.isSuperAdmin || !d.limited) return;
+      Object.keys(TAB_SECTION).forEach(function (t) {
+        var sec = TAB_SECTION[t], b = document.getElementById('tabBtn-' + t);
+        if (b && sec !== 'inbox' && !d.sections[sec]) b.style.display = 'none';
+      });
+      document.querySelectorAll('.nav-group').forEach(function (g) {          // a group with nothing left: hide its title too
+        var any = Array.prototype.some.call(g.querySelectorAll('.tab-btn'), function (b) { return b.style.display !== 'none'; });
+        g.style.display = any ? '' : 'none';
+      });
+    });
+  }
+  // ---------- 🧩 App features & lists: turn parts of the app on or off and change lists, without a new app ----------
+  function appConfigAdmin(body) {
+    var box = el('div', { class: 'at-card' }); body.appendChild(box);
+    var FEAT = [['partyRoom', '🎉 Party Room'], ['challenge', '🎯 Challenge button'], ['wallet', '💰 My wallet (in the menu)'], ['coins', '🪙 Coins button (Party Room)'],
+      ['vip', '👑 VIP & levels button'], ['frames', '🖼️ Profile frames button'], ['checkin', '📅 Daily check-in'], ['stars', '⭐ Stars'], ['ranking', '🏆 Ranking'],
+      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat']];
+    var cfgNow = {};
+    var REASONS = [['post', '📝 Report a post or video'], ['chat', '💬 Report a chat message or person'], ['room', '🎉 Report a Party Room']];
+    function call(extra) { return adm('/api/admin/app-config', extra || {}).then(function (x) { if (x && x.success) draw(x); else { box.textContent = ''; box.appendChild(empty((x && x.error) || 'Could not load.')); } return x; }); }
+    function numList(v) { return String(v || '').split(/[\s,]+/).filter(function (t) { return t !== ''; }).map(Number).filter(function (n) { return isFinite(n); }); }
+    function draw(d) {
+      box.textContent = '';
+      var c = d.config || {}, sup = !!d.isSuperAdmin; cfgNow = c;
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🧩 App features & lists' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'The app reads these when it opens (and every few minutes). No new app is needed. Turned-off parts are hidden in the app; people never see the word "Admin".' + (sup ? '' : ' Only a Super Admin can change them.') }));
+      function h(t) { box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:14px 0 6px', text: t })); }
+      h('1. Parts of the app (on or off)');
+      var grid = el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px' }), feats = {};
+      FEAT.forEach(function (f) { var x = el('input', { type: 'checkbox' }); x.checked = (c.features || {})[f[0]] !== false; x.disabled = !sup; feats[f[0]] = x; grid.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;padding:6px 8px;background:#f7f8fa;border-radius:8px' }, [x, el('span', { text: f[1] })])); });
+      box.appendChild(grid);
+      h('2. Report reasons (one per line: Khmer | English)');
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-bottom:6px', text: 'Example: 🔞 អាសអាភាស | 🔞 Nudity. For chat you may add a short code at the start: code | Khmer | English (letters a–z only). Max 15 lines.' }));
+      var areas = {};
+      REASONS.forEach(function (r) {
+        var list = ((c.reportReasons || {})[r[0]] || []);
+        var t = el('textarea', { class: 'at-in', rows: String(Math.max(4, list.length + 1)), style: 'width:100%;font-family:inherit' });
+        t.value = list.map(function (x) { return (r[0] === 'chat' ? x.id + ' | ' : '') + x.km + ' | ' + x.en; }).join('\n'); t.disabled = !sup;
+        areas[r[0]] = t; box.appendChild(el('div', { style: 'font-weight:700;margin:6px 0 2px', text: r[1] })); box.appendChild(t);
+      });
+      h('3. Numbers and lists');
+      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:220px;display:inline-block' }); i.disabled = !sup; box.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0' }, [el('span', { style: 'min-width:280px', text: label }), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
+      var p = c.party || {};
+      var fTtl = field('⏳ Chat "messages disappear after" choices (hours)', (c.chatTtlHours || []).join(', '), '0 = off · 24 = 1 day · 168 = 7 days · 720 = 1 month');
+      var fGift = field('🎁 Gift amount buttons (Party Room)', (c.giftCounts || []).join(', '), 'e.g. 1, 10, 99');
+      var fSnd = field('🎵 Story sound length (seconds)', c.storySoundSeconds, '5–30');
+      var fWatch = field('🕘 Keep watch history (days)', c.watchHistoryDays, '1–3650');
+      var fMetM = field('🤝 "Met in a room" after (minutes together)', p.metMinutes, '1–600');
+      var fMetD = field('🤝 Keep "met in a room" for (days)', p.metDays, '1–365');
+      var fNote = field('🔔 Tell room followers again after (minutes)', p.followNotifyMinutes, '0 = every time the room opens');
+      var fMin = field('🎯 Room minutes count when at least N other people are in the room', p.challengeMinOthers, '0 = count even alone');
+      var fl = c.files || {};
+      var fMax = field('📎 Biggest file in chat (MB)', fl.maxMB, '1–500 · bigger files cost more storage');
+      var fDay = field('📎 Files one person may send a day', fl.perDay, '1–1000');
+      var fBlk = field('📎 File endings that can not be sent', (fl.blocked || []).join(', '), 'e.g. apk, exe (web pages like html/svg/js are always refused)');
+      if (!sup) return;
+      function reasonsOf(k) {
+        var out = [];
+        areas[k].value.split('\n').forEach(function (line) {
+          var parts = line.split('|').map(function (t) { return t.trim(); }); if (!line.trim()) return;
+          if (k === 'chat') { if (parts.length === 2) parts.unshift(parts[1].toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20)); if (parts.length >= 3) out.push({ id: parts[0], km: parts[1], en: parts[2] }); }
+          else if (parts.length >= 2) { var old = ((cfgNow.reportReasons || {})[k] || []).filter(function (x) { return x.km === parts[0]; })[0]; out.push({ id: old ? old.id : (k === 'post' ? parts[1].replace(/^[^A-Za-z]+/, '') + ' (' + parts[0].replace(/^[^\u1780-\u17FF]+/, '') + ')' : parts[0]), km: parts[0], en: parts[1] }); }
+        });
+        return out;
+      }
+      var bar = el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:14px' });
+      bar.appendChild(el('button', { class: 'btn-sm btn-blue', text: '💾 Save', onclick: function () {
+        var f = {}; Object.keys(feats).forEach(function (k) { f[k] = feats[k].checked; });
+        var rr = {}; Object.keys(areas).forEach(function (k) { var l = reasonsOf(k); if (l.length) rr[k] = l; });
+        call({ action: 'save', config: { features: f, reportReasons: rr, chatTtlHours: numList(fTtl.value), giftCounts: numList(fGift.value), storySoundSeconds: Number(fSnd.value), watchHistoryDays: Number(fWatch.value),
+          party: { metMinutes: Number(fMetM.value), metDays: Number(fMetD.value), followNotifyMinutes: Number(fNote.value), challengeMinOthers: Number(fMin.value) },
+          files: { maxMB: Number(fMax.value), perDay: Number(fDay.value), blocked: String(fBlk.value || '').split(/[\s,]+/).filter(function (t) { return t !== ''; }) } } });
+      } }));
+      bar.appendChild(el('button', { class: 'btn-sm', style: 'background:#e4e6eb', text: '↩️ Back to the original settings', onclick: function () { if (confirm('Put every setting on this page back to the original?')) call({ action: 'reset' }); } }));
+      box.appendChild(bar);
+    }
+    call({ action: 'list' });
+  }
+  function permsAdmin(body) {
+    var box = el('div', { class: 'at-card' }); body.appendChild(box);
+    function call(extra) { return adm('/api/admin/perms', extra || {}).then(function (x) { if (x.success) draw(x); else { box.textContent = ''; box.appendChild(empty(x.error || 'Could not load.')); } return x; }); }
+    function draw(d) {
+      box.textContent = '';
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '👮 Admins & rights (by section)' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Choose what each admin may use: 👁 Look = only see, ✏️ Change = see and change, 💵 Money = also approve and pay money (withdrawals, top-ups, bonuses, challenge rewards). "All sections" = not limited (as before). Super Admins always have everything. Make someone an admin in 👥 Users first.' }));
+      (d.admins || []).forEach(function (a) {
+        var card = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin:10px 0' });
+        card.appendChild(el('div', { style: 'font-weight:800;font-size:15px', text: nm(a) + ' · ' + a.email + (a.super ? ' · SUPER ADMIN (everything)' : '') }));
+        if (a.super) { box.appendChild(card); return; }
+        var all = el('input', { type: 'checkbox' }); all.checked = !a.limited;
+        var grid = el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;margin-top:8px' });
+        var sels = {};
+        (d.sections || []).forEach(function (sec) {
+          if (sec === 'inbox') return;
+          var x = el('select', { class: 'at-in', style: 'width:120px;display:inline-block' });
+          [['', '— none'], ['view', '👁 Look'], ['edit', '✏️ Change'], ['approve', '💵 Money']].forEach(function (o) { var op = el('option', { value: o[0], text: o[1] }); if ((a.sections || {})[sec] === o[0] || (!(a.sections || {})[sec] && !o[0])) op.selected = true; x.appendChild(op); });
+          sels[sec] = x;
+          grid.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;justify-content:space-between;padding:4px 8px;background:#f7f8fa;border-radius:8px' }, [el('span', { text: SECTION_NAME[sec] || sec }), x]));
+        });
+        function show() { grid.style.opacity = all.checked ? '.4' : '1'; Object.keys(sels).forEach(function (k) { sels[k].disabled = all.checked; }); }
+        all.addEventListener('change', show); show();
+        card.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin-top:6px;font-weight:700' }, [all, el('span', { text: 'All sections (not limited)' })]));
+        card.appendChild(grid);
+        card.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:8px', text: '💾 Save rights', onclick: function () {
+          var sec = {}; Object.keys(sels).forEach(function (k) { if (sels[k].value) sec[k] = sels[k].value; });
+          call({ set: { target: a.email, unlimited: all.checked, sections: sec } });
+        } }));
+        if (a.updated_by) card.appendChild(el('div', { style: 'color:#65676b;font-size:12px;margin-top:4px', text: 'Last changed by ' + a.updated_by + ' · ' + ago(a.updated_at) }));
+        box.appendChild(card);
+      });
+      if (!(d.admins || []).length) box.appendChild(empty('No admin yet.'));
+    }
+    call();
+  }
+
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');
+    applyPerms();
     // the Chats tab is for Super Admins only
     adm('/api/admin/chat/status', {}).then(function (r) { var b = document.getElementById('tabBtn-chats'); if (b) b.style.display = (r && r.success) ? '' : 'none'; });
   };

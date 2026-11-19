@@ -8,6 +8,7 @@
 // LiveKit "tickets" (tokens) that allow talking only to the people who sit on a seat.
 const crypto = require('crypto');
 
+const appCfg = require('./app-config');
 module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf, badgesOf, starsOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const SEAT_CHOICES = [4, 8, 12];
@@ -199,10 +200,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         metAt = Date.now();
         await pool.query(`INSERT INTO party_met (user_email, other_email, room_id, met_at)
                           SELECT a.user_email, b.user_email, a.room_id, NOW() FROM party_members a JOIN party_members b ON b.room_id = a.room_id AND b.user_email <> a.user_email
-                          WHERE GREATEST(a.joined_at, b.joined_at) < NOW() - INTERVAL '10 minutes'
+                          WHERE GREATEST(a.joined_at, b.joined_at) < NOW() - ($2::text || ' minutes')::interval
                             AND a.last_seen >= NOW() - ($1 || ' seconds')::interval AND b.last_seen >= NOW() - ($1 || ' seconds')::interval
-                          ON CONFLICT (user_email, other_email) DO UPDATE SET met_at = NOW(), room_id = EXCLUDED.room_id`, [String(STALE_SEC)]);
-        await pool.query("DELETE FROM party_met WHERE met_at < NOW() - INTERVAL '30 days'");
+                          ON CONFLICT (user_email, other_email) DO UPDATE SET met_at = NOW(), room_id = EXCLUDED.room_id`, [String(STALE_SEC), String(appCfg.cfg().party.metMinutes)]);
+        await pool.query("DELETE FROM party_met WHERE met_at < NOW() - ($1::text || ' days')::interval", [String(appCfg.cfg().party.metDays)]);
       }
       await pool.query("DELETE FROM party_messages WHERE room_id IN (SELECT id FROM party_rooms WHERE status = 'closed' AND closed_at < NOW() - INTERVAL '1 day')");
       await pool.query("DELETE FROM party_bans WHERE room_id IN (SELECT id FROM party_rooms WHERE status = 'closed')");
@@ -298,7 +299,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
   async function tellFollowers(room) {
     try {
       const last = await pool.query('SELECT sent_at FROM party_open_notes WHERE owner_email = $1', [room.owner_email]);
-      if (last.rows[0] && Date.now() - new Date(last.rows[0].sent_at).getTime() < 60 * 60 * 1000) return;
+      if (last.rows[0] && Date.now() - new Date(last.rows[0].sent_at).getTime() < appCfg.cfg().party.followNotifyMinutes * 60 * 1000) return;
       await pool.query('INSERT INTO party_open_notes (owner_email, sent_at) VALUES ($1, NOW()) ON CONFLICT (owner_email) DO UPDATE SET sent_at = NOW()', [room.owner_email]);
       const u = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [room.owner_email]);
       const name = u.rows[0] ? `${u.rows[0].first_name || ''} ${u.rows[0].last_name || ''}`.trim() : '';

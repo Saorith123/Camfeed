@@ -604,7 +604,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
   }, 4000).unref();
 
   // ---------- group chats ----------
-  const GROUP_TYPES = ['text', 'image', 'video', 'audio', 'location', 'sticker'];
+  const GROUP_TYPES = ['text', 'image', 'video', 'audio', 'location', 'sticker', 'file'];
   const DELETED_MARKER = '__CAMFEED_MSG_DELETED__';
   async function memberOf(gid, email) {
     if (!gid || !email) return null;
@@ -825,8 +825,13 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       let type = GROUP_TYPES.includes(b.message_type) ? b.message_type : 'text';
       let media = b.media_url ? String(b.media_url) : null;
       if (media && (!/^https:\/\//.test(media) || media.length > 2000)) return bad(res, 400, 'bad media');
-      if (!media && ['image', 'video', 'audio', 'sticker'].includes(type)) type = 'text';
+      if (!media && ['image', 'video', 'audio', 'sticker', 'file'].includes(type)) type = 'text';
       let text = String(b.message || '').slice(0, 5000);
+      if (type === 'file') {                                              // 📎 a file: only from our own storage (files/ folder)
+        const base = (process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/$/, '');
+        if (!media.startsWith(base + '/files/') || media.length > 600) return bad(res, 400, 'bad file');
+        text = (text.trim().startsWith('📎') ? text.trim() : '📎 ' + text.trim()).slice(0, 220);
+      }
       if (type === 'location') {
         const loc = /^📍[^\n]{0,60}\nhttps:\/\/www\.google\.com\/maps\/search\/\?api=1&query=(-?\d{1,3}(?:\.\d{1,8})?),(-?\d{1,3}(?:\.\d{1,8})?)$/.exec(text);
         if (!loc || Math.abs(parseFloat(loc[1])) > 90 || Math.abs(parseFloat(loc[2])) > 180) return bad(res, 400, 'bad location');
