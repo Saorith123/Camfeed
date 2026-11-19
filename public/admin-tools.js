@@ -23,10 +23,63 @@
     (kids || []).forEach(function (c) { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
+  // ---------- every click answers at once ----------
+  // • the button you pressed shows ⏳ and can not be pressed again until the server answers (no 4–5 double sends)
+  // • a card pops up in the middle of the screen: ⏳ working… → ✅ Done / ❌ the problem (instead of the grey browser box)
+  (function css() {
+    if (document.getElementById('atFbCss')) return;
+    var st = document.createElement('style'); st.id = 'atFbCss';
+    st.textContent = '.at-fb{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%) scale(.6);opacity:0;z-index:100000;min-width:220px;max-width:min(92vw,460px);padding:18px 22px;border-radius:18px;background:#fff;color:#1c1e21;box-shadow:0 18px 50px rgba(0,0,0,.28);font-size:15.5px;font-weight:700;text-align:center;line-height:1.45;transition:transform .22s cubic-bezier(.34,1.56,.64,1),opacity .18s;pointer-events:auto;cursor:pointer;white-space:pre-line}' +
+      '.at-fb.on{transform:translate(-50%,-50%) scale(1);opacity:1}.at-fb .ic{display:block;font-size:40px;margin-bottom:6px;animation:atPop .45s ease}.at-fb.ok{border-top:6px solid #22c55e}.at-fb.err{border-top:6px solid #e41e3f}.at-fb.busy{border-top:6px solid #7c3aed}.at-fb.info{border-top:6px solid #f59e0b}' +
+      '@keyframes atPop{0%{transform:scale(.3)}60%{transform:scale(1.25)}100%{transform:scale(1)}}@keyframes atSpin{to{transform:rotate(360deg)}}' +
+      '.at-fb .sp{display:block;width:34px;height:34px;margin:0 auto 8px;border:4px solid #e9d5ff;border-top-color:#7c3aed;border-radius:50%;animation:atSpin .8s linear infinite}' +
+      'button.at-busy{opacity:.65;cursor:wait!important;position:relative}button.at-busy::after{content:"";display:inline-block;width:12px;height:12px;margin-left:6px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:atSpin .7s linear infinite}';
+    document.head.appendChild(st);
+  })();
+  var fbEl = null, fbT = null;
+  function feedback(kind, text, ms) {
+    if (!fbEl) { fbEl = document.createElement('div'); fbEl.className = 'at-fb'; fbEl.addEventListener('click', function () { fbEl.classList.remove('on'); }); document.body.appendChild(fbEl); }
+    clearTimeout(fbT);
+    fbEl.className = 'at-fb ' + kind; fbEl.textContent = '';
+    if (kind === 'busy') fbEl.appendChild(el('span', { class: 'sp' }));
+    else fbEl.appendChild(el('span', { class: 'ic', text: kind === 'ok' ? '✅' : kind === 'err' ? '❌' : 'ℹ️' }));
+    fbEl.appendChild(document.createTextNode(String(text || '').replace(/^[✅❌]\s*/, '')));
+    void fbEl.offsetWidth; fbEl.classList.add('on');
+    var len = String(text || '').length;
+    if (ms !== 0) fbT = setTimeout(function () { fbEl.classList.remove('on'); }, ms || Math.min(10000, Math.max(kind === 'err' ? 4000 : 1400, len * 45)));
+  }
+  // the browser's grey alert box → CamFeed's card
+  function alert(m) {
+    m = String(m == null ? '' : m);
+    var bad = /^❌|fail|error|could not|can not|cannot|not found|only a super|must |please /i.test(m) && !/^✅/.test(m);
+    feedback(/^✅/.test(m) ? 'ok' : (bad ? 'err' : 'info'), m);
+  }
+  // remember which button was just pressed (and stop a second press while it is still working)
+  var pressed = null;
+  document.addEventListener('click', function (ev) {
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    if (!b) return;
+    if (b.classList.contains('at-busy')) { ev.preventDefault(); ev.stopImmediatePropagation(); feedback('busy', 'Working… please wait', 900); return; }
+    pressed = b; setTimeout(function () { if (pressed === b) pressed = null; }, 0);   // only for the request this click starts
+  }, true);
   function adm(path, body, method) {
     var payload = Object.assign({ adminEmail: currentUser.email, adminKey: savedAdminKey }, body || {});
+    var btn = pressed, isAction = !!btn && Object.keys(body || {}).length > 0;
+    var slow = null;
+    if (btn) { btn.classList.add('at-busy'); }
+    if (isAction) slow = setTimeout(function () { feedback('busy', 'Working…', 0); }, 350);
     return fetch(path, { method: method || 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(function (r) { return r.json().catch(function () { return { success: false, error: 'Bad answer from the server.' }; }); })
-      .catch(function () { return { success: false, error: 'Server connection error.' }; });
+      .catch(function () { return { success: false, error: 'Server connection error.' }; })
+      .then(function (x) {
+        clearTimeout(slow);
+        if (btn) btn.classList.remove('at-busy');
+        if (isAction) {
+          if (x && x.success) feedback('ok', 'Done');
+          else if (x && /already decided|already/i.test(String(x.error || ''))) { x.error = '✅ This was already done.'; feedback('ok', 'This was already done'); }
+          else feedback('err', (x && x.error) || 'Failed');
+        }
+        return x;
+      });
   }
   function fmt(d) { if (!d) return '—'; var x = new Date(d); return isNaN(x) ? '—' : x.toLocaleString(); }
   function ago(d) {
@@ -1106,13 +1159,13 @@
   window.loadAdsAdmin = loadAdsAdmin;
 
   // ---------- Inbox: everything waiting for an admin, in one place ----------
-  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '🪙', party: '🎉' };
-  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '🪙 Coins & Gifts', 'tabBtn-party': '🎉 Party Room' };
+  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '🪙', party: '🎉', star: '⭐' };
+  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '🪙 Coins & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars' };
   var lastTotal = -1, baseTitle = document.title;
   function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
   function applyInbox(d) {
     var c = d.counts;
-    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0);
+    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0); setBadge('tabBtn-stars', (c.stars || 0) + (c.starBonus || 0));
     document.title = (d.total > 0 ? '(' + d.total + ') ' : '') + baseTitle;
     var ib = document.getElementById('tabBtn-inbox'); if (ib) ib.style.color = d.total > 0 ? '#e41e3f' : '';
     if (lastTotal >= 0 && d.total > lastTotal) { try { var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05; o.start(); o.stop(ac.currentTime + 0.18); } catch (e) {} }
@@ -1125,7 +1178,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars']];
       p.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px' }, chips.map(function (x) {
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));

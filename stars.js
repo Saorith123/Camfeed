@@ -189,6 +189,13 @@ module.exports = function installStars({ app, pool, adminGate, audit, sendNotice
       await pool.query(`INSERT INTO party_stars (user_email, status, applied_at, real_name, note) VALUES ($1, 'pending', NOW(), $2, NULL)
                         ON CONFLICT (user_email) DO UPDATE SET status = 'pending', applied_at = NOW(), real_name = $2, note = NULL, decided_at = NULL, decided_by = NULL`, [e, name]);
       await pool.query(`INSERT INTO star_docs (user_email, id_photo, selfie) VALUES ($1, $2, $3) ON CONFLICT (user_email) DO UPDATE SET id_photo = $2, selfie = $3, created_at = NOW()`, [e, idp, self]);
+      // 🔔 tell the administrators (bell + the Inbox / ⭐ Stars red number)
+      try {
+        const admins = await pool.query("SELECT email FROM users WHERE role IN ('admin', 'super_admin') AND COALESCE(is_banned, FALSE) = FALSE LIMIT 50");
+        const who = (await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [e])).rows[0] || {};
+        const nm = ((who.first_name || '') + ' ' + (who.last_name || '')).trim() || 'a member';
+        for (const a of admins.rows) await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'admin_notice', $3, FALSE)", [a.email, e, '⭐ New Star application from ' + nm + (name ? ' (real name: ' + name + ')' : '') + '. Open Admin → ⭐ Stars to check it.']).catch(() => {});
+      } catch (x) { /* best effort */ }
       res.json(await myInfo(e));
     } catch (err) { console.error('[stars] apply:', err.message); res.status(500).json({ success: false, error: 'Could not send.' }); }
   });
@@ -226,8 +233,10 @@ module.exports = function installStars({ app, pool, adminGate, audit, sendNotice
         const s = await settings();
         const ok = b.ok === true, note = String(b.note || '').trim().slice(0, 300);
         if (!ok && !note) return res.status(400).json({ success: false, error: 'Please write the reason.' });
-        const r = await pool.query(`UPDATE party_stars SET status = $2, note = $3, decided_at = NOW(), decided_by = $4, trial_until = CASE WHEN $2 = 'trial' THEN NOW() + ($5 || ' days')::interval ELSE NULL END
-                                    WHERE user_email = $1 AND status = 'pending' RETURNING user_email`, [who, ok ? (s.trialDays > 0 ? 'trial' : 'star') : 'rejected', note || null, a.adminEmail, String(s.trialDays)]);
+        // the new status goes in twice as two values ($2 for the column, $6 for the check): one value used as VARCHAR and as text made Postgres refuse ("inconsistent types")
+        const to = ok ? (s.trialDays > 0 ? 'trial' : 'star') : 'rejected';
+        const r = await pool.query(`UPDATE party_stars SET status = $2, note = $3, decided_at = NOW(), decided_by = $4, trial_until = CASE WHEN $6::text = 'trial' THEN NOW() + ($5::text || ' days')::interval ELSE NULL END
+                                    WHERE user_email = $1 AND status = 'pending' RETURNING user_email`, [who, to, note || null, a.adminEmail, String(s.trialDays), to]);
         if (!r.rows.length) return res.status(409).json({ success: false, error: 'Already decided.' });
         await pool.query('DELETE FROM star_docs WHERE user_email = $1', [who]);       // the ID pictures are not kept
         await sendNotice(a.adminEmail, who, ok ? '⭐ អបអរសាទរ! អ្នកបានក្លាយជាតារា CamFeed (សាកល្បង ' + s.trialDays + ' ថ្ងៃ)។ បើកបន្ទប់ Party Room ហើយអង្គុយលើកៅអីជាមួយអ្នកស្ដាប់ ដើម្បីរាប់ម៉ោង។'

@@ -4621,6 +4621,8 @@ app.post('/api/admin/inbox', async (req, res) => {
       q("SELECT t.id, t.usd, t.method, t.created_at AS at, u.first_name, u.last_name FROM coin_topups t LEFT JOIN users u ON LOWER(u.email) = t.user_email WHERE t.status = 'pending' ORDER BY t.created_at DESC LIMIT 15"),
       q("SELECT p.room_id AS id, p.reason, p.created_at AS at FROM party_reports p WHERE p.handled = FALSE ORDER BY p.created_at DESC LIMIT 15")]);
     const crp = await q("SELECT c.id, c.reason, c.kind, c.created_at AS at, u.first_name, u.last_name FROM chat_reports c LEFT JOIN users u ON LOWER(u.email) = c.target_email WHERE c.status = 'pending' ORDER BY c.created_at DESC LIMIT 15");
+    const sta = await q("SELECT s.applied_at AS at, s.real_name, u.first_name, u.last_name FROM party_stars s LEFT JOIN users u ON LOWER(u.email) = s.user_email WHERE s.status = 'pending' ORDER BY s.applied_at DESC LIMIT 15");
+    const stb = await q("SELECT b.month, b.amount_cents, b.created_at AS at, u.first_name, u.last_name FROM star_bonus b LEFT JOIN users u ON LOWER(u.email) = b.user_email WHERE b.status = 'pending' ORDER BY b.created_at DESC LIMIT 15");
     const cnt = async (sql) => { try { return Number((await pool.query(sql)).rows[0].n); } catch (e) { return 0; } };
     const counts = {
       withdrawals: await cnt("SELECT COUNT(*) AS n FROM withdrawal_requests WHERE status = 'pending'"),
@@ -4631,7 +4633,9 @@ app.post('/api/admin/inbox', async (req, res) => {
       live: await cnt("SELECT COUNT(*) AS n FROM live_requests WHERE status = 'pending'"),
       coins: await cnt("SELECT COUNT(*) AS n FROM coin_topups WHERE status = 'pending'"),
       party: await cnt("SELECT COUNT(*) AS n FROM party_reports WHERE handled = FALSE"),
-      chatReports: await cnt("SELECT COUNT(*) AS n FROM chat_reports WHERE status = 'pending'")
+      chatReports: await cnt("SELECT COUNT(*) AS n FROM chat_reports WHERE status = 'pending'"),
+      stars: await cnt("SELECT COUNT(*) AS n FROM party_stars WHERE status = 'pending'"),
+      starBonus: await cnt("SELECT COUNT(*) AS n FROM star_bonus WHERE status = 'pending'")
     };
     const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
     const items = [].concat(
@@ -4643,7 +4647,9 @@ app.post('/api/admin/inbox', async (req, res) => {
       lv.rows.map((x) => ({ kind: 'live', tab: 'live', title: nm(x), sub: 'Live video request' + (x.purpose ? ' (' + x.purpose + ')' : ''), at: x.at })),
       ct.rows.map((x) => ({ kind: 'coins', tab: 'coins', title: nm(x) + ' · $' + Number(x.usd).toFixed(2), sub: 'Coin top-up (' + x.method + ')', at: x.at })),
       pr.rows.map((x) => ({ kind: 'party', tab: 'party', title: 'Party Room #' + x.id, sub: 'Room report: ' + String(x.reason || '').slice(0, 80), at: x.at })),
-      crp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: '💬 ' + nm(x), sub: 'Chat report (' + x.kind + '): ' + x.reason, at: x.at }))
+      crp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: '💬 ' + nm(x), sub: 'Chat report (' + x.kind + '): ' + x.reason, at: x.at })),
+      sta.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '⭐ ' + nm(x), sub: 'Star application' + (x.real_name ? ' (real name: ' + x.real_name + ')' : ''), at: x.at })),
+      stb.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '💵 ' + nm(x) + ' · $' + (Number(x.amount_cents || 0) / 100).toFixed(2), sub: 'Star bonus to pay (' + x.month + ')', at: x.at }))
     ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
     res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
   } catch (err) { console.error('[admin] inbox error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
