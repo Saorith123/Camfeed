@@ -880,50 +880,72 @@ function videoSecs(src) {
 const FEED_MAX_SECS = 300;   // the small feed version holds the first 5 minutes; a longer video gets it too as a quick-start PREVIEW
                              // (the app sees it is cut at 5:00 and opens the whole original when the person taps it)
 
-async function makeFeedVideo(src) {
+async function makeFeedVideo(src, knownSecs) {
   if (!thumbsReady()) return null;
-  // a long video gets its first 5 minutes as a small quick-start preview (starts at once in the Feed instead of loading a huge file)
-  const secs = await videoSecs(src).catch(() => null);
+  // short video (≤ 5 min): a light copy (720/540p ~1.2 Mbps). LONG video: a light copy of the WHOLE video (not cut) —
+  // the original from a phone is 10-20 Mbps, too heavy for 4G (it stops and spins after the first seconds); the light one
+  // plays smooth to the end. Over 20 min: a little lighter still (540p ~0.8 Mbps) so a 2-hour video stays under ~1 GB.
+  const secs = knownSecs !== undefined ? knownSecs : await videoSecs(src).catch(() => null);
   if (secs === null) return null;
+  const long = secs > FEED_MAX_SECS + 1, veryLong = secs > 20 * 60;
   const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
   const out = path.join(os.tmpdir(), 'camfeed-fv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.mp4');
   let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
+  const scale = veryLong ? "scale='if(gt(iw,ih),min(854,iw),min(480,iw))':-2,fps=30" : "scale='if(gt(iw,ih),min(720,iw),min(540,iw))':-2,fps=30";
+  const rate = veryLong ? ['-crf', '29', '-maxrate', '850k', '-bufsize', '1700k'] : ['-crf', '28', '-maxrate', '1200k', '-bufsize', '2400k'];
+  const args = ['-y', '-i', src, ...(long ? [] : ['-t', '300']), '-vf', scale, '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main', '-pix_fmt', 'yuv420p',
+    ...rate, '-g', '60', '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-movflags', '+faststart', '-threads', '1', out];
+  const timeout = Math.max(8 * 60 * 1000, Math.round(secs * 3 * 1000));       // a long video may take as long as itself (or more) to make
   try {
-    await new Promise((ok, no) => execFile(bin, ['-y', '-i', src, '-t', '300', '-vf', "scale='if(gt(iw,ih),min(720,iw),min(540,iw))':-2,fps=30", '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main', '-pix_fmt', 'yuv420p',
-      '-crf', '28', '-maxrate', '1200k', '-bufsize', '2400k', '-g', '60', '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-movflags', '+faststart', '-threads', '1', out],
-      { timeout: 8 * 60 * 1000, maxBuffer: 1024 * 1024 * 8 }, (e) => e ? no(e) : ok()));
+    await new Promise((ok, no) => execFile(bin, args, { timeout, maxBuffer: 1024 * 1024 * 8 }, (e) => e ? no(e) : ok()));
     if (!fs.existsSync(out)) return null;
-    const size = fs.statSync(out).size; if (size < 2000 || size > 60 * 1024 * 1024) return null;
-    return await r2PutBuffer('feed/' + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.mp4', fs.readFileSync(out), 'video/mp4');
+    const size = fs.statSync(out).size; if (size < 2000 || size > 4 * 1024 * 1024 * 1024) return null;
+    const key = (long ? 'feedfull/' : 'feed/') + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.mp4';
+    if (size < 60 * 1024 * 1024) return await r2PutBuffer(key, fs.readFileSync(out), 'video/mp4');
+    // a big file is sent as a stream (never read whole into memory)
+    const { PutObjectCommand } = require('@aws-sdk/client-s3');
+    await r2PutBuffer('feedfull/.probe', Buffer.from('1'), 'text/plain').catch(() => {});      // makes sure the R2 client exists
+    await _r2Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME || 'camfeed-storage', Key: key, Body: fs.createReadStream(out), ContentLength: size, ContentType: 'video/mp4' }));
+    return String(process.env.R2_PUBLIC_URL || 'https://media.camfeedkh.com').replace(/\/+$/, '') + '/' + key;
   } catch (e) { console.error('[feedvideo] ffmpeg:', String(e.message || e).slice(0, 200)); return null; } finally { try { fs.unlinkSync(out); } catch (e) {} }
 }
 let feedVideoBusy = false;
 let cutCheckReady = false;
+// the real length of every video (the Feed reads posts.video_secs): the column must exist before the first feed request
+pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS video_secs INT').catch((e) => console.error('[feedvideo] video_secs:', e.message));
 async function fixCutFeedVideos() {
   if (!thumbsReady()) return;
   try {
-    if (!cutCheckReady) { await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_checked BOOLEAN DEFAULT FALSE'); cutCheckReady = true; }
-    const rows = (await pool.query("SELECT id, feed_url FROM posts WHERE feed_url LIKE 'http%' AND COALESCE(feed_checked, FALSE) = FALSE ORDER BY id DESC LIMIT 3")).rows;
+    if (!cutCheckReady) { await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_checked BOOLEAN DEFAULT FALSE'); await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS video_secs INT').catch(() => {}); cutCheckReady = true; }
+    const rows = (await pool.query("SELECT id, feed_url FROM posts WHERE feed_url LIKE '%/feed/%' AND COALESCE(feed_checked, FALSE) = FALSE ORDER BY id DESC LIMIT 3")).rows;
     for (const r of rows) {
       const secs = await videoSecs(r.feed_url).catch(() => null);
-      // a clip cut at 5:00 is kept now (a quick-start preview; the app opens the full original)
-      await pool.query('UPDATE posts SET feed_checked = TRUE WHERE id = $1', [r.id]);
+      if (secs !== null && secs >= FEED_MAX_SECS - 1) {
+        // a 5-minute preview of a long video: made again as a light copy of the WHOLE video (the long lane)
+        await pool.query('UPDATE posts SET feed_url = NULL, feed_checked = TRUE WHERE id = $1', [r.id]);
+        console.log('[feedvideo] post', r.id, 'had a 5-minute preview → full light copy queued');
+      } else {
+        await pool.query('UPDATE posts SET feed_checked = TRUE WHERE id = $1', [r.id]);
+      }
     }
   } catch (e) { console.error('[feedvideo] check:', e.message); }
 }
 setTimeout(() => { fixCutFeedVideos(); setInterval(fixCutFeedVideos, 20 * 1000); }, 60 * 1000);
 
-let longRequeued = false;
+let longRequeued = false, longBusy = false;
+const longWait = new Set();     // long videos waiting for the long lane (skipped by the quick lane)
 async function backfillFeedVideos() {
   if (process.env.FEED_VIDEOS !== 'on' || feedVideoBusy || !thumbsReady()) return; feedVideoBusy = true;
   try {
     // once: long videos that were left without a small version (the old 5-minute rule) are queued again for their preview
     if (!longRequeued) {
       longRequeued = true;
-      const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'feed:long_preview_v1'").catch(() => ({ rows: [1] }));
+      const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'feed:long_full_v2'").catch(() => ({ rows: [1] }));
       if (!done.rows.length) {
         const r = await pool.query("UPDATE posts SET feed_url = NULL, feed_checked = FALSE WHERE feed_url = '' AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%')").catch(() => ({ rowCount: 0 }));
-        await pool.query("INSERT INTO creator_settings (key, value) VALUES ('feed:long_preview_v1', '1') ON CONFLICT (key) DO NOTHING").catch(() => {});
+        // the 5-minute previews of long videos are checked again (the checker below turns them into full light copies)
+        await pool.query("UPDATE posts SET feed_checked = FALSE WHERE feed_url LIKE '%/feed/%'").catch(() => {});
+        await pool.query("INSERT INTO creator_settings (key, value) VALUES ('feed:long_full_v2', '1') ON CONFLICT (key) DO NOTHING").catch(() => {});
         console.log('[feedvideo] queued again for a preview:', r.rowCount);
       }
     }
@@ -935,10 +957,26 @@ async function backfillFeedVideos() {
       if (u) console.log('[feedvideo] story', sv.id, 'ready');
       return;
     }
-    const rows = (await pool.query("SELECT id, media_type, media_url FROM posts WHERE feed_url IS NULL AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') ORDER BY id DESC LIMIT 1")).rows;
+    const rows = (await pool.query("SELECT id, media_type, media_url FROM posts WHERE feed_url IS NULL AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') AND NOT (id = ANY($1::int[])) ORDER BY id DESC LIMIT 1", [[...longWait]])).rows;
     for (const row of rows) {
       const v = pubMedia(row).video;
-      const u = v ? await makeFeedVideo(v) : null;
+      const secs = v ? await videoSecs(v).catch(() => null) : null;
+      // the real length is kept: the app shows it (a long video's quick preview is only 5 minutes)
+      if (secs !== null) await pool.query('UPDATE posts SET video_secs = $2 WHERE id = $1', [row.id, Math.round(secs)]).catch(() => {});
+      if (v && secs !== null && secs > FEED_MAX_SECS + 1) {
+        // a long video: made in its own lane, one at a time, in the background
+        longWait.add(row.id);
+        if (!longBusy) {
+          longBusy = true;
+          console.log('[feedvideo] long video', row.id, Math.round(secs / 60), 'min: making the light copy…');
+          makeFeedVideo(v, secs).then(async (u) => {
+            await pool.query('UPDATE posts SET feed_url = $2 WHERE id = $1', [row.id, u || '']).catch(() => {});
+            if (u) console.log('[feedvideo] long post', row.id, 'ready');
+          }).finally(() => { longBusy = false; longWait.clear(); });
+        }
+        continue;
+      }
+      const u = v ? await makeFeedVideo(v, secs === null ? undefined : secs) : null;
       await pool.query('UPDATE posts SET feed_url = $2 WHERE id = $1', [row.id, u || '']).catch(() => {});      // '' = tried, do not try again
       if (u) console.log('[feedvideo] post', row.id, 'ready');
     }
@@ -1273,6 +1311,7 @@ app.get('/api/posts', async (req, res) => {
         op.media_url AS orig_media_url,
         op.thumb_url AS orig_thumb_url,
         op.feed_url AS orig_feed_url,
+        op.video_secs AS orig_video_secs,
         op.media_aspect AS orig_media_aspect,
         op.created_at AS orig_created_at,
         op.privacy AS orig_privacy,
@@ -1439,6 +1478,7 @@ app.get('/api/posts/:id', async (req, res) => {
       op.media_url as orig_media_url,
       op.thumb_url as orig_thumb_url,
       op.feed_url as orig_feed_url,
+      op.video_secs as orig_video_secs,
       op.created_at as orig_created_at,
       op.privacy as orig_privacy,
       ou.email as orig_author_email,
