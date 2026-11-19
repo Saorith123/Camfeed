@@ -880,14 +880,14 @@ function videoSecs(src) {
 const FEED_MAX_SECS = 300;   // the small feed version holds the first 5 minutes; a longer video gets it too as a quick-start PREVIEW
                              // (the app sees it is cut at 5:00 and opens the whole original when the person taps it)
 
-async function makeFeedVideo(src, knownSecs) {
+async function makeFeedVideo(src, knownSecs, previewOnly = false) {
   if (!thumbsReady()) return null;
   // short video (≤ 5 min): a light copy (720/540p ~1.2 Mbps). LONG video: a light copy of the WHOLE video (not cut) —
   // the original from a phone is 10-20 Mbps, too heavy for 4G (it stops and spins after the first seconds); the light one
   // plays smooth to the end. Over 20 min: a little lighter still (540p ~0.8 Mbps) so a 2-hour video stays under ~1 GB.
   const secs = knownSecs !== undefined ? knownSecs : await videoSecs(src).catch(() => null);
   if (secs === null) return null;
-  const long = secs > FEED_MAX_SECS + 1, veryLong = secs > 20 * 60;
+  const long = !previewOnly && secs > FEED_MAX_SECS + 1, veryLong = long && secs > 20 * 60;
   const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
   const out = path.join(os.tmpdir(), 'camfeed-fv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7) + '.mp4');
   let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
@@ -922,8 +922,10 @@ async function fixCutFeedVideos() {
       const secs = await videoSecs(r.feed_url).catch(() => null);
       if (secs !== null && secs >= FEED_MAX_SECS - 1) {
         // a 5-minute preview of a long video: made again as a light copy of the WHOLE video (the long lane)
-        await pool.query('UPDATE posts SET feed_url = NULL, feed_checked = TRUE WHERE id = $1', [r.id]);
-        console.log('[feedvideo] post', r.id, 'had a 5-minute preview → full light copy queued');
+        // keep the preview playing; the long lane makes the full light copy and replaces it
+        const real = await videoSecs(await pool.query('SELECT media_type, media_url FROM posts WHERE id = $1', [r.id]).then((q) => q.rows[0] ? pubMedia(q.rows[0]).video : null).catch(() => null)).catch(() => null);
+        await pool.query('UPDATE posts SET feed_checked = TRUE, video_secs = COALESCE($2, video_secs) WHERE id = $1', [r.id, real === null ? null : Math.round(real)]);
+        console.log('[feedvideo] post', r.id, 'has a 5-minute preview → full light copy queued');
       } else {
         await pool.query('UPDATE posts SET feed_checked = TRUE WHERE id = $1', [r.id]);
       }
@@ -934,6 +936,7 @@ setTimeout(() => { fixCutFeedVideos(); setInterval(fixCutFeedVideos, 20 * 1000);
 
 let longRequeued = false, longBusy = false;
 const longWait = new Set();     // long videos waiting for the long lane (skipped by the quick lane)
+const longFailed = new Set();   // the full light copy could not be made (until the next restart): keep the preview
 async function backfillFeedVideos() {
   if (process.env.FEED_VIDEOS !== 'on' || feedVideoBusy || !thumbsReady()) return; feedVideoBusy = true;
   try {
@@ -957,7 +960,8 @@ async function backfillFeedVideos() {
       if (u) console.log('[feedvideo] story', sv.id, 'ready');
       return;
     }
-    const rows = (await pool.query("SELECT id, media_type, media_url FROM posts WHERE feed_url IS NULL AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') AND NOT (id = ANY($1::int[])) ORDER BY id DESC LIMIT 1", [[...longWait]])).rows;
+    // waiting: videos with no light copy yet, and long videos that so far have only their 5-minute preview
+    const rows = (await pool.query("SELECT id, media_type, media_url, feed_url FROM posts WHERE (feed_url IS NULL OR (feed_url LIKE '%/feed/%' AND video_secs > 301)) AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') AND NOT (id = ANY($1::int[])) ORDER BY id DESC LIMIT 1", [[...longWait, ...longFailed]])).rows;
     for (const row of rows) {
       const v = pubMedia(row).video;
       const secs = v ? await videoSecs(v).catch(() => null) : null;
@@ -969,10 +973,20 @@ async function backfillFeedVideos() {
         if (!longBusy) {
           longBusy = true;
           console.log('[feedvideo] long video', row.id, Math.round(secs / 60), 'min: making the light copy…');
-          makeFeedVideo(v, secs).then(async (u) => {
-            await pool.query('UPDATE posts SET feed_url = $2 WHERE id = $1', [row.id, u || '']).catch(() => {});
-            if (u) console.log('[feedvideo] long post', row.id, 'ready');
-          }).finally(() => { longBusy = false; longWait.clear(); });
+          (async () => {
+            // first a 5-minute preview (made in a minute or two: the video starts at once in the Feed meanwhile),
+            // then the light copy of the WHOLE video (may take hours) replaces it
+            if (!row.feed_url) {
+              const pv = await makeFeedVideo(v, secs, true);
+              if (pv) { await pool.query('UPDATE posts SET feed_url = $2, feed_checked = TRUE WHERE id = $1', [row.id, pv]).catch(() => {}); console.log('[feedvideo] long post', row.id, 'preview ready'); }
+            }
+            const u = await makeFeedVideo(v, secs);
+            if (u) { await pool.query('UPDATE posts SET feed_url = $2, feed_checked = TRUE WHERE id = $1', [row.id, u]).catch(() => {}); console.log('[feedvideo] long post', row.id, 'full light copy ready'); }
+            else {
+              longFailed.add(row.id);
+              await pool.query("UPDATE posts SET feed_url = '' WHERE id = $1 AND feed_url IS NULL", [row.id]).catch(() => {});
+            }
+          })().catch(() => {}).finally(() => { longBusy = false; longWait.clear(); });
         }
         continue;
       }
