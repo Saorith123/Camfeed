@@ -1099,6 +1099,9 @@ app.post('/api/feed/seen', async (req, res) => {
     if (!ids.length) return res.json({ success: true });
     await pool.query(`INSERT INTO feed_seen (viewer_email, post_id) SELECT $1, UNNEST($2::int[])
       ON CONFLICT (viewer_email, post_id) DO UPDATE SET seen_at = NOW(), times = feed_seen.times + 1`, [me, ids]);
+    // seeing a share = seeing the original post too (and so its other shares)
+    await pool.query(`INSERT INTO feed_seen (viewer_email, post_id) SELECT $1, shared_post_id FROM posts WHERE id = ANY($2::int[]) AND shared_post_id IS NOT NULL
+      ON CONFLICT (viewer_email, post_id) DO UPDATE SET seen_at = NOW()`, [me, ids]).catch(() => {});
     res.json({ success: true });
   } catch (err) { res.json({ success: true }); }
 });
@@ -1331,9 +1334,12 @@ app.get('/api/posts', async (req, res) => {
     const engaged = '(EXISTS (SELECT 1 FROM likes lk WHERE lk.post_id = p.id AND lk.user_email = $1) OR EXISTS (SELECT 1 FROM comments cm WHERE cm.post_id = p.id AND cm.user_email = $1))';
     // 0 = never seen (ranked) · 1 = seen more than N days ago · 2 = seen lately · 3 = liked / commented — the seen ones by "seen longest ago",
     // so nothing ever stays on top: each time a post is seen again it goes to the back of its group
-    const tierExpr = `(CASE WHEN fs.post_id IS NULL AND pv.post_id IS NULL AND NOT ${engaged} THEN 0 WHEN ${engaged} THEN 3
+    // a share of a post I have already seen counts as seen too (the same video must not come back as "new")
+    const shareSeen = '(p.shared_post_id IS NOT NULL AND (EXISTS (SELECT 1 FROM feed_seen x WHERE x.viewer_email = $1 AND x.post_id = p.shared_post_id) OR EXISTS (SELECT 1 FROM post_views y WHERE y.viewer_email = $1 AND y.post_id = p.shared_post_id)))';
+    const tierExpr = `(CASE WHEN fs.post_id IS NULL AND pv.post_id IS NULL AND NOT ${shareSeen} AND NOT ${engaged} THEN 0 WHEN ${engaged} THEN 3
                            WHEN ${seenAt} < NOW() - INTERVAL '${reshowDays} days' THEN 1 ELSE 2 END)`;
     const feedOrder = useLatest ? 'feed_tier ASC, p.created_at DESC, p.id DESC' : 'feed_tier ASC, feed_rank_score DESC, p.created_at DESC';
+    const newOnly = req.query.newOnly === '1';             // the app asks "anything new?" while you scroll (only never-seen posts)
     const feedQuery = `
       ${cteAndJoins},
       ${tierExpr} AS feed_tier,
@@ -1364,6 +1370,7 @@ app.get('/api/posts', async (req, res) => {
         AND COALESCE(u.is_banned, FALSE) = FALSE
         AND p.user_email NOT IN (SELECT u_email FROM blocked)
         AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.user_email = $1 AND hp.post_id = p.id)
+        ${newOnly ? `AND ${tierExpr} = 0` : ''}
       ORDER BY ${feedOrder}
       LIMIT $2 OFFSET $3
     `;
@@ -1384,7 +1391,11 @@ app.get('/api/posts', async (req, res) => {
       while (out.length < unseen.length) { const slot = out.length; out.push((slot % 3 === 2 && fresh.length) ? takeFresh() : takeOld()); }
       mixed = out;
     }
-    rows = [...mixed, ...seenRows];
+    // like Facebook: only a FEW old (already seen) posts after "all caught up" — then the app waits for new ones
+    const oldRaw = parseInt((appConfig.cfg().feed || {}).oldMax, 10), oldMax = Math.max(0, Math.min(30, Number.isFinite(oldRaw) ? oldRaw : 3));
+    const oldShown = Math.max(0, parseInt(req.query.oldShown, 10) || 0);
+    rows = [...mixed, ...seenRows.slice(0, Math.max(0, oldMax - oldShown))];
+    if (!useLatest) return res.json({ success: true, posts: rows, hasMore: unseen.length >= parsedLimit });
     res.json({ success: true, posts: rows, hasMore: rows.length === parsedLimit });
   } catch (err) {
     console.error('Error loading posts:', err);

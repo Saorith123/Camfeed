@@ -256,6 +256,11 @@ function createAuth(pool) {
           return res.status(401).json({ success: false, code: 'AUTH_REQUIRED', error: 'This device was logged out. Please log in again.' });
         }
         req.sid = payload.sid;
+        // the login renews itself while the phone is used (a token is good for 30 days): after 7 days a fresh one is sent back,
+        // the app keeps it — so a person who uses CamFeed is never logged out just because a month went by
+        if (payload.iat && Math.floor(Date.now() / 1000) - payload.iat > 7 * 24 * 3600) {
+          try { res.setHeader('X-CamFeed-Token', signToken({ sub: payload.sub, pv: payload.pv, sid: payload.sid })); } catch (e) { /* not this time */ }
+        }
         const last = touched.get(payload.sid) || 0;
         if (Date.now() - last > TOUCH_EVERY_MS) { touched.set(payload.sid, Date.now()); writeSession(payload.sid, state.email, req); }
       }
