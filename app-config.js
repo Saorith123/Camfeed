@@ -35,6 +35,7 @@ const DEFAULTS = {
   storySoundSeconds: 15,
   party: { metMinutes: 10, metDays: 30, followNotifyMinutes: 60, challengeMinOthers: 1 },
   watchHistoryDays: 90,
+  feed: { reshowDays: 7 },
   files: { maxMB: 50, perDay: 50, blocked: ['apk', 'xapk', 'apks', 'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'vbs', 'ps1', 'jar', 'dll', 'sh'] },
 };
 
@@ -68,6 +69,7 @@ function clean(raw) {
   if (Array.isArray(r.giftCounts)) { const l = [...new Set(r.giftCounts.map((v) => num(v, 1, 9999, 0)).filter((v) => v > 0))].sort((a, b) => a - b).slice(0, 6); if (l.length) o.giftCounts = l; }
   if (r.storySoundSeconds !== undefined) o.storySoundSeconds = num(r.storySoundSeconds, 5, 30, 15);
   if (r.watchHistoryDays !== undefined) o.watchHistoryDays = num(r.watchHistoryDays, 1, 3650, 90);
+  if (r.feed && typeof r.feed === 'object' && r.feed.reshowDays !== undefined) o.feed = { reshowDays: num(r.feed.reshowDays, 1, 365, 7) };
   if (r.files && typeof r.files === 'object') {
     const f = r.files; o.files = {};
     if (f.maxMB !== undefined) o.files.maxMB = num(f.maxMB, 1, 500, 50);
@@ -90,6 +92,7 @@ function merge(saved) {
   if (s.reportReasons) Object.assign(c.reportReasons, s.reportReasons);
   if (s.party) Object.assign(c.party, s.party);
   if (s.files) Object.assign(c.files, s.files);
+  if (s.feed) Object.assign(c.feed, s.feed);
   for (const k of ['chatTtlHours', 'giftCounts', 'storySoundSeconds', 'watchHistoryDays']) if (s[k] !== undefined) c[k] = s[k];
   return c;
 }

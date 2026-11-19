@@ -1322,11 +1322,18 @@ app.get('/api/posts', async (req, res) => {
     // Like Facebook: the feed is RANKED, not sorted by posting time. Popular posts (likes, comments, shares, views) are pushed to more
     // people, and what you are interested in right now (the kinds of posts you watch / react to) comes first. Every refresh mixes it again.
     // FEED_MODE=latest switches back to "newest first".
+    // ONCE ONLY (like Facebook): a post you have seen (on screen ≥ 1.5 s, or a video you watched) never comes back in the feed;
+    // a post you liked or commented on neither. New posts always come first, ranked; when you have seen everything the app
+    // says "you're all caught up" and only then shows old posts again — the ones seen longest ago, after N days (Admin sets N).
     const useLatest = process.env.FEED_MODE === 'latest';
-    const feedOrder = useLatest ? 'p.created_at DESC, p.id DESC' : 'feed_rank_score DESC, p.created_at DESC';
+    const reshowDays = Math.max(1, Math.min(365, parseInt((appConfig.cfg().feed || {}).reshowDays, 10) || 7));
+    const seenExpr = '(fs.post_id IS NOT NULL OR pv.post_id IS NOT NULL)';
+    const seenAt = "COALESCE(GREATEST(fs.seen_at, pv.at::timestamptz), 'epoch'::timestamptz)";
+    const feedOrder = useLatest ? 'seen_before ASC, p.created_at DESC, p.id DESC' : 'seen_before ASC, feed_rank_score DESC, p.created_at DESC';
     const feedQuery = `
       ${cteAndJoins},
-      (
+      ${seenExpr} AS seen_before,
+      CASE WHEN ${seenExpr} THEN EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 ELSE (
         CASE
           WHEN p.user_email = $1 THEN 25
           WHEN f.following_email IS NOT NULL THEN 65
@@ -1338,19 +1345,18 @@ app.get('/api/posts', async (req, res) => {
         + LEAST(COALESCE(p.views_count, 0) * 0.15, 20)
         + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 3.0)
         + (COALESCE(uis.score, 0) * 2.5)
-        + (CASE WHEN fs.post_id IS NOT NULL AND fs.seen_at > NOW() - INTERVAL '24 hours' THEN -90
-                WHEN fs.post_id IS NOT NULL THEN -35
-                WHEN pv.post_id IS NOT NULL THEN -25
-                ELSE 18 END)
         + (60.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
         + (RANDOM() * 35.0)
-      ) AS feed_rank_score
+      ) END AS feed_rank_score
       ${baseFrom}
       LEFT JOIN follows f ON f.follower_email = $1 AND f.following_email = p.user_email
       LEFT JOIN user_interest_scores uis ON uis.user_email = $1 AND uis.category = p.ai_category
-      LEFT JOIN (SELECT DISTINCT post_id FROM post_views WHERE viewer_email = $1) pv ON pv.post_id = p.id
+      LEFT JOIN (SELECT post_id, MAX(created_at) AS at FROM post_views WHERE viewer_email = $1 GROUP BY post_id) pv ON pv.post_id = p.id
       LEFT JOIN feed_seen fs ON fs.viewer_email = $1 AND fs.post_id = p.id
       WHERE (p.privacy = 'public' OR p.user_email = $1 OR (f.following_email IS NOT NULL AND p.privacy = 'friends'))
+        AND ${seenAt} < NOW() - INTERVAL '${reshowDays} days'
+        AND NOT EXISTS (SELECT 1 FROM likes lk WHERE lk.post_id = p.id AND lk.user_email = $1)
+        AND NOT EXISTS (SELECT 1 FROM comments cm WHERE cm.post_id = p.id AND cm.user_email = $1)
         ${videoOnlyCondition}
         ${excludeCondition}
         AND COALESCE(u.is_banned, FALSE) = FALSE
@@ -1367,13 +1373,16 @@ app.get('/api/posts', async (req, res) => {
     const result = await pool.query(feedQuery, queryParams);
     // Mix: popular + new + random. At least every 3rd post of a page is a NEW one (under 24 h) when there is one in the page.
     let rows = result.rows;
-    if (!useLatest && rows.length > 3) {
+    const unseen = rows.filter((r) => !r.seen_before), seenRows = rows.filter((r) => r.seen_before);   // seen ones stay after "all caught up"
+    let mixed = unseen;
+    if (!useLatest && unseen.length > 3) {
       const isNew = (r) => Date.now() - new Date(r.created_at).getTime() < 24 * 3600 * 1000;
-      const fresh = rows.filter(isNew), old = rows.filter((r) => !isNew(r)), out = [];
+      const fresh = unseen.filter(isNew), old = unseen.filter((r) => !isNew(r)), out = [];
       const takeFresh = () => fresh.shift(), takeOld = () => (old.length ? old.shift() : fresh.shift());
-      while (out.length < rows.length) { const slot = out.length; out.push((slot % 3 === 2 && fresh.length) ? takeFresh() : takeOld()); }
-      rows = out;
+      while (out.length < unseen.length) { const slot = out.length; out.push((slot % 3 === 2 && fresh.length) ? takeFresh() : takeOld()); }
+      mixed = out;
     }
+    rows = [...mixed, ...seenRows];
     res.json({ success: true, posts: rows, hasMore: rows.length === parsedLimit });
   } catch (err) {
     console.error('Error loading posts:', err);
@@ -3712,6 +3721,11 @@ function cleanOverlays(raw, mediaBase) {
     } else if (o.type === 'image') {
       const u = String(o.u || ''); if (!u.startsWith(mediaBase) || /[\s"'<>`\\]/.test(u) || u.length > 500) continue;
       out.push(Object.assign({ type: 'image', u }, base));
+    } else if (o.type === 'mention') {
+      // @ a friend: shown as "@name", tap = their profile; "user_email" is turned into the public id when sent to the apps
+      const em = String(o.user_email || '').trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) && !/^\+?\d{6,16}$/.test(em)) continue;
+      if (out.filter((x) => x.type === 'mention').length >= 10) continue;
+      out.push(Object.assign({ type: 'mention', user_email: em, n: String(o.n || '').replace(/[\r\n]/g, ' ').trim().slice(0, 40) }, base));
     }
   }
   return out;
@@ -3750,9 +3764,23 @@ app.post('/api/stories', async (req, res) => {
     const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at, sound_id, sound_start, sound_len, overlays) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours', $7, $8, $9, $10) RETURNING id", [email, type, url, caption || null, bg, privacy, soundId, sStart, sLen, type === 'text' ? null : (cleanOverlays(b.overlays, storyMediaBase()).length ? JSON.stringify(cleanOverlays(b.overlays, storyMediaBase())) : null)]);
     if (soundId) pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [soundId]).catch(() => {});
     if (type === 'video') setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 3000);   // its small quick-start copy is made right away
+    tellStoryMentions(r.rows[0].id, email, type === 'text' ? [] : cleanOverlays(b.overlays, storyMediaBase())).catch(() => {});
     res.status(201).json({ success: true, id: r.rows[0].id });
   } catch (err) { console.error('[story] create error:', err.message); res.status(500).json({ success: false, error: 'Could not post your story.' }); }
 });
+
+// 📣 the people @-mentioned in a story hear about it (only those who are allowed to see the story)
+async function tellStoryMentions(storyId, by, overlays) {
+  const who = [...new Set(overlays.filter((o) => o.type === 'mention').map((o) => o.user_email))].filter((e) => e !== String(by).toLowerCase());
+  if (!who.length) return;
+  const u = (await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [by])).rows[0] || {};
+  const nm = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'CamFeed';
+  for (const e of who) {
+    const real = (await pool.query('SELECT email FROM users WHERE LOWER(email) = $1', [e])).rows[0];
+    if (!real || !(await canSeeStory(real.email, storyId))) continue;
+    await pool.query('INSERT INTO notifications (recipient_email, sender_email, type, message, is_read) VALUES ($1, $2, $3, $4, FALSE)', [real.email, by, 'story_mention', `${nm} បាន Mention អ្នកក្នុង Story`]).catch(() => {});
+  }
+}
 
 app.get('/api/stories/feed', async (req, res) => {
   const me = req.authEmail;

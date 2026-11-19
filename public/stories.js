@@ -141,6 +141,10 @@
     var d = el('div', 'ov-i ov-' + o.type);
     if (o.type === 'emoji') d.textContent = o.e;
     else if (o.type === 'text') { d.textContent = o.t; d.style.color = o.c || '#fff'; if (o.bg) d.style.background = o.bg; }
+    else if (o.type === 'mention') {          // @ a friend (made in the app): tap = their profile
+      d.className = 'ov-i ov-text'; d.textContent = '@' + (o.n || ''); d.style.color = '#fff'; d.style.background = 'rgba(0,0,0,.5)'; d.style.pointerEvents = 'auto'; d.style.cursor = 'pointer';
+      d.addEventListener('click', function (e) { e.stopPropagation(); if (o.user_email) location.href = 'profile.html?email=' + encodeURIComponent(o.user_email); });
+    }
     else { var im = el('img'); im.src = o.url || safe(o.u); im.alt = ''; im.draggable = false; d.appendChild(im); }
     ovStyle(d, o); return d;
   }

@@ -1455,6 +1455,7 @@
       var fMetD = field('🤝 Keep "met in a room" for (days)', p.metDays, '1–365');
       var fNote = field('🔔 Tell room followers again after (minutes)', p.followNotifyMinutes, '0 = every time the room opens');
       var fMin = field('🎯 Room minutes count when at least N other people are in the room', p.challengeMinOthers, '0 = count even alone');
+      var fFeed = field('📰 A post already seen may come back in the feed after (days)', (c.feed || {}).reshowDays, 'only after "all caught up", never on top · 1–365');
       var fl = c.files || {};
       var fMax = field('📎 Biggest file in chat (MB)', fl.maxMB, '1–500 · bigger files cost more storage');
       var fDay = field('📎 Files one person may send a day', fl.perDay, '1–1000');
@@ -1475,6 +1476,7 @@
         var rr = {}; Object.keys(areas).forEach(function (k) { var l = reasonsOf(k); if (l.length) rr[k] = l; });
         call({ action: 'save', config: { features: f, reportReasons: rr, chatTtlHours: numList(fTtl.value), giftCounts: numList(fGift.value), storySoundSeconds: Number(fSnd.value), watchHistoryDays: Number(fWatch.value),
           party: { metMinutes: Number(fMetM.value), metDays: Number(fMetD.value), followNotifyMinutes: Number(fNote.value), challengeMinOthers: Number(fMin.value) },
+          feed: { reshowDays: Number(fFeed.value) },
           files: { maxMB: Number(fMax.value), perDay: Number(fDay.value), blocked: String(fBlk.value || '').split(/[\s,]+/).filter(function (t) { return t !== ''; }) } } });
       } }));
       bar.appendChild(el('button', { class: 'btn-sm', style: 'background:#e4e6eb', text: '↩️ Back to the original settings', onclick: function () { if (confirm('Put every setting on this page back to the original?')) call({ action: 'reset' }); } }));
