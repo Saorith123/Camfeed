@@ -1422,7 +1422,7 @@
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
     var FEAT = [['partyRoom', '🎉 Party Room'], ['challenge', '🎯 Challenge button'], ['wallet', '💰 My wallet (in the menu)'], ['coins', '🪙 Coins button (Party Room)'],
       ['vip', '👑 VIP & levels button'], ['frames', '🖼️ Profile frames button'], ['checkin', '📅 Daily check-in'], ['stars', '⭐ Stars'], ['ranking', '🏆 Ranking'],
-      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)']];
+      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)'], ['chatBubbles', '💬 Chat bubbles (new messages float over other apps)']];
     var cfgNow = {};
     var REASONS = [['post', '📝 Report a post or video'], ['chat', '💬 Report a chat message or person'], ['room', '🎉 Report a Party Room']];
     function call(extra) { return adm('/api/admin/app-config', extra || {}).then(function (x) { if (x && x.success) draw(x); else { box.textContent = ''; box.appendChild(empty((x && x.error) || 'Could not load.')); } return x; }); }

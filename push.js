@@ -25,6 +25,7 @@ module.exports = function createPush({ app, pool }) {
       ready = pool.query(`CREATE TABLE IF NOT EXISTS push_tokens (
         token TEXT PRIMARY KEY, user_email VARCHAR(255) NOT NULL, platform VARCHAR(20) DEFAULT 'android', updated_at TIMESTAMP DEFAULT NOW())`)
         .then(() => pool.query('CREATE INDEX IF NOT EXISTS push_tokens_user ON push_tokens (LOWER(user_email))'))
+        .then(() => pool.query("ALTER TABLE push_tokens ADD COLUMN IF NOT EXISTS caps VARCHAR(40) DEFAULT ''"))
         .catch((e) => { ready = null; throw e; });
     }
     return ready;
@@ -79,15 +80,21 @@ module.exports = function createPush({ app, pool }) {
   // CamFeed's own sounds (Build 73+): the app makes these Android channels, each with its sound in res/raw
   //   general = Khmer roneat, messages = Khmer kong, calls = Khmer khim (the call screen itself rings with the same khim tune)
   const CH = { general: ['general_v2', 'cf_notify'], messages: ['messages_v2', 'cf_message'], calls: ['calls_v2', 'cf_ringtone'] };
-  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '', dataOnly = false, tag = '' }) {
+  // bubble: a chat message for phones that show 💬 chat bubbles (their own code builds the notification, so it goes as data)
+  async function sendToUser(email, { title, body, data = {}, high = false, channel = 'messages', ntype = '', dataOnly = false, tag = '', bubble = null }) {
     if (!enabled || !email) return 0;
     try {
       await ensureSchema();
       if (!(await wants(email, channel, ntype))) return 0;
-      const rows = (await pool.query('SELECT token FROM push_tokens WHERE LOWER(user_email) = LOWER($1)', [email])).rows;
+      const rows = (await pool.query("SELECT token, COALESCE(caps, '') AS caps FROM push_tokens WHERE LOWER(user_email) = LOWER($1)", [email])).rows;
       const strData = {}; for (const k of Object.keys(data)) strData[k] = String(data[k]);
       let ok = 0;
-      for (const { token } of rows) {
+      for (const { token, caps } of rows) {
+        if (bubble && /\bbubble\b/.test(caps)) {
+          const bd = {}; for (const k of Object.keys(bubble)) bd[k] = String(bubble[k] == null ? '' : bubble[k]).slice(0, 400);
+          if (await sendOne(token, { data: bd, android: { priority: 'HIGH', ttl: '86400s' } })) ok++;
+          continue;
+        }
         // dataOnly (incoming calls): no notification block, so the app's own code runs even when closed and can ring like a phone call
         const msg = dataOnly ? { data: strData, android: { priority: 'HIGH', ttl: '30s' } } : {
           notification: { title: String(title || 'CamFeed').slice(0, 80), body: String(body || '').slice(0, 180) },
@@ -140,7 +147,7 @@ module.exports = function createPush({ app, pool }) {
         return;
       }
       const ms = (await pool.query(
-        `SELECT m.id, m.sender_email, m.receiver_email, m.message, m.message_type, u.first_name, u.last_name
+        `SELECT m.id, m.sender_email, m.receiver_email, m.message, m.message_type, u.first_name, u.last_name, u.profile_pic
            FROM messages m LEFT JOIN users u ON LOWER(u.email) = LOWER(m.sender_email)
           WHERE m.id > $1 ORDER BY m.id LIMIT 60`, [lastMsg])).rows;
       for (const m of ms) {
@@ -156,7 +163,8 @@ module.exports = function createPush({ app, pool }) {
         else if (text.startsWith('PARTY_ROOM:')) text = '🎉 Party Room: ' + text.split(':').slice(2).join(':');
         else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
         else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
-        sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages' });
+        sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages',
+          bubble: { type: 'chat', peer: m.sender_email, name: fullName(m), pic: m.profile_pic || '', body: text.slice(0, 300), url: '/messages.html' } });
       }
       // group chats: every member except the sender (a muted / restricted group stays quiet for that member)
       if (lastGroup !== null) {
@@ -199,11 +207,12 @@ module.exports = function createPush({ app, pool }) {
   // ---- the phone app tells us its Firebase token after login ----
   app.post('/api/push/register', async (req, res) => {
     const me = req.authEmail, token = String((req.body && req.body.token) || '');
+    const caps = String((req.body && req.body.caps) || '').replace(/[^a-z,]/g, '').slice(0, 40);   // 'bubble' = this phone shows chat bubbles itself
     if (!me || token.length < 20 || token.length > 4096) return res.status(400).json({ success: false });
     try {
       await ensureSchema();
-      await pool.query(`INSERT INTO push_tokens (token, user_email, platform, updated_at) VALUES ($1, $2, 'android', NOW())
-                        ON CONFLICT (token) DO UPDATE SET user_email = EXCLUDED.user_email, updated_at = NOW()`, [token, me]);
+      await pool.query(`INSERT INTO push_tokens (token, user_email, platform, updated_at, caps) VALUES ($1, $2, 'android', NOW(), $3)
+                        ON CONFLICT (token) DO UPDATE SET user_email = EXCLUDED.user_email, updated_at = NOW(), caps = EXCLUDED.caps`, [token, me, caps]);
       res.json({ success: true, push: enabled });
     } catch (e) { res.status(500).json({ success: false }); }
   });

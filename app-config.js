@@ -6,6 +6,7 @@ const DEFAULTS = {
     challenge: true, wallet: true, checkin: true, stars: true, ranking: true, vip: true, frames: true,
     coins: true, saveSound: true, watchHistory: true, partyRoom: true, partyFollowers: true, roomClock: true, chatFiles: true,
     beauty: false,      // ✨ off until it is safe on every phone (it closed the app on some)
+    chatBubbles: true,  // 💬 a new chat message pops up as a round picture over other apps (Android)
   },
   reportReasons: {
     post: [
