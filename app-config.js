@@ -5,6 +5,7 @@ const DEFAULTS = {
   features: {
     challenge: true, wallet: true, checkin: true, stars: true, ranking: true, vip: true, frames: true,
     coins: true, saveSound: true, watchHistory: true, partyRoom: true, partyFollowers: true, roomClock: true, chatFiles: true,
+    beauty: false,      // ✨ off until it is safe on every phone (it closed the app on some)
   },
   reportReasons: {
     post: [
