@@ -55,7 +55,7 @@ module.exports = function installViewGuard({ app, pool, guardPost, adminGate, au
   function clean(raw) {
     const r = raw && typeof raw === 'object' ? raw : {}, o = JSON.parse(JSON.stringify(DEFAULTS)), s = r.spike || {};
     o.shownSec = num(r.shownSec, 1, 60, 3); o.shownHours = num(r.shownHours, 1, 720, 24);
-    o.paidSec = num(r.paidSec, 3, 600, 10); o.shortPct = num(r.shortPct, 10, 100, 50); o.shortMinSec = num(r.shortMinSec, 1, 60, 5);
+    o.paidSec = num(r.paidSec, 3, 120, 10);   // the app reports up to 2 minutes of playing o.shortPct = num(r.shortPct, 10, 100, 50); o.shortMinSec = num(r.shortMinSec, 1, 60, 5);
     o.minAgeDays = num(r.minAgeDays, 0, 365, 7); o.perDevice = num(r.perDevice, 1, 100, 3); o.perHour = num(r.perHour, 10, 10000, 300); o.holdDays = num(r.holdDays, 0, 60, 7);
     o.spike = { minHour: num(s.minHour, 10, 1000000, 200), newPct: num(s.newPct, 1, 100, 60), ipPct: num(s.ipPct, 1, 100, 30), engagePct: num(s.engagePct, 0, 100, 0.5) };
     return o;
@@ -69,6 +69,10 @@ module.exports = function installViewGuard({ app, pool, guardPost, adminGate, au
     return cfg;
   }
 
+  // small memories: tickets already used once, viewer+post pairs already paid (so the many reports of one video cost little)
+  const usedTickets = new Map(), paidDone = new Map();
+  function remember(m, k) { m.set(k, Date.now()); if (m.size > 200000) { const old = Date.now() - 6 * 3600000; for (const [x, t] of m) if (t < old) m.delete(x); } }
+  function firstUse(sig) { if (usedTickets.has(sig)) return false; remember(usedTickets, sig); return true; }
   const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64url').slice(0, 32);
   const ipOf = (req) => String(req.headers['cf-connecting-ip'] || (req.headers['x-forwarded-for'] || '').split(',')[0] || req.ip || '').trim().slice(0, 64);
 
@@ -159,20 +163,19 @@ module.exports = function installViewGuard({ app, pool, guardPost, adminGate, au
       const post = (await pool.query('SELECT user_email, COALESCE(no_earn, FALSE) AS no_earn FROM posts WHERE id = $1', [id])).rows[0];
       if (!post) return res.status(404).json({ success: false });
       const owner = norm(post.user_email);
-      if (owner === me) return res.json({ success: true, shown: false, paid: false });
+      if (owner === me) return res.json({ success: true, shown: false });
       if (!(await guardPost(req, res, id))) return;
-      const out = { success: true, shown: false, paid: false };
-      // shown view
+      const out = { success: true, shown: false };      // never says whether the view was paid: the paid rule is known only to CamFeed
+      // shown view (the speed limit is counted once per ticket = once per video watched)
       if (watched >= c.shownSec * 1000) {
-        // the speed limit is counted once per video watched (the first report), not again at the 10 s report
-        if (b.stage !== 'paid' && tooMany(me, c.perHour)) { flagViewer(me, c.perHour).catch(() => {}); return res.json(out); }
+        if (firstUse(parts[2]) && tooMany(me, c.perHour)) { flagViewer(me, c.perHour).catch(() => {}); return res.json(out); }
         const country = (await pool.query('SELECT country FROM users WHERE LOWER(email) = $1', [me]).catch(() => ({ rows: [] }))).rows[0]?.country || req.headers['cf-ipcountry'] || 'Unknown';
         out.shown = await countShown(id, me, owner, country);
       }
       // paid view
       const short = dur > 0 && dur < c.paidSec * 2000;
       const need = short ? Math.max(c.shortMinSec * 1000, dur * c.shortPct / 100) : c.paidSec * 1000;
-      if (watched >= Math.min(need, c.paidSec * 1000) && !post.no_earn) {
+      if (watched >= Math.min(need, c.paidSec * 1000) && !post.no_earn && !paidDone.has(id + '|' + me)) {
         const u = (await pool.query('SELECT created_at, COALESCE(is_banned, FALSE) AS banned FROM users WHERE LOWER(email) = $1', [me])).rows[0];
         const oldEnough = u && !u.banned && (!c.minAgeDays || (u.created_at && Date.now() - new Date(u.created_at).getTime() >= c.minAgeDays * 86400000));
         if (oldEnough) {
@@ -183,8 +186,8 @@ module.exports = function installViewGuard({ app, pool, guardPost, adminGate, au
             const status = (await underReview(id)) ? 'held' : 'ok';
             const r = await pool.query(`INSERT INTO paid_views (post_id, viewer_email, owner_email, device, ip, watched_ms, status) VALUES ($1, $2, $3, $4, $5, $6, $7)
                                         ON CONFLICT (post_id, viewer_email) DO NOTHING RETURNING post_id`, [id, me, owner, device, ip, Math.round(watched), status]);
-            out.paid = r.rows.length > 0;
-            if (out.paid) checkSpike(id, owner).catch((e) => console.error('[views] spike:', e.message));
+            remember(paidDone, id + '|' + me);
+            if (r.rows.length) checkSpike(id, owner).catch((e) => console.error('[views] spike:', e.message));
           }
         }
       }

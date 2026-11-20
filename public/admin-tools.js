@@ -564,7 +564,7 @@
       box.textContent = '';
       var s = d.settings || {}, sp = s.spike || {}, su = !!d.isSuperAdmin, st = d.stats || {};
       box.appendChild(el('div', { style: 'font-size:17px;font-weight:800;margin-bottom:4px', text: '🔍 Views check' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Shown view = the number under a video. Paid view = what Creators earn from. Paid views last day: ' + (st.day || 0) + ' · waiting for you: ' + (st.held || 0) + ' · removed as fake: ' + (st.removed || 0) }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Shown view = the number under a video. Paid view = what Creators earn from (its rules are never shown to users; Creators only see their money and a rate = money ÷ all views × 1,000). Paid views last day: ' + (st.day || 0) + ' · waiting for you: ' + (st.held || 0) + ' · removed as fake: ' + (st.removed || 0) }));
       var list = d.open || [];
       box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:8px 0 6px', text: 'To check (' + list.length + ')' }));
       if (!list.length) box.appendChild(empty('Nothing to check. 👍'));
@@ -590,7 +590,7 @@
       function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:110px;display:inline-block' }); i.disabled = !su; form.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:5px 0' }, [el('span', { style: 'min-width:340px', text: label }), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
       var f1 = field('Shown view: watched at least (seconds)', s.shownSec, '');
       var f2 = field('Shown view: one person counts once every (hours)', s.shownHours, '');
-      var f3 = field('Paid view: watched at least (seconds)', s.paidSec, 'one paid view per person per post, for ever');
+      var f3 = field('Paid view: watched at least (seconds)', s.paidSec, '🔒 secret — only CamFeed knows it (3–120). One paid view per person per post, for ever');
       var f4 = field('Paid view, short video: at least this % of it', s.shortPct, '');
       var f5 = field('Paid view, short video: never less than (seconds)', s.shortMinSec, '');
       var f6 = field('Paid view: viewer account at least (days old)', s.minAgeDays, '');
