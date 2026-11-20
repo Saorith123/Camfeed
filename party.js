@@ -935,7 +935,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const seats = SEAT_CHOICES.includes(parseInt(b.seats, 10)) ? parseInt(b.seats, 10) : room.seats;
       const privacy = ['friends', 'public', 'private'].includes(b.privacy) ? b.privacy : room.privacy;
       // 🔐 becoming private needs the right (a room that is already private stays private even if the right ran out)
-      if (privacy === 'private' && room.privacy !== 'private' && !(await access.privateStatus(e)).ok) return res.status(403).json({ success: false, code: 'private_locked', message: 'private_locked', error: 'Private rooms are locked for you.' });
+      if (privacy === 'private' && room.privacy !== 'private' && (!(await access.privateStatus(e)).ok || (await access.settings()).private.switchPrice > 0)) return res.status(403).json({ success: false, code: 'private_locked', message: 'private_locked', error: 'Use “make private” for an open room.' });
       if (privacy === 'private' && room.privacy !== 'private') {
         // the people inside now stay allowed (nobody is pushed out)
         await pool.query(`INSERT INTO party_room_access (room_id, user_email, via) SELECT room_id, user_email, 'inside' FROM party_members WHERE room_id = $1 ON CONFLICT DO NOTHING`, [room.id]);
@@ -952,6 +952,33 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       }
       res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
+  // 🔐 make the room private now, without closing it (the people inside stay). With the right (Level, VIP, days, CamFeed):
+  // free. Without it: pay the Admin's price once for this room (Admin › Party Room › Private rooms).
+  app.post('/api/party/rooms/:id/make-private', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const room = await roomOf(req.params.id);
+      if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true, error: 'This room has ended.' });
+      if (norm(room.owner_email) !== e) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
+      if (room.privacy === 'private') return res.json({ success: true, already: true });
+      const turn = async (db) => {
+        await db.query(`INSERT INTO party_room_access (room_id, user_email, via) SELECT room_id, user_email, 'inside' FROM party_members WHERE room_id = $1 ON CONFLICT DO NOTHING`, [room.id]);
+        await db.query("UPDATE party_rooms SET privacy = 'private', invite_code = COALESCE(invite_code, $2) WHERE id = $1", [room.id, newCode()]);
+      };
+      // with the right: the small switch price (Admin; 0 = free) · without: the one-time price
+      const allowed = (await access.privateStatus(e)).ok;
+      const st = await access.settings();
+      const price = allowed ? st.private.switchPrice : st.private.roomPrice;
+      if (price > 0 && (req.body || {}).pay !== true) return res.status(403).json({ success: false, code: allowed ? 'pay_switch' : 'private_locked', message: allowed ? 'pay_switch' : 'private_locked', price });
+      const paid = await access.payRoomOnce(e, room.id, turn, allowed);
+      if (paid.code === 'coins') return res.status(402).json({ success: false, code: 'coins', balance: paid.balance, need: paid.need, error: 'Not enough coins.' });
+      if (paid.code) return res.status(403).json({ success: false, code: 'private_locked', message: 'private_locked' });
+      sys(room.id, 'private_on', e);
+      res.json({ success: true, paid: paid.price || 0, balance: paid.balance });
+    } catch (err) { console.error('[party] make-private:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
 
   // 🔐 the private room's link: the owner / a helper gets it (reset = a new link; the old one stops working at once)

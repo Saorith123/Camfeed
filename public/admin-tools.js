@@ -1168,12 +1168,14 @@
       var pOn = check('Private rooms are on', pv.on !== false);
       var pLv = field('Free from Level', pv.minLevel || 0, '0 = no free level');
       var pVip = check('VIP can make rooms private', pv.vip !== false);
+      var pRoom = field('Switch an open room to private — people WITHOUT the right (coins)', pv.roomPrice != null ? pv.roomPrice : 50, '0 = they can not · the room is not closed');
+      var pSwitch = field('Switch an open room to private — people WITH the right (coins)', pv.switchPrice != null ? pv.switchPrice : 10, '0 = free');
       var packs = el('textarea', { class: 'at-in', rows: '4', style: 'width:100%;font-family:inherit' }); packs.disabled = !su;
       packs.value = (pv.packs || []).map(function (p) { return p.coins + ' = ' + p.days; }).join('\n');
       box.appendChild(el('div', { style: 'margin:6px 0 2px;font-weight:700', text: '🪙 Coin packs (one per line: coins = days, e.g. 100 = 3)' })); box.appendChild(packs);
       if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:8px', text: '💾 Save', onclick: function () {
         var pk = packs.value.split('\n').map(function (l) { var m = l.split('='); return { coins: Number((m[0] || '').trim()), days: Number((m[1] || '').trim()) }; }).filter(function (p) { return p.coins > 0 && p.days > 0; });
-        call({ set: { open: { mode: mode.value, minLevel: Number(oLv.value), minDays: Number(oDays.value), needPhone: oPhone.checked }, private: { on: pOn.checked, minLevel: Number(pLv.value), vip: pVip.checked, packs: pk } } }).then(function (x) { if (x && x.success) alert('✅ Saved'); });
+        call({ set: { open: { mode: mode.value, minLevel: Number(oLv.value), minDays: Number(oDays.value), needPhone: oPhone.checked }, private: { on: pOn.checked, minLevel: Number(pLv.value), vip: pVip.checked, roomPrice: Number(pRoom.value), switchPrice: Number(pSwitch.value), packs: pk } } }).then(function (x) { if (x && x.success) alert('✅ Saved'); });
       } }));
       var sl = d.sales || {};
       box.appendChild(el('div', { style: 'margin-top:10px;padding:8px 10px;background:#f7f8fa;border-radius:8px', text: '🪙 Private sold: ' + (sl.n || 0) + ' times to ' + (sl.people || 0) + ' people · ' + (sl.coins || 0) + ' coins in all · ' + (sl.coins30 || 0) + ' coins in the last 30 days · open private rooms now: ' + (d.privateRooms || 0) }));

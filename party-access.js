@@ -15,7 +15,7 @@ const norm = (e) => String(e || '').trim().toLowerCase();
 
 const DEFAULTS = {
   open: { mode: 'rules', minLevel: 0, minDays: 0, needPhone: false },
-  private: { on: true, minLevel: 10, vip: true, packs: [{ coins: 100, days: 3 }, { coins: 200, days: 7 }, { coins: 600, days: 30 }] },
+  private: { on: true, minLevel: 10, vip: true, roomPrice: 50, switchPrice: 10, packs: [{ coins: 100, days: 3 }, { coins: 200, days: 7 }, { coins: 600, days: 30 }] },
 };
 const KEY = 'party:access';
 
@@ -49,6 +49,8 @@ module.exports = function installPartyAccess({ app, pool, adminGate, audit, badg
     if (pv.on !== undefined) o.private.on = !!pv.on;
     if (pv.minLevel !== undefined) o.private.minLevel = num(pv.minLevel, 0, 500, 10);
     if (pv.vip !== undefined) o.private.vip = !!pv.vip;
+    if (pv.roomPrice !== undefined) o.private.roomPrice = num(pv.roomPrice, 0, 10000000, 50);   // 0 = turned off
+    if (pv.switchPrice !== undefined) o.private.switchPrice = num(pv.switchPrice, 0, 10000000, 10);   // people WITH the right, switching an open room (0 = free)
     if (Array.isArray(pv.packs)) {
       const seen = new Set();
       o.private.packs = pv.packs.map((p) => ({ coins: num(p && p.coins, 1, 10000000, 0), days: num(p && p.days, 1, 3650, 0) }))
@@ -98,7 +100,7 @@ module.exports = function installPartyAccess({ app, pool, adminGate, audit, badg
   async function privateStatus(email) {
     const s = await settings(); const e = norm(email);
     const b = await badge(e);
-    const out = { on: s.private.on, level: b.level || 1, vip: !!b.vip, minLevel: s.private.minLevel, vipAllowed: s.private.vip, packs: s.private.packs, ok: false, via: null, until: null };
+    const out = { on: s.private.on, level: b.level || 1, vip: !!b.vip, minLevel: s.private.minLevel, vipAllowed: s.private.vip, packs: s.private.packs, roomPrice: s.private.roomPrice, switchPrice: s.private.switchPrice, ok: false, via: null, until: null };
     if (!s.private.on) return out;
     const g = await grantOf(e, 'private');
     const pass = (await pool.query('SELECT until FROM party_private_passes WHERE user_email = $1 AND until > NOW()', [e])).rows[0];
@@ -152,6 +154,31 @@ module.exports = function installPartyAccess({ app, pool, adminGate, audit, badg
     }
   });
 
+  // 🔐 pay once to make the room that is open NOW private (no days bought): { ok, balance } or { code, … }
+  // allowed = the person has the right (pays the small switch price), else the full one-time price
+  async function payRoomOnce(email, roomId, apply, allowed) {
+    const e = norm(email);
+    const s = await settings(true);
+    const price = allowed ? s.private.switchPrice : s.private.roomPrice;
+    if (!s.private.on || (!allowed && !(price > 0))) return { code: 'off' };
+    if (allowed && !(price > 0)) { await apply(pool); return { ok: true, price: 0 }; }
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
+      const have = (await c.query('SELECT COALESCE(SUM(coins), 0)::int AS n FROM coin_ledger WHERE user_email = $1', [e])).rows[0].n;
+      if (have < price) { await c.query('ROLLBACK'); return { code: 'coins', balance: have, need: price }; }
+      const sale = await c.query("INSERT INTO party_private_sales (user_email, coins, days, until) VALUES ($1, $2, 0, NOW()) RETURNING id", [e, price]);
+      await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'room_private', $3, $4, $1)", [e, -price, 'Private room #' + roomId, sale.rows[0].id]);
+      await apply(c);                                   // the room becomes private in the same step (both or neither)
+      await c.query('COMMIT');
+      return { ok: true, balance: have - price, price };
+    } catch (err) {
+      try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
+      throw err;
+    } finally { c.release(); }
+  }
+
   // ---- Admin ------------------------------------------------------------------------------------------------------
   async function findUser(who) {
     let w = norm(who);
@@ -203,5 +230,5 @@ module.exports = function installPartyAccess({ app, pool, adminGate, audit, badg
     } catch (err) { console.error('[party-access] admin:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
-  return { canOpen, privateStatus, settings, ensure };
+  return { canOpen, privateStatus, settings, ensure, payRoomOnce };
 };

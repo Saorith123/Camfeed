@@ -56,8 +56,9 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
       await ensure();
       const r = await pool.query('SELECT * FROM chat_prefs WHERE user_email = $1', [me]);
       const u = await pool.query('SELECT COALESCE(msg_requests_on, FALSE) AS on, COALESCE(show_active_status, TRUE) AS active FROM users WHERE LOWER(email) = $1', [me]);
-      // people I follow, and people I have written to: never "requests"
-      const known = await pool.query(`SELECT LOWER(following_email) AS e FROM follows WHERE LOWER(follower_email) = $1
+      // friends (we follow each other), and people I have written to: never "requests"
+      const known = await pool.query(`SELECT LOWER(a.following_email) AS e FROM follows a JOIN follows b ON LOWER(b.follower_email) = LOWER(a.following_email) AND LOWER(b.following_email) = $1
+                                      WHERE LOWER(a.follower_email) = $1
                                       UNION SELECT DISTINCT LOWER(receiver_email) FROM messages WHERE LOWER(sender_email) = $1`, [me]);
       res.json({
         success: true,
@@ -210,7 +211,9 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
       if (p && p.accepted) return true;
       const u = await pool.query('SELECT COALESCE(msg_requests_on, FALSE) AS on FROM users WHERE LOWER(email) = $1', [norm(to)]);
       if (!(u.rows[0] && u.rows[0].on)) return true;
-      const k = await pool.query(`SELECT 1 FROM follows WHERE LOWER(follower_email) = $1 AND LOWER(following_email) = $2
+      // "Friends" chosen: only friends (we follow each other) or people I have written to ring; the others wait quietly
+      const k = await pool.query(`SELECT 1 FROM follows a JOIN follows b ON LOWER(b.follower_email) = $2 AND LOWER(b.following_email) = $1
+                                  WHERE LOWER(a.follower_email) = $1 AND LOWER(a.following_email) = $2
                                   UNION SELECT 1 FROM messages WHERE LOWER(sender_email) = $1 AND LOWER(receiver_email) = $2 LIMIT 1`, [norm(to), norm(from)]);
       return k.rows.length > 0;           // a stranger's message waits quietly in Message requests
     } catch (e) { return true; }
