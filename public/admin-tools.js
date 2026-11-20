@@ -601,7 +601,23 @@
       });
       box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:16px 0 6px', text: 'Rules' + (su ? '' : ' (only a Super Admin can change)') }));
       var form = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px' }); box.appendChild(form);
-      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:110px;display:inline-block' }); i.disabled = !su; form.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:5px 0' }, [el('span', { style: 'min-width:340px', text: label }), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
+      // English label + the same in Khmer under it (Admin reads both)
+      var KM = {
+        'Shown view: watched at least (seconds)': 'ការមើលដែលបង្ហាញ៖ ត្រូវមើលយ៉ាងហោចណាស់ (វិនាទី)',
+        'Shown view: one person counts once every (hours)': 'ការមើលដែលបង្ហាញ៖ មនុស្សម្នាក់រាប់ ១ ដង ក្នុងរយៈពេល (ម៉ោង)',
+        'Paid view: watched at least (seconds)': 'ការមើលដែលបង់ប្រាក់៖ ត្រូវមើលយ៉ាងហោចណាស់ (វិនាទី) 🔒 សម្ងាត់ ម្នាក់បង់ ១ ដងគត់ក្នុងមួយការបង្ហោះ',
+        'Paid view, short video: at least this % of it': 'វីដេអូខ្លី៖ ត្រូវមើលយ៉ាងហោចណាស់ ភាគរយនៃវីដេអូ (%)',
+        'Paid view, short video: never less than (seconds)': 'វីដេអូខ្លី៖ មិនតិចជាង (វិនាទី)',
+        'Paid view: viewer account at least (days old)': 'គណនីអ្នកមើលត្រូវមានអាយុយ៉ាងហោចណាស់ (ថ្ងៃ)',
+        'Paid views from one phone / IP per post per day': 'ការមើលដែលបង់ប្រាក់ ពីទូរសព្ទ ឬ IP មួយ ក្នុងមួយការបង្ហោះ ក្នុងមួយថ្ងៃ',
+        'One person: views counted per hour at most': 'មនុស្សម្នាក់៖ រាប់ការមើលច្រើនបំផុតក្នុងមួយម៉ោង (លើសនេះ បញ្ឈប់ ហើយបង្ហាញនៅទីនេះ)',
+        'Paid views are paid after (days)': 'បង់ប្រាក់ក្រោយ (ថ្ងៃ) ដើម្បីមានពេលរកអ្នកបន្លំ',
+        'Strange jump: paid views in 1 hour at least': 'ការកើនឡើងចម្លែក៖ ការមើលដែលបង់ប្រាក់ក្នុង ១ ម៉ោង យ៉ាងហោចណាស់',
+        '… from new accounts (< 30 days) at least (%)': '… ពីគណនីថ្មី (តិចជាង ៣០ ថ្ងៃ) យ៉ាងហោចណាស់ (%)',
+        '… from one IP at least (%)': '… ពី IP តែមួយ យ៉ាងហោចណាស់ (%)',
+        '… likes + comments less than (% of views)': '… ចូលចិត្ត និងមតិ តិចជាង (% នៃការមើល)'
+      };
+      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:110px;display:inline-block' }); i.disabled = !su; form.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0' }, [el('span', { style: 'min-width:340px' }, [el('div', { text: label }), KM[label] ? el('div', { style: 'color:#1E4BFF;font-size:13px;margin-top:2px', text: KM[label] }) : el('span')]), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
       var f1 = field('Shown view: watched at least (seconds)', s.shownSec, '');
       var f2 = field('Shown view: one person counts once every (hours)', s.shownHours, '');
       var f3 = field('Paid view: watched at least (seconds)', s.paidSec, '🔒 secret — only CamFeed knows it (3–120). One paid view per person per post, for ever');
