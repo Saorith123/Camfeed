@@ -1197,21 +1197,21 @@ app.post('/api/posts/:id/view', async (req, res) => {
   try {
     if (!(await visibility.guardPost(req, res, id))) return;
     bumpInterest(req.authEmail, id, 1);
-    let viewerCountry = req.headers['cf-ipcountry'] || 'Unknown';
-    if (email) {
-      const uRes = await pool.query('SELECT country FROM users WHERE email = $1', [email]);
-      if (uRes.rows[0]?.country) viewerCountry = uRes.rows[0].country;
+    // 🔍 an older app (no watch ticket): a shown view only — once per person per day, never the owner, never paid
+    const me = req.authEmail;
+    if (me) {
+      const vg = await viewGuard.settings();
+      if (viewGuard.tooMany(String(me).toLowerCase(), vg.perHour)) viewGuard.flagViewer(String(me).toLowerCase(), vg.perHour).catch(() => {});
+      else {
+        const owner = (await pool.query('SELECT user_email FROM posts WHERE id = $1', [id])).rows[0];
+        let viewerCountry = req.headers['cf-ipcountry'] || 'Unknown';
+        const uRes = await pool.query('SELECT country FROM users WHERE email = $1', [me]);
+        if (uRes.rows[0]?.country) viewerCountry = uRes.rows[0].country;
+        if (owner) await viewGuard.countShown(parseInt(id, 10), me, owner.user_email, viewerCountry);
+      }
     }
-
-    await pool.query(
-      'INSERT INTO post_views (post_id, viewer_email, country) VALUES ($1, $2, $3)',
-      [id, email || null, viewerCountry]
-    );
-    const upd = await pool.query(
-      'UPDATE posts SET views_count = COALESCE(views_count, 0) + 1 WHERE id = $1 RETURNING views_count',
-      [id]
-    );
-    res.json({ success: true, views_count: upd.rows[0]?.views_count || 1 });
+    const upd = await pool.query('SELECT COALESCE(views_count, 0) AS views_count FROM posts WHERE id = $1', [id]);
+    res.json({ success: true, views_count: upd.rows[0]?.views_count || 0 });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2477,7 +2477,7 @@ function adminNeed(path, body) {
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
     'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
-    coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content' })[first];
+    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
@@ -2486,7 +2486,7 @@ function adminNeed(path, body) {
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
-  const single = ['coins', 'party', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright'].includes(first);
+  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright'].includes(first);
   const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (!act && keys.every((k) => FILTER.includes(k))))
     : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
   return { sec, level: read ? 'view' : 'edit' };
@@ -2564,6 +2564,7 @@ const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate
 const copyright = require('./copyright')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), pubMedia: (r) => pubMedia(r), cleanup, setting: (k, d) => ruleNum(k, d) });
 const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), framesOf: (emails) => coins.framesOf(emails), badgesOf: (emails) => coins.badgesOf(emails), starsOf: (emails) => stars.starsOf(emails) });
+const viewGuard = require('./view-guard')({ app, pool, guardPost: (req, res, id) => visibility.guardPost(req, res, id), adminGate, audit, sendAdminNotice: (...a) => sendAdminNotice(...a) });   // 🔍 real views only (and the paid ones)
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e), starShare: (e) => stars.starShare(e), starsOf: (e) => stars.starsOf(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
 const challenges = require('./challenges')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
@@ -4546,7 +4547,10 @@ async function syncViewEarnings(email) {
   const st = (await pool.query("SELECT value FROM creator_settings WHERE key = 'earn_start'")).rows[0];
   const since = Math.max(ok.decided_at ? new Date(ok.decided_at).getTime() : 0, st ? Number(st.value) || 0 : 0);   // posts made after this moment are paid from their very first view
   // ©️ a copy of somebody else's post, or a post under a copyright claim, earns nothing (its views are passed over)
-  const posts = (await pool.query("SELECT p.id, p.created_at, COALESCE(p.views_count, 0) AS views, e.views_seen, COALESCE(p.no_earn, FALSE) AS no_earn FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
+  // 🔍 paid views only (watched ≥ 10 s, one per person, checked), and only once they are older than the hold time (Admin › Views check)
+  const paid = await viewGuard.paidCounts(email);
+  const posts = (await pool.query("SELECT p.id, p.created_at, e.views_seen, COALESCE(p.no_earn, FALSE) AS no_earn FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
+  posts.forEach((p) => { p.views = paid.get(p.id) || 0; });
   let gained = 0;
   for (const p of posts) {
     const views = Number(p.views) || 0;
@@ -4819,7 +4823,8 @@ app.get('/api/monetization/posts', async (req, res) => {
        FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL ORDER BY p.created_at DESC LIMIT 100`, [email]);
     const me = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE email = $1', [email])).rows[0] || {};
     const ca = (await pool.query("SELECT earn_suspended, suspend_reason FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0], isCreator = !!ca, suspended = !!(ca && ca.earn_suspended);
-    const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents)) / 100 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
+    const [paidMap, waitMap] = await Promise.all([viewGuard.paidCounts(email).catch(() => new Map()), viewGuard.pendingCounts(email).catch(() => new Map())]);   // 🔍 paid views (and those still waiting)
+    const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), paidViews: paidMap.get(x.id) || 0, waitingViews: (waitMap.get(x.id) || {}).waiting || 0, heldViews: (waitMap.get(x.id) || {}).held || 0, earnings: isCreator ? Math.round(Number(x.earn_cents)) / 100 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
     const week = Date.now() - 7 * 86400000;
     res.json({ success: true, isCreator, suspended, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
       totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 100) / 100, wallet: (await walletCents(email)) / 100 } });
@@ -4959,7 +4964,8 @@ app.post('/api/admin/inbox', async (req, res) => {
       starBonus: await cnt("SELECT COUNT(*) AS n FROM star_bonus WHERE status = 'pending'"),
       challengeRewards: await cnt("SELECT COUNT(*) AS n FROM challenge_rewards WHERE status = 'pending'"),
       copyrightClaims: await cnt("SELECT COUNT(*) AS n FROM copyright_claims WHERE status = 'pending'"),
-      copyrightDups: await cnt("SELECT COUNT(*) AS n FROM dup_flags WHERE status = 'pending'")
+      copyrightDups: await cnt("SELECT COUNT(*) AS n FROM dup_flags WHERE status = 'pending'"),
+      viewReviews: await cnt("SELECT COUNT(*) AS n FROM view_reviews WHERE status = 'open'")
     };
     const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
     const items = [].concat(
@@ -4976,7 +4982,8 @@ app.post('/api/admin/inbox', async (req, res) => {
       chr.rows.map((x) => ({ kind: 'challenge', tab: 'challenges', title: '🎯 ' + nm(x) + ' · $' + (Number((x.reward || {}).amount || 0) / 100).toFixed(2), sub: 'Challenge reward to pay: ' + x.title_km, at: x.at })),
       stb.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '💵 ' + nm(x) + ' · $' + (Number(x.amount_cents || 0) / 100).toFixed(2), sub: 'Star bonus to pay (' + x.month + ')', at: x.at })),
       (counts.copyrightClaims ? [{ kind: 'report', tab: 'copyright', title: '©️ ' + counts.copyrightClaims + ' copyright claim(s)', sub: 'Somebody says a post uses their work', at: new Date() }] : []),
-      (counts.copyrightDups ? [{ kind: 'report', tab: 'copyright', title: '🔁 ' + counts.copyrightDups + ' possible copies', sub: 'Posts that look like somebody else\'s older post', at: new Date() }] : [])
+      (counts.copyrightDups ? [{ kind: 'report', tab: 'copyright', title: '🔁 ' + counts.copyrightDups + ' possible copies', sub: 'Posts that look like somebody else\'s older post', at: new Date() }] : []),
+      (counts.viewReviews ? [{ kind: 'report', tab: 'views', title: '🔍 ' + counts.viewReviews + ' views to check', sub: 'Views that jumped in a strange way, or a person counting too many views', at: new Date() }] : [])
     ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
     res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
   } catch (err) { console.error('[admin] inbox error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -5051,7 +5058,10 @@ app.post('/api/admin/creator-earning', async (req, res) => {
     if (suspend && !reason) return res.status(400).json({ success: false, error: 'Please write the reason.' });
     const upd = await pool.query("UPDATE creator_applications SET earn_suspended = $2, suspend_reason = $3 WHERE user_email = $1 AND status = 'approved' RETURNING user_email", [u.email, suspend, suspend ? reason : null]);
     if (!upd.rows.length) return res.status(404).json({ success: false, error: 'This person is not an approved Creator.' });
-    if (!suspend) await pool.query('UPDATE post_earn SET views_seen = p.v FROM (SELECT id, COALESCE(views_count, 0) AS v FROM posts WHERE user_email = $1) p WHERE post_earn.post_id = p.id', [u.email]).catch(() => {});   // views made while stopped are never paid later
+    if (!suspend) {                                         // views made while stopped are never paid
+      const paidNow = await viewGuard.paidCounts(u.email).catch(() => new Map());
+      for (const [pid, n] of paidNow) await pool.query('UPDATE post_earn SET views_seen = GREATEST(views_seen, $2) WHERE post_id = $1', [pid, n]).catch(() => {});
+    }   // views made while stopped are never paid later
     audit(a.adminEmail, suspend ? 'creator-earning-stop' : 'creator-earning-resume', u.email, reason);
     await sendAdminNotice(a.adminEmail, u.email, suspend ? '⚠️ សិទ្ធិរកលុយរបស់អ្នកត្រូវបានផ្អាកជាបណ្តោះអាសន្ន៖ ' + reason + '។ ប្រាក់ដែលមានស្រាប់ក្នុងកាបូបនៅដដែល។' : '✅ សិទ្ធិរកលុយរបស់អ្នកត្រូវបានស្តារឡើងវិញ។', 'wallet_notice').catch(() => {});
     res.json({ success: true });

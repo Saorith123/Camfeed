@@ -2,13 +2,13 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
     ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
     ['🛡️ Content & safety', ['reports', 'copyright', 'content', 'posts', 'live']],
-    ['💰 Money', ['monetization', 'coins', 'ads']],
+    ['💰 Money', ['monetization', 'views', 'coins', 'ads']],
     ['🎉 Fun', ['party', 'challenges', 'stars', 'sounds']],
     ['⚙️ Settings', ['system', 'appcfg', 'perms']],
   ];
@@ -551,6 +551,60 @@
         }
         box.appendChild(card);
       });
+    }
+    call();
+  }
+
+  // ---------- 🔍 Views check: the rules for real / paid views, and the views that look fake ----------
+  function viewsAdmin(body) {
+    var box = el('div', { style: 'max-width:900px' }, [empty('Loading…')]); body.appendChild(box);
+    function call(extra) { return adm('/api/admin/view-guard', extra || {}).then(function (x) { if (x && x.success) draw(x); else { box.textContent = ''; box.appendChild(empty((x && x.error) || 'Could not load.')); } return x; }); }
+    var WHY = { new_accounts: 'mostly new accounts', one_ip: 'many from one IP / phone', no_engagement: 'almost no likes or comments', too_many: 'counted too many views in one hour' };
+    function draw(d) {
+      box.textContent = '';
+      var s = d.settings || {}, sp = s.spike || {}, su = !!d.isSuperAdmin, st = d.stats || {};
+      box.appendChild(el('div', { style: 'font-size:17px;font-weight:800;margin-bottom:4px', text: '🔍 Views check' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Shown view = the number under a video. Paid view = what Creators earn from. Paid views last day: ' + (st.day || 0) + ' · waiting for you: ' + (st.held || 0) + ' · removed as fake: ' + (st.removed || 0) }));
+      var list = d.open || [];
+      box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:8px 0 6px', text: 'To check (' + list.length + ')' }));
+      if (!list.length) box.appendChild(empty('Nothing to check. 👍'));
+      list.forEach(function (r) {
+        var f = r.facts || {}, why = String(r.reason || '').split(',').map(function (k) { return WHY[k] || k; }).join(' · ');
+        var line = r.kind === 'post'
+          ? 'Post #' + r.post_id + ' by ' + nm(r) + ' · ' + (f.hour || 0) + ' paid views in 1 hour · new accounts ' + (f.newPct || 0) + '% · top IP ' + (f.ipPct || 0) + '% · likes+comments ' + (f.engagePct || 0) + '% of views · ' + (r.held || 0) + ' paid views waiting'
+          : nm(r) + ' (' + r.user_email + ') counted more than ' + (f.perHour || '') + ' views in one hour';
+        var card = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px;margin-bottom:10px' }, [
+          el('div', { style: 'font-weight:700', text: (r.kind === 'post' ? '📈 ' : '🤖 ') + why }),
+          el('div', { style: 'font-size:13px;color:#444;margin:4px 0 8px', text: line }),
+          r.kind === 'post' && r.content ? el('div', { style: 'font-size:12.5px;color:#65676b;margin-bottom:8px', text: String(r.content).slice(0, 160) }) : el('span'),
+        ]);
+        var btns = el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' });
+        if (r.kind === 'post') btns.appendChild(el('a', { href: '/p/' + r.post_id, target: '_blank', class: 'btn-sm btn-gray', text: 'Open post' }));
+        btns.appendChild(el('button', { class: 'btn-sm btn-blue', text: '✅ Views are real', onclick: function () { call({ decide: { id: r.id, ok: true } }); } }));
+        btns.appendChild(el('button', { class: 'btn-sm btn-gray', text: r.kind === 'post' ? '🗑️ Remove fake views' : '🗑️ Remove their paid views', onclick: function () { if (confirm('Remove these views? They will not be paid.')) call({ decide: { id: r.id, ok: false } }); } }));
+        if (r.kind === 'post') btns.appendChild(el('button', { class: 'btn-sm', style: 'background:#e41e3f;color:#fff', text: '⛔ Remove + stop earning', onclick: function () { if (confirm('Remove the fake views AND stop this Creator\'s earning?')) call({ decide: { id: r.id, ok: false, stopEarning: true } }); } }));
+        card.appendChild(btns); box.appendChild(card);
+      });
+      box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:16px 0 6px', text: 'Rules' + (su ? '' : ' (only a Super Admin can change)') }));
+      var form = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px' }); box.appendChild(form);
+      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:110px;display:inline-block' }); i.disabled = !su; form.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:5px 0' }, [el('span', { style: 'min-width:340px', text: label }), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
+      var f1 = field('Shown view: watched at least (seconds)', s.shownSec, '');
+      var f2 = field('Shown view: one person counts once every (hours)', s.shownHours, '');
+      var f3 = field('Paid view: watched at least (seconds)', s.paidSec, 'one paid view per person per post, for ever');
+      var f4 = field('Paid view, short video: at least this % of it', s.shortPct, '');
+      var f5 = field('Paid view, short video: never less than (seconds)', s.shortMinSec, '');
+      var f6 = field('Paid view: viewer account at least (days old)', s.minAgeDays, '');
+      var f7 = field('Paid views from one phone / IP per post per day', s.perDevice, '');
+      var f8 = field('One person: views counted per hour at most', s.perHour, 'more = stopped and shown here');
+      var f9 = field('Paid views are paid after (days)', s.holdDays, 'time to find cheats');
+      var g1 = field('Strange jump: paid views in 1 hour at least', sp.minHour, 'then the checks below');
+      var g2 = field('… from new accounts (< 30 days) at least (%)', sp.newPct, '');
+      var g3 = field('… from one IP at least (%)', sp.ipPct, '');
+      var g4 = field('… likes + comments less than (% of views)', sp.engagePct, '');
+      if (su) form.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:8px', text: '💾 Save', onclick: function () {
+        call({ set: { shownSec: +f1.value, shownHours: +f2.value, paidSec: +f3.value, shortPct: +f4.value, shortMinSec: +f5.value, minAgeDays: +f6.value, perDevice: +f7.value, perHour: +f8.value, holdDays: +f9.value,
+          spike: { minHour: +g1.value, newPct: +g2.value, ipPct: +g3.value, engagePct: +g4.value } } }).then(function (x) { if (x && x.success) alert('✅ Saved'); });
+      } }));
     }
     call();
   }
@@ -1419,7 +1473,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges'], ['©️ Copyright claims', c.copyrightClaims || 0, 'copyright'], ['🔁 Possible copies', c.copyrightDups || 0, 'copyright']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges'], ['©️ Copyright claims', c.copyrightClaims || 0, 'copyright'], ['🔁 Possible copies', c.copyrightDups || 0, 'copyright'], ['🔍 Views to check', c.viewReviews || 0, 'views']];
       p.appendChild(el('div', { class: 'at-chips' }, chips.map(function (x) {          // 3 columns
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
@@ -1662,7 +1716,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'views') { var pvw = document.getElementById('panel-views'); pvw.textContent = ''; viewsAdmin(pvw); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');
