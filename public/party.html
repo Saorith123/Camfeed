@@ -114,6 +114,12 @@
         <div class="seats" id="seats"></div>
         <div id="hands"></div>
         <div><div class="sect" id="tListen"></div><div class="lst" id="listeners" style="margin-top:6px"></div></div>
+        <div id="board" style="display:none;position:relative;border-radius:14px;overflow:hidden;background:rgba(0,0,0,.25)">
+            <img id="boardImg" alt="" style="display:block;width:100%;max-height:52vh;object-fit:contain;cursor:zoom-in">
+            <div id="boardBy" style="position:absolute;left:8px;top:8px;background:rgba(0,0,0,.55);color:#fff;border-radius:12px;padding:3px 9px;font-size:12.5px"></div>
+            <div style="position:absolute;right:6px;top:6px;display:flex;gap:6px"><button class="rbtn" id="boardX" style="display:none">✕</button><button class="rbtn" id="boardFlag">🚩</button></div>
+        </div>
+        <div id="boardAdd" style="display:none"><button class="rbtn" id="boardAddBtn">🖼️</button><input type="file" id="boardFile" accept="image/*" style="display:none"></div>
         <div class="chat" id="chat"></div>
     </div>
     <div class="rfoot">
@@ -140,7 +146,7 @@ var T = {
     notReady: 'Party Room មកដល់ឆាប់ៗ', people: '{0} នាក់', friends: '👥 មិត្តភក្តិ', friendTag: 'មិត្ត', starTag: '⭐ តារា', followedTag: '❤️ Follow', net: 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត',
     newRoom: 'បើកបន្ទប់ថ្មី', rTitle: 'ឈ្មោះបន្ទប់', rTitleHint: 'ឧ. និយាយលេងពេលល្ងាច', who: 'អ្នកណាចូលបាន', pub: '🌍 គ្រប់គ្នា', fr: '👥 តែមិត្តភក្តិ', seatsN: 'ចំនួនកៅអីនិយាយ', open: 'បើកបន្ទប់',
     leave: 'ចេញ', close: 'បិទបន្ទប់', closeQ: 'បិទបន្ទប់នេះ? អ្នកទាំងអស់នឹងចេញ។', leaveQ: 'ចេញពីបន្ទប់?', follow: '+ Follow', following: '❤️ {0}', listeners: 'អ្នកស្ដាប់ ({0})',
-    chatHint: 'និយាយអ្វីមួយ...', joined: '👋 {0} បានចូលបន្ទប់', said: '{0}', gift: '🎁 {0} ផ្ញើ {1} ×{2} ទៅ {3}', music: '🎵 {0} ចាក់ចម្រៀង "{1}"', followed: '❤️ {0} បាន Follow បន្ទប់',
+    chatHint: 'និយាយអ្វីមួយ...', joined: '👋 {0} បានចូលបន្ទប់', said: '{0}', gift: '🎁 {0} ផ្ញើ {1} ×{2} ទៅ {3}', music: '🎵 {0} ចាក់ចម្រៀង "{1}"', followed: '❤️ {0} បាន Follow បន្ទប់', boardPut: '🖼️ {0} បានដាក់រូប', inviteNo: '🙅 {0} មិនទាន់ចង់ឡើងកៅអីទេ', inviteQ: '🎤 {0} អញ្ជើញអ្នកឡើងកៅអី។ ទទួលទេ?', inviteGone: 'ការអញ្ជើញផុតពេលហើយ', boardReportQ: 'រាយការណ៍រូបនេះទៅ CamFeed?', boardWait: 'សូមរង់ចាំ ១០ វិនាទី ទើបដាក់រូបម្ដងទៀត', boardOff: 'ម្ចាស់បន្ទប់បានបិទការដាក់រូប',
     fx: '{0} {1}', fxTo: '{0} {1} → {2}', ended: 'បន្ទប់នេះបានបិទហើយ', removed: 'អ្នកត្រូវបានឲ្យចេញពីបន្ទប់នេះ', outNow: 'អ្នកបានចេញពីបន្ទប់', hand: '✋ លើកដៃ', handDown: '✋ ដាក់ដៃចុះ',
     handWait: 'បានលើកដៃ — រង់ចាំម្ចាស់បន្ទប់អញ្ជើញ', sit: 'អង្គុយលើកៅអីនេះ', move: 'ប្ដូរទៅកៅអីលេខ {0}?', standUp: '⬇️ ចុះពីកៅអី', micOn: '🎤 បើកមីក្រូហ្វូន', micOff: '🔇 បិទមីក្រូហ្វូន', micDenied: 'សូមអនុញ្ញាតមីក្រូហ្វូនក្នុង browser',
     hostMuted: 'ម្ចាស់បន្ទប់បានបិទសំឡេងអ្នក', locked: '🔒 កៅអីនេះត្រូវបានចាក់សោ', askHand: 'លើកដៃ ✋ ហើយរង់ចាំម្ចាស់បន្ទប់អញ្ជើញ', profile: '👤 មើល Profile', sendGift: '🎁 ផ្ញើកាដូ', invite: '⬆️ អញ្ជើញឡើងកៅអី',
@@ -153,7 +159,7 @@ var T = {
     notReady: 'Party Room is coming soon', people: '{0} people', friends: '👥 Friends', friendTag: 'Friend', starTag: '⭐ Star', followedTag: '❤️ Following', net: 'Network problem, please try again',
     newRoom: 'Open a new room', rTitle: 'Room name', rTitleHint: 'e.g. Evening chat', who: 'Who can come in', pub: '🌍 Everybody', fr: '👥 Friends only', seatsN: 'Speaking seats', open: 'Open the room',
     leave: 'Leave', close: 'Close room', closeQ: 'Close this room? Everybody will leave.', leaveQ: 'Leave the room?', follow: '+ Follow', following: '❤️ {0}', listeners: 'Listening ({0})',
-    chatHint: 'Say something...', joined: '👋 {0} came in', said: '{0}', gift: '🎁 {0} sent {1} ×{2} to {3}', music: '🎵 {0} plays "{1}"', followed: '❤️ {0} followed the room',
+    chatHint: 'Say something...', joined: '👋 {0} came in', said: '{0}', gift: '🎁 {0} sent {1} ×{2} to {3}', music: '🎵 {0} plays "{1}"', followed: '❤️ {0} followed the room', boardPut: '🖼️ {0} put a picture', inviteNo: '🙅 {0} does not want a seat now', inviteQ: '🎤 {0} invites you to a seat. Accept?', inviteGone: 'The invitation has expired', boardReportQ: 'Report this picture to CamFeed?', boardWait: 'Please wait 10 seconds before the next picture', boardOff: 'The room owner turned pictures off',
     fx: '{0} {1}', fxTo: '{0} {1} → {2}', ended: 'This room has ended', removed: 'You were removed from this room', outNow: 'You left the room', hand: '✋ Raise hand', handDown: '✋ Lower hand',
     handWait: 'Hand raised — wait for the owner to invite you', sit: 'Sit on this seat', move: 'Move to seat {0}?', standUp: '⬇️ Leave the seat', micOn: '🎤 Turn the mic on', micOff: '🔇 Turn the mic off', micDenied: 'Please allow the microphone in your browser',
     hostMuted: 'The room owner muted you', locked: '🔒 This seat is locked', askHand: 'Raise your hand ✋ and wait for the owner to invite you', profile: '👤 See profile', sendGift: '🎁 Send a gift', invite: '⬆️ Invite to a seat',
@@ -298,7 +304,7 @@ function apply(s) {
   $('leaveBtn').textContent = isOwner() ? t('close') : t('leave');
   $('followBtn').style.display = isOwner() ? 'none' : '';
   $('followBtn').textContent = room.following ? tf('following', [room.followers || 0]) : t('follow');
-  seats(s); listeners(s); handsBox(s); controls(s); music(s);
+  seats(s); listeners(s); handsBox(s); controls(s); music(s); board(s); askInvite(s);
   (s.messages || []).forEach(line);
   if (firstTime) $('rBody').scrollTop = $('rBody').scrollHeight;
   // my seat or my mute changed (the owner invited me / took me off / muted me): a new voice ticket
@@ -306,6 +312,57 @@ function apply(s) {
   if (ticketKey && key !== ticketKey) refreshTicket();
   ticketKey = key;
 }
+// 🎤 the owner invited me to a seat: I say yes or no (30 s)
+var invAsked = '';
+function askInvite(s) {
+  var inv = s.me && s.me.invite;
+  if (!inv) { invAsked = ''; return; }
+  var k = (inv.by_name || '') + '|' + inv.seat;
+  if (k === invAsked) return;
+  invAsked = k;
+  ask(tf('inviteQ', [inv.by_name || ''])).then(function (yes) {
+    api('/api/party/rooms/' + roomId + '/invite-answer', { accept: !!yes }).then(function (r) { if (yes && !r.success) toast(r.error === 'expired' ? t('inviteGone') : (r.error || t('net'))); poll && poll(); });
+  });
+}
+// 🖼️ the picture board: one picture for everybody in the room (people on a seat / the owner put it)
+var boardV = 0;
+function boardMay(s) {
+  var mode = (s.board && s.board.mode) || 'seated', me = s.me || {};
+  if (mode === 'off') return false;
+  if (me.role === 'owner' || me.role === 'helper') return true;
+  return mode === 'seated' && me.seat != null;
+}
+function board(s) {
+  var b = s.board || {}, pic = b.pic;
+  $('boardAdd').style.display = boardMay(s) ? '' : 'none';
+  if (!pic) { $('board').style.display = 'none'; boardV = 0; return; }
+  $('board').style.display = '';
+  $('boardBy').textContent = '🖼️ ' + (pic.by_name || '');
+  $('boardX').style.display = (canManage() || pic.by === meId) ? '' : 'none';
+  if (pic.v !== boardV) {
+    boardV = pic.v;
+    fetch('/api/party/rooms/' + roomId + '/board?v=' + pic.v, { cache: 'no-store' }).then(function (r) { return r.ok ? r.blob() : null; }).then(function (bl) {
+      if (!bl) return; var old = $('boardImg').src; $('boardImg').src = URL.createObjectURL(bl); if (old && old.indexOf('blob:') === 0) URL.revokeObjectURL(old);
+    }).catch(function () {});
+  }
+}
+$('boardImg').onclick = function () { if (this.src) window.open(this.src, '_blank'); };
+$('boardX').onclick = function () { api('/api/party/rooms/' + roomId + '/board/clear', {}).then(function () { poll && poll(); }); };
+$('boardFlag').onclick = function () { ask(t('boardReportQ')).then(function (y) { if (!y) return; api('/api/party/rooms/' + roomId + '/board/report', { reason: 'bad picture' }).then(function () { toast(t('reported')); $('board').style.display = 'none'; }); }); };
+$('boardAddBtn').onclick = function () { $('boardFile').click(); };
+$('boardFile').onchange = function () {
+  var f = this.files && this.files[0]; this.value = ''; if (!f) return;
+  var im = new Image(), u = URL.createObjectURL(f);
+  im.onload = function () {
+    var k = Math.min(1, 1280 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+    c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(u);
+    var q = 0.78, data = c.toDataURL('image/jpeg', q);
+    while (data.length > 900000 && q > 0.35) { q -= 0.12; data = c.toDataURL('image/jpeg', q); }
+    api('/api/party/rooms/' + roomId + '/board', { image: data }).then(function (r) { if (!r.success) toast(r.error === 'wait' ? t('boardWait') : (r.error === 'off' ? t('boardOff') : (r.error || t('net')))); else poll && poll(); });
+  };
+  im.src = u;
+};
 function personById(id) { return (st && st.people || []).find(function (p) { return p.email === id; }); }
 function seats(s) {
   var box = $('seats'); box.textContent = '';
@@ -360,6 +417,8 @@ function line(m) {
     var tx = String(m.text || '');
     if (tx.indexOf('music:') === 0) d = el('div', 'line sys', tf('music', [who, tx.slice(6)]));
     else if (tx === 'follow') d = el('div', 'line sys', tf('followed', [who]));
+    else if (tx === 'board') d = el('div', 'line sys', tf('boardPut', [who]));
+    else if (tx === 'invite_no') d = el('div', 'line sys', tf('inviteNo', [who]));
     else return;
   } else { d = el('div', 'line'); d.appendChild(el('b', '', who + ': ')); d.appendChild(document.createTextNode(String(m.text || ''))); }
   var box = $('chat'), body = $('rBody');

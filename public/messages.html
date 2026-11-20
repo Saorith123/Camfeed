@@ -2958,7 +2958,8 @@
                     ${canDl ? `<button type="button" onclick="downloadChatMediaFile('${m.media_url}', ${isVideo ? 'true' : 'false'}, event)">⬇️ ទាញយក (Save)</button>` : ''}
                     <button type="button" onclick="openForwardModal(${m.id}, '${encodeURIComponent(displayText)}', '${encodeURIComponent(m.media_url || '')}', '${m.message_type || 'text'}')">↪️ បញ្ជូនបន្ត (Forward)</button>
                     ${(isSent && isTextOnly) ? `<button type="button" onclick="startEditMessage(${m.id}, '${encodeURIComponent(displayText)}')">✏️ កែប្រែ (Edit)</button>` : ''}
-                    ${isSent ? `<button type="button" class="danger" onclick="deleteSentMessage(${m.id})">🗑️ លុប (Delete)</button>` : ''}
+                    <button type="button" onclick="hideMessageForMe(${m.id})">🙈 លុបសម្រាប់តែខ្ញុំ</button>
+                    ${isSent ? `<button type="button" class="danger" onclick="deleteSentMessage(${m.id})">🗑️ លុបសម្រាប់ទាំងពីរនាក់</button>` : ''}
                     ${!isSent ? `<button type="button" class="danger" onclick="reportChatMessage(${m.id})">🚩 រាយការណ៍សារនេះ</button>` : ''}
                 `;
 
@@ -3164,6 +3165,19 @@
                 });
                 await fetchMessages(false);
                 loadConversations();
+            } catch (e) {}
+        }
+
+        // 🗑 gone from MY chat only (the other side still sees it)
+        async function hideMessageForMe(msgId) {
+            document.querySelectorAll('.cf-msg-popover').forEach(p => p.classList.remove('open'));
+            setLocalOverride(msgId, { hiddenForMe: true });
+            const row = document.querySelector('[data-msg-id="' + msgId + '"]');
+            if (row) row.style.display = 'none';
+            const isG = activeFriend && String(activeFriend.email || '').startsWith('group:');
+            try {
+                await fetch('/api/messages/hide-for-me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(isG ? { id: msgId, group: true } : { id: msgId }) });
+                await fetchMessages(false);
             } catch (e) {}
         }
 

@@ -88,6 +88,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_min INTEGER');      // who may see the room, by age (empty = everybody)
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_max INTEGER');
         await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS locked_seats INTEGER[] NOT NULL DEFAULT '{}'");   // 🔒 seats nobody may take
+        // 🖼️ the picture board under the seats: who may put a picture ('seated' = people on a seat + the owner, 'owner', 'off')
+        await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS board_mode VARCHAR(8) NOT NULL DEFAULT 'seated'");
+        await pool.query('ALTER TABLE party_reports ADD COLUMN IF NOT EXISTS board_image BYTEA');      // a reported board picture is kept as proof
+        await pool.query('ALTER TABLE party_reports ADD COLUMN IF NOT EXISTS board_by TEXT');
         // ❤️ Follow a room: a person's room is THEIR room (one at a time), so following goes to the owner — it stays when the room
         // closes and opens again (same followers, notified every time it opens)
         await pool.query(`CREATE TABLE IF NOT EXISTS party_follows (owner_email TEXT NOT NULL, user_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -246,7 +250,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         music: room.music_url ? { id: room.music_id, url: room.music_url, title: room.music_title || '', artist: room.music_artist || '', at: room.music_at, paused_at: room.music_paused_at || null } : null },
       now: new Date().toISOString(),                         // the server's clock: the phones play the music at the same point
       people,
-      me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand } : null,
+      me: mine ? { role: mine.role, seat: mine.seat, muted: mine.muted, hand: mine.hand, invite: inviteFor(room.id, email) } : null,
+      board: boardInfo(room),
       messages: msgs.rows.reverse().map((m) => ({ id: m.id, kind: m.kind, text: m.text, created_at: m.created_at,
         email: m.email || null, first_name: m.first_name || '', last_name: m.last_name || '', profile_pic: m.profile_pic || '',
         ...(m.kind === 'gift' ? { to_email: m.to_email, to_first_name: m.to_first_name || '', to_last_name: m.to_last_name || '',
@@ -653,6 +658,135 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     } catch (err) { console.error('[party] time:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
 
+  // ---------------------------------------------------------------- 🎤 seat invitations: the person answers ✅ / ✕
+  // kept in memory (they last 30 seconds): room|email -> { seat, by, byName, exp, at }
+  const invites = new Map();
+  const INVITE_MS = 30 * 1000;
+  function inviteFor(roomId, email) {
+    const k = roomId + '|' + email, x = invites.get(k);
+    if (!x) return null;
+    if (Date.now() > x.exp) { invites.delete(k); return null; }
+    return { seat: x.seat, by_name: x.byName, left: Math.max(1, Math.round((x.exp - Date.now()) / 1000)) };
+  }
+  async function freeSeat(room, wanted) {
+    const used = new Set((await pool.query('SELECT seat FROM party_members WHERE room_id = $1 AND seat IS NOT NULL AND last_seen >= NOW() - ($2 || \' seconds\')::interval', [room.id, String(STALE_SEC)])).rows.map((x) => x.seat));
+    (room.locked_seats || []).forEach((x) => used.add(x));          // a locked seat is never given
+    let seat = parseInt(wanted, 10);
+    if (!(seat >= 1 && seat < room.seats) || used.has(seat)) { seat = -1; for (let i = 1; i < room.seats; i++) if (!used.has(i)) { seat = i; break; } }
+    return seat;
+  }
+  app.post('/api/party/rooms/:id/invite-answer', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      const room = await roomOf(req.params.id);
+      if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
+      const k = room.id + '|' + e, x = invites.get(k);
+      invites.delete(k);
+      if (!x || Date.now() > x.exp) return res.status(410).json({ success: false, error: 'expired' });
+      const t = await memberOf(room.id, e);
+      if (!t) return res.status(404).json({ success: false });
+      if ((req.body || {}).accept !== true) { sys(room.id, 'invite_no', e); return res.json({ success: true, seated: false }); }
+      if (t.seat !== null) return res.json({ success: true, seated: true });
+      const seat = await freeSeat(room, x.seat);
+      if (seat < 0) return res.status(409).json({ success: false, error: 'All seats are taken.' });
+      await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND seat = $2', [room.id, seat]);
+      await pool.query('UPDATE party_members SET seat = $3, hand_at = NULL WHERE room_id = $1 AND user_email = $2', [room.id, e, seat]);
+      setTalk(room.id, e, !t.host_muted);
+      res.json({ success: true, seated: true, seat, live: await ticket(room, e, true, t.host_muted) });
+    } catch (err) { console.error('[party] invite-answer:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
+  // ---------------------------------------------------------------- 🖼️ the picture board under the seats
+  // ONE picture per room, kept only in the server's memory (never in the storage): replaced by the next one, gone when
+  // taken down, when the room closes, or after an hour
+  const boards = new Map();          // roomId -> { buf, type, by, byName, at, v }
+  const boardGap = new Map();        // room|email -> last time (one picture every 10 s per person)
+  const BOARD_MAX = 900 * 1024, BOARD_TTL = 60 * 60 * 1000;
+  setInterval(() => { const now = Date.now(); for (const [k, b] of boards) if (now - b.at > BOARD_TTL) boards.delete(k); }, 60 * 1000).unref();
+  function boardInfo(room) {
+    const b = boards.get(room.id);
+    if (b && room.status !== 'open') boards.delete(room.id);
+    const mode = room.board_mode || 'seated';
+    return { mode, pic: b && room.status === 'open' ? { v: b.v, by: b.by, by_name: b.byName, at: new Date(b.at).toISOString() } : null };
+  }
+  const mayPost = (room, m) => {
+    const mode = room.board_mode || 'seated';
+    if (!m || mode === 'off') return false;
+    if (norm(room.owner_email) === norm(m.user_email) || m.role === 'owner') return true;
+    if (mode === 'owner') return m.role === 'helper';
+    return canManage(m) || m.seat !== null;
+  };
+  app.post('/api/party/rooms/:id/board', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const room = await roomOf(req.params.id);
+      if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true });
+      const m = await memberOf(room.id, e);
+      if (!mayPost(room, m)) return res.status(403).json({ success: false, error: (room.board_mode === 'off' ? 'off' : 'seat') });
+      const gk = room.id + '|' + e, last = boardGap.get(gk) || 0;
+      if (Date.now() - last < 10 * 1000) return res.status(429).json({ success: false, error: 'wait' });
+      const mt = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String((req.body || {}).image || ''));
+      if (!mt) return res.status(400).json({ success: false, error: 'bad' });
+      const buf = Buffer.from(mt[2], 'base64');
+      if (!buf.length || buf.length > BOARD_MAX) return res.status(413).json({ success: false, error: 'big' });
+      const u = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [e]);
+      const nm = u.rows[0] ? `${u.rows[0].first_name || ''} ${u.rows[0].last_name || ''}`.trim() : '';
+      const old = boards.get(room.id);
+      boards.set(room.id, { buf, type: mt[1], by: e, byName: nm, at: Date.now(), v: (old ? old.v : 0) + 1 });
+      boardGap.set(gk, Date.now());
+      sys(room.id, 'board', e);                               // "🖼️ X put a picture" in the room's chat
+      res.json({ success: true });
+    } catch (err) { console.error('[party] board:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+  app.post('/api/party/rooms/:id/board/clear', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      const room = await roomOf(req.params.id); if (!room) return res.status(404).json({ success: false });
+      const m = await memberOf(room.id, e); const b = boards.get(room.id);
+      if (!b) return res.json({ success: true });
+      if (!(canManage(m) || norm(room.owner_email) === e || b.by === e)) return res.status(403).json({ success: false });
+      boards.delete(room.id);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+  });
+  // owner: who may put a picture ('seated' / 'owner' / 'off')
+  app.post('/api/party/rooms/:id/board-mode', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const room = await roomOf(req.params.id);
+      if (!room || norm(room.owner_email) !== e) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
+      const mode = ['seated', 'owner', 'off'].includes((req.body || {}).mode) ? req.body.mode : 'seated';
+      await pool.query('UPDATE party_rooms SET board_mode = $2 WHERE id = $1', [room.id, mode]);
+      if (mode === 'off') boards.delete(room.id);
+      res.json({ success: true, mode });
+    } catch (err) { res.status(500).json({ success: false }); }
+  });
+  // the picture itself — only for people in the room
+  app.get('/api/party/rooms/:id/board', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      const id = parseInt(req.params.id, 10) || 0;
+      const b = boards.get(id);
+      if (!b) return res.status(404).end();
+      const m = await memberOf(id, e); if (!m) return res.status(403).end();
+      res.set('Content-Type', b.type); res.set('Cache-Control', 'private, max-age=3600');
+      res.end(b.buf);
+    } catch (err) { res.status(500).end(); }
+  });
+  // 🚩 a bad picture: reported with the picture itself (kept as proof for CamFeed), and it goes away for me
+  app.post('/api/party/rooms/:id/board/report', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const id = parseInt(req.params.id, 10) || 0; const b = boards.get(id);
+      const reason = 'board: ' + String((req.body || {}).reason || '').trim().slice(0, 180);
+      await pool.query('INSERT INTO party_reports (room_id, reporter_email, reason, board_image, board_by) VALUES ($1, $2, $3, $4, $5)', [id, e, reason, b ? b.buf : null, b ? b.by : null]);
+      res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+  });
+
   // owner / helpers: invite to a seat, take off a seat, mute / unmute, remove from the room, make / unmake a helper
   app.post('/api/party/rooms/:id/manage', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -676,14 +810,16 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         if ((bd.get(who) || {}).vip) return res.status(403).json({ success: false, code: 'vip', error: 'Only the room owner can send out a VIP.' });
       }
       if (act === 'invite') {
-        let seat = parseInt(b.seat, 10);
-        const used = new Set((await pool.query('SELECT seat FROM party_members WHERE room_id = $1 AND seat IS NOT NULL AND last_seen >= NOW() - ($2 || \' seconds\')::interval', [room.id, String(STALE_SEC)])).rows.map((x) => x.seat));
-        (room.locked_seats || []).forEach((x) => used.add(x));          // a locked seat is never given
-        if (!(seat >= 1 && seat < room.seats) || used.has(seat)) { seat = -1; for (let i = 1; i < room.seats; i++) if (!used.has(i)) { seat = i; break; } }
+        // 🎤 the person is ASKED (✅ / ✕ on their phone, 30 s); nobody is put on a seat without saying yes
+        if (t.seat !== null) return res.json({ success: true, seated: true });
+        const seat = await freeSeat(room, b.seat);
         if (seat < 0) return res.status(409).json({ success: false, error: 'All seats are taken.' });
-        await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND seat = $2', [room.id, seat]);
-        await pool.query('UPDATE party_members SET seat = $3, hand_at = NULL WHERE room_id = $1 AND user_email = $2', [room.id, who, seat]);
-        setTalk(room.id, who, !t.host_muted);
+        const k = room.id + '|' + who, old = invites.get(k);
+        if (old && Date.now() < old.exp) return res.status(429).json({ success: false, error: 'already' });
+        const u = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [e]);
+        const nm = u.rows[0] ? `${u.rows[0].first_name || ''} ${u.rows[0].last_name || ''}`.trim() : '';
+        invites.set(k, { seat, by: e, byName: nm, exp: Date.now() + INVITE_MS });
+        return res.json({ success: true, asked: true });
       } else if (act === 'unseat') {
         await pool.query('UPDATE party_members SET seat = NULL, host_muted = FALSE WHERE room_id = $1 AND user_email = $2', [room.id, who]);
         setTalk(room.id, who, false);
@@ -968,7 +1104,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
           (SELECT COUNT(*) FROM party_members m WHERE m.room_id = r.id) AS people,
           (SELECT COUNT(*) FROM party_reports p WHERE p.room_id = r.id AND p.handled = FALSE) AS reports
         FROM party_rooms r LEFT JOIN users u ON LOWER(u.email) = r.owner_email WHERE r.status = 'open' ORDER BY reports DESC, people DESC LIMIT 200`);
-      const reports = await pool.query(`SELECT p.room_id, p.reason, p.created_at, p.reporter_email, r.title, r.status, r.owner_email FROM party_reports p
+      const reports = await pool.query(`SELECT p.room_id, p.reason, p.created_at, p.reporter_email, r.title, r.status, r.owner_email, p.board_by,
+          CASE WHEN p.board_image IS NOT NULL THEN 'data:image/jpeg;base64,' || replace(encode(p.board_image, 'base64'), E'\\n', '') END AS board_pic FROM party_reports p
         LEFT JOIN party_rooms r ON r.id = p.room_id WHERE p.handled = FALSE ORDER BY p.id DESC LIMIT 100`);
       res.json({ success: true, isSuperAdmin: a.isSuperAdmin, ready: lkReady(c),
         settings: { url: c.url, key: c.key, secretSet: !!c.secret },

@@ -32,7 +32,7 @@ app.use(security.securityHeaders);                 // no framing, no sniffing, C
 // small bodies everywhere (an attacker can not push megabytes into every route); posts may carry a video thumbnail
 const jsonSmall = express.json({ limit: '1mb' });
 const jsonLarge = express.json({ limit: '6mb' });
-app.use((req, res, next) => (/^\/api\/(posts|videos)(\/|$)/.test(req.path) || req.path === '/api/stars/apply' ? jsonLarge : jsonSmall)(req, res, next));   // ⭐ a Star application carries 2 photos
+app.use((req, res, next) => (/^\/api\/(posts|videos)(\/|$)/.test(req.path) || req.path === '/api/stars/apply' || /^\/api\/party\/rooms\/\d+\/board$/.test(req.path) ? jsonLarge : jsonSmall)(req, res, next));   // 🖼️ a Party Room picture   // ⭐ a Star application carries 2 photos
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Typed logins and codes are cleaned before any route reads them: Khmer digits (០-៩) -> 0-9, invisible characters that Khmer keyboards
@@ -2347,6 +2347,8 @@ app.get('/api/messages', async (req, res) => {
     const other = viewer === String(user1 || '').toLowerCase() ? user2 : user1;
     const cl = await chatPrefs.clearedAt(viewer, other);
     if (cl) result.rows = result.rows.filter((r) => new Date(r.created_at) > new Date(cl));
+    const hid = await chatPrefs.hiddenFor(viewer, 'dm', result.rows.map((r) => r.id));       // 🗑 single messages deleted for me
+    if (hid.size) result.rows = result.rows.filter((r) => !hid.has(Number(r.id)));
     let reactions = {}, settings = null;
     try {
       reactions = await chatExtras.reactionsFor(result.rows.map((r) => r.id));
@@ -2485,7 +2487,7 @@ app.post('/api/admin/perms', async (req, res) => {
 
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d),
-  restrictedBy: (to, from) => chatPrefs.isRestricted(to, from) });   // a person I restricted: their calls do not ring
+  restrictedBy: (to, from) => chatPrefs.isRestricted(to, from), hiddenFor: (me, kind, ids) => chatPrefs.hiddenFor(me, kind, ids) });   // a person I restricted: their calls do not ring
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),

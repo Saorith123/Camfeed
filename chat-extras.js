@@ -10,7 +10,7 @@ const CALL_RING_MS = 35 * 1000;
 const CALL_STALE_MS = 25 * 1000;
 const CALL_TALK_STALE_MS = 90 * 1000;   // a call in progress: a phone that stops asking for a while (weak internet, screen off) is NOT cut at once — the voice goes phone-to-phone
 
-module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting, restrictedBy }) {
+module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting, restrictedBy, hiddenFor }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
   // the longest a chat message is kept (months): Admin > System > App settings (CHAT_MAX_MONTHS), else Render env, else 12
   const envMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
@@ -810,6 +810,7 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
         const cl = cp.rows[0] && cp.rows[0].cleared_at;
         if (cl) r.rows = r.rows.filter((x) => new Date(x.created_at) > new Date(cl));
       } catch (e) { /* no table yet */ }
+      if (hiddenFor) { const hid = await hiddenFor(me, 'group', r.rows.map((x) => x.id)); if (hid.size) r.rows = r.rows.filter((x) => !hid.has(Number(x.id))); }   // 🗑 deleted for me
       const ids = r.rows.map((x) => x.id);
       const rx = {};
       if (ids.length) {

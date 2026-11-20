@@ -24,6 +24,9 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
           PRIMARY KEY (user_email, peer))`);
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS msg_requests_on BOOLEAN DEFAULT FALSE');
         await pool.query('ALTER TABLE chat_prefs ADD COLUMN IF NOT EXISTS muted_until TIMESTAMP DEFAULT NULL');   // mute for 1 h / 8 h / 24 h … (NULL = until turned back on)
+        // 🗑 "Delete for me" of ONE message (somebody else's photo / video / voice / text too): hidden for this person only
+        await pool.query(`CREATE TABLE IF NOT EXISTS message_hides (user_email VARCHAR(255) NOT NULL, kind VARCHAR(8) NOT NULL,
+          message_id INTEGER NOT NULL, created_at TIMESTAMP DEFAULT NOW(), PRIMARY KEY (user_email, kind, message_id))`);
       })().catch((e) => { ready = null; throw e; });
     }
     return ready;
@@ -156,6 +159,32 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
+  // 🗑 hide one message for me only (the other side still sees it; it stays in the database, e.g. as proof for a report)
+  app.post('/api/messages/hide-for-me', async (req, res) => {
+    const me = norm(req.authEmail); const b = req.body || {};
+    const id = parseInt(b.id, 10), kind = b.group ? 'group' : 'dm';
+    if (!me || !id) return res.status(400).json({ success: false });
+    try {
+      await ensure();
+      // only a message of a chat I am in
+      const ok = kind === 'dm'
+        ? await pool.query('SELECT 1 FROM messages WHERE id = $1 AND (LOWER(sender_email) = $2 OR LOWER(receiver_email) = $2)', [id, me])
+        : await pool.query('SELECT 1 FROM group_messages gm JOIN chat_group_members m ON m.group_id = gm.group_id WHERE gm.id = $1 AND LOWER(m.user_email) = $2', [id, me]);
+      if (!ok.rows.length) return res.status(404).json({ success: false });
+      await pool.query('INSERT INTO message_hides (user_email, kind, message_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [me, kind, id]);
+      res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  });
+  // used by the message lists: which of these messages did this person hide for themselves
+  async function hiddenFor(me, kind, ids) {
+    try {
+      if (!ids || !ids.length) return new Set();
+      await ensure();
+      const r = await pool.query('SELECT message_id FROM message_hides WHERE user_email = $1 AND kind = $2 AND message_id = ANY($3::int[])', [norm(me), kind, ids.map(Number)]);
+      return new Set(r.rows.map((x) => Number(x.message_id)));
+    } catch (e) { return new Set(); }
+  }
+
   // used by the message list: when did this person delete this conversation for themselves (null = never)
   async function clearedAt(me, peer) {
     try {
@@ -196,5 +225,5 @@ module.exports = function installChatPrefs({ app, pool, cleanup, extractMediaUrl
     } catch (e) { return false; }
   }
 
-  return { clearedAt, shouldNotify, isRestricted };
+  return { clearedAt, shouldNotify, isRestricted, hiddenFor };
 };

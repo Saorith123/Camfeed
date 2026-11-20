@@ -1014,7 +1014,7 @@
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Reports waiting (' + d.reports.length + ')' }));
       if (!d.reports.length) box.appendChild(empty('No report.'));
       else box.appendChild(table(['Room', 'Status', 'Owner', 'Reason', 'By', 'When', ''], d.reports.map(function (r) {
-        return el('tr', {}, [el('td', { text: '#' + r.room_id + ' ' + (r.title || '') }), el('td', { text: r.status || '—' }), el('td', { text: r.owner_email || '' }), el('td', { text: r.reason || '' }),
+        return el('tr', {}, [el('td', { text: '#' + r.room_id + ' ' + (r.title || '') }), el('td', { text: r.status || '—' }), el('td', { text: r.owner_email || '' }), el('td', {}, [el('div', { text: r.reason || '' }), r.board_pic ? el('img', { src: r.board_pic, title: 'Picture put by ' + (r.board_by || ''), style: 'max-width:160px;max-height:160px;border-radius:8px;margin-top:4px;border:1px solid #ccc' }) : '', r.board_by ? el('div', { style: 'font-size:12px;color:#65676b', text: '🖼️ by ' + r.board_by }) : '']),
           el('td', { text: r.reporter_email }), el('td', { text: ago(r.created_at) }),
           el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Done', onclick: function () { adm('/api/admin/party', { handled: r.room_id }).then(function (x) { if (x.success) draw(x); }); } })])]);
       })));
