@@ -11,6 +11,8 @@ const crypto = require('crypto');
 const appCfg = require('./app-config');
 module.exports = function installParty({ app, pool, publicIds, adminGate, audit, framesOf, badgesOf, starsOf }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
+  const access = require('./party-access')({ app, pool, adminGate, audit, badgesOf });   // 🔐 who may open rooms / make them private
+  const newCode = () => crypto.randomBytes(9).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 10) + crypto.randomBytes(2).toString('hex');
   const SEAT_CHOICES = [4, 8, 12];
   const STALE_SEC = 40;                 // not heard from for this long = gone (the app asks every ~2 s)
   const OWNER_GONE_SEC = 180;           // the owner's phone disappeared for 3 minutes: the room closes
@@ -90,6 +92,10 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS locked_seats INTEGER[] NOT NULL DEFAULT '{}'");   // 🔒 seats nobody may take
         // 🖼️ the picture board under the seats: who may put a picture ('seated' = people on a seat + the owner, 'owner', 'off')
         await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS board_mode VARCHAR(8) NOT NULL DEFAULT 'seated'");
+        // 🔐 a private room: only people let in (invited, the room's link, or a room card the owner / a helper sent in a chat)
+        await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS invite_code VARCHAR(24)');
+        await pool.query(`CREATE TABLE IF NOT EXISTS party_room_access (room_id INTEGER NOT NULL, user_email TEXT NOT NULL, via VARCHAR(10) NOT NULL DEFAULT 'invite',
+          by_email TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (room_id, user_email))`);
         await pool.query('ALTER TABLE party_reports ADD COLUMN IF NOT EXISTS board_image BYTEA');      // a reported board picture is kept as proof
         await pool.query('ALTER TABLE party_reports ADD COLUMN IF NOT EXISTS board_by TEXT');
         // ❤️ Follow a room: a person's room is THEIR room (one at a time), so following goes to the owner — it stays when the room
@@ -176,10 +182,38 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
   async function canSee(room, email) {
     if (!room || room.status !== 'open') return false;
     if (norm(room.owner_email) === email) return true;
-    if (await blockedEither(room.owner_email, email)) return false;
-    if (room.privacy === 'friends' && !(await isFriend(room.owner_email, email))) return false;
-    if ((room.age_min != null || room.age_max != null) && !ageFits(room, await ageOf(email))) return false;
+    const aged = room.age_min != null || room.age_max != null;
+    // ⚡ the checks are asked at the same time (not one after another)
+    const [blocked, friend, inside, age] = await Promise.all([
+      blockedEither(room.owner_email, email),
+      room.privacy === 'friends' ? isFriend(room.owner_email, email) : true,
+      room.privacy === 'private' ? letIn(room.id, email) : true,
+      aged ? ageOf(email) : null,
+    ]);
+    if (blocked || !friend || !inside) return false;
+    if (aged && !ageFits(room, age)) return false;
     return true;
+  }
+  // 🔐 private rooms: was this person let in? (invited / the link / a card from the owner or a helper in a chat / already inside)
+  async function letIn(roomId, email) {
+    const r = await pool.query(`SELECT 1 FROM party_room_access WHERE room_id = $1 AND user_email = $2
+                                UNION ALL SELECT 1 FROM party_members WHERE room_id = $1 AND user_email = $2 LIMIT 1`, [roomId, norm(email)]);
+    return r.rows.length > 0;
+  }
+  async function allow(roomId, emails, via, by) {
+    const list = [...new Set((emails || []).map(norm).filter((x) => x.includes('@')))].slice(0, 500);
+    if (!list.length) return 0;
+    const r = await pool.query(`INSERT INTO party_room_access (room_id, user_email, via, by_email) SELECT $1, LOWER(u.email), $3, $4 FROM users u WHERE LOWER(u.email) = ANY($2::text[])
+                                ON CONFLICT (room_id, user_email) DO NOTHING`, [roomId, list, via, by || null]);
+    return r.rowCount || 0;
+  }
+  // owner or helper of this open room?
+  async function managerOf(roomId, email) {
+    const room = await roomOf(roomId);
+    if (!room || room.status !== 'open') return null;
+    if (norm(room.owner_email) === norm(email)) return room;
+    const m = await memberOf(room.id, norm(email));
+    return canManage(m) ? room : null;
   }
   const sys = (roomId, text, who) => pool.query("INSERT INTO party_messages (room_id, user_email, kind, text) VALUES ($1, $2, 'system', $3)", [roomId, who || null, text]).catch(() => {});
 
@@ -218,35 +252,71 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
   }
 
   const userCols = 'u.email, u.first_name, u.last_name, u.profile_pic';
+  // ⚡ small memory caches: a room's state is asked every 2 s by every phone in it — what rarely changes is not read again each time
+  const memo = new Map();                       // key -> { at, v }
+  async function cached(key, ms, fn) {
+    const x = memo.get(key);
+    if (x && Date.now() - x.at < ms) return x.v;
+    const v = await fn();
+    memo.set(key, { at: Date.now(), v });
+    if (memo.size > 5000) { const old = Date.now() - 120000; for (const [k, y] of memo) if (y.at < old) memo.delete(k); }
+    return v;
+  }
+  // level / VIP / frame of each person: kept 30 s per person (one query for the ones not kept yet)
+  const perPerson = { badge: new Map(), frame: new Map() };
+  async function perPersonOf(kind, emails, fn) {
+    const box = perPerson[kind], now = Date.now(), out = new Map(), need = [];
+    for (const e of emails) { const x = box.get(e); if (x && now - x.at < 30000) { if (x.v) out.set(e, x.v); } else need.push(e); }
+    if (need.length && fn) {
+      const got = await fn(need).catch(() => new Map());
+      for (const e of need) { const v = got.get(e) || null; box.set(e, { at: now, v }); if (v) out.set(e, v); }
+      if (box.size > 5000) for (const [k, y] of box) if (now - y.at > 120000) box.delete(k);
+    }
+    return out;
+  }
+  const forgetPerson = (email) => { perPerson.badge.delete(norm(email)); perPerson.frame.delete(norm(email)); };
+
   async function stateOf(room, email, after) {
-    const mem = await pool.query(`SELECT m.role, m.seat, m.host_muted, m.hand_at, m.on_phone, ${userCols} FROM party_members m JOIN users u ON LOWER(u.email) = m.user_email
-                                  WHERE m.room_id = $1 AND m.last_seen >= NOW() - ($2 || ' seconds')::interval ORDER BY m.seat NULLS LAST, m.joined_at`, [room.id, String(STALE_SEC)]);
+    // everything that does not depend on each other is asked at the same time
+    const [mem, msgs, owner, gaps, followersN, iFollowRoom] = await Promise.all([
+      pool.query(`SELECT m.role, m.seat, m.host_muted, m.hand_at, m.on_phone, ${userCols} FROM party_members m JOIN users u ON LOWER(u.email) = m.user_email
+                  WHERE m.room_id = $1 AND m.last_seen >= NOW() - ($2 || ' seconds')::interval ORDER BY m.seat NULLS LAST, m.joined_at`, [room.id, String(STALE_SEC)]),
+      pool.query(`SELECT p.id, p.kind, p.text, p.created_at, ${userCols}, p.to_email, t.first_name AS to_first_name, t.last_name AS to_last_name,
+                         g.emoji AS gift_emoji, g.name_km AS gift_km, g.name_en AS gift_en, g.tier AS gift_tier, g.coins AS gift_coins,
+                         f.emoji AS fx_emoji, f.name_km AS fx_km, f.name_en AS fx_en, f.anim AS fx_anim
+                  FROM party_messages p LEFT JOIN users u ON LOWER(u.email) = p.user_email
+                  LEFT JOIN users t ON LOWER(t.email) = p.to_email LEFT JOIN gift_catalog g ON g.id = p.gift_id
+                  LEFT JOIN party_fx f ON f.id = p.fx_id
+                  WHERE p.room_id = $1 AND p.id > $2 ORDER BY p.id DESC LIMIT 60`, [room.id, parseInt(after, 10) || 0]),
+      cached('owner:' + room.owner_email, 30000, () => pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email])),
+      cached('gaps', 30000, () => fxGaps()),
+      cached('followers:' + room.owner_email, 10000, () => followersOf(room.owner_email)),
+      cached('follows:' + room.owner_email + '|' + email, 10000, () => follows(room.owner_email, email)),
+    ]);
     const people = mem.rows.map((x) => ({ email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '',
       role: x.role, seat: x.seat, muted: !!x.host_muted, hand: !!x.hand_at, hand_at: x.hand_at, on_phone: !!x.on_phone }));
-    const msgs = await pool.query(`SELECT p.id, p.kind, p.text, p.created_at, ${userCols}, p.to_email, t.first_name AS to_first_name, t.last_name AS to_last_name,
-                                     g.emoji AS gift_emoji, g.name_km AS gift_km, g.name_en AS gift_en, g.tier AS gift_tier, g.coins AS gift_coins,
-                                     f.emoji AS fx_emoji, f.name_km AS fx_km, f.name_en AS fx_en, f.anim AS fx_anim
-                                   FROM party_messages p LEFT JOIN users u ON LOWER(u.email) = p.user_email
-                                   LEFT JOIN users t ON LOWER(t.email) = p.to_email LEFT JOIN gift_catalog g ON g.id = p.gift_id
-                                   LEFT JOIN party_fx f ON f.id = p.fx_id
-                                   WHERE p.room_id = $1 AND p.id > $2 ORDER BY p.id DESC LIMIT 60`, [room.id, parseInt(after, 10) || 0]);
     if (people.length) {                                   // ➕ Follow / 💬 message straight from the room (make friends)
-      const others = people.map((p) => norm(p.email)).filter((x) => x !== email);
-      const f = others.length ? await pool.query(`SELECT LOWER(follower_email) AS a, LOWER(following_email) AS b FROM follows
-                                                  WHERE (LOWER(follower_email) = $1 AND LOWER(following_email) = ANY($2)) OR (LOWER(following_email) = $1 AND LOWER(follower_email) = ANY($2))`, [email, others]).catch(() => ({ rows: [] })) : { rows: [] };
+      const all = people.map((p) => norm(p.email));
+      const others = all.filter((x) => x !== email);
+      const [f, fr, bd] = await Promise.all([
+        others.length ? cached('fol:' + email + '|' + others.slice().sort().join(','), 10000, () => pool.query(`SELECT LOWER(follower_email) AS a, LOWER(following_email) AS b FROM follows
+                        WHERE (LOWER(follower_email) = $1 AND LOWER(following_email) = ANY($2)) OR (LOWER(following_email) = $1 AND LOWER(follower_email) = ANY($2))`, [email, others]).catch(() => ({ rows: [] }))) : { rows: [] },
+        perPersonOf('frame', all, framesOf),               // 🖼️ the frame each one wears
+        perPersonOf('badge', all, badgesOf),               // 👑 level + VIP
+      ]);
       const iF = new Set(f.rows.filter((x) => x.a === email).map((x) => x.b)), fMe = new Set(f.rows.filter((x) => x.b === email).map((x) => x.a));
-      for (const p of people) { const k = norm(p.email); p.i_follow = iF.has(k); p.follows_me = fMe.has(k); }
-      const fr = framesOf ? await framesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 🖼️ the frame each one wears
-      for (const p of people) { const x = fr.get(norm(p.email)); if (x) p.frame = x; }
-      const bd = badgesOf ? await badgesOf(people.map((p) => p.email)).catch(() => new Map()) : new Map();   // 👑 level + VIP
-      for (const p of people) { const x = bd.get(norm(p.email)); if (x) { p.level = x.level; p.vip = x.vip; p.star = !!x.star; p.name_color = !!x.nameColor; p.entry = !!x.entry; } }
+      for (const p of people) {
+        const k = norm(p.email);
+        p.i_follow = iF.has(k); p.follows_me = fMe.has(k);
+        const x = fr.get(k); if (x) p.frame = x;
+        const y = bd.get(k); if (y) { p.level = y.level; p.vip = y.vip; p.star = !!y.star; p.name_color = !!y.nameColor; p.entry = !!y.entry; }
+      }
     }
     const mine = people.find((p) => norm(p.email) === email) || null;
-    const owner = await pool.query(`SELECT ${userCols} FROM users u WHERE LOWER(u.email) = $1`, [room.owner_email]);
     return {
-      room: { id: room.id, title: room.title, privacy: room.privacy, seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
-        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at, show_timer: (await fxGaps()).showTimer,
-        followers: await followersOf(room.owner_email), following: await follows(room.owner_email, email),
+      room: { id: room.id, title: room.title, privacy: room.privacy, can_share: room.privacy !== 'private' || norm(room.owner_email) === email || canManage(people.find((p) => norm(p.email) === email) || (norm(room.owner_email) === email ? { role: 'owner' } : null)), seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
+        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at, show_timer: gaps.showTimer,
+        followers: followersN, following: iFollowRoom,
         music: room.music_url ? { id: room.music_id, url: room.music_url, title: room.music_title || '', artist: room.music_artist || '', at: room.music_at, paused_at: room.music_paused_at || null } : null },
       now: new Date().toISOString(),                         // the server's clock: the phones play the music at the same point
       people,
@@ -355,7 +425,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
           AND NOT EXISTS (SELECT 1 FROM party_owner_bans ob WHERE ob.owner_email = r.owner_email AND ob.user_email = $1 AND (ob.until IS NULL OR ob.until > NOW()))
         ORDER BY (LOWER(r.owner_email) = $1) DESC, 1 DESC LIMIT 300`, [e, String(STALE_SEC)]);
       const myAge = await ageOf(e);
-      let rows = r.rows.filter((x) => norm(x.owner_email) === e || ((x.privacy !== 'friends' || x.friend) && ageFits(x, myAge)));
+      const inPrivate = new Set((await pool.query(`SELECT room_id FROM party_room_access WHERE user_email = $1`, [e]).catch(() => ({ rows: [] }))).rows.map((x) => x.room_id));
+      let rows = r.rows.filter((x) => norm(x.owner_email) === e || ((x.privacy !== 'friends' || x.friend) && (x.privacy !== 'private' || inPrivate.has(x.id)) && ageFits(x, myAge)));
       const starSet = starsOf ? await starsOf(rows.map((x) => x.owner_email)).catch(() => new Set()) : new Set();   // ⭐ Stars' rooms high in the list
       rows.forEach((x) => { x.star = starSet.has(norm(x.owner_email)); });
       rows.sort((a, b) => (norm(b.owner_email) === e) - (norm(a.owner_email) === e) || (b.room_followed - a.room_followed) || (b.star - a.star) || (b.friend - a.friend) || (b.following - a.following) || (Number(b.people) - Number(a.people)) || (b.id - a.id));
@@ -421,6 +492,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       } else {
         await pool.query('DELETE FROM party_follows WHERE owner_email = $1 AND user_email = $2', [room.owner_email, e]);
       }
+      memo.delete('followers:' + room.owner_email); memo.delete('follows:' + room.owner_email + '|' + e);
       res.json({ success: true, following: on, followers: await followersOf(room.owner_email) });
     } catch (err) { console.error('[party] follow:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
@@ -477,6 +549,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         WHERE pf.user_email = $1
           AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = pf.owner_email) OR (LOWER(b.blocker_email) = pf.owner_email AND LOWER(b.blocked_email) = $1))
         ORDER BY (o.id IS NOT NULL) DESC, pf.created_at DESC LIMIT 200`, [e, String(STALE_SEC)]);
+      const okPriv = new Set((await pool.query('SELECT room_id FROM party_room_access WHERE user_email = $1', [e]).catch(() => ({ rows: [] }))).rows.map((x) => x.room_id));
+      r.rows.forEach((x) => { if (x.open_id && x.open_privacy === 'private' && !okPriv.has(x.open_id)) { x.open_id = null; x.open_title = null; x.people = 0; } });   // 🔐 not shown to the others
       res.json({ success: true, rooms: r.rows.map((x) => ({
         open: !!x.open_id, id: x.open_id || null, title: x.open_title || x.last_title || '', people: Number(x.people) || 0, followers: Number(x.followers) || 0, last_at: x.last_at,
         owner: { email: x.email, first_name: x.first_name, last_name: x.last_name, profile_pic: x.profile_pic || '' } })) });
@@ -492,8 +566,11 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       if (!lkReady(await lk())) return res.status(503).json({ success: false, error: 'Party Room is not ready yet. Please try again later.' });
       const gb = await globalBan(e);
       if (gb) return res.status(403).json({ success: false, code: 'banned_all', message: 'banned_all', until: gb.until, error: 'CamFeed does not let you into Party Rooms for now.' });
+      const can = await access.canOpen(e);
+      if (!can.ok) return res.status(403).json({ success: false, code: 'open_rules', message: 'open_rules', need: can.need || {}, mode: can.mode, error: 'You can not open a room yet.' });
       const seats = SEAT_CHOICES.includes(parseInt(b.seats, 10)) ? parseInt(b.seats, 10) : 8;
-      const privacy = b.privacy === 'friends' ? 'friends' : 'public';
+      const privacy = b.privacy === 'friends' ? 'friends' : (b.privacy === 'private' ? 'private' : 'public');
+      if (privacy === 'private' && !(await access.privateStatus(e)).ok) return res.status(403).json({ success: false, code: 'private_locked', message: 'private_locked', error: 'Private rooms are locked for you.' });
       let title = String(b.title || '').replace(/\s+/g, ' ').trim().slice(0, 60);
       if (!title) { const lt = await pool.query("SELECT title FROM party_rooms WHERE owner_email = $1 AND title <> '' ORDER BY id DESC LIMIT 1", [e]); if (lt.rows[0]) title = lt.rows[0].title; }   // my room keeps its name
       let amin = ageArg(b.age_min), amax = ageArg(b.age_max);
@@ -501,11 +578,11 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const old = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [e]);
       for (const o of old.rows) await closeRoom(o.id, e, 'new room');
       await pool.query('DELETE FROM party_members WHERE user_email = $1', [e]);   // I can only be in one room at a time
-      const r = await pool.query('INSERT INTO party_rooms (owner_email, title, privacy, seats, age_min, age_max) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [e, title, privacy, seats, amin, amax]);
+      const r = await pool.query('INSERT INTO party_rooms (owner_email, title, privacy, seats, age_min, age_max, invite_code) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *', [e, title, privacy, seats, amin, amax, newCode()]);
       const room = r.rows[0];
       await pool.query("INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, 'owner', 0)", [room.id, e]);
       res.json({ success: true, id: room.id, live: await ticket(room, e, true, false), state: await stateOf(room, e, 0) });
-      tellFollowers(room);                                     // after answering: the owner never waits for this
+      if (privacy !== 'private') tellFollowers(room);          // after answering: the owner never waits for this (a private room is never announced)
     } catch (err) { console.error('[party] create:', err.message); res.status(500).json({ success: false, error: 'Could not open the room.' }); }
   });
 
@@ -515,19 +592,28 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       await ensure();
       const room = await roomOf(req.params.id);
       if (!room || room.status !== 'open') return res.status(404).json({ success: false, closed: true, error: 'This room has ended.' });
-      if (!(await canSee(room, e))) {
+      // 🔐 the room's link (party.html?room=ID&code=…): a right code lets this person in (a code changed by the owner no longer works)
+      const code = String((req.body || {}).code || '').trim();
+      if (room.privacy === 'private' && /^[A-Za-z0-9]{1,24}$/.test(code) && room.invite_code && crypto.timingSafeEqual(Buffer.from(code.padEnd(24)), Buffer.from(String(room.invite_code).padEnd(24)))) {
+        await allow(room.id, [e], 'link', null);
+      }
+      const isOwner0 = norm(room.owner_email) === e;
+      const [seeOk, banRow, gb0, ob0] = await Promise.all([
+        canSee(room, e),
+        pool.query('SELECT 1 FROM party_bans WHERE room_id = $1 AND user_email = $2', [room.id, e]),
+        isOwner0 ? null : globalBan(e),
+        isOwner0 ? null : ownerBan(room.owner_email, e),
+      ]);
+      if (!seeOk) {
         const ageLocked = room.age_min != null || room.age_max != null;
         const noBd = ageLocked && (await ageOf(e)) == null;
+        if (room.privacy === 'private' && !ageLocked) return res.status(403).json({ success: false, code: 'private_room', message: 'private_room', error: 'This room is private. Only invited people can enter.' });
         return res.status(403).json({ success: false, code: ageLocked ? 'age' : 'private', noBirthday: noBd, age_min: room.age_min, age_max: room.age_max,
           message: ageLocked ? (noBd ? 'age:nobirthday' : 'age:' + (room.age_min || '') + '-' + (room.age_max || '')) : 'private', error: 'You can not enter this room.' });
       }
-      const ban = await pool.query('SELECT 1 FROM party_bans WHERE room_id = $1 AND user_email = $2', [room.id, e]);
-      if (ban.rows.length) return res.status(403).json({ success: false, error: 'You were removed from this room.' });
-      if (norm(room.owner_email) !== e) {
-        const gb = await globalBan(e);
-        if (gb) return res.status(403).json({ success: false, code: 'banned_all', message: 'banned_all', until: gb.until, error: 'CamFeed does not let you into Party Rooms for now.' });
-        if (await ownerBan(room.owner_email, e)) return res.status(403).json({ success: false, code: 'banned', error: 'You can not enter this room.' });
-      }
+      if (banRow.rows.length) return res.status(403).json({ success: false, error: 'You were removed from this room.' });
+      if (gb0) return res.status(403).json({ success: false, code: 'banned_all', message: 'banned_all', until: gb0.until, error: 'CamFeed does not let you into Party Rooms for now.' });
+      if (ob0) return res.status(403).json({ success: false, code: 'banned', error: 'You can not enter this room.' });
       // leaving any other room first (one room at a time)
       const other = await pool.query('SELECT room_id, role FROM party_members WHERE user_email = $1 AND room_id <> $2', [e, room.id]);
       for (const o of other.rows) { if (o.role === 'owner') await closeRoom(o.room_id, e, 'owner left'); }
@@ -538,7 +624,8 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       // somebody new came in: a "welcome" line in the chat (the app writes it in the reader's language; '👋' for older apps)
       if (!isOwner && ins.rows[0] && ins.rows[0].fresh) await pool.query("INSERT INTO party_messages (room_id, user_email, kind, text) VALUES ($1, $2, 'join', '👋')", [room.id, e]).catch(() => {});
       const m = await memberOf(room.id, e);
-      res.json({ success: true, live: await ticket(room, e, m && m.seat !== null, m && m.host_muted), state: await stateOf(room, e, 0) });
+      const [live, state] = await Promise.all([ticket(room, e, m && m.seat !== null, m && m.host_muted), stateOf(room, e, 0)]);
+      res.json({ success: true, live, state });
     } catch (err) { console.error('[party] join:', err.message); res.status(500).json({ success: false, error: 'Could not enter the room.' }); }
   });
 
@@ -846,7 +933,14 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const room = await roomOf(req.params.id);
       if (!room || room.status !== 'open' || norm(room.owner_email) !== e) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
       const seats = SEAT_CHOICES.includes(parseInt(b.seats, 10)) ? parseInt(b.seats, 10) : room.seats;
-      const privacy = b.privacy === 'friends' ? 'friends' : (b.privacy === 'public' ? 'public' : room.privacy);
+      const privacy = ['friends', 'public', 'private'].includes(b.privacy) ? b.privacy : room.privacy;
+      // 🔐 becoming private needs the right (a room that is already private stays private even if the right ran out)
+      if (privacy === 'private' && room.privacy !== 'private' && !(await access.privateStatus(e)).ok) return res.status(403).json({ success: false, code: 'private_locked', message: 'private_locked', error: 'Private rooms are locked for you.' });
+      if (privacy === 'private' && room.privacy !== 'private') {
+        // the people inside now stay allowed (nobody is pushed out)
+        await pool.query(`INSERT INTO party_room_access (room_id, user_email, via) SELECT room_id, user_email, 'inside' FROM party_members WHERE room_id = $1 ON CONFLICT DO NOTHING`, [room.id]);
+        if (!room.invite_code) await pool.query('UPDATE party_rooms SET invite_code = $2 WHERE id = $1', [room.id, newCode()]);
+      }
       const title = b.title === undefined ? room.title : String(b.title).replace(/\s+/g, ' ').trim().slice(0, 60);
       const free = b.free_seats === undefined ? room.free_seats : !!b.free_seats;
       let amin = b.age_min === undefined ? room.age_min : ageArg(b.age_min), amax = b.age_max === undefined ? room.age_max : ageArg(b.age_max);
@@ -858,6 +952,36 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       }
       res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+
+  // 🔐 the private room's link: the owner / a helper gets it (reset = a new link; the old one stops working at once)
+  app.post('/api/party/rooms/:id/link', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      let room = await managerOf(req.params.id, e);
+      if (!room) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
+      if (room.privacy !== 'private') return res.status(400).json({ success: false, error: 'This room is not private.' });
+      if ((req.body || {}).reset === true || !room.invite_code) {
+        await pool.query('UPDATE party_rooms SET invite_code = $2 WHERE id = $1', [room.id, newCode()]);
+        room = await roomOf(room.id);
+        if ((req.body || {}).reset === true) sys(room.id, 'link_reset', e);
+      }
+      const site = String(process.env.SITE_URL || 'https://camfeedkh.com').replace(/\/+$/, '');
+      res.json({ success: true, code: room.invite_code, url: site + '/party.html?room=' + room.id + '&code=' + room.invite_code });
+    } catch (err) { console.error('[party] link:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
+  });
+  // 🔐 let people in (the owner / a helper invites them; the app also sends them the room card in a chat)
+  app.post('/api/party/rooms/:id/allow', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    try {
+      await ensure();
+      const room = await managerOf(req.params.id, e);
+      if (!room) return res.status(403).json({ success: false, error: 'Only the room owner can do this.' });
+      const list = Array.isArray((req.body || {}).emails) ? req.body.emails : [];
+      const n = room.privacy === 'private' ? await allow(room.id, list, 'invite', e) : 0;
+      res.json({ success: true, added: n });
+    } catch (err) { console.error('[party] allow:', err.message); res.status(500).json({ success: false, error: 'Network problem.' }); }
   });
 
   app.post('/api/party/rooms/:id/message', async (req, res) => {
@@ -1120,5 +1244,17 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     } catch (err) { console.error('[party] admin:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
-  return { closeRoom };
+  // 💬 a room card ("PARTY_ROOM:<id>:<title>") sent in a chat by the owner / a helper of a PRIVATE room lets the people who got it in
+  async function chatGrant(sender, receivers, text) {
+    try {
+      const m = /^PARTY_ROOM:(\d{1,10}):/.exec(String(text || ''));
+      if (!m) return;
+      await ensure();
+      const room = await managerOf(parseInt(m[1], 10), sender);
+      if (!room || room.privacy !== 'private') return;
+      await allow(room.id, (receivers || []).filter((x) => norm(x) !== norm(sender)), 'chat', norm(sender));
+    } catch (e) { console.error('[party] chat grant:', e.message); }
+  }
+
+  return { closeRoom, chatGrant };
 };

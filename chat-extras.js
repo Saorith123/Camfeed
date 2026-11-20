@@ -10,7 +10,7 @@ const CALL_RING_MS = 35 * 1000;
 const CALL_STALE_MS = 25 * 1000;
 const CALL_TALK_STALE_MS = 90 * 1000;   // a call in progress: a phone that stops asking for a while (weak internet, screen off) is NOT cut at once — the voice goes phone-to-phone
 
-module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting, restrictedBy, hiddenFor }) {
+module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUrls, mediaBase, fetchFn, push, setting, restrictedBy, hiddenFor, onGroupMessage }) {
   const f = fetchFn || (typeof fetch === 'function' ? fetch : null);
   // the longest a chat message is kept (months): Admin > System > App settings (CHAT_MAX_MONTHS), else Render env, else 12
   const envMonths = Math.max(1, parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12);
@@ -847,6 +847,10 @@ module.exports = function installChatExtras({ app, pool, cleanup, extractMediaUr
       if (replyTo) { const rr = await pool.query('SELECT 1 FROM group_messages WHERE id=$1 AND group_id=$2', [replyTo, gid]); if (!rr.rows.length) replyTo = null; }
       const r = await pool.query('INSERT INTO group_messages (group_id, sender_email, message, media_url, message_type, reply_to) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [gid, me, text, media, type, replyTo]);
       await pool.query('UPDATE chat_group_members SET last_read_id = $3 WHERE group_id=$1 AND user_email=$2 AND last_read_id < $3', [gid, me, r.rows[0].id]).catch(() => {});
+      if (onGroupMessage && text.startsWith('PARTY_ROOM:')) {               // 🔐 a private room's card lets the group's people in
+        const mm = await pool.query('SELECT user_email FROM chat_group_members WHERE group_id = $1', [gid]).catch(() => ({ rows: [] }));
+        await onGroupMessage(me, mm.rows.map((x) => x.user_email), text);
+      }
       res.status(201).json({ success: true, message: r.rows[0] });
     } catch (e) { bad(res, 500, e.message); }
   });

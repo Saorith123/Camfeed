@@ -375,6 +375,7 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS message TEXT').catch(() => {});
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS earn_suspended BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS suspend_reason TEXT').catch(() => {});
     await pool.query("CREATE TABLE IF NOT EXISTS stories (id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, media_type VARCHAR(10) NOT NULL, media_url TEXT, caption TEXT, bg VARCHAR(20), privacy VARCHAR(10) NOT NULL DEFAULT 'public', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL)").catch(() => {});
+    await audience.ensureSchema(pool).catch((e) => console.error('[audience] schema:', e.message));   // 👁 chosen people for "friends except" / "only these people"
     await pool.query("CREATE TABLE IF NOT EXISTS live_streams (id SERIAL PRIMARY KEY, host_email TEXT NOT NULL, title TEXT, privacy VARCHAR(10) NOT NULL DEFAULT 'public', cf_uid TEXT, whip_url TEXT, whep_url TEXT, iframe_url TEXT, status VARCHAR(10) NOT NULL DEFAULT 'created', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), started_at TIMESTAMPTZ, last_ping TIMESTAMPTZ, ended_at TIMESTAMPTZ, ended_by TEXT, end_reason TEXT, peak INTEGER NOT NULL DEFAULT 0, total_viewers INTEGER NOT NULL DEFAULT 0)").catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_live_status ON live_streams (status, last_ping)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS live_viewers (live_id INTEGER NOT NULL, viewer_email TEXT NOT NULL, last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (live_id, viewer_email))').catch(() => {});
@@ -1041,7 +1042,9 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
 
   const email = req.body.email;
   const content = req.body.content || '';
-  const privacy = ['public', 'friends', 'private'].includes(req.body.privacy) ? req.body.privacy : 'public';
+  const aud = await audience.prepare(req.authEmail || req.body.email, req.body.privacy, req.body.audience);
+  if (!aud.ok) return res.status(400).json({ success: false, error: aud.error });
+  const privacy = aud.privacy;
   const thumbnailBase64 = req.body.thumbnailBase64 || null;
   const mediaAspect = req.body.mediaAspect || '';
 
@@ -1068,8 +1071,18 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
       RETURNING *
     `;
     const thumbUrl = mediaType === 'video' ? await thumbFromBase64(thumbnailBase64) : null;
-    const result = await pool.query(query, [email, content, mediaType, mediaUrl, privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, tags.join(',')]);
-    if (tags.length) notifyTagged(tags, req.authEmail || email, result.rows[0].id, 'ការបង្ហោះ');
+    // with chosen people: saved as "only me" first, the people are written, then it opens to them (never shown to others for a moment)
+    const result = await pool.query(query, [email, content, mediaType, mediaUrl, aud.people.length ? 'private' : privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, '']);
+    const newId = result.rows[0].id;
+    if (aud.people.length) {
+      await audience.save('post', newId, aud.people);
+      await pool.query('UPDATE posts SET privacy = $1 WHERE id = $2', [privacy, newId]);
+      result.rows[0].privacy = privacy;
+    }
+    // only the tagged people who are allowed to see the post are tagged (and told)
+    const okTags = tags.length ? await audience.canSeePostList(newId, tags) : [];
+    if (okTags.length) await notifyTagged(okTags, req.authEmail || email, newId, 'ការបង្ហោះ');
+    result.rows[0].tagged_emails = okTags.join(',');
     if (mediaType === 'video' || String(mediaUrl || '').includes('"type":"video"')) setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 4000);   // a new video gets its small feed version first
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
@@ -1096,14 +1109,23 @@ app.post('/api/posts/share', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Only public posts can be shared.' });
     }
     const rootPostId = p.shared_post_id ? p.shared_post_id : p.id;
+    const aud = await audience.prepare(req.authEmail || email, req.body.privacy, req.body.audience);
+    if (!aud.ok) return res.status(400).json({ success: false, error: aud.error });
 
     const result = await pool.query(
       `INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, shared_post_id, tagged_emails) 
-       VALUES ($1, $2, 'shared', NULL, 'public', $3, $4, $5, $6) 
+       VALUES ($1, $2, 'shared', NULL, $7, $3, $4, $5, $6) 
        RETURNING *`,
-      [email, caption || '', p.ai_category || 'General', p.ai_tags || '', rootPostId, shareTags.join(',')]
+      [email, caption || '', p.ai_category || 'General', p.ai_tags || '', rootPostId, '', aud.people.length ? 'private' : aud.privacy]
     );
-    if (shareTags.length) notifyTagged(shareTags, req.authEmail || email, result.rows[0].id, 'ការចែករំលែក');
+    const shareId = result.rows[0].id;
+    if (aud.people.length) {
+      await audience.save('post', shareId, aud.people);
+      await pool.query('UPDATE posts SET privacy = $1 WHERE id = $2', [aud.privacy, shareId]);
+      result.rows[0].privacy = aud.privacy;
+    }
+    const okShareTags = shareTags.length ? await audience.canSeePostList(shareId, shareTags) : [];
+    if (okShareTags.length) await notifyTagged(okShareTags, req.authEmail || email, shareId, 'ការចែករំលែក');
 
     const sharerRes = await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [email]);
     const sharerName = `${sharerRes.rows[0]?.first_name || ''} ${sharerRes.rows[0]?.last_name || ''}`.trim();
@@ -1143,10 +1165,10 @@ app.get('/api/shares/:postId', async (req, res) => {
              EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email) AS is_following
       FROM posts p
       JOIN users u ON p.user_email = u.email
-      WHERE p.shared_post_id = $1
+      WHERE p.shared_post_id = $1 AND ${audience.postVisibleSql('p', '$2')}
       ORDER BY p.created_at DESC
     `;
-    const result = await pool.query(query, [postId, email || '']);
+    const result = await pool.query(query, [postId, req.authEmail || '']);
     res.json({ success: true, sharers: result.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1276,7 +1298,7 @@ app.post('/api/unblock', async (req, res) => {
 let postsSchemaReady = false;
 app.get('/api/posts', async (req, res) => {
   const { email, profileEmail, type, limit, offset } = req.query;
-  const safeViewer = email || '';
+  const safeViewer = req.authEmail || '';      // who is looking = the logged-in person only (a guest sees public posts only)
   const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 15, 5), 50);
   const parsedOffset = Math.max(parseInt(offset, 10) || 0, 0);
 
@@ -1349,7 +1371,7 @@ app.get('/api/posts', async (req, res) => {
 
     if (profileEmail && req.query.tagged === '1') {
       // posts where this person is tagged (accepted tags only); others see only public ones
-      const tq = `${cteAndJoins} ${baseFrom} WHERE LOWER($2) = ANY(string_to_array(COALESCE(p.tagged_emails,''), ',')) AND (p.privacy = 'public' OR p.user_email = $1 OR LOWER($1) = LOWER($2)) ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
+      const tq = `${cteAndJoins} ${baseFrom} WHERE LOWER($2) = ANY(string_to_array(COALESCE(p.tagged_emails,''), ',')) AND ${audience.postVisibleSql('p', '$1')} ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
       const tr = await pool.query(tq, [safeViewer, profileEmail, parsedLimit, parsedOffset]);
       tr.rows.forEach((r) => visibility.scrubOriginal(r, req.authEmail));
       return res.json({ success: true, posts: tr.rows, hasMore: tr.rows.length === parsedLimit });
@@ -1363,8 +1385,8 @@ app.get('/api/posts', async (req, res) => {
           : ` WHERE p.user_email = $2`;
       } else {
         query += type === 'videos'
-          ? ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_email = $1 AND ff.following_email = p.user_email))) AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`
-          : ` WHERE p.user_email = $2 AND (p.privacy = 'public' OR (p.privacy = 'friends' AND EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_email = $1 AND ff.following_email = p.user_email))) AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`;
+          ? ` WHERE p.user_email = $2 AND (p.media_type = 'video' OR p.media_url LIKE '%"type":"video"%' OR op.media_type = 'video') AND ${audience.postVisibleSql('p', '$1')} AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`
+          : ` WHERE p.user_email = $2 AND ${audience.postVisibleSql('p', '$1')} AND COALESCE(u.is_banned, FALSE) = FALSE AND p.user_email NOT IN (SELECT u_email FROM blocked)`;
       }
       query += ` ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`;
       const result = await pool.query(query, [safeViewer, profileEmail, parsedLimit, parsedOffset]);
@@ -1408,6 +1430,9 @@ app.get('/api/posts', async (req, res) => {
       ${cteAndJoins},
       ${tierExpr} AS feed_tier,
       (${tierExpr} > 0) AS seen_before,
+      EXISTS (SELECT 1 FROM follows fb WHERE fb.follower_email = p.user_email AND fb.following_email = $1) AS author_follows_me,
+      COALESCE(uis.score, 0) AS interest_score,
+      (f.following_email IS NOT NULL) AS author_followed,
       CASE WHEN ${tierExpr} > 0 THEN (
         -- after "all caught up" the feed goes on like Facebook: posts of the people I follow / my friends first, popular ones,
         -- the ones seen longest ago, mixed by chance (never the same order twice)
@@ -1436,7 +1461,7 @@ app.get('/api/posts', async (req, res) => {
       LEFT JOIN user_interest_scores uis ON uis.user_email = $1 AND uis.category = p.ai_category
       LEFT JOIN (SELECT post_id, MAX(created_at) AS at FROM post_views WHERE viewer_email = $1 GROUP BY post_id) pv ON pv.post_id = p.id
       LEFT JOIN feed_seen fs ON fs.viewer_email = $1 AND fs.post_id = p.id
-      WHERE (p.privacy = 'public' OR p.user_email = $1 OR (f.following_email IS NOT NULL AND p.privacy = 'friends'))
+      WHERE ${audience.postVisibleSql('p', '$1')}
         ${videoOnlyCondition}
         ${excludeCondition}
         AND COALESCE(u.is_banned, FALSE) = FALSE
@@ -1447,16 +1472,23 @@ app.get('/api/posts', async (req, res) => {
       LIMIT $2 OFFSET $3
     `;
 
+    // the Admin's feed mix (🧩 App features): a bigger pool of ranked posts is read, then each page is filled by the Admin's percentages
+    const mixCfg = (appConfig.cfg().feed || {}).mix || {};
+    const useMix = !useLatest && !newOnly && (excludeIds.length > 0 || parsedOffset === 0);
+    const poolSize = useMix ? Math.min(Math.max(parsedLimit * 3, 30), 90) : parsedLimit;
     const queryParams = excludeIds.length > 0
-      ? [safeViewer, parsedLimit, 0, excludeIds]
-      : [safeViewer, parsedLimit, parsedOffset];
+      ? [safeViewer, poolSize, 0, excludeIds]
+      : [safeViewer, poolSize, parsedOffset];
 
     const result = await pool.query(feedQuery, queryParams);
+    result.rows.forEach((r) => visibility.scrubOriginal(r, req.authEmail));   // a share never shows an original that is not public any more
     // Mix: popular + new + random. At least every 3rd post of a page is a NEW one (under 24 h) when there is one in the page.
     let rows = result.rows;
     const unseen = rows.filter((r) => !r.seen_before), seenRows = rows.filter((r) => r.seen_before);   // seen ones stay after "all caught up"
     let mixed = unseen;
-    if (!useLatest && unseen.length > 3) {
+    if (useMix && unseen.length > 3) {
+      mixed = feedMix.mix(unseen, mixCfg, safeViewer).slice(0, parsedLimit);
+    } else if (!useLatest && unseen.length > 3) {
       const isNew = (r) => Date.now() - new Date(r.created_at).getTime() < 24 * 3600 * 1000;
       const fresh = unseen.filter(isNew), old = unseen.filter((r) => !isNew(r)), out = [];
       const takeFresh = () => fresh.shift(), takeOld = () => (old.length ? old.shift() : fresh.shift());
@@ -1465,7 +1497,7 @@ app.get('/api/posts', async (req, res) => {
     }
     // the feed never stops (like Facebook): after the new posts come posts of the people I follow / friends and other ones
     // seen before (ranked above). The app sends the ids it already shows (excludeIds), so nothing repeats while scrolling.
-    rows = [...mixed, ...seenRows];
+    rows = [...mixed, ...seenRows].slice(0, Math.max(parsedLimit, mixed.length));
     if (!useLatest) return res.json({ success: true, posts: rows, hasMore: rows.length >= parsedLimit });
     res.json({ success: true, posts: rows, hasMore: rows.length === parsedLimit });
   } catch (err) {
@@ -1522,8 +1554,27 @@ app.put('/api/posts/:id', async (req, res) => {
   const { id } = req.params;
   const { content, privacy, email } = req.body;
   try {
-    const query = 'UPDATE posts SET content = $1, privacy = $2 WHERE id = $3 AND user_email = $4 RETURNING *';
-    const result = await pool.query(query, [content, ['public', 'friends', 'private'].includes(privacy) ? privacy : 'public', id, email]);
+    const own = (await pool.query('SELECT id, privacy, content FROM posts WHERE id = $1 AND LOWER(user_email) = LOWER($2)', [parseInt(id, 10) || 0, req.authEmail || email || ''])).rows[0];
+    if (!own) return res.status(403).json({ success: false, error: 'Unauthorized or post not found' });
+    // the chosen people change only when the app sends them; otherwise the ones saved stay
+    const sentPeople = Array.isArray(req.body.audience);
+    let pv = audience.cleanPrivacy(privacy, own.privacy || 'public'), people = null;
+    if ((pv === 'except' || pv === 'custom') && sentPeople) {
+      const aud = await audience.prepare(req.authEmail || email, pv, req.body.audience);
+      if (!aud.ok) return res.status(400).json({ success: false, error: aud.error });
+      pv = aud.privacy; people = aud.people;
+    } else if ((pv === 'except' || pv === 'custom') && pv !== own.privacy) {
+      return res.status(400).json({ success: false, error: 'Please choose the people.' });
+    }
+    // first close it, then change the people, then open it with the new choice
+    if (people) {
+      await pool.query("UPDATE posts SET privacy = 'private' WHERE id = $1", [own.id]);
+      await audience.save('post', own.id, people);
+    } else if (pv !== 'except' && pv !== 'custom') {
+      await audience.save('post', own.id, []);
+    }
+    const query = 'UPDATE posts SET content = $1, privacy = $2 WHERE id = $3 RETURNING *';
+    const result = await pool.query(query, [typeof content === 'string' ? content : own.content, pv, own.id]);
     if (result.rows.length > 0) {
       res.json({ success: true, post: result.rows[0] });
     } else {
@@ -1532,6 +1583,15 @@ app.put('/api/posts/:id', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// 👁 the people chosen for my post (only I can see this list)
+app.get('/api/posts/:id/audience', async (req, res) => {
+  try {
+    const own = (await pool.query('SELECT id, privacy FROM posts WHERE id = $1 AND LOWER(user_email) = LOWER($2)', [parseInt(req.params.id, 10) || 0, req.authEmail || ''])).rows[0];
+    if (!own) return res.status(404).json({ success: false });
+    res.json({ success: true, privacy: own.privacy || 'public', people: await audience.list('post', own.id) });
+  } catch (e) { res.status(500).json({ success: false }); }
 });
 
 app.delete('/api/posts/:id', async (req, res) => {
@@ -2486,7 +2546,7 @@ app.post('/api/admin/perms', async (req, res) => {
 });
 
 const push = require('./push')({ app, pool });                 // phone notifications (Firebase) - does nothing until FIREBASE_SERVICE_ACCOUNT is set
-const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, setting: (k, d) => ruleNum(k, d),
+const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, onGroupMessage: (from, members, text) => party.chatGrant(from, members, text), setting: (k, d) => ruleNum(k, d),
   restrictedBy: (to, from) => chatPrefs.isRestricted(to, from), hiddenFor: (me, kind, ids) => chatPrefs.hiddenFor(me, kind, ids) });   // a person I restricted: their calls do not ring
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
@@ -2494,6 +2554,8 @@ const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res)
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), cleanup, extractMediaUrls, ensureChat: () => chatExtras.ensureSchema() });   // pin / archive / mute / restrict / delete chat / message requests
 // ⭐ CamFeed Stars (Party Room hosts): applications with ID + selfie, hours, a bigger gift share, monthly bonus (Admin pays)
 const appConfig = require('./app-config');
+const feedMix = require('./feed-mix');
+const audience = require('./audience');
 appConfig.install({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a) });
 const chatFiles = require('./chat-files')({ app, pool });   // 📎 files in chat
 const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
@@ -2596,6 +2658,7 @@ app.post('/api/messages', (req, res, next) => {
       RETURNING *
     `;
     const result = await pool.query(query, [sender, receiver, msgText, mediaUrl, messageType, replyTo]);
+    if (String(msgText || '').startsWith('PARTY_ROOM:')) await party.chatGrant(sender, [receiver], msgText);   // 🔐 a private room's card lets the receiver in
     res.status(201).json({ success: true, message: result.rows[0] });
   } catch (err) {
     console.error("Error saving message in DB:", err);
@@ -2994,16 +3057,16 @@ app.get('/api/settings/activity', async (req, res) => {
     const who = req.authEmail;
     if (type === 'reactions') {
       const base = (order) => `SELECT l.post_id, l.reaction_type, p.content, p.media_type, p.user_email AS author_email, u.first_name AS author_first, u.last_name AS author_last, ${order === 'time' ? 'l.created_at' : 'NULL::timestamp'} AS at
-        FROM likes l JOIN posts p ON p.id = l.post_id JOIN users u ON u.email = p.user_email WHERE l.user_email = $1 AND p.privacy <> 'private' OR (l.user_email = $1 AND p.user_email = $1)
+        FROM likes l JOIN posts p ON p.id = l.post_id JOIN users u ON u.email = p.user_email WHERE l.user_email = $1 AND ${audience.postVisibleSql('p', '$1')}
         ORDER BY ${order === 'time' ? 'l.created_at DESC NULLS LAST' : 'l.post_id DESC'} LIMIT $2 OFFSET $3`;
       try { rows = (await pool.query(base('time'), [who, limit, offset])).rows; }
       catch (e) { if (e && e.code === '42703') rows = (await pool.query(base('id'), [who, limit, offset])).rows; else throw e; }
     } else if (type === 'comments') {
       rows = (await pool.query(`SELECT c.id, c.post_id, c.content, c.reply_to_id, c.created_at AS at, p.user_email AS author_email, u.first_name AS author_first, u.last_name AS author_last
-        FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.email = p.user_email WHERE c.user_email = $1 ORDER BY c.created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
+        FROM comments c JOIN posts p ON p.id = c.post_id JOIN users u ON u.email = p.user_email WHERE c.user_email = $1 AND ${audience.postVisibleSql('p', '$1')} ORDER BY c.created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
     } else if (type === 'shares') {
       rows = (await pool.query(`SELECT p.id, p.content AS caption, p.created_at AS at, o.id AS post_id, o.content, o.media_type, o.user_email AS author_email, u.first_name AS author_first, u.last_name AS author_last
-        FROM posts p JOIN posts o ON o.id = p.shared_post_id JOIN users u ON u.email = o.user_email WHERE p.user_email = $1 AND p.shared_post_id IS NOT NULL ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
+        FROM posts p JOIN posts o ON o.id = p.shared_post_id JOIN users u ON u.email = o.user_email WHERE p.user_email = $1 AND p.shared_post_id IS NOT NULL AND ${audience.postVisibleSql('o', '$1')} ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
     } else if (type === 'posts') {
       rows = (await pool.query(`SELECT id, content, media_type, privacy, created_at AS at FROM posts WHERE user_email = $1 AND shared_post_id IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3`, [who, limit, offset])).rows;
     } else return res.status(400).json({ success: false, message: 'Unknown activity.' });
@@ -3014,11 +3077,18 @@ app.get('/api/settings/activity', async (req, res) => {
   }
 });
 
-// ---- "People you may know": people followed by (or following) the people I follow, most shared connections first
+// ---- "People you may know": people who follow me, then people with the most mutual connections (with up to 3 of their pictures),
+// plus a share chosen by chance (Admin 🧩 people.randomPct, default 15 %) so new people are met too. Never everybody.
 app.get('/api/people-suggestions', async (req, res) => {
   const me = req.authEmail; if (!me) return res.json({ success: true, people: [] });
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 20);
-  const sql = (withDismissed) => `
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 40);
+  const pct = Math.max(0, Math.min(100, Number(((appConfig.cfg() || {}).people || {}).randomPct ?? 15)));
+  const nRandom = pct > 0 ? Math.max(1, Math.round(limit * pct / 100)) : 0;
+  const notMine = (withDismissed) => `u.email <> $1 AND COALESCE(u.is_banned, FALSE) = FALSE
+      AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = u.email)
+      AND u.email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
+      ${withDismissed ? 'AND u.email NOT IN (SELECT dismissed_email FROM dismissed_suggestions WHERE user_email = $1)' : ''}`;
+  const known = (withDismissed) => `
     WITH mine AS (SELECT following_email AS e FROM follows WHERE follower_email = $1),
     cand AS (
       SELECT f.following_email AS cand_email, f.follower_email AS via FROM follows f WHERE f.follower_email IN (SELECT e FROM mine)
@@ -3028,19 +3098,34 @@ app.get('/api/people-suggestions', async (req, res) => {
     m AS (SELECT cand_email, COUNT(DISTINCT via) AS mutual FROM cand WHERE cand_email <> $1 GROUP BY cand_email)
     SELECT u.email, u.first_name, u.last_name, u.profile_pic, COALESCE(m.mutual, 0)::int AS mutual,
            EXISTS (SELECT 1 FROM follows fm WHERE fm.follower_email = u.email AND fm.following_email = $1) AS follows_me,
-           (SELECT COALESCE(json_agg(x.profile_pic), '[]'::json) FROM (SELECT DISTINCT mu.profile_pic FROM cand c2 JOIN users mu ON mu.email = c2.via WHERE c2.cand_email = u.email AND COALESCE(mu.profile_pic, '') <> '' LIMIT 3) x) AS mutual_pics
+           (SELECT COALESCE(json_agg(json_build_object('pic', x.profile_pic, 'name', x.first_name)), '[]'::json) FROM (SELECT DISTINCT mu.email, mu.profile_pic, mu.first_name FROM cand c2 JOIN users mu ON mu.email = c2.via WHERE c2.cand_email = u.email LIMIT 3) x) AS mutual_people
     FROM users u LEFT JOIN m ON m.cand_email = u.email
-    WHERE u.email <> $1 AND COALESCE(u.is_banned, FALSE) = FALSE
-      AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = u.email)
-      AND u.email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
-      ${withDismissed ? 'AND u.email NOT IN (SELECT dismissed_email FROM dismissed_suggestions WHERE user_email = $1)' : ''}
-    ORDER BY EXISTS (SELECT 1 FROM follows fm2 WHERE fm2.follower_email = u.email AND fm2.following_email = $1) DESC, (m.mutual IS NULL), m.mutual DESC NULLS LAST, RANDOM()
-    LIMIT ${limit}`;
+    WHERE ${notMine(withDismissed)}
+      AND (m.mutual IS NOT NULL OR EXISTS (SELECT 1 FROM follows fm3 WHERE fm3.follower_email = u.email AND fm3.following_email = $1))
+    ORDER BY EXISTS (SELECT 1 FROM follows fm2 WHERE fm2.follower_email = u.email AND fm2.following_email = $1) DESC, m.mutual DESC NULLS LAST, RANDOM()
+    LIMIT $2`;
+  // by chance: people active in the last 30 days first (a real person more likely to answer), never someone already in the list
+  const chance = (withDismissed) => `
+    SELECT u.email, u.first_name, u.last_name, u.profile_pic, 0 AS mutual, FALSE AS follows_me, '[]'::json AS mutual_people, TRUE AS by_chance
+    FROM users u
+    WHERE ${notMine(withDismissed)} AND NOT (u.email = ANY($3::text[]))
+    ORDER BY (u.last_active IS NOT NULL AND u.last_active > NOW() - INTERVAL '30 days') DESC, (COALESCE(u.profile_pic, '') <> '') DESC, RANDOM()
+    LIMIT $2`;
+  const run = async (sql, args) => {
+    try { return (await pool.query(sql(true), args)).rows; }
+    catch (e) { if (e.code === '42P01') return (await pool.query(sql(false), args)).rows; throw e; }
+  };
   try {
-    let r;
-    try { r = await pool.query(sql(true), [me]); }
-    catch (e) { if (e.code === '42P01') r = await pool.query(sql(false), [me]); else throw e; }
-    res.json({ success: true, people: r.rows });
+    const a = await run(known, [me, limit - nRandom]);
+    const b = await run(chance, [me, limit - a.length, a.map((x) => x.email)]);
+    // the chance ones are spread through the list (not all at the end)
+    const out = [...a], step = b.length ? Math.max(2, Math.floor((a.length + b.length) / b.length)) : 0;
+    b.forEach((x, i) => out.splice(Math.min(out.length, (i + 1) * step - 1), 0, x));
+    for (const p of out) {
+      p.mutual_people = (Array.isArray(p.mutual_people) ? p.mutual_people : []).map((x) => ({ pic: x.pic || '', name: x.name || '' }));
+      p.mutual_pics = p.mutual_people.map((x) => x.pic).filter(Boolean);   // older apps read this
+    }
+    res.json({ success: true, people: out });
   } catch (err) {
     console.error('people-suggestions:', err.message);
     res.json({ success: true, people: [] });
@@ -3829,8 +3914,7 @@ async function canSeeStory(viewer, id) {
   const r = await pool.query(
     `SELECT s.*, u.first_name, u.last_name FROM stories s JOIN users u ON u.email = s.user_email
      WHERE s.id = $1 AND s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$2')}
-       AND (s.user_email = $2 OR (EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = LOWER($2) AND LOWER(f.following_email) = LOWER(s.user_email))
-            AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE LOWER(f2.follower_email) = LOWER(s.user_email) AND LOWER(f2.following_email) = LOWER($2)))))`, [id, viewer]);
+       AND ${audience.storyVisibleSql('s', '$2')}`, [id, viewer || '']);
   return r.rows[0] || null;
 }
 app.post('/api/stories', async (req, res) => {
@@ -3842,7 +3926,10 @@ app.post('/api/stories', async (req, res) => {
     let url = null;
     if (type === 'text') { if (!caption) return res.status(400).json({ success: false, error: 'Please write something.' }); }
     else { url = String(b.mediaUrl || ''); if (!url.startsWith(storyMediaBase()) || /[\s"'<>`\\]/.test(url) || url.length > 500) return res.status(400).json({ success: false, error: 'Invalid file.' }); }
-    const bg = STORY_BG.includes(b.bg) ? b.bg : 'blue', privacy = b.privacy === 'friends' ? 'friends' : 'public';
+    const bg = STORY_BG.includes(b.bg) ? b.bg : 'blue';
+    const aud = await audience.prepare(email, b.privacy, b.audience);
+    if (!aud.ok) return res.status(400).json({ success: false, error: aud.error });
+    const privacy = aud.people.length ? 'private' : aud.privacy;     // with chosen people: opened only after they are saved
     const active = Number((await pool.query('SELECT COUNT(*) AS n FROM stories WHERE user_email = $1 AND expires_at > NOW()', [email])).rows[0].n);
     if (active >= 30) return res.status(429).json({ success: false, error: 'You already have 30 stories today. Please wait until some of them disappear.' });
     let soundId = null, sStart = 0, sLen = 15;
@@ -3852,6 +3939,10 @@ app.post('/api/stories', async (req, res) => {
       soundId = sd.id; sLen = Math.min(Math.max(parseInt(b.soundLen, 10) || 15, 5), 30); sStart = Math.min(Math.max(parseInt(b.soundStart, 10) || 0, 0), Math.max(0, sd.duration - 5));
     }
     const r = await pool.query("INSERT INTO stories (user_email, media_type, media_url, caption, bg, privacy, expires_at, sound_id, sound_start, sound_len, overlays) VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '24 hours', $7, $8, $9, $10) RETURNING id", [email, type, url, caption || null, bg, privacy, soundId, sStart, sLen, type === 'text' ? null : (cleanOverlays(b.overlays, storyMediaBase()).length ? JSON.stringify(cleanOverlays(b.overlays, storyMediaBase())) : null)]);
+    if (aud.people.length) {
+      await audience.save('story', r.rows[0].id, aud.people);
+      await pool.query('UPDATE stories SET privacy = $1 WHERE id = $2', [aud.privacy, r.rows[0].id]);
+    }
     if (soundId) pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [soundId]).catch(() => {});
     if (type === 'video') setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 3000);   // its small quick-start copy is made right away
     tellStoryMentions(r.rows[0].id, email, type === 'text' ? [] : cleanOverlays(b.overlays, storyMediaBase())).catch(() => {});
@@ -3885,9 +3976,8 @@ app.get('/api/stories/feed', async (req, res) => {
        LEFT JOIN story_views v ON v.story_id = s.id AND v.viewer_email = $1
        LEFT JOIN story_reactions rx ON rx.story_id = s.id AND rx.viewer_email = $1
        WHERE s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$1')}
-         AND (s.user_email = $1 OR (EXISTS (SELECT 1 FROM follows f WHERE LOWER(f.follower_email) = LOWER($1) AND LOWER(f.following_email) = LOWER(s.user_email))
-              AND (s.privacy = 'public' OR EXISTS (SELECT 1 FROM follows f2 WHERE LOWER(f2.follower_email) = LOWER(s.user_email) AND LOWER(f2.following_email) = LOWER($1)))))
-       ORDER BY s.created_at ASC LIMIT 400`, [me]);
+         AND ${audience.storyVisibleSql('s', '$1')}
+       ORDER BY s.created_at ASC LIMIT 400`, [me || '']);
     const groups = new Map();
     for (const x of r.rows) {
       let g = groups.get(x.user_email);
@@ -4007,7 +4097,7 @@ app.get('/api/watch-history', async (req, res) => {
     await watchEnsure();
     const r = await pool.query(`SELECT w.post_id, w.secs, w.duration, w.updated_at, p.content, p.media_url, p.media_type, p.thumb_url, p.feed_url, p.user_email, u.first_name, u.last_name, u.profile_pic
       FROM watch_history w JOIN posts p ON p.id = w.post_id JOIN users u ON u.email = p.user_email
-      WHERE w.user_email = $1 AND (p.privacy IS NULL OR p.privacy = 'public' OR p.user_email = $1 OR p.privacy = 'friends')
+      WHERE w.user_email = $1 AND ${audience.postVisibleSql('p', '$1')}
         AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (b.blocker_email = $1 AND b.blocked_email = p.user_email) OR (b.blocker_email = p.user_email AND b.blocked_email = $1))
       ORDER BY w.updated_at DESC LIMIT 150`, [me]);
     res.json({ success: true, videos: r.rows });

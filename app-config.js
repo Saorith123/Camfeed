@@ -37,7 +37,8 @@ const DEFAULTS = {
   storySoundSeconds: 15,
   party: { metMinutes: 10, metDays: 30, followNotifyMinutes: 60, challengeMinOthers: 1 },
   watchHistoryDays: 90,
-  feed: { reshowDays: 7, oldMax: 3 },
+  feed: { reshowDays: 7, oldMax: 3, mix: { friends: 25, follow: 20, trending: 20, interest: 15, fresh: 10, discover: 10, freshHours: 24, trendMin: 3 } },
+  people: { randomPct: 15 },   // "people you may know": this share of the list is chosen by chance (to meet new people)
   files: { maxMB: 50, perDay: 50, blocked: ['apk', 'xapk', 'apks', 'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'vbs', 'ps1', 'jar', 'dll', 'sh'] },
 };
 
@@ -75,6 +76,16 @@ function clean(raw) {
     o.feed = {};
     if (r.feed.reshowDays !== undefined) o.feed.reshowDays = num(r.feed.reshowDays, 1, 365, 7);
     if (r.feed.oldMax !== undefined) o.feed.oldMax = num(r.feed.oldMax, 0, 30, 3);
+    if (r.feed.mix && typeof r.feed.mix === 'object') {
+      const m = r.feed.mix, d = DEFAULTS.feed.mix; o.feed.mix = {};
+      for (const k of ['friends', 'follow', 'trending', 'interest', 'fresh', 'discover']) if (m[k] !== undefined) o.feed.mix[k] = num(m[k], 0, 100, d[k]);
+      if (m.freshHours !== undefined) o.feed.mix.freshHours = num(m.freshHours, 1, 168, 24);
+      if (m.trendMin !== undefined) o.feed.mix.trendMin = num(m.trendMin, 1, 1000, 3);
+    }
+  }
+  if (r.people && typeof r.people === 'object') {
+    o.people = {};
+    if (r.people.randomPct !== undefined) o.people.randomPct = num(r.people.randomPct, 0, 100, 15);
   }
   if (r.files && typeof r.files === 'object') {
     const f = r.files; o.files = {};
@@ -98,7 +109,8 @@ function merge(saved) {
   if (s.reportReasons) Object.assign(c.reportReasons, s.reportReasons);
   if (s.party) Object.assign(c.party, s.party);
   if (s.files) Object.assign(c.files, s.files);
-  if (s.feed) Object.assign(c.feed, s.feed);
+  if (s.feed) { const m = Object.assign({}, c.feed.mix, s.feed.mix || {}); Object.assign(c.feed, s.feed); c.feed.mix = m; }
+  if (s.people) Object.assign(c.people, s.people);
   for (const k of ['chatTtlHours', 'giftCounts', 'storySoundSeconds', 'watchHistoryDays']) if (s[k] !== undefined) c[k] = s[k];
   return c;
 }

@@ -28,6 +28,7 @@ const TEXT_LIMITS = {
 const NAME_FIELDS = new Set(['firstName', 'lastName', 'first_name', 'last_name']);
 const ID_FIELDS = ['postId', 'commentId', 'notificationId', 'replyToCommentId', 'video_id', 'reportId', 'id'];
 const PRIVACY_VALUES = new Set(['public', 'private']);
+const POST_PRIVACY_VALUES = new Set(['public', 'friends', 'except', 'custom', 'private']);   // 'privacy' of a post / share / story / room
 const MEDIA_TYPES = new Set(['text', 'image', 'video', 'carousel', 'styled_text', 'shared', 'shared_profile', 'audio']);
 const REACTIONS = ['👍', '❤️', '🥰', '😆', '😮', '😢', '😡'];
 const REACTION_SET = new Set(REACTIONS.concat(REACTIONS.map((r) => r.replace(/\uFE0F/g, ''))));
@@ -131,7 +132,9 @@ function checkBody(body) {
     const s = String(body[f]);
     if (!/^\d{1,10}$/.test(s) || Number(s) < 1 || Number(s) > 2147483647) return bad(f);
   }
-  for (const f of ['privacy', 'location_privacy', 'birthdate_privacy', 'relationship_privacy', 'gender_privacy', 'work_privacy', 'phone_privacy', 'email_privacy']) {
+  if ('privacy' in body && body.privacy !== null && body.privacy !== undefined && body.privacy !== '' && !POST_PRIVACY_VALUES.has(body.privacy)) return bad('privacy');
+  if ('audience' in body && body.audience !== null && body.audience !== undefined && (!Array.isArray(body.audience) || body.audience.length > 500)) return bad('audience');
+  for (const f of ['location_privacy', 'birthdate_privacy', 'relationship_privacy', 'gender_privacy', 'work_privacy', 'phone_privacy', 'email_privacy']) {
     if (f in body && body[f] !== null && body[f] !== undefined && body[f] !== '' && !PRIVACY_VALUES.has(body[f])) return bad(f);
   }
   for (const f of ['mediaType', 'media_type', 'orig_media_type']) {
@@ -259,20 +262,20 @@ function createRateLimits(makeLimiter) {
 
 // ---------------------------------------------------------------- who may see a post
 function createVisibility(pool) {
+  // one rule for everything (audience.js): public / friends / friends except… / only the chosen people / only me
   async function canViewPost(viewerEmail, postId) {
+    const id = parseInt(postId, 10); if (!id) return false;
     const r = await pool.query(
-      `SELECT p.privacy, p.user_email, COALESCE(u.is_banned, FALSE) AS banned,
+      `SELECT p.user_email, COALESCE(u.is_banned, FALSE) AS banned,
               EXISTS (SELECT 1 FROM blocked_users b WHERE (b.blocker_email = $2 AND b.blocked_email = p.user_email)
                                                        OR (b.blocker_email = p.user_email AND b.blocked_email = $2)) AS blocked,
-              EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = p.user_email) AS follows_author
-       FROM posts p JOIN users u ON u.email = p.user_email WHERE p.id = $1`, [postId, viewerEmail]);
+              ${require('./audience').postVisibleSql('p', '$2')} AS allowed
+       FROM posts p JOIN users u ON u.email = p.user_email WHERE p.id = $1`, [id, String(viewerEmail || '')]);
     const row = r.rows[0];
     if (!row) return false;
     if (String(row.user_email).toLowerCase() === String(viewerEmail || '').toLowerCase()) return true;
     if (row.banned || row.blocked) return false;
-    if (row.privacy === 'private') return false;
-    if (row.privacy === 'friends') return !!row.follows_author;
-    return true;
+    return !!row.allowed;
   }
   // returns true when the person may continue; otherwise it has already answered "not found"
   async function guardPost(req, res, postId) {
@@ -288,7 +291,7 @@ function createVisibility(pool) {
   function scrubOriginal(post, viewerEmail) {
     if (!post || !post.orig_id) return post;
     const mine = String(post.orig_author_email || '').toLowerCase() === String(viewerEmail || '').toLowerCase();
-    if ((post.orig_privacy === 'private' || post.orig_privacy === 'friends') && !mine) {
+    if (String(post.orig_privacy || 'public') !== 'public' && !mine) {
       post.orig_id = null; post.orig_content = ''; post.orig_media_url = null; post.orig_media_type = null; post.orig_media_aspect = '';
     }
     return post;
@@ -324,7 +327,7 @@ async function neutralizeExistingData(pool) {
       } catch (e) { /* column or table not there yet */ }
     }
   }
-  try { const rp = await pool.query("UPDATE posts SET privacy = 'public' WHERE privacy IS NULL OR privacy NOT IN ('public','private')"); changed += rp.rowCount || 0; } catch (e) { /* table not ready */ }
+  try { const rp = await pool.query("UPDATE posts SET privacy = 'public' WHERE privacy IS NULL OR privacy NOT IN ('public','friends','except','custom','private')"); changed += rp.rowCount || 0; } catch (e) { /* table not ready */ }
   try {   // picture links that could break out of an HTML attribute
     const r1 = await pool.query(`UPDATE users SET profile_pic = NULL WHERE profile_pic ~ '["''<>\`\\s]'`); changed += r1.rowCount || 0;
     const r2 = await pool.query(`UPDATE users SET cover_pic = NULL WHERE cover_pic ~ '["''<>\`\\s]'`); changed += r2.rowCount || 0;

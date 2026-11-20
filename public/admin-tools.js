@@ -1087,6 +1087,61 @@
       });
     }
     adm('/api/admin/party', {}).then(draw);
+    partyAccessAdmin(body);
+  }
+  // 🔐 who may open a room, and who may make it private (levels, VIP, coin packs, CamFeed's own permission)
+  function partyAccessAdmin(body) {
+    var box = el('div', { style: 'max-width:760px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:14px 16px;margin-bottom:16px' }, [empty('Loading…')]);
+    body.appendChild(box);
+    function call(extra) { return adm('/api/admin/party-access', extra || {}).then(function (x) { if (x && x.success) draw(x); else { box.textContent = ''; box.appendChild(empty((x && x.error) || 'Could not load.')); } return x; }); }
+    function when(t) { return t ? new Date(t).toLocaleString() : 'for ever'; }
+    function draw(d) {
+      box.textContent = '';
+      var s = d.settings || {}, op = s.open || {}, pv = s.private || {}, su = !!d.isSuperAdmin;
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🔐 Opening rooms & Private rooms' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Private = a room that is not in the list; only people invited, with the room\'s link, or who got the room card from the owner in a chat can enter. When the right runs out, a room open as private stays private until it closes.' + (su ? '' : ' Only a Super Admin can change the settings.') }));
+      function h(t) { box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:12px 0 6px', text: t })); }
+      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:120px;display:inline-block' }); i.disabled = !su; box.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:5px 0' }, [el('span', { style: 'min-width:300px', text: label }), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
+      function check(label, on) { var x = el('input', { type: 'checkbox' }); x.checked = !!on; x.disabled = !su; box.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin:5px 0' }, [x, el('span', { text: label })])); return x; }
+      h('1. Who may open a room');
+      var mode = el('select', { class: 'at-in', style: 'width:340px;display:inline-block' }); mode.disabled = !su;
+      [['all', 'Anybody'], ['rules', 'People who meet the rules below'], ['list', 'Only the people CamFeed allows (list below)']].forEach(function (o) { var op2 = el('option', { value: o[0], text: o[1] }); if (op.mode === o[0]) op2.selected = true; mode.appendChild(op2); });
+      box.appendChild(mode);
+      var oLv = field('Level at least', op.minLevel || 0, '0 = not needed');
+      var oDays = field('Account at least (days old)', op.minDays || 0, '0 = not needed');
+      var oPhone = check('Needs a phone number on the account', op.needPhone);
+      h('2. 🔐 Private rooms');
+      var pOn = check('Private rooms are on', pv.on !== false);
+      var pLv = field('Free from Level', pv.minLevel || 0, '0 = no free level');
+      var pVip = check('VIP can make rooms private', pv.vip !== false);
+      var packs = el('textarea', { class: 'at-in', rows: '4', style: 'width:100%;font-family:inherit' }); packs.disabled = !su;
+      packs.value = (pv.packs || []).map(function (p) { return p.coins + ' = ' + p.days; }).join('\n');
+      box.appendChild(el('div', { style: 'margin:6px 0 2px;font-weight:700', text: '🪙 Coin packs (one per line: coins = days, e.g. 100 = 3)' })); box.appendChild(packs);
+      if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:8px', text: '💾 Save', onclick: function () {
+        var pk = packs.value.split('\n').map(function (l) { var m = l.split('='); return { coins: Number((m[0] || '').trim()), days: Number((m[1] || '').trim()) }; }).filter(function (p) { return p.coins > 0 && p.days > 0; });
+        call({ set: { open: { mode: mode.value, minLevel: Number(oLv.value), minDays: Number(oDays.value), needPhone: oPhone.checked }, private: { on: pOn.checked, minLevel: Number(pLv.value), vip: pVip.checked, packs: pk } } }).then(function (x) { if (x && x.success) alert('✅ Saved'); });
+      } }));
+      var sl = d.sales || {};
+      box.appendChild(el('div', { style: 'margin-top:10px;padding:8px 10px;background:#f7f8fa;border-radius:8px', text: '🪙 Private sold: ' + (sl.n || 0) + ' times to ' + (sl.people || 0) + ' people · ' + (sl.coins || 0) + ' coins in all · ' + (sl.coins30 || 0) + ' coins in the last 30 days · open private rooms now: ' + (d.privateRooms || 0) }));
+      h('3. CamFeed\'s own permission (no rules needed)');
+      var who = el('input', { class: 'at-in', placeholder: 'email or phone', style: 'width:220px;display:inline-block' });
+      var kind = el('select', { class: 'at-in', style: 'width:200px;display:inline-block' }); [['private', '🔐 Make rooms private'], ['open', '🎉 Open rooms']].forEach(function (o) { kind.appendChild(el('option', { value: o[0], text: o[1] })); });
+      var days = el('input', { class: 'at-in', value: '0', style: 'width:80px;display:inline-block', title: 'days (0 = for ever)' });
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, [who, kind, days, el('span', { style: 'color:#65676b;font-size:12px', text: 'days (0 = for ever, e.g. 3 for a trial)' }),
+        el('button', { class: 'btn-sm btn-blue', text: '➕ Allow', onclick: function () { if (!who.value.trim()) return; call({ grant: { target: who.value.trim(), kind: kind.value, days: Number(days.value) } }).then(function (x) { if (x && x.success) { who.value = ''; alert('✅ Allowed'); } }); } })]));
+      var rows = (d.grants || []).map(function (g) {
+        return el('tr', {}, [el('td', { text: nm(g) + ' · ' + g.target }), el('td', { text: g.kind === 'open' ? '🎉 Open rooms' : '🔐 Private' }), el('td', { text: when(g.until) }), el('td', { text: g.by_email || '' }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Take back', onclick: function () { if (confirm('Take back from ' + nm(g) + '?')) call({ revoke: { target: g.target, kind: g.kind } }); } })])]);
+      });
+      if (rows.length) box.appendChild(table(['Person', 'Right', 'Until', 'Given by', ''], rows)); else box.appendChild(empty('Nobody yet.'));
+      h('4. Bought with coins (still running)');
+      var prow = (d.passes || []).map(function (p) {
+        return el('tr', {}, [el('td', { text: nm(p) + ' · ' + p.target }), el('td', { text: when(p.until) }), el('td', { text: String(p.coins_total || 0) }),
+          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'End now', onclick: function () { if (confirm('End the private days of ' + nm(p) + '? (no coins are given back)')) call({ revoke: { target: p.target, kind: 'pass' } }); } })])]);
+      });
+      if (prow.length) box.appendChild(table(['Person', 'Until', 'Coins spent', ''], prow)); else box.appendChild(empty('Nobody yet.'));
+    }
+    call();
   }
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {
@@ -1535,6 +1590,14 @@
       var fMax = field('📎 Biggest file in chat (MB)', fl.maxMB, '1–500 · bigger files cost more storage');
       var fDay = field('📎 Files one person may send a day', fl.perDay, '1–1000');
       var fBlk = field('📎 File endings that can not be sent', (fl.blocked || []).join(', '), 'e.g. apk, exe (web pages like html/svg/js are always refused)');
+      var mx = (c.feed || {}).mix || {};
+      h('4. What the Feed shows (share of each page, %)');
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-bottom:6px', text: 'Posts not seen yet are put in groups and each page is filled by these shares. They do not need to add up to 100 (they are shares of the total). 0 = that group only when nothing else is left. Seen posts still come after "all caught up".' }));
+      var mxF = {};
+      [['friends', '👫 Friends (follow each other)'], ['follow', '➕ People I follow'], ['trending', '🔥 Trending (many likes, comments, shares in a short time)'], ['interest', '🎯 My interests (the kinds I watch and react to)'], ['fresh', '🆕 New posts of other people'], ['discover', '🎲 Others (to meet new people)']].forEach(function (g) { mxF[g[0]] = field(g[1], mx[g[0]], '0–100'); });
+      var fFreshH = field('🆕 "New" means posted in the last (hours)', mx.freshHours, '1–168');
+      var fTrendMin = field('🔥 Trending needs at least (likes + comments×2 + shares×3)', mx.trendMin, '1–1000');
+      var fPplRnd = field('👥 "People you may know": share chosen by chance (%)', (c.people || {}).randomPct, '0–100 · the rest are people with mutual friends or who follow you');
       if (!sup) return;
       function reasonsOf(k) {
         var out = [];
@@ -1551,7 +1614,8 @@
         var rr = {}; Object.keys(areas).forEach(function (k) { var l = reasonsOf(k); if (l.length) rr[k] = l; });
         call({ action: 'save', config: { features: f, reportReasons: rr, chatTtlHours: numList(fTtl.value), giftCounts: numList(fGift.value), storySoundSeconds: Number(fSnd.value), watchHistoryDays: Number(fWatch.value),
           party: { metMinutes: Number(fMetM.value), metDays: Number(fMetD.value), followNotifyMinutes: Number(fNote.value), challengeMinOthers: Number(fMin.value) },
-          feed: { reshowDays: Number(fFeed.value) },
+          feed: { reshowDays: Number(fFeed.value), mix: (function () { var m = {}; Object.keys(mxF).forEach(function (k) { m[k] = Number(mxF[k].value); }); m.freshHours = Number(fFreshH.value); m.trendMin = Number(fTrendMin.value); return m; })() },
+          people: { randomPct: Number(fPplRnd.value) },
           files: { maxMB: Number(fMax.value), perDay: Number(fDay.value), blocked: String(fBlk.value || '').split(/[\s,]+/).filter(function (t) { return t !== ''; }) } } });
       } }));
       bar.appendChild(el('button', { class: 'btn-sm', style: 'background:#e4e6eb', text: '↩️ Back to the original settings', onclick: function () { if (confirm('Put every setting on this page back to the original?')) call({ action: 'reset' }); } }));
