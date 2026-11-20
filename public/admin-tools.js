@@ -2,12 +2,12 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
     ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
-    ['🛡️ Content & safety', ['reports', 'content', 'posts', 'live']],
+    ['🛡️ Content & safety', ['reports', 'copyright', 'content', 'posts', 'live']],
     ['💰 Money', ['monetization', 'coins', 'ads']],
     ['🎉 Fun', ['party', 'challenges', 'stars', 'sounds']],
     ['⚙️ Settings', ['system', 'appcfg', 'perms']],
@@ -555,6 +555,78 @@
     call();
   }
 
+  // ---------- ©️ Copyright: claims ("this uses my work") and copies found by the fingerprints ----------
+  function copyrightAdmin(body) {
+    var mode = body.getAttribute('data-mode') || 'pending';
+    var box = el('div', { class: 'at-card' }); body.appendChild(box);
+    function call(extra) {
+      return adm('/api/admin/copyright', Object.assign({ status: mode === 'done' ? 'done' : 'pending' }, extra || {})).then(function (x) {
+        if (!x.success && x.error !== 'already') { alert(x.error || 'Failed'); return x; }
+        if (extra && extra.action) { body.textContent = ''; copyrightAdmin(body); } else draw(x);
+        return x;
+      });
+    }
+    function firstUrl(raw) { var u = String(raw || ''); if (u.charAt(0) === '[' || u.charAt(0) === '{') { try { var j = JSON.parse(u); j = Array.isArray(j) ? j[0] : j; u = (j && (j.url || j)) || ''; } catch (e) { u = ''; } } return String(u); }
+    function media(raw, type, thumb) {
+      var u = firstUrl(raw); if (!u) return el('div', { style: 'color:#65676b;font-size:12px', text: '(deleted or no media)' });
+      if (type === 'video' || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u)) return el('video', { src: u, poster: thumb || '', controls: 'controls', preload: 'none', style: 'width:220px;max-height:260px;border-radius:8px;background:#000' });
+      return el('img', { src: u, style: 'max-width:220px;max-height:260px;border-radius:8px;border:1px solid #ccc' });
+    }
+    function side(title, name, raw, type, thumb, text, at, postId) {
+      return el('div', { style: 'flex:1;min-width:220px;background:#f7f8fa;border-radius:10px;padding:8px' }, [
+        el('div', { style: 'font-size:12px;font-weight:800;color:#65676b', text: title }),
+        el('div', { style: 'font-weight:700', text: name + (at ? ' · ' + ago(at) : '') }),
+        postId ? el('a', { href: '/videos.html?post=' + postId, target: '_blank', style: 'font-size:12px', text: 'open post #' + postId }) : '',
+        el('div', { style: 'margin:6px 0' }, [media(raw, type, thumb)]),
+        text ? el('div', { style: 'font-size:13px;white-space:pre-wrap', text: String(text).slice(0, 300) }) : '']);
+    }
+    function ask(t) { var w = prompt(t + '\n\nOptional message to the person (or leave empty):', ''); return w === null ? null : w; }
+    function draw(d) {
+      box.textContent = '';
+      box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px' }, [
+        el('span', { style: 'font-size:16px;font-weight:800', text: '©️ Copyright' }),
+        el('button', { class: 'btn-sm' + (mode === 'pending' ? ' btn-blue' : ''), text: 'Waiting', onclick: function () { body.setAttribute('data-mode', 'pending'); body.textContent = ''; copyrightAdmin(body); } }),
+        el('button', { class: 'btn-sm' + (mode === 'done' ? ' btn-blue' : ''), text: 'Done', onclick: function () { body.setAttribute('data-mode', 'done'); body.textContent = ''; copyrightAdmin(body); } })]));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-bottom:8px', text: 'Fingerprints made: ' + d.checked + ' posts (' + d.waiting + ' still waiting; one every 15 s, newest first). A copy, or a post with a claim waiting, earns no money until you decide. Removing = 1 strike; ' + d.maxStrikes + ' strikes in a year stop the person\'s earnings (System › App settings).' }));
+      box.appendChild(el('div', { class: 'at-h', text: '©️ Claims: "this post uses my work" (' + d.claims.length + ')' }));
+      if (!d.claims.length) box.appendChild(el('div', { style: 'color:#65676b;padding:6px 0', text: mode === 'pending' ? 'No claims waiting 🎉' : 'Nothing yet.' }));
+      d.claims.forEach(function (c) {
+        var cn = ((c.c_first || '') + ' ' + (c.c_last || '')).trim() || 'User', on = ((c.o_first || '') + ' ' + (c.o_last || '')).trim() || 'User';
+        var card = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin:8px 0;background:#fff' }, [
+          el('div', { style: 'font-weight:800', text: '©️ ' + cn + ' says the post of ' + on + ' uses their work · ' + ago(c.created_at) }),
+          el('div', { style: 'font-size:13px;margin:4px 0' }, [el('b', { text: 'Their original: ' }), /^https?:\/\//.test(c.original || '') ? el('a', { href: c.original, target: '_blank', rel: 'noopener', text: c.original }) : el('span', { text: c.original || '—' })]),
+          c.note ? el('div', { style: 'font-size:13px;white-space:pre-wrap;margin:2px 0' }, [el('b', { text: 'Why: ' }), el('span', { text: c.note })]) : '',
+          el('div', { style: 'font-size:13px;white-space:pre-wrap;margin:2px 0;color:' + (c.counter_note ? '#166534' : '#65676b') }, [el('b', { text: 'Answer of ' + on + ': ' }), el('span', { text: c.counter_note || '(no answer yet)' })]),
+          el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:6px' }, [side('The reported post', on + ' · strikes this year: ' + (c.strikes || 0), c.media_url, c.media_type, c.thumb_url, c.content, c.post_at, c.post_id)])]);
+        if (c.status === 'pending') {
+          card.appendChild(el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:8px' }, [
+            el('button', { class: 'btn-sm btn-red', text: '🗑 Remove the post + 1 strike', onclick: function () { var w = ask('Remove the post of ' + on + '?'); if (w !== null) call({ action: 'claim_uphold', id: c.id, note: w }); } }),
+            el('button', { class: 'btn-sm', text: '✔ No copyright problem', onclick: function () { var w = ask('Close this claim?'); if (w !== null) call({ action: 'claim_reject', id: c.id, note: w }); } })]));
+        } else card.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:4px', text: '✅ ' + c.status + ' · by ' + (c.decided_by || '') + ' · ' + ago(c.decided_at) + (c.admin_note ? ' · ' + c.admin_note : '') }));
+        box.appendChild(card);
+      });
+      box.appendChild(el('div', { class: 'at-h', style: 'margin-top:16px', text: '🔁 Possible copies found by the fingerprints (' + d.dups.length + ')' }));
+      if (!d.dups.length) box.appendChild(el('div', { style: 'color:#65676b;padding:6px 0', text: mode === 'pending' ? 'No copies waiting 🎉' : 'Nothing yet.' }));
+      d.dups.forEach(function (x) {
+        var cn = ((x.c_first || '') + ' ' + (x.c_last || '')).trim() || 'User', on = ((x.o_first || '') + ' ' + (x.o_last || '')).trim() || 'User';
+        var card = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin:8px 0;background:#fff' }, [
+          el('div', { style: 'font-weight:800', text: '🔁 ' + x.score + '% the same · ' + ago(x.created_at) }),
+          el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:6px' }, [
+            side('NEWER post (the copy?)', cn + ' · strikes this year: ' + (x.strikes || 0), x.media_url, x.media_type, x.thumb_url, x.content, x.post_at, x.post_id),
+            side('OLDER post (the original?)', on, x.o_media_url, x.o_media_type, x.o_thumb_url, x.o_content, x.o_post_at, x.orig_post_id)])]);
+        if (x.status === 'pending') {
+          card.appendChild(el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap;margin-top:8px' }, [
+            el('button', { class: 'btn-sm btn-red', text: '🗑 Remove the copy + 1 strike', onclick: function () { var w = ask('Remove the post of ' + cn + '?'); if (w !== null) call({ action: 'dup_remove', id: x.id, note: w }); } }),
+            el('button', { class: 'btn-sm', text: '💤 Keep it, but no earnings', onclick: function () { var w = ask('Keep the post, no money for it?'); if (w !== null) call({ action: 'dup_noearn', id: x.id, note: w }); } }),
+            el('button', { class: 'btn-sm', text: '✔ Not a copy / allowed', onclick: function () { call({ action: 'dup_ok', id: x.id }); } })]));
+        } else card.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b;margin-top:4px', text: '✅ ' + x.status + ' · by ' + (x.decided_by || '') + ' · ' + ago(x.decided_at) }));
+        box.appendChild(card);
+      });
+    }
+    box.appendChild(empty('Loading…'));
+    call();
+  }
+
   // ---------- ⭐ CamFeed Stars: applications (ID + selfie), stars (hours this month, pause / remove / warn), monthly bonuses, all rules ----------
   function starsAdmin(body) {
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
@@ -1019,6 +1091,7 @@
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {
     CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: 'Smallest withdrawal ($)',
+    COPYRIGHT_MAX_STRIKES: '©️ Copyright: upheld claims / removed copies in one year before the person\'s earnings stop (1–10)',
     NAME_CHANGE_DAYS: 'A person can change their name once every … days (0 = any time)', GROUP_CALL_MAX: 'People in one group call at most (2–16)', CHAT_MAX_MONTHS: 'Chat messages are deleted after … months at most, for everyone (1–24)',
     REFERRAL_REWARD_USD: 'Reward per invited friend ($)', REFERRAL_ACTIVE_DAYS: 'Friend must use CamFeed on … different days', REFERRAL_POSTS: 'Friend must post … public photos / videos', REFERRAL_WINDOW_DAYS: 'Within … days after signing up', REFERRAL_MAX_PER_MONTH: 'Paid automatically per inviter per month (more = waits for you)'
   };
@@ -1278,7 +1351,7 @@
   function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
   function applyInbox(d) {
     var c = d.counts;
-    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0); setBadge('tabBtn-stars', (c.stars || 0) + (c.starBonus || 0)); setBadge('tabBtn-challenges', c.challengeRewards || 0);
+    setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0); setBadge('tabBtn-stars', (c.stars || 0) + (c.starBonus || 0)); setBadge('tabBtn-challenges', c.challengeRewards || 0); setBadge('tabBtn-copyright', (c.copyrightClaims || 0) + (c.copyrightDups || 0));
     document.title = (d.total > 0 ? '(' + d.total + ') ' : '') + baseTitle;
     var ib = document.getElementById('tabBtn-inbox'); if (ib) ib.style.color = d.total > 0 ? '#e41e3f' : '';
     if (lastTotal >= 0 && d.total > lastTotal) { try { var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain(); o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05; o.start(); o.stop(ac.currentTime + 0.18); } catch (e) {} }
@@ -1291,7 +1364,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges'], ['©️ Copyright claims', c.copyrightClaims || 0, 'copyright'], ['🔁 Possible copies', c.copyrightDups || 0, 'copyright']];
       p.appendChild(el('div', { class: 'at-chips' }, chips.map(function (x) {          // 3 columns
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
@@ -1398,7 +1471,7 @@
   }
 
   // ---------- 🔐 rights by section: hide what this admin can not use; Super Admin sets them in 👮 Admins & rights ----------
-  var TAB_SECTION = { inbox: 'inbox', overview: 'overview', audit: 'audit', umanage: 'users', users: 'users', accounts: 'users', chats: 'chats', reports: 'content', content: 'content', posts: 'content',
+  var TAB_SECTION = { copyright: 'content', inbox: 'inbox', overview: 'overview', audit: 'audit', umanage: 'users', users: 'users', accounts: 'users', chats: 'chats', reports: 'content', content: 'content', posts: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', monetization: 'money', coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', system: 'system', appcfg: 'system' };
   var SECTION_NAME = { inbox: '🔔 Inbox', overview: '📊 Overview', audit: '🧾 Activity Log', users: '👥 Users', chats: '💬 Chats', content: '🛡️ Content & reports', live: '🔴 Live', sounds: '🎵 Sounds', ads: '📢 Ads',
     money: '💰 Money (withdrawals, creators, referrals)', coins: '🪙 Coins & Gifts', party: '🎉 Party Room', challenges: '🎯 Challenges', stars: '⭐ Stars', system: '⚙️ System' };
@@ -1525,7 +1598,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

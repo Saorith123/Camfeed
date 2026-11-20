@@ -147,7 +147,7 @@ module.exports = function createPush({ app, pool }) {
         return;
       }
       const ms = (await pool.query(
-        `SELECT m.id, m.sender_email, m.receiver_email, m.message, m.message_type, u.first_name, u.last_name, u.profile_pic
+        `SELECT m.id, m.sender_email, m.receiver_email, m.message, m.message_type, u.first_name, u.last_name, u.profile_pic, u.public_id
            FROM messages m LEFT JOIN users u ON LOWER(u.email) = LOWER(m.sender_email)
           WHERE m.id > $1 ORDER BY m.id LIMIT 60`, [lastMsg])).rows;
       for (const m of ms) {
@@ -164,7 +164,8 @@ module.exports = function createPush({ app, pool }) {
         else if (text.startsWith('__CAMFEED_EDITED__:')) text = text.slice(19);
         else if (text.startsWith('__CAMFEED_MSG_DELETED__') || text.startsWith('CALL:')) continue;
         sendToUser(m.receiver_email, { title: fullName(m), body: text, data: { type: 'message', url: '/messages.html' }, channel: 'messages',
-          bubble: { type: 'chat', peer: m.sender_email, name: fullName(m), pic: m.profile_pic || '', body: text.slice(0, 300), url: '/messages.html' } });
+          bubble: { type: 'chat', peer: (String(process.env.MASK_USER_IDS || 'true').toLowerCase() !== 'false' && m.public_id) ? m.public_id : m.sender_email,   // the same id the app's chat list uses (one bubble per person)
+            name: fullName(m), pic: m.profile_pic || '', body: text.slice(0, 300), url: '/messages.html' } });
       }
       // group chats: every member except the sender (a muted / restricted group stays quiet for that member)
       if (lastGroup !== null) {

@@ -913,6 +913,7 @@ let feedVideoBusy = false;
 let cutCheckReady = false;
 // the real length of every video (the Feed reads posts.video_secs): the column must exist before the first feed request
 pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS video_secs INT').catch((e) => console.error('[feedvideo] video_secs:', e.message));
+pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS no_earn BOOLEAN DEFAULT FALSE').catch(() => {});   // ©️ a copy / a post under a copyright claim earns nothing
 async function fixCutFeedVideos() {
   if (!thumbsReady()) return;
   try {
@@ -2414,7 +2415,7 @@ function adminNeed(path, body) {
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
     'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
-    coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', 'app-config': 'system' })[first];
+    coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
@@ -2423,7 +2424,7 @@ function adminNeed(path, body) {
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
-  const single = ['coins', 'party', 'challenges', 'stars', 'chat-reports', 'app-config'].includes(first);
+  const single = ['coins', 'party', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright'].includes(first);
   const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (!act && keys.every((k) => FILTER.includes(k))))
     : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
   return { sec, level: read ? 'view' : 'edit' };
@@ -2495,6 +2496,9 @@ appConfig.install({ app, pool, adminGate: (req, res) => adminGate(req, res), aud
 const chatFiles = require('./chat-files')({ app, pool });   // 📎 files in chat
 const stars = require('./stars')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });
+// ©️ copyright: claims ("this uses my work"), fingerprints that notice copies of other people's posts, strikes → no earnings
+const copyright = require('./copyright')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), pubMedia: (r) => pubMedia(r), cleanup, setting: (k, d) => ruleNum(k, d) });
 const party = require('./party')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), framesOf: (emails) => coins.framesOf(emails), badgesOf: (emails) => coins.badgesOf(emails), starsOf: (emails) => stars.starsOf(emails) });
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e), starShare: (e) => stars.starShare(e), starsOf: (e) => stars.starsOf(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
@@ -4449,12 +4453,14 @@ async function syncViewEarnings(email) {
   const cfg = await earnSettings(ok.source); if (!(cfg.rpm > 0)) return 0;
   const st = (await pool.query("SELECT value FROM creator_settings WHERE key = 'earn_start'")).rows[0];
   const since = Math.max(ok.decided_at ? new Date(ok.decided_at).getTime() : 0, st ? Number(st.value) || 0 : 0);   // posts made after this moment are paid from their very first view
-  const posts = (await pool.query("SELECT p.id, p.created_at, COALESCE(p.views_count, 0) AS views, e.views_seen FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
+  // ©️ a copy of somebody else's post, or a post under a copyright claim, earns nothing (its views are passed over)
+  const posts = (await pool.query("SELECT p.id, p.created_at, COALESCE(p.views_count, 0) AS views, e.views_seen, COALESCE(p.no_earn, FALSE) AS no_earn FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
   let gained = 0;
   for (const p of posts) {
     const views = Number(p.views) || 0;
     if (p.views_seen === null || p.views_seen === undefined) { await pool.query('INSERT INTO post_earn (post_id, user_email, views_seen) VALUES ($1, $2, $3) ON CONFLICT (post_id) DO NOTHING', [p.id, email, new Date(p.created_at).getTime() > since ? 0 : views]); if (new Date(p.created_at).getTime() <= since) continue; p.views_seen = 0; }   // views before the start are not paid
     const delta = views - Number(p.views_seen); if (delta <= 0) continue;
+    if (p.no_earn) { await pool.query('UPDATE post_earn SET views_seen = $2 WHERE post_id = $1', [p.id, views]).catch(() => {}); continue; }
     const cents = delta * cfg.rpm * 100 / 1000;
     const u = await pool.query('UPDATE post_earn SET views_seen = $3, cents = cents + $4 WHERE post_id = $1 AND views_seen = $2 RETURNING post_id', [p.id, Number(p.views_seen), views, cents]);   // only one request can claim these views
     if (u.rows.length) gained += cents;
@@ -4473,7 +4479,7 @@ async function syncViewEarnings(email) {
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {
   creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000]],
-  app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16], ['CHAT_MAX_MONTHS', 'chatMaxMonths', 1, 24]],
+  app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16], ['CHAT_MAX_MONTHS', 'chatMaxMonths', 1, 24], ['COPYRIGHT_MAX_STRIKES', 'copyrightStrikes', 1, 10]],
   referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
 };
 let ruleOverride = {};
@@ -4859,7 +4865,9 @@ app.post('/api/admin/inbox', async (req, res) => {
       chatReports: await cnt("SELECT COUNT(*) AS n FROM chat_reports WHERE status = 'pending'"),
       stars: await cnt("SELECT COUNT(*) AS n FROM party_stars WHERE status = 'pending'"),
       starBonus: await cnt("SELECT COUNT(*) AS n FROM star_bonus WHERE status = 'pending'"),
-      challengeRewards: await cnt("SELECT COUNT(*) AS n FROM challenge_rewards WHERE status = 'pending'")
+      challengeRewards: await cnt("SELECT COUNT(*) AS n FROM challenge_rewards WHERE status = 'pending'"),
+      copyrightClaims: await cnt("SELECT COUNT(*) AS n FROM copyright_claims WHERE status = 'pending'"),
+      copyrightDups: await cnt("SELECT COUNT(*) AS n FROM dup_flags WHERE status = 'pending'")
     };
     const nm = (x) => ((x.first_name || '') + ' ' + (x.last_name || '')).trim() || 'User';
     const items = [].concat(
@@ -4874,7 +4882,9 @@ app.post('/api/admin/inbox', async (req, res) => {
       crp.rows.map((x) => ({ kind: 'report', tab: 'reports', title: '💬 ' + nm(x), sub: 'Chat report (' + x.kind + '): ' + x.reason, at: x.at })),
       sta.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '⭐ ' + nm(x), sub: 'Star application' + (x.real_name ? ' (real name: ' + x.real_name + ')' : ''), at: x.at })),
       chr.rows.map((x) => ({ kind: 'challenge', tab: 'challenges', title: '🎯 ' + nm(x) + ' · $' + (Number((x.reward || {}).amount || 0) / 100).toFixed(2), sub: 'Challenge reward to pay: ' + x.title_km, at: x.at })),
-      stb.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '💵 ' + nm(x) + ' · $' + (Number(x.amount_cents || 0) / 100).toFixed(2), sub: 'Star bonus to pay (' + x.month + ')', at: x.at }))
+      stb.rows.map((x) => ({ kind: 'star', tab: 'stars', title: '💵 ' + nm(x) + ' · $' + (Number(x.amount_cents || 0) / 100).toFixed(2), sub: 'Star bonus to pay (' + x.month + ')', at: x.at })),
+      (counts.copyrightClaims ? [{ kind: 'report', tab: 'copyright', title: '©️ ' + counts.copyrightClaims + ' copyright claim(s)', sub: 'Somebody says a post uses their work', at: new Date() }] : []),
+      (counts.copyrightDups ? [{ kind: 'report', tab: 'copyright', title: '🔁 ' + counts.copyrightDups + ' possible copies', sub: 'Posts that look like somebody else\'s older post', at: new Date() }] : [])
     ).sort((p, q2) => new Date(q2.at) - new Date(p.at)).slice(0, 40);
     res.json({ success: true, counts, total: Object.values(counts).reduce((n, v) => n + v, 0), items });
   } catch (err) { console.error('[admin] inbox error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
