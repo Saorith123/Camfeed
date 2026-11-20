@@ -374,6 +374,20 @@
       p.textContent = ''; if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Check again', onclick: loadSystem }), el('span', { style: 'color:#65676b;font-size:13px', text: 'Only yes / no is shown here. Secret values are never displayed.' })]));
       var c = d.checks;
+      // 📊 count every table: used when the database moves (compare the old site and the new site)
+      var dbBox = el('div', { style: 'margin:8px 0 14px' }); p.appendChild(dbBox);
+      dbBox.appendChild(el('button', { class: 'btn-sm btn-gray', text: '📊 Count everything in the database', onclick: function () {
+        dbBox.lastChild !== this && dbBox.removeChild(dbBox.lastChild);
+        var out = el('div', { style: 'margin-top:8px' }, [empty('Counting… (may take a minute)')]); dbBox.appendChild(out);
+        adm('/api/admin/system/db-count', {}).then(function (x) {
+          out.textContent = '';
+          if (!x || !x.success) { out.appendChild(empty((x && x.error) || 'Could not count.')); return; }
+          var text = x.tables.map(function (r) { return r.name + ' ' + r.n; }).join('\n');
+          out.appendChild(el('div', { style: 'font-weight:700;margin-bottom:6px', text: x.tables.length + ' tables · ' + x.total.toLocaleString() + ' rows · ' + x.sizeMb + ' MB · PostgreSQL ' + x.version }));
+          var ta = el('textarea', { class: 'at-in', rows: '10', style: 'width:100%;font-family:monospace;font-size:12.5px' }); ta.value = text; ta.readOnly = true; out.appendChild(ta);
+          out.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-top:4px', text: 'Open this on the old site and on the new site: every line must be the same.' }));
+        });
+      } }));
       var appBox = el('div'); p.appendChild(appBox); monRules(appBox, 'app');      // settings the Super Admin changes here (name change days, group call size ...)
       Object.keys(HINTS).forEach(function (k) {
         var ok = k === 'supportTelegram' ? !!c[k] : !!c[k]; var extra = k === 'database' && c.databaseMs !== null ? ' (' + c.databaseMs + ' ms)' : (k === 'supportTelegram' && c[k] ? ' ' + c[k] : '');

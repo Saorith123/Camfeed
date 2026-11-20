@@ -28,6 +28,15 @@ app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct c
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok'));
+// 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
+// The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
+const MAINT_ON = () => String(process.env.MAINTENANCE_MODE || '') === '1';
+app.use((req, res, next) => {
+  if (!MAINT_ON()) return next();
+  if (req.path.startsWith('/api/')) return res.status(503).set('Retry-After', '60').json({ success: false, maintenance: true, code: 'maintenance', message: 'CamFeed is being improved. Please come back in a few minutes.' });
+  if (/\.(js|css|png|jpe?g|webp|svg|ico|woff2?|ttf|json|mp3|m4a)$/i.test(req.path)) return next();   // the maintenance page's own files
+  res.status(503).set('Retry-After', '60').sendFile(path.join(__dirname, 'public', 'maintenance.html'));
+});
 app.use(security.securityHeaders);                 // no framing, no sniffing, CSP, no caching of API answers ...
 // small bodies everywhere (an attacker can not push megabytes into every route); posts may carry a video thumbnail
 const jsonSmall = express.json({ limit: '1mb' });
@@ -3545,6 +3554,23 @@ app.post('/api/admin/audit', async (req, res) => {
     const r = await pool.query('SELECT id, at, admin_email, action, target, details FROM admin_audit ORDER BY at DESC, id DESC LIMIT $1 OFFSET $2', [limit, offset]);
     res.json({ success: true, entries: r.rows, hasMore: r.rows.length === limit });
   } catch (err) { console.error('[admin] audit error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+// 📊 count every table (Super Admin): open it on the OLD site and the NEW site after moving the database — the numbers must be the same
+app.post('/api/admin/system/db-count', async (req, res) => {
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can do this.' });
+    const t = (await pool.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")).rows.map((x) => x.tablename);
+    const out = [];
+    for (const name of t) {
+      if (!/^[a-z0-9_]+$/i.test(name)) continue;
+      const n = (await pool.query('SELECT COUNT(*)::bigint AS n FROM "' + name + '"').catch(() => ({ rows: [{ n: -1 }] }))).rows[0].n;
+      out.push({ name, n: Number(n) });
+    }
+    const meta = (await pool.query("SELECT pg_database_size(current_database()) AS bytes, current_setting('server_version') AS version")).rows[0];
+    res.json({ success: true, tables: out, total: out.reduce((x, y) => x + Math.max(0, y.n), 0), sizeMb: Math.round(Number(meta.bytes) / 1048576), version: meta.version, at: new Date().toISOString() });
+  } catch (err) { console.error('[admin] db-count:', err.message); res.status(500).json({ success: false, error: 'Could not count.' }); }
 });
 
 app.post('/api/admin/system', async (req, res) => {

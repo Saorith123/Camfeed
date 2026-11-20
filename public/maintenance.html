@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="km">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CamFeed — កំពុងថែទាំ</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/logo-icon.png">
+<style>
+  :root { --bg: #F4F6FB; --card: #FFFFFF; --text: #0B1533; --sub: #4A5677; --blue: #1E4BFF; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #07102E; --card: #0F1B45; --text: #FFFFFF; --sub: #B8C3E6; --blue: #6F8CFF; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: 'Battambang', 'Noto Sans Khmer', system-ui, sans-serif;
+         display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  .card { width: 100%; max-width: 440px; background: var(--card); border-radius: 22px; padding: 32px 24px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.12); }
+  img { width: 88px; height: 88px; border-radius: 22px; }
+  h1 { font-size: 22px; margin: 18px 0 8px; line-height: 1.5; }
+  p { color: var(--sub); line-height: 1.7; margin: 6px 0; font-size: 15.5px; }
+  .en { font-size: 14px; margin-top: 14px; }
+  .bar { height: 6px; background: rgba(30,75,255,.15); border-radius: 3px; overflow: hidden; margin: 22px 0 10px; }
+  .bar i { display: block; height: 100%; width: 35%; background: var(--blue); border-radius: 3px; animation: go 1.6s ease-in-out infinite; }
+  @keyframes go { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+  button { margin-top: 10px; border: 0; background: var(--blue); color: #fff; font: 700 15px inherit; font-family: inherit; padding: 12px 26px; border-radius: 12px; cursor: pointer; min-height: 44px; }
+  small { display: block; color: var(--sub); margin-top: 10px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <img src="/logo-icon.png" alt="CamFeed">
+    <h1>CamFeed កំពុងធ្វើឲ្យប្រសើរជាងមុន 🛠️</h1>
+    <p>យើងកំពុងធ្វើឲ្យ CamFeed លឿនជាងមុន។ សូមត្រឡប់មកវិញក្នុងរយៈពេលប៉ុន្មាននាទីទៀត។</p>
+    <p>ការបង្ហោះ សារ និងកាក់របស់អ្នក មានសុវត្ថិភាពទាំងអស់។</p>
+    <p class="en">CamFeed is being improved. Please come back in a few minutes — your posts, messages and coins are safe.</p>
+    <div class="bar" aria-hidden="true"><i></i></div>
+    <button type="button" onclick="location.reload()">ព្យាយាមម្ដងទៀត · Try again</button>
+    <small id="t">ទំព័រនេះនឹងព្យាយាមម្ដងទៀតដោយខ្លួនឯង</small>
+  </main>
+<script>
+  // try again every 30 s; when CamFeed is open again the page reloads into it
+  setInterval(function () {
+    fetch('/api/app-config', { cache: 'no-store' }).then(function (r) { if (r.status !== 503) location.reload(); }).catch(function () {});
+  }, 30000);
+</script>
+</body>
+</html>
