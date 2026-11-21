@@ -1679,7 +1679,7 @@ app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req
   try {
     let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
     let coverUrl = coverPicUrl || (req.files && req.files['coverPic'] ? req.files['coverPic'][0].path : null);
-    const oldPics = await pool.query('SELECT profile_pic, cover_pic FROM users WHERE email = $1', [email]);
+    const oldPics = await pool.query('SELECT profile_pic, cover_pic FROM users WHERE LOWER(email) = LOWER($1)', [email]);
 
     let query = 'UPDATE users SET bio = $1';
     let params = [bio || ''];
@@ -1695,10 +1695,12 @@ app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req
     }
     if (removeProfile && !profileUrl) query += ', profile_pic = NULL';
     if (removeCover && !coverUrl) query += ', cover_pic = NULL';
-    query += ` WHERE email = $${idx} RETURNING *`;
+    query += ` WHERE LOWER(email) = LOWER($${idx}) RETURNING *`;
     params.push(email);
 
     const result = await pool.query(query, params);
+    if (!result.rows.length) return res.status(404).json({ success: false, error: 'Account not found. Please log in again.' });   // nothing was changed: never say "done"
+    console.log('[profile-pics]', String(email).slice(0, 3) + '…', profileUrl ? 'new picture' : '', coverUrl ? 'new cover' : '', removeProfile ? 'picture deleted' : '', removeCover ? 'cover deleted' : '');
     const oldUrls = [];
     const o = oldPics.rows[0];
     if (o) {
