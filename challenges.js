@@ -4,7 +4,7 @@
 // Everything is set in Admin › 🎯 Challenges; the app only shows what the server sends (no app update to change a challenge).
 // Joining is always FREE (paying to take part would be gambling).
 const appCfg = require('./app-config');
-module.exports = function installChallenges({ app, pool, adminGate, audit, sendNotice, xpNowOf, badgesOf }) {
+module.exports = function installChallenges({ app, pool, adminGate, audit, sendNotice, xpNowOf, badgesOf, coinMoney }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const me = (req, res) => { const e = norm(req.authEmail); if (!e) res.status(401).json({ success: false, error: 'Please log in.' }); return e; };
   const METRICS = ['gift_recv', 'gift_sent', 'room_minutes', 'seat_minutes', 'xp', 'checkins', 'room_followers', 'video_views', 'posts', 'followers'];
@@ -63,11 +63,35 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     posts: `SELECT LOWER(user_email) AS e, COUNT(*)::bigint AS n FROM posts WHERE created_at >= $1 AND created_at < $2 AND ${WHO('LOWER(user_email)')} GROUP BY LOWER(user_email)`,
     followers: `SELECT LOWER(following_email) AS e, COUNT(*)::bigint AS n FROM follows WHERE created_at >= $1 AND created_at < $2 AND ${WHO('LOWER(following_email)')} GROUP BY LOWER(following_email)`,
   };
-  /// value of the metric for people (null = everybody who has some); returns Map email → number
-  async function valuesOf(ch, emails) {
+  // "every day" conditions: how many days (Phnom Penh time) the person reached at least $4 that day
+  const DEF = {
+    gift_recv: ['gift_events', 'to_email', 'created_at', 'SUM(coins)', ''],
+    gift_sent: ['gift_events', 'from_email', 'created_at', 'SUM(coins)', ''],
+    room_minutes: ['party_minutes', 'user_email', 'hour', 'SUM(seat + listen)', ''],
+    seat_minutes: ['party_minutes', 'user_email', 'hour', 'SUM(seat)', ''],
+    room_followers: ['party_follows', 'owner_email', 'created_at', 'COUNT(*)', ''],
+    video_views: ['post_views v JOIN posts p ON p.id = v.post_id', 'LOWER(p.user_email)', 'v.created_at', 'COUNT(*)', 'AND (v.viewer_email IS NULL OR LOWER(v.viewer_email) <> LOWER(p.user_email))'],
+    posts: ['posts', 'LOWER(user_email)', 'created_at', 'COUNT(*)', ''],
+    followers: ['follows', 'LOWER(following_email)', 'created_at', 'COUNT(*)', ''],
+  };
+  const DAILY = {};
+  Object.keys(DEF).forEach((k) => {
+    const [from, e, t, v, extra] = DEF[k];
+    const start = t === 'hour' ? "date_trunc('hour', $1::timestamptz)" : '$1';
+    DAILY[k] = `SELECT e, COUNT(*)::bigint AS n FROM (SELECT ${e} AS e, (${t} AT TIME ZONE 'Asia/Phnom_Penh')::date AS d FROM ${from}
+      WHERE ${t} >= ${start} AND ${t} < $2 ${extra} AND ${WHO(e)} GROUP BY 1, 2 HAVING ${v} >= $4) x GROUP BY e`;
+  });
+  const condKey = (c) => c.metric + '|' + (c.mode === 'daily' ? 'd' + c.per_day : 't');
+  const run = (cond, from, to, list) => cond.mode === 'daily' && DAILY[cond.metric]
+    ? pool.query(DAILY[cond.metric], [from, to, list, cond.per_day])
+    : pool.query(SQL[cond.metric], [from, to, list]);
+
+  /// value of one condition (default: the challenge's own metric) for people (null = everybody who has some); returns Map email → number
+  async function valuesOf(ch, emails, cond) {
+    cond = cond || { metric: ch.metric, mode: 'total' };
     const to = new Date(Math.min(Date.now(), new Date(ch.ends_at).getTime()));
     const m = new Map();
-    if (ch.metric === 'xp') {                                 // XP: what it is now minus what it was when the person joined
+    if (cond.metric === 'xp') {                               // XP: what it is now minus what it was when the person joined
       const joins = (await pool.query('SELECT user_email, base FROM challenge_joins WHERE challenge_id = $1' + (emails ? ' AND user_email = ANY($2)' : ''), emails ? [ch.id, emails] : [ch.id])).rows;
       if (!joins.length || !xpNowOf) return m;
       const now = await xpNowOf(joins.map((j) => j.user_email));
@@ -85,13 +109,13 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
         groups.get(k).list.push(j.user_email);
       }
       for (const g of groups.values()) {
-        const r = await pool.query(SQL[ch.metric], [g.from, to, g.list]).catch(() => ({ rows: [] }));
+        const r = await run(cond, g.from, to, g.list).catch(() => ({ rows: [] }));
         r.rows.forEach((x) => m.set(norm(x.e), Number(x.n) || 0));
         g.list.forEach((e) => { if (!m.has(e)) m.set(e, 0); });
       }
       return m;
     }
-    const r = await pool.query(SQL[ch.metric], [new Date(ch.starts_at), to, emails || null]).catch(() => ({ rows: [] }));
+    const r = await run(cond, new Date(ch.starts_at), to, emails || null).catch(() => ({ rows: [] }));
     r.rows.forEach((x) => m.set(norm(x.e), Number(x.n) || 0));
     if (emails) emails.forEach((e) => { if (!m.has(e)) m.set(e, 0); });
     return m;
@@ -120,17 +144,34 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     else if (rw.type === 'xp' && n) await pool.query('INSERT INTO user_xp (user_email, xp) VALUES ($1, $2) ON CONFLICT (user_email) DO UPDATE SET xp = user_xp.xp + $2', [e, n]);
   }
   // a step reached / a place won: write it down once; give it now unless it is money
-  async function award(ch, e, kind, level, value, rw) {
-    if (!rw || !REWARDS.includes(rw.type)) return;
+  async function award(ch, e, kind, level, value, rw, quiet) {
+    if (!rw || !REWARDS.includes(rw.type)) return false;
     const money = rw.type === 'money';
     const ins = await pool.query(`INSERT INTO challenge_rewards (challenge_id, user_email, kind, level, value, reward, status) VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (challenge_id, user_email, kind, level) DO NOTHING RETURNING *`, [ch.id, e, kind, level, value, JSON.stringify(rw), money ? 'pending' : 'paid']);
-    const row = ins.rows[0]; if (!row) return;
+    const row = ins.rows[0]; if (!row) return false;
     if (!money) await give(row).catch((x) => console.error('[challenges] give:', x.message));
-    const what = kind === 'rank' ? 'អ្នកបានលេខ ' + level : 'អ្នកបានដល់ជាន់ទី ' + level;
-    await sendNotice('system', e, '🎯 ' + ch.title_km + ' — ' + what + '! រង្វាន់៖ ' + rewardText(rw) + (money ? ' (CamFeed កំពុងពិនិត្យ មុនដាក់ចូលកាបូប)' : '')).catch(() => {});
+    const what = kind === 'rank' ? 'អ្នកបានលេខ ' + level : 'អ្នកបានសម្រេចជាន់ទី ' + (((level - 1) % 100) + 1);
+    if (!quiet) await sendNotice('system', e, '🎯 ' + ch.title_km + ' — ' + what + '! រង្វាន់៖ ' + rewardText(rw) + (money ? ' (CamFeed កំពុងពិនិត្យ មុនដាក់ចូលកាបូប)' : '')).catch(() => {});
+    return true;
   }
   const tiersOf = (ch) => (Array.isArray(ch.tiers) ? ch.tiers : []).filter((t) => Number(t.need) > 0).sort((a, b) => Number(a.need) - Number(b.need));
+  // 🪜 a step = a list of conditions (all of them, or any one) → a list of rewards. Old steps (one number of the challenge's metric → one reward) are read the same way.
+  const stepsOf = (ch) => (Array.isArray(ch.tiers) ? ch.tiers : []).map((t) => (Array.isArray(t.conds)
+    ? { conds: t.conds.filter((c) => METRICS.includes(c.metric) && Number(c.need) > 0), rewards: (Array.isArray(t.rewards) ? t.rewards : []).filter((r) => r && REWARDS.includes(r.type)), any: t.any === true }
+    : { conds: Number(t.need) > 0 ? [{ metric: ch.metric, need: Number(t.need), mode: 'total' }] : [], rewards: t.reward ? [t.reward] : [], any: false, old: true }))
+    .filter((st) => st.conds.length && st.rewards.length);
+  const condsOf = (ch) => { const m = new Map(); stepsOf(ch).forEach((st) => st.conds.forEach((c) => m.set(condKey(c), c))); return [...m.values()]; };
+  const levelOf = (step, r) => step + 1 + r * 100;                 // reward r of step i (old challenges: one reward per step → level = i + 1)
+  /// the numbers of every condition of the challenge: Map condKey → Map email → number
+  async function allValues(ch, emails) { const out = new Map(); for (const c of condsOf(ch)) out.set(condKey(c), await valuesOf(ch, emails, c)); return out; }
+  const stepDone = (st, vals, e) => { const ok = st.conds.map((c) => ((vals.get(condKey(c)) || new Map()).get(e) || 0) >= Number(c.need)); return st.any ? ok.some(Boolean) : ok.every(Boolean); };
+  async function giveStep(ch, e, i, st) {   // every reward of the step, then ONE notification
+    const given = [];
+    for (let r = 0; r < st.rewards.length; r++) if (await award(ch, e, 'tier', levelOf(i, r), i + 1, st.rewards[r], true).catch(() => false)) given.push(st.rewards[r]);
+    if (given.length) await sendNotice('system', e, '🎯 ' + ch.title_km + ' — អ្នកបានសម្រេចជាន់ទី ' + (i + 1) + '! រង្វាន់៖ ' + given.map(rewardText).join(' + ')
+      + (given.some((r) => r.type === 'money') ? ' (ប្រាក់៖ CamFeed កំពុងពិនិត្យ មុនដាក់ចូលកាបូប)' : '')).catch(() => {});
+  }
   const ranksOf = (ch) => (Array.isArray(ch.ranks) ? ch.ranks : []).filter((r) => Number(r.from) >= 1);
 
   // every 10 minutes: steps reached in live challenges; challenges that ended get their final places
@@ -139,10 +180,14 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
       await ensure();
       const live = (await pool.query("SELECT * FROM challenges WHERE status = 'live' AND starts_at <= NOW()")).rows;
       for (const ch of live) {
-        const tiers = tiersOf(ch);
-        const vals = await valuesOf(ch, null);
-        if (tiers.length) for (const [e, v] of vals) tiers.forEach((t, i) => { if (v >= Number(t.need)) award(ch, e, 'tier', i + 1, v, t.reward).catch(() => {}); });
+        const steps = stepsOf(ch);
+        if (steps.length) {
+          const all = await allValues(ch, null), people = new Set();
+          all.forEach((m) => m.forEach((v, e) => { if (v > 0 || ch.join_mode === 'join') people.add(e); }));
+          for (const e of people) for (let i = 0; i < steps.length; i++) if (stepDone(steps[i], all, e)) await giveStep(ch, e, i, steps[i]);
+        }
         if (new Date(ch.ends_at) <= new Date()) {
+          const vals = await valuesOf(ch, null);
           const ranks = ranksOf(ch);
           if (ranks.length) {
             const order = [...vals.entries()].filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
@@ -171,12 +216,13 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
 
   // what a person sees: the challenges for one place (party / monetize), with their own progress
   async function view(ch, e, withTop) {
-    const tiers = tiersOf(ch), ranks = ranksOf(ch);
+    const steps = stepsOf(ch), ranks = ranksOf(ch);
     const joined = ch.join_mode === 'auto' || (await pool.query('SELECT 1 FROM challenge_joins WHERE challenge_id = $1 AND user_email = $2', [ch.id, e])).rows.length > 0;
     const people = ch.join_mode === 'join' ? Number((await pool.query('SELECT COUNT(*)::int AS n FROM challenge_joins WHERE challenge_id = $1', [ch.id])).rows[0].n) : 0;
     let mine = 0, place = null, top = [];
     const started = new Date(ch.starts_at) <= new Date();
-    if (joined && started) mine = (await valuesOf(ch, [e])).get(e) || 0;
+    let vals = new Map();
+    if (joined && started) { mine = (await valuesOf(ch, [e])).get(e) || 0; vals = await allValues(ch, [e]); }
     if (withTop && started && ranks.length) {
       const all = await valuesOf(ch, null);
       const order = [...all.entries()].filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
@@ -188,12 +234,19 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
       }
     }
     const got = (await pool.query('SELECT kind, level, status FROM challenge_rewards WHERE challenge_id = $1 AND user_email = $2', [ch.id, e])).rows;
+    const gotStep = (i) => got.some((g) => g.kind === 'tier' && ((g.level - 1) % 100) === i);
     // a step reached right now gets written at once (the sweep also does it)
-    if (joined && started && ch.status === 'live') tiers.forEach((t, k) => { if (mine >= Number(t.need) && !got.some((g) => g.kind === 'tier' && g.level === k + 1)) award(ch, e, 'tier', k + 1, mine, t.reward).catch(() => {}); });
+    if (joined && started && ch.status === 'live') steps.forEach((st, i) => { if (stepDone(st, vals, e) && !gotStep(i)) giveStep(ch, e, i, st).catch(() => {}); });
+    const stepOut = steps.map((st, i) => {
+      const conds = st.conds.map((c) => { const v = (vals.get(condKey(c)) || new Map()).get(e) || 0; return { metric: c.metric, need: Number(c.need), mode: c.mode === 'daily' ? 'daily' : 'total', per_day: Number(c.per_day) || 0, value: v, done: v >= Number(c.need) }; });
+      const done = joined && started && (st.any ? conds.some((c) => c.done) : conds.every((c) => c.done));
+      return { conds, any: st.any, rewards: st.rewards.map((r) => ({ reward: r, text: rewardText(r) })), done, got: gotStep(i),
+        need: conds[0].need, reward: st.rewards[0], text: st.rewards.map(rewardText).join(' + ') };   // need / reward / text: for app builds before 181
+    });
     return {
       id: ch.id, icon: ch.icon, title_km: ch.title_km, title_en: ch.title_en, body_km: ch.body_km, body_en: ch.body_en, area: ch.area, metric: ch.metric,
       starts_at: ch.starts_at, ends_at: ch.ends_at, status: ch.status, join_mode: ch.join_mode, max_people: ch.max_people, people, joined, min_level: ch.min_level, min_days: ch.min_days,
-      tiers: tiers.map((t, k) => ({ need: Number(t.need), reward: t.reward, text: rewardText(t.reward || {}), done: mine >= Number(t.need), got: got.some((g) => g.kind === 'tier' && g.level === k + 1) })),
+      tiers: stepOut, multi: steps.some((st) => !st.old),
       ranks: ranks.map((r) => ({ from: Number(r.from), to: Number(r.to || r.from), reward: r.reward, text: rewardText(r.reward || {}) })),
       mine, place, top,
     };
@@ -234,7 +287,7 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
       const n = Number((await c.query('SELECT COUNT(*)::int AS n FROM challenge_joins WHERE challenge_id = $1', [ch.id])).rows[0].n);
       if (ch.max_people > 0 && n >= ch.max_people) { await c.query('ROLLBACK'); return res.status(409).json({ success: false, code: 'full', message: 'full', error: 'All places are taken.' }); }
       let base = 0;
-      if (ch.metric === 'xp' && xpNowOf) base = ((await xpNowOf([e])).get(e) || {}).xp || 0;
+      if ((ch.metric === 'xp' || condsOf(ch).some((x) => x.metric === 'xp')) && xpNowOf) base = ((await xpNowOf([e])).get(e) || {}).xp || 0;
       await c.query('INSERT INTO challenge_joins (challenge_id, user_email, base) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [ch.id, e, base]);
       await c.query('COMMIT');
       res.json({ success: true });
@@ -254,19 +307,50 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     };
     const out = {
       title_km: s(b.title_km, 120), title_en: s(b.title_en, 120), body_km: s(b.body_km, 2000), body_en: s(b.body_en, 2000), icon: s(b.icon, 16) || '🎯',
-      area: ['party', 'monetize', 'both'].includes(b.area) ? b.area : 'party', metric: METRICS.includes(b.metric) ? b.metric : '',
+      area: ['party', 'monetize', 'both'].includes(b.area) ? b.area : 'party', metric: METRICS.includes(b.metric) ? b.metric : '',   // the metric of the Top places (and of old steps)
       starts_at: new Date(b.starts_at), ends_at: new Date(b.ends_at), join_mode: b.join_mode === 'auto' ? 'auto' : 'join',
       max_people: Math.max(0, Math.min(parseInt(b.max_people, 10) || 0, 1000000)), min_level: Math.max(0, parseInt(b.min_level, 10) || 0), min_days: Math.max(0, parseInt(b.min_days, 10) || 0),
-      tiers: (Array.isArray(b.tiers) ? b.tiers : []).filter((t) => Number(t.need) > 0).slice(0, 10).map((t) => ({ need: Number(t.need), reward: rw(t.reward) })),
+      tiers: (Array.isArray(b.tiers) ? b.tiers : []).slice(0, 10).map((t) => {
+        if (!Array.isArray(t.conds)) return Number(t.need) > 0 ? { need: Number(t.need), reward: rw(t.reward) } : null;   // old shape
+        const conds = t.conds.slice(0, 8).filter((c) => METRICS.includes(c.metric) && Number(c.need) > 0).map((c) => {
+          const daily = c.mode === 'daily' && !!DAILY[c.metric] && Number(c.per_day) > 0;
+          return daily ? { metric: c.metric, need: Math.min(Math.floor(Number(c.need)), 3660), mode: 'daily', per_day: Math.min(Number(c.per_day), 100000000) } : { metric: c.metric, need: Math.min(Number(c.need), 1000000000), mode: 'total' };
+        });
+        const rewards = (Array.isArray(t.rewards) ? t.rewards : []).slice(0, 5).map(rw).filter((r) => r.type === 'note' ? !!r.label : r.type === 'frame' ? r.frame_id > 0 : r.amount > 0);
+        return conds.length && rewards.length ? { conds, rewards, any: t.any === true } : null;
+      }).filter(Boolean),
       ranks: (Array.isArray(b.ranks) ? b.ranks : []).filter((r) => parseInt(r.from, 10) >= 1).slice(0, 20).map((r) => ({ from: parseInt(r.from, 10), to: Math.max(parseInt(r.from, 10), parseInt(r.to, 10) || parseInt(r.from, 10)), reward: rw(r.reward) })),
       status: ['draft', 'live', 'paused'].includes(b.status) ? b.status : 'live', sort: parseInt(b.sort, 10) || 0,
     };
     if (!out.title_km) return 'Write the Khmer title.';
+    if (!out.metric) { const first = out.tiers.find((t) => t.conds); if (first) out.metric = first.conds[0].metric; }
     if (!out.metric) return 'Choose what is counted.';
     if (isNaN(out.starts_at) || isNaN(out.ends_at) || out.ends_at <= out.starts_at) return 'Check the start and end time.';
-    if (out.metric === 'xp' && out.join_mode !== 'join') return 'An XP challenge needs "people press Join" (XP is counted from the moment they join).';
+    if ((out.metric === 'xp' || out.tiers.some((t) => (t.conds || []).some((c) => c.metric === 'xp'))) && out.join_mode !== 'join') return 'An XP challenge needs "people press Join" (XP is counted from the moment they join).';
     if (!out.tiers.length && !out.ranks.length) return 'Add at least one step or one place (Top N).';
     return out;
+  }
+  // 🛡️ never lose money: a step that counts gift coins must give back less than what CamFeed keeps from those coins
+  // (a person can send gifts to their own second account: they pay the coins, the second account earns its share, and the step pays the reward)
+  async function lossCheck(c) {
+    const cm = coinMoney ? await coinMoney().catch(() => null) : null;
+    if (!cm || !(cm.centsPerCoin > 0)) return '';
+    const keep = cm.centsPerCoin - (cm.coinCents || 1) * Math.min(100, Math.max(0, cm.share)) / 100;   // cents CamFeed keeps from one coin given as a gift (price paid − receiver's share; Stars' share if bigger)
+    const steps = stepsOf(c);
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      const gift = st.conds.filter((x) => x.metric === 'gift_sent' || x.metric === 'gift_recv').map((x) => x.mode === 'daily' ? Number(x.need) * Number(x.per_day) : Number(x.need));
+      if (!gift.length) continue;
+      const coinsNeeded = st.any ? Math.min(...gift) : Math.max(...gift);
+      const value = st.rewards.reduce((a, r) => a + (r.type === 'money' ? Number(r.amount) || 0 : r.type === 'coins' ? (Number(r.amount) || 0) * cm.centsPerCoin : 0), 0);
+      if (value > 0 && value >= coinsNeeded * keep) {
+        if (!(keep > 0)) return 'Step ' + (i + 1) + ': gift coins can not pay a money or coin reward (the receiver\'s share is as big as the coin price). Give a frame / VIP / XP instead. · ជាន់ទី ' + (i + 1) + '៖ សូមផ្ដល់ស៊ុម VIP ឬ XP ជំនួសប្រាក់ ឬកាក់។';
+        const safe = Math.ceil(value / keep);
+        return 'Step ' + (i + 1) + ': CamFeed would lose money. The reward is worth $' + (value / 100).toFixed(2) + ' but ' + coinsNeeded + ' gift coins leave CamFeed only $' + (coinsNeeded * keep / 100).toFixed(2)
+          + '. Ask for more than ' + safe + ' coins, or give a frame / VIP / XP instead. · ជាន់ទី ' + (i + 1) + '៖ CamFeed នឹងខាត។ សូមដាក់លើស ' + safe + ' កាក់ ឬផ្ដល់ស៊ុម VIP XP ជំនួស។';
+      }
+    }
+    return '';
   }
   app.post('/api/admin/challenges', async (req, res) => {
     const b = req.body || {};
@@ -279,6 +363,8 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
         if (!superOnly()) return;
         const c = clean(b.challenge || {});
         if (typeof c === 'string') return res.status(400).json({ success: false, error: c });
+        const loss = await lossCheck(c);
+        if (loss) return res.status(400).json({ success: false, error: loss });
         const id = parseInt((b.challenge || {}).id, 10) || 0;
         const vals = [c.title_km, c.title_en, c.body_km, c.body_en, c.icon, c.area, c.metric, c.starts_at, c.ends_at, c.join_mode, c.max_people, c.min_level, c.min_days, JSON.stringify(c.tiers), JSON.stringify(c.ranks), c.status, c.sort];
         if (id) await pool.query(`UPDATE challenges SET title_km = $1, title_en = $2, body_km = $3, body_en = $4, icon = $5, area = $6, metric = $7, starts_at = $8, ends_at = $9, join_mode = $10,
@@ -321,7 +407,8 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
       const pending = (await pool.query(`SELECT r.*, c.title_km, u.first_name, u.last_name FROM challenge_rewards r JOIN challenges c ON c.id = r.challenge_id LEFT JOIN users u ON LOWER(u.email) = r.user_email
         WHERE r.status = 'pending' OR r.decided_at > NOW() - INTERVAL '30 days' ORDER BY (r.status = 'pending') DESC, r.created_at DESC LIMIT 200`)).rows;
       const frames = (await pool.query('SELECT id, name_en, emoji FROM party_frames ORDER BY id').catch(() => ({ rows: [] }))).rows;
-      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, challenges: list, rewards: pending, frames, metrics: METRICS, rewardTypes: REWARDS });
+      const cm = coinMoney ? await coinMoney().catch(() => null) : null;
+      res.json({ success: true, isSuperAdmin: a.isSuperAdmin, challenges: list, rewards: pending, frames, metrics: METRICS, rewardTypes: REWARDS, coinMoney: cm, daily: Object.keys(DAILY) });
     } catch (err) { console.error('[challenges] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 

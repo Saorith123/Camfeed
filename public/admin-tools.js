@@ -601,7 +601,23 @@
       });
       box.appendChild(el('div', { style: 'font-weight:800;font-size:15px;margin:16px 0 6px', text: 'Rules' + (su ? '' : ' (only a Super Admin can change)') }));
       var form = el('div', { style: 'background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px' }); box.appendChild(form);
-      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:110px;display:inline-block' }); i.disabled = !su; form.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:5px 0' }, [el('span', { style: 'min-width:340px', text: label }), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
+      // English label + the same in Khmer under it (Admin reads both)
+      var KM = {
+        'Shown view: watched at least (seconds)': 'ការមើលដែលបង្ហាញ៖ ត្រូវមើលយ៉ាងហោចណាស់ (វិនាទី)',
+        'Shown view: one person counts once every (hours)': 'ការមើលដែលបង្ហាញ៖ មនុស្សម្នាក់រាប់ ១ ដង ក្នុងរយៈពេល (ម៉ោង)',
+        'Paid view: watched at least (seconds)': 'ការមើលដែលបង់ប្រាក់៖ ត្រូវមើលយ៉ាងហោចណាស់ (វិនាទី) 🔒 សម្ងាត់ ម្នាក់បង់ ១ ដងគត់ក្នុងមួយការបង្ហោះ',
+        'Paid view, short video: at least this % of it': 'វីដេអូខ្លី៖ ត្រូវមើលយ៉ាងហោចណាស់ ភាគរយនៃវីដេអូ (%)',
+        'Paid view, short video: never less than (seconds)': 'វីដេអូខ្លី៖ មិនតិចជាង (វិនាទី)',
+        'Paid view: viewer account at least (days old)': 'គណនីអ្នកមើលត្រូវមានអាយុយ៉ាងហោចណាស់ (ថ្ងៃ)',
+        'Paid views from one phone / IP per post per day': 'ការមើលដែលបង់ប្រាក់ ពីទូរសព្ទ ឬ IP មួយ ក្នុងមួយការបង្ហោះ ក្នុងមួយថ្ងៃ',
+        'One person: views counted per hour at most': 'មនុស្សម្នាក់៖ រាប់ការមើលច្រើនបំផុតក្នុងមួយម៉ោង (លើសនេះ បញ្ឈប់ ហើយបង្ហាញនៅទីនេះ)',
+        'Paid views are paid after (days)': 'បង់ប្រាក់ក្រោយ (ថ្ងៃ) ដើម្បីមានពេលរកអ្នកបន្លំ',
+        'Strange jump: paid views in 1 hour at least': 'ការកើនឡើងចម្លែក៖ ការមើលដែលបង់ប្រាក់ក្នុង ១ ម៉ោង យ៉ាងហោចណាស់',
+        '… from new accounts (< 30 days) at least (%)': '… ពីគណនីថ្មី (តិចជាង ៣០ ថ្ងៃ) យ៉ាងហោចណាស់ (%)',
+        '… from one IP at least (%)': '… ពី IP តែមួយ យ៉ាងហោចណាស់ (%)',
+        '… likes + comments less than (% of views)': '… ចូលចិត្ត និងមតិ តិចជាង (% នៃការមើល)'
+      };
+      function field(label, val, hint) { var i = el('input', { class: 'at-in', value: String(val), style: 'width:110px;display:inline-block' }); i.disabled = !su; form.appendChild(el('label', { style: 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0' }, [el('span', { style: 'min-width:min(340px,100%);max-width:100%;flex:1 1 340px;overflow-wrap:anywhere' }, [el('div', { text: label }), KM[label] ? el('div', { style: 'color:#1E4BFF;font-size:13px;margin-top:2px', text: KM[label] }) : el('span')]), i, el('span', { style: 'color:#65676b;font-size:12px', text: hint || '' })])); return i; }
       var f1 = field('Shown view: watched at least (seconds)', s.shownSec, '');
       var f2 = field('Shown view: one person counts once every (hours)', s.shownHours, '');
       var f3 = field('Paid view: watched at least (seconds)', s.paidSec, '🔒 secret — only CamFeed knows it (3–120). One paid view per person per post, for ever');
@@ -789,10 +805,12 @@
 
   // ---------- 🎯 Challenges: goals for a time with steps (tier 1, 2, 3…) and/or Top N places; rewards = coins / frame / VIP / XP / a note / money ----------
   var CH_METRIC = { gift_recv: '🎁 Gift coins received', gift_sent: '🎁 Gift coins sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
+  var CH_METRIC_KM = { gift_recv: 'កាក់អំណោយដែលបានទទួល', gift_sent: 'កាក់អំណោយដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
+  var CH_UNIT = { gift_recv: 'coins · កាក់', gift_sent: 'coins · កាក់', room_minutes: 'min · នាទី', seat_minutes: 'min · នាទី', xp: 'XP', checkins: 'days · ថ្ងៃ', room_followers: 'people · នាក់', video_views: 'views · ដង', posts: 'posts · ដង', followers: 'people · នាក់' };
   var CH_REWARD = { coins: '🪙 Coins', money: '💵 Money ($, Admin approves)', frame: '🖼️ Frame', vip: '👑 VIP days', xp: '⚡ XP', note: '📝 Note only (e.g. a chance to become a Star)' };
   function challengesAdmin(body) {
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
-    var frames = [];
+    var frames = [], COIN_MONEY = null, DAILY_OK = [];
     function call(extra) { return adm('/api/admin/challenges', extra || {}).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; }); }
     function local(d) { if (!d) return ''; var x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); }
     function rewardTxt(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '$' + (n / 100).toFixed(2) : r.type === 'coins' ? n + ' coins' : r.type === 'vip' ? 'VIP ' + n + ' days' : r.type === 'xp' ? n + ' XP' : r.type === 'frame' ? 'Frame #' + r.frame_id + ' ' + (r.days || 7) + ' days' : (r.label || '—'); }
@@ -811,12 +829,16 @@
       return w;
     }
     function form(c) {
-      c = c || { icon: '🎯', area: 'party', metric: 'gift_recv', join_mode: 'join', max_people: 50, tiers: [{ need: 1000, reward: { type: 'coins', amount: 50 } }, { need: 5000, reward: { type: 'coins', amount: 300 } }, { need: 20000, reward: { type: 'money', amount: 500 } }], ranks: [], status: 'live',
+      c = c || { icon: '🎯', area: 'party', metric: 'gift_recv', join_mode: 'join', max_people: 50, tiers: [{ conds: [{ metric: 'checkins', need: 14, mode: 'total' }, { metric: 'seat_minutes', need: 50, mode: 'total' }], rewards: [{ type: 'coins', amount: 100 }] }], ranks: [], status: 'live',
         starts_at: new Date().toISOString(), ends_at: new Date(Date.now() + 7 * 86400000).toISOString() };
       var f = el('div', { style: 'border:2px solid #7c3aed;border-radius:14px;padding:12px;margin:10px 0;background:#faf7ff' });
       function inp(v, w, ph, type) { return el('input', { class: 'at-in', value: v == null ? '' : String(v), placeholder: ph || '', type: type || 'text', style: 'width:' + (w || 220) + 'px;display:inline-block' }); }
-      function sel(map, v) { var x = el('select', { class: 'at-in', style: 'width:auto;display:inline-block' }); Object.keys(map).forEach(function (k) { var o = el('option', { value: k, text: map[k] }); if (k === v) o.selected = true; x.appendChild(o); }); return x; }
-      function row(label, kids) { return el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0' }, [el('span', { style: 'min-width:170px;font-weight:700', text: label })].concat(kids)); }
+      function sel(map, v) { var x = el('select', { class: 'at-in', style: 'width:auto;max-width:100%;display:inline-block' }); Object.keys(map).forEach(function (k) { var o = el('option', { value: k, text: map[k] }); if (k === v) o.selected = true; x.appendChild(o); }); return x; }
+      // English + Khmer (blue, under it) for every label in this form
+      function two(en, km, bold) { return el('span', { style: 'display:inline-block;' + (bold ? 'font-weight:700;' : '') }, [el('div', { text: en }), km ? el('div', { style: 'color:#1E4BFF;font-size:12.5px;font-weight:400', text: km }) : el('span')]); }
+      function pair(en, km, input) { return el('span', { style: 'display:inline-flex;gap:6px;align-items:center;white-space:nowrap' }, [two(en, km), input]); }
+      function row(label, kids, km) { return el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0' }, [el('span', { style: 'min-width:170px' }, [two(label, km, true)])].concat(kids)); }
+      function head(en, km) { return el('div', { style: 'font-weight:800;margin:12px 0 2px' }, [el('div', { text: en }), el('div', { style: 'color:#1E4BFF;font-size:13px;font-weight:600', text: km })]); }
       var icon = inp(c.icon, 60), tk = inp(c.title_km, 320, 'ចំណងជើង (ខ្មែរ)'), te = inp(c.title_en, 320, 'Title (English)');
       var bk = el('textarea', { class: 'at-in', rows: '3', style: 'width:100%', placeholder: 'អ្វីដែលអ្នកចូលរួមទទួលបាន (ខ្មែរ) — ឧ. ឱកាសក្លាយជាតារា ឱកាសរកលុយពីវីដេអូ…' }); bk.value = c.body_km || '';
       var be = el('textarea', { class: 'at-in', rows: '2', style: 'width:100%', placeholder: 'What people get (English)' }); be.value = c.body_en || '';
@@ -827,33 +849,116 @@
       var stt = sel({ live: '🟢 Live', draft: '📝 Draft (hidden)', paused: '⏸ Paused (hidden)' }, c.status === 'ended' ? 'live' : c.status);
       var notify = el('input', { type: 'checkbox' });
       var tiersBox = el('div'), ranksBox = el('div'), tiers = [], ranks = [];
-      function addTier(t) { t = t || {}; var need = inp(t.need, 100, 'need', 'number'), rw = rewardEditor(t.reward), line = el('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0' }); var o = { need: need, rw: rw };
-        line.appendChild(el('b', { text: 'Step ' + (tiers.length + 1) + ': reach' })); line.appendChild(need); line.appendChild(el('span', { text: '→' })); line.appendChild(rw);
-        line.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { tiers.splice(tiers.indexOf(o), 1); line.remove(); } })); tiers.push(o); tiersBox.appendChild(line); }
+      // 🪜 a step: conditions (each: what + how much, in all or every day) → rewards. Old steps (one number of the counted thing) open as one condition.
+      function addTier(t) {
+        t = t || {};
+        var conds = Array.isArray(t.conds) ? t.conds : (t.need ? [{ metric: c.metric, need: t.need, mode: 'total' }] : [{ metric: 'checkins', need: 0, mode: 'total' }]);
+        var rewards = Array.isArray(t.rewards) ? t.rewards : (t.reward ? [t.reward] : [{ type: 'coins', amount: 0 }]);
+        var o = { conds: [], rewards: [] };
+        var card = el('div', { style: 'background:#fff;border:1px solid #d8cdf5;border-radius:12px;padding:10px 12px;margin:8px 0' });
+        var title = el('div', { style: 'display:flex;justify-content:space-between;align-items:center;gap:8px' });
+        var num = el('span'); title.appendChild(num);
+        title.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✕', title: 'Remove this step · លុបជំហាននេះ', onclick: function () { tiers.splice(tiers.indexOf(o), 1); card.remove(); renumber(); check(); } }));
+        card.appendChild(title);
+        var anySel = el('select', { class: 'at-in', style: 'width:auto;max-width:100%;display:inline-block' });
+        [['all', 'Do ALL of these · ត្រូវធ្វើគ្រប់ចំណុច'], ['any', 'ONE of these is enough · ធ្វើបានមួយក៏បាន']].forEach(function (x) { var op = el('option', { value: x[0], text: x[1] }); if ((t.any === true) === (x[0] === 'any')) op.selected = true; anySel.appendChild(op); });
+        anySel.addEventListener('change', check);
+        card.appendChild(el('div', { style: 'margin:6px 0' }, [two('Conditions', 'លក្ខខណ្ឌ', true), anySel]));
+        var condBox = el('div'); card.appendChild(condBox);
+        function addCond(cd) {
+          cd = cd || { metric: 'checkins', need: 0, mode: 'total' };
+          var m = sel(CH_METRIC, cd.metric); Object.keys(CH_METRIC).forEach(function (k, i) { m.options[i].text = CH_METRIC[k] + ' · ' + CH_METRIC_KM[k]; });
+          var daily = cd.mode === 'daily';
+          var amt = inp(daily ? cd.per_day : (cd.need || ''), 90, '0', 'number'), unit = el('span', { style: 'color:#65676b;font-size:12.5px' });
+          var mode = el('select', { class: 'at-in', style: 'width:auto;display:inline-block' });
+          [['total', 'in all · សរុប'], ['daily', 'every day · រៀងរាល់ថ្ងៃ']].forEach(function (x) { var op = el('option', { value: x[0], text: x[1] }); if (x[0] === (daily ? 'daily' : 'total')) op.selected = true; mode.appendChild(op); });
+          var days = inp(daily ? cd.need : '', 70, 'days', 'number'), dayTxt = el('span', { style: 'font-size:12.5px', text: '× days · ថ្ងៃ' });
+          var line = el('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0;padding:6px 0;border-top:1px dashed #e4e6eb' });
+          var co = { m: m, amt: amt, mode: mode, days: days };
+          function show() {
+            var canDaily = (DAILY_OK || []).indexOf(m.value) >= 0;
+            if (!canDaily) mode.value = 'total';
+            mode.style.display = canDaily ? 'inline-block' : 'none';
+            var d = mode.value === 'daily';
+            days.style.display = dayTxt.style.display = d ? 'inline-block' : 'none';
+            unit.textContent = CH_UNIT[m.value] + (d ? ' per day · ក្នុងមួយថ្ងៃ' : '');
+            check();
+          }
+          m.addEventListener('change', show); mode.addEventListener('change', show); amt.addEventListener('input', check); days.addEventListener('input', check);
+          var no = el('b', { text: (o.conds.length + 1) + '.' });
+          [no, m, amt, unit, mode, days, dayTxt, el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { o.conds.splice(o.conds.indexOf(co), 1); line.remove(); o.conds.forEach(function (x, i) { x.no.textContent = (i + 1) + '.'; }); check(); } })].forEach(function (k) { line.appendChild(k); });
+          co.no = no; co.read = function () { var d = mode.value === 'daily'; return d ? { metric: m.value, mode: 'daily', per_day: Number(amt.value || 0), need: Number(days.value || 0) } : { metric: m.value, mode: 'total', need: Number(amt.value || 0) }; };
+          o.conds.push(co); condBox.appendChild(line); show();
+        }
+        conds.forEach(addCond);
+        card.appendChild(el('button', { class: 'btn-sm', text: '+ Condition · បន្ថែមលក្ខខណ្ឌ', onclick: function () { addCond(); } }));
+        card.appendChild(el('div', { style: 'margin:10px 0 4px' }, [two('Rewards (all of them are given)', 'រង្វាន់ (ផ្ដល់ទាំងអស់)', true)]));
+        var rwBox = el('div'); card.appendChild(rwBox);
+        function addRw(r) {
+          var rw = rewardEditor(r), line = el('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0' });
+          line.appendChild(el('span', { text: '🎁' })); line.appendChild(rw);
+          line.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { o.rewards.splice(o.rewards.indexOf(rw), 1); line.remove(); check(); } }));
+          line.addEventListener('input', check); line.addEventListener('change', check);
+          o.rewards.push(rw); rwBox.appendChild(line);
+        }
+        rewards.forEach(addRw);
+        card.appendChild(el('button', { class: 'btn-sm', text: '+ Reward · បន្ថែមរង្វាន់', onclick: function () { addRw({ type: 'frame' }); check(); } }));
+        var warn = el('div', { style: 'margin-top:8px;font-size:13px;font-weight:700' }); card.appendChild(warn);
+        o.card = card; o.num = num; o.warn = warn; o.anySel = anySel;
+        o.read = function () { return { conds: o.conds.map(function (x) { return x.read(); }).filter(function (x) { return x.need > 0 && (x.mode !== 'daily' || x.per_day > 0); }), rewards: o.rewards.map(function (r) { return r.read(); }), any: anySel.value === 'any' }; };
+        tiers.push(o); tiersBox.appendChild(card); renumber(); check();
+      }
+      function renumber() { tiers.forEach(function (x, i) { x.num.textContent = ''; x.num.appendChild(two('🪜 Step ' + (i + 1), 'ជំហាន ' + (i + 1), true)); }); }
+      // 🛡️ live check: a step with gift coins must give back less than what CamFeed keeps from those coins (the server checks it again)
+      function check() {
+        var cm = COIN_MONEY; var bad = false;
+        tiers.forEach(function (x, i) {
+          if (!x.warn) return;
+          var st = x.read(), gift = st.conds.filter(function (q) { return q.metric === 'gift_sent' || q.metric === 'gift_recv'; }).map(function (q) { return q.mode === 'daily' ? q.need * q.per_day : q.need; });
+          var value = st.rewards.reduce(function (a, r) { return a + (r.type === 'money' ? r.amount : r.type === 'coins' ? r.amount * ((cm && cm.centsPerCoin) || 1) : 0); }, 0);
+          x.warn.textContent = ''; x.warn.style.color = '';
+          if (!gift.length || !cm || !value) return;
+          var keep = cm.centsPerCoin - (cm.coinCents || 1) * cm.share / 100, coinsN = st.any ? Math.min.apply(null, gift) : Math.max.apply(null, gift);
+          if (keep <= 0 || value >= coinsN * keep) {
+            bad = true; x.warn.style.color = '#e41e3f';
+            x.warn.textContent = '⛔ CamFeed would lose money · CamFeed នឹងខាត — reward $' + (value / 100).toFixed(2) + (keep > 0 ? ', ask for more than ' + Math.ceil(value / keep) + ' coins · សូមដាក់លើស ' + Math.ceil(value / keep) + ' កាក់' : '') + ', or give a frame / VIP / XP · ឬផ្ដល់ស៊ុម VIP XP';
+          } else { x.warn.style.color = '#16a34a'; x.warn.textContent = '✅ Safe · មានសុវត្ថិភាព (CamFeed keeps $' + (coinsN * keep / 100 - value / 100).toFixed(2) + ' or more)'; }
+        });
+        if (saveBtn) { saveBtn.disabled = bad; saveBtn.style.opacity = bad ? '0.5' : ''; }
+        if (costBox) {
+          var mx = Number(mp.value) || 0, money = 0, coinsOut = 0;
+          tiers.forEach(function (x) { x.read().rewards.forEach(function (r) { if (r.type === 'money') money += r.amount; if (r.type === 'coins') coinsOut += r.amount; }); });
+          costBox.textContent = (money || coinsOut) ? ('💰 Most CamFeed can give for the steps · ចំណាយច្រើនបំផុតសម្រាប់ជំហាន៖ ' + (money ? '$' + (money / 100).toFixed(2) : '') + (money && coinsOut ? ' + ' : '') + (coinsOut ? coinsOut.toLocaleString() + ' coins' : '') + (mx ? ' × ' + mx + ' people · នាក់ = ' + (money ? '$' + (money * mx / 100).toFixed(2) : '') + (money && coinsOut ? ' + ' : '') + (coinsOut ? (coinsOut * mx).toLocaleString() + ' coins' : '') : ' per person · ក្នុងម្នាក់ (no limit of people · គ្មានកំណត់ចំនួនមនុស្ស)')) : '';
+        }
+      }
+      var saveBtn = null, costBox = el('div', { style: 'margin:8px 0;padding:8px 10px;background:#fff7ed;border-radius:8px;font-size:13px;font-weight:700' });
       function addRank(r) { r = r || {}; var fr = inp(r.from || (ranks.length + 1), 60, 'from', 'number'), to = inp(r.to || r.from || (ranks.length + 1), 60, 'to', 'number'), rw = rewardEditor(r.reward), line = el('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0' }); var o = { fr: fr, to: to, rw: rw };
-        line.appendChild(el('b', { text: 'Place' })); line.appendChild(fr); line.appendChild(el('span', { text: 'to' })); line.appendChild(to); line.appendChild(el('span', { text: '→' })); line.appendChild(rw);
+        line.appendChild(two('Place', 'លេខរៀង', true)); line.appendChild(fr); line.appendChild(two('to', 'ដល់')); line.appendChild(to); line.appendChild(el('span', { text: '→' })); line.appendChild(rw);
         line.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { ranks.splice(ranks.indexOf(o), 1); line.remove(); } })); ranks.push(o); ranksBox.appendChild(line); }
-      (c.tiers || []).forEach(addTier); (c.ranks || []).forEach(addRank);
+      (c.tiers && c.tiers.length ? c.tiers : [{}]).forEach(addTier); (c.ranks || []).forEach(addRank); mp.addEventListener('input', function () { check(); });
       f.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:6px', text: c.id ? '✏️ Edit challenge #' + c.id : '➕ New challenge' }));
-      f.appendChild(row('Icon + title', [icon, tk, te]));
-      f.appendChild(el('div', { style: 'font-weight:700;margin-top:6px', text: 'What people get (shown to them)' })); f.appendChild(bk); f.appendChild(be);
-      f.appendChild(row('Shown in', [area]));
-      f.appendChild(row('What is counted', [metric]));
-      f.appendChild(row('Start → end', [st, el('span', { text: '→' }), en]));
-      f.appendChild(row('Who takes part', [jm, el('span', { text: 'places:' }), mp]));
-      f.appendChild(row('Needs (0 = none)', [el('span', { text: 'level Lv ≥' }), ml, el('span', { text: 'account age (days) ≥' }), md]));
-      f.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 2px', text: '🪜 Steps — reach the number → get the reward (everybody who reaches it)' })); f.appendChild(tiersBox);
-      f.appendChild(el('button', { class: 'btn-sm', text: '+ Step', onclick: function () { addTier(); } }));
-      f.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 2px', text: '🏆 Top places — given when the challenge ends' })); f.appendChild(ranksBox);
+      f.appendChild(row('Icon + title', [icon, tk, te], 'រូប និងចំណងជើង'));
+      f.appendChild(head('What people get (shown to them)', 'អ្វីដែលអ្នកចូលរួមទទួលបាន (បង្ហាញឲ្យគេឃើញ)')); f.appendChild(bk); f.appendChild(be);
+      f.appendChild(row('Shown in', [area], 'បង្ហាញនៅ'));
+      f.appendChild(row('Start → end', [st, el('span', { text: '→' }), en], 'ចាប់ផ្ដើម ដល់ បញ្ចប់'));
+      f.appendChild(row('Who takes part', [jm, pair('places', 'ចំនួនកន្លែង', mp)], 'អ្នកណាចូលរួម'));
+      f.appendChild(row('Needs (0 = none)', [pair('level Lv ≥', 'កម្រិតយ៉ាងហោចណាស់', ml), pair('account age (days) ≥', 'អាយុគណនី (ថ្ងៃ) យ៉ាងហោចណាស់', md)], 'លក្ខខណ្ឌ (0 = គ្មាន)'));
+      f.appendChild(head('🪜 Steps — do the conditions → get the rewards (everybody who does them)', 'ជំហាន៖ ធ្វើតាមលក្ខខណ្ឌ ទទួលបានរង្វាន់ (គ្រប់គ្នាដែលធ្វើបាន)')); f.appendChild(tiersBox);
+      f.appendChild(el('button', { class: 'btn-sm', text: '+ Step · បន្ថែមជំហាន', onclick: function () { addTier(); } }));
+      f.appendChild(costBox);
+      f.appendChild(head('🏆 Top places — given when the challenge ends', 'លេខរៀងកំពូល៖ ផ្ដល់ឲ្យពេលបញ្ចប់')); 
+      f.appendChild(row('Places counted by', [metric], 'លេខរៀងរាប់តាម'));
+      f.appendChild(ranksBox);
       f.appendChild(el('button', { class: 'btn-sm', text: '+ Place', onclick: function () { addRank(); } }));
-      f.appendChild(row('Status / order', [stt, el('span', { text: 'order' }), so]));
+      f.appendChild(row('Status / order', [stt, pair('order', 'លំដាប់', so)], 'ស្ថានភាព'));
       if (!c.id) f.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin:6px 0' }, [notify, el('span', { text: '🔔 Tell everybody active in the last 30 days (a notification)' })]));
       f.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin:6px 0', text: 'Joining is always free. Coins, frames, VIP and XP are given at once; money waits here for a Super Admin to pay. Gifts between the same person\'s accounts should be checked before paying money.' }));
+      f.appendChild(el('div', { style: 'color:#1E4BFF;font-size:12.5px;margin:0 0 6px', text: 'ការចូលរួមឥតគិតថ្លៃជានិច្ច។ កាក់ ស៊ុម VIP និង XP ផ្ដល់ឲ្យភ្លាមៗ។ ប្រាក់ត្រូវរង់ចាំ Super Admin បង់។ មុនបង់ប្រាក់ សូមពិនិត្យអំណោយរវាងគណនីរបស់មនុស្សតែម្នាក់។' }));
       f.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:8px' }, [
-        el('button', { class: 'btn-sm btn-blue', text: c.id ? '💾 Save' : '✅ Create', onclick: function () {
+        saveBtn = el('button', { class: 'btn-sm btn-blue', text: c.id ? '💾 Save' : '✅ Create', onclick: function () {
           var data = { id: c.id, icon: icon.value, title_km: tk.value, title_en: te.value, body_km: bk.value, body_en: be.value, area: area.value, metric: metric.value,
             starts_at: new Date(st.value).toISOString(), ends_at: new Date(en.value).toISOString(), join_mode: jm.value, max_people: mp.value, min_level: ml.value, min_days: md.value, status: stt.value, sort: so.value,
-            tiers: tiers.map(function (t) { return { need: Number(t.need.value), reward: t.rw.read() }; }), ranks: ranks.map(function (r) { return { from: Number(r.fr.value), to: Number(r.to.value), reward: r.rw.read() }; }) };
+            tiers: tiers.map(function (t) { return t.read(); }).filter(function (t) { return t.conds.length; }), ranks: ranks.map(function (r) { return { from: Number(r.fr.value), to: Number(r.to.value), reward: r.rw.read() }; }) };
           if (!st.value || !en.value) return alert('Choose the start and end time.');
           call({ action: 'save', challenge: data, notify: notify.checked });
         } }),
@@ -861,7 +966,7 @@
       return f;
     }
     function draw(d) {
-      box.textContent = ''; frames = d.frames || [];
+      box.textContent = ''; frames = d.frames || []; COIN_MONEY = d.coinMoney || null; DAILY_OK = d.daily || [];
       var su = d.isSuperAdmin;
       box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🎯 Challenges' }));
       box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'The 🎯 Challenge button in the app (Party Room top right) and the Monetize page show the live ones. Everything here can change at any time without an app update.' }));
@@ -869,7 +974,7 @@
       if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', text: '➕ New challenge', onclick: function () { formBox.textContent = ''; formBox.appendChild(form()); } }));
       var peopleBox = el('div');
       box.appendChild(table(['', 'Challenge', 'Counts', 'When', 'Who', 'Joined', 'Rewards', 'Status', ''], (d.challenges || []).map(function (c) {
-        return el('tr', {}, [el('td', { text: c.icon }), el('td', { text: c.title_km + (c.title_en ? ' · ' + c.title_en : '') + ' (' + c.area + ')' }), el('td', { text: CH_METRIC[c.metric] || c.metric }),
+        return el('tr', {}, [el('td', { text: c.icon }), el('td', { text: c.title_km + (c.title_en ? ' · ' + c.title_en : '') + ' (' + c.area + ')' }), el('td', { text: (Array.isArray(c.tiers) && c.tiers.some(function (t) { return Array.isArray(t.conds); })) ? c.tiers.map(function (t, i) { return (i + 1) + ') ' + (t.conds || []).map(function (q) { return (CH_METRIC[q.metric] || q.metric) + ' ' + (q.mode === 'daily' ? q.per_day + '/day × ' + q.need : q.need); }).join(t.any ? ' OR ' : ' + '); }).join(' · ') : (CH_METRIC[c.metric] || c.metric) }),
           el('td', { text: new Date(c.starts_at).toLocaleString() + ' → ' + new Date(c.ends_at).toLocaleString() }), el('td', { text: c.join_mode === 'join' ? 'Join' + (c.max_people ? ' (max ' + c.max_people + ')' : '') : 'Everybody' }),
           el('td', { text: c.join_mode === 'join' ? String(c.joined) : '—' }), el('td', { text: String(c.rewards) }), el('td', { text: c.status }),
           el('td', {}, [
@@ -887,7 +992,7 @@
       box.appendChild(peopleBox);
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '💵 Rewards (money waits here; others were given at once)' }));
       box.appendChild(table(['Person', 'Challenge', 'For', 'Number', 'Reward', 'Status', ''], (d.rewards || []).map(function (r) {
-        return el('tr', {}, [el('td', { text: nm(r) + ' · ' + r.user_email }), el('td', { text: r.title_km }), el('td', { text: r.kind === 'rank' ? 'Place ' + r.level : 'Step ' + r.level }), el('td', { text: String(r.value) }),
+        return el('tr', {}, [el('td', { text: nm(r) + ' · ' + r.user_email }), el('td', { text: r.title_km }), el('td', { text: r.kind === 'rank' ? 'Place ' + r.level : 'Step ' + (((r.level - 1) % 100) + 1) }), el('td', { text: String(r.value) }),
           el('td', { text: rewardTxt(r.reward) }), el('td', { text: r.status }),
           el('td', {}, su && r.status === 'pending' ? [el('button', { class: 'btn-sm btn-blue', text: 'Pay', onclick: function () { if (confirm('Pay ' + rewardTxt(r.reward) + ' to ' + nm(r) + '?')) call({ action: 'pay', id: r.id, pay: true }); } }), ' ',
             el('button', { class: 'btn-sm', text: 'Cancel', onclick: function () { if (confirm('Cancel this reward?')) call({ action: 'pay', id: r.id, pay: false }); } })] : [])]);

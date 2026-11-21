@@ -322,6 +322,11 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_epoch INTEGER DEFAULT 0');      // "log out of all devices"
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_prefs TEXT DEFAULT ''");   // which notifications to receive
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS show_active_status BOOLEAN DEFAULT TRUE');   // "Active status" switch
+    // 🖼️ old databases gave every new account a grey "150 x 150" / "800 x 300" picture from via.placeholder.com: no picture is better (the app and site draw their own)
+    for (const c of ['profile_pic', 'cover_pic']) {
+      await pool.query(`ALTER TABLE users ALTER COLUMN ${c} DROP DEFAULT`).catch(() => {});
+      await pool.query(`UPDATE users SET ${c} = NULL WHERE ${c} ILIKE '%placeholder.com%' OR ${c} ILIKE '%placehold.co%'`).catch(() => {});
+    }
     // who may see my lists of friends / followers / following: 'public' | 'friends' | 'private' (only me)
     for (const c of ['friends_list_privacy', 'followers_list_privacy', 'following_list_privacy']) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c} VARCHAR(10) DEFAULT 'public'`);
     await pool.query(`CREATE TABLE IF NOT EXISTS user_sessions (
@@ -887,6 +892,24 @@ function videoSecs(src) {
     ok(m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null);
   }));
 }
+// 🎞️ a "fragmented" video (often downloaded from Facebook / TikTok, or from some editors) tells only its FIRST piece
+// (~3 seconds) in its header when read over the internet. Its real length is found by reading it through (fast: no decoding).
+function realVideoSecs(src) {
+  const { execFile } = require('child_process');
+  let bin = 'ffmpeg'; try { bin = require('ffmpeg-static') || 'ffmpeg'; } catch (e) {}
+  return new Promise((ok) => execFile(bin, ['-hide_banner', '-nostats', '-i', src, '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'], { timeout: 4 * 60 * 1000, maxBuffer: 1024 * 1024 * 8 }, (e, so, se) => {
+    const all = [...String(se || '').matchAll(/time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)/g)];
+    const m = all.length ? all[all.length - 1] : null;
+    ok(m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : null);
+  }));
+}
+/// the length of a video, sure: a short header length is checked by reading the video through
+async function surelySecs(src) {
+  const h = await videoSecs(src).catch(() => null);
+  if (h !== null && h >= 15) return h;
+  const r = await realVideoSecs(src).catch(() => null);
+  return r !== null && (h === null || r > h + 1) ? r : h;
+}
 const FEED_MAX_SECS = 300;   // the small feed version holds the first 5 minutes; a longer video gets it too as a quick-start PREVIEW
                              // (the app sees it is cut at 5:00 and opens the whole original when the person taps it)
 
@@ -895,7 +918,7 @@ async function makeFeedVideo(src, knownSecs, previewOnly = false) {
   // short video (≤ 5 min): a light copy (720/540p ~1.2 Mbps). LONG video: a light copy of the WHOLE video (not cut) —
   // the original from a phone is 10-20 Mbps, too heavy for 4G (it stops and spins after the first seconds); the light one
   // plays smooth to the end. Over 20 min: a little lighter still (540p ~0.8 Mbps) so a 2-hour video stays under ~1 GB.
-  const secs = knownSecs !== undefined ? knownSecs : await videoSecs(src).catch(() => null);
+  const secs = knownSecs !== undefined ? knownSecs : await surelySecs(src).catch(() => null);
   if (secs === null) return null;
   const long = !previewOnly && secs > FEED_MAX_SECS + 1, veryLong = long && secs > 20 * 60;
   const fs = require('fs'), os = require('os'), path = require('path'), { execFile } = require('child_process');
@@ -945,6 +968,29 @@ async function fixCutFeedVideos() {
 }
 setTimeout(() => { fixCutFeedVideos(); setInterval(fixCutFeedVideos, 20 * 1000); }, 60 * 1000);
 
+// 🎞️ once: videos that were measured "3 seconds" from a fragmented header get their real length, and a light copy
+// (which plays with the right length everywhere) is made again for them if it failed or is missing
+async function fixFragmentedVideos() {
+  if (!thumbsReady()) return;
+  try {
+    const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'feed:fragment_fix_v1'").catch(() => ({ rows: [1] }));
+    if (done.rows.length) return;
+    const rows = (await pool.query("SELECT id, media_type, media_url, feed_url, video_secs FROM posts WHERE video_secs BETWEEN 1 AND 6 AND shared_post_id IS NULL ORDER BY id DESC LIMIT 300")).rows;
+    let fixed = 0;
+    for (const row of rows) {
+      const v = pubMedia(row).video; if (!v) continue;
+      const real = await realVideoSecs(v).catch(() => null);
+      if (real === null || real <= Number(row.video_secs) + 1) continue;
+      // the light copy is remade from the whole video (an old one may be fine, but a fresh one is sure)
+      await pool.query('UPDATE posts SET video_secs = $2, feed_url = NULL, feed_checked = FALSE WHERE id = $1', [row.id, Math.round(real)]).catch(() => {});
+      fixed++;
+    }
+    await pool.query("INSERT INTO creator_settings (key, value) VALUES ('feed:fragment_fix_v1', $1) ON CONFLICT (key) DO NOTHING", [String(fixed)]).catch(() => {});
+    console.log('[feedvideo] fragmented videos fixed:', fixed, 'of', rows.length, 'checked');
+  } catch (e) { console.error('[feedvideo] fragment fix:', e.message); }
+}
+setTimeout(fixFragmentedVideos, 3 * 60 * 1000);
+
 let longRequeued = false, longBusy = false;
 const longWait = new Set();     // long videos waiting for the long lane (skipped by the quick lane)
 const longFailed = new Set();   // the full light copy could not be made (until the next restart): keep the preview
@@ -966,7 +1012,7 @@ async function backfillFeedVideos() {
     // story videos first: they are the raw files from the phone camera (very big, slow to start) and they only live 24 hours
     const sv = (await pool.query("SELECT id, media_url FROM stories WHERE media_type = 'video' AND feed_url IS NULL AND expires_at > NOW() + INTERVAL '10 minutes' ORDER BY id DESC LIMIT 1").catch(() => ({ rows: [] }))).rows[0];
     if (sv) {
-      const u = sv.media_url ? await makeFeedVideo(sv.media_url) : null;
+      const u = sv.media_url ? await makeFeedVideo(sv.media_url) : null;   // (makeFeedVideo finds the sure length itself)
       await pool.query('UPDATE stories SET feed_url = $2 WHERE id = $1', [sv.id, u || '']).catch(() => {});
       if (u) console.log('[feedvideo] story', sv.id, 'ready');
       return;
@@ -975,7 +1021,7 @@ async function backfillFeedVideos() {
     const rows = (await pool.query("SELECT id, media_type, media_url, feed_url FROM posts WHERE (feed_url IS NULL OR (feed_url LIKE '%/feed/%' AND video_secs > 301)) AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') AND NOT (id = ANY($1::int[])) ORDER BY (feed_url IS NULL) DESC, id DESC LIMIT 1", [[...longWait, ...longFailed]])).rows;   // videos with nothing light come first
     for (const row of rows) {
       const v = pubMedia(row).video;
-      const secs = v ? await videoSecs(v).catch(() => null) : null;
+      const secs = v ? await surelySecs(v).catch(() => null) : null;      // a fragmented video's header says ~3 s: read it through
       // the real length is kept: the app shows it (a long video's quick preview is only 5 minutes)
       if (secs !== null) await pool.query('UPDATE posts SET video_secs = $2 WHERE id = $1', [row.id, Math.round(secs)]).catch(() => {});
       if (v && secs !== null && secs > FEED_MAX_SECS + 1) {
@@ -1622,6 +1668,8 @@ app.delete('/api/posts/:id', async (req, res) => {
 // Update Profile & Cover Pictures
 app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req, res) => {
   const { email, bio, profilePicUrl, coverPicUrl } = req.body;
+  const removeProfile = req.body.removeProfilePic === true || req.body.removeProfilePic === 'true';   // 🗑 delete the picture (no picture)
+  const removeCover = req.body.removeCoverPic === true || req.body.removeCoverPic === 'true';
   try {
     let profileUrl = profilePicUrl || (req.files && req.files['profilePic'] ? req.files['profilePic'][0].path : null);
     let coverUrl = coverPicUrl || (req.files && req.files['coverPic'] ? req.files['coverPic'][0].path : null);
@@ -1639,6 +1687,8 @@ app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req
       query += `, cover_pic = $${idx++}`;
       params.push(coverUrl);
     }
+    if (removeProfile && !profileUrl) query += ', profile_pic = NULL';
+    if (removeCover && !coverUrl) query += ', cover_pic = NULL';
     query += ` WHERE email = $${idx} RETURNING *`;
     params.push(email);
 
@@ -1648,6 +1698,8 @@ app.post('/api/update-profile-pics', formFields, authCore.forceActor, async (req
     if (o) {
       if (profileUrl && o.profile_pic && o.profile_pic !== profileUrl) oldUrls.push(o.profile_pic);
       if (coverUrl && o.cover_pic && o.cover_pic !== coverUrl) oldUrls.push(o.cover_pic);
+      if (removeProfile && !profileUrl && o.profile_pic) oldUrls.push(o.profile_pic);
+      if (removeCover && !coverUrl && o.cover_pic) oldUrls.push(o.cover_pic);
     }
     res.json({ success: true, user: result.rows[0] });
     if (oldUrls.length) cleanup.purgeMediaUrls(oldUrls).catch(() => {}); // old picture no longer needed
@@ -2577,7 +2629,10 @@ const viewGuard = require('./view-guard')({ app, pool, guardPost: (req, res, id)
 const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e), starShare: (e) => stars.starShare(e), starsOf: (e) => stars.starsOf(e) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
 const challenges = require('./challenges')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
-  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), xpNowOf: (e) => coins.xpNowOf(e), badgesOf: (e) => coins.badgesOf(e) });   // 🎯 challenges
+  sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), xpNowOf: (e) => coins.xpNowOf(e), badgesOf: (e) => coins.badgesOf(e),
+  // the cheapest price of one coin (cents) and the receiver's share of a gift (%) — so a challenge can never pay more than CamFeed keeps
+  coinMoney: async () => { const s = await coins.settings(); const st = await stars.settings().catch(() => null); const c = (s.packs || []).map((p) => (Number(p.usd) * 100) / Number(p.web)).filter((x) => x > 0);
+    return { centsPerCoin: c.length ? Math.min(...c) : 1, share: Math.max(Number(s.share) || 0, st && st.on ? Number(st.share) || 0 : 0), coinCents: 1 }; } });   // 🎯 challenges
 if (push.setMessageFilter) push.setMessageFilter((to, from, peerKey) => chatPrefs.shouldNotify(to, from, peerKey));
 
 // Send Chat Message

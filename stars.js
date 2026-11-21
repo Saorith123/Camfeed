@@ -278,5 +278,5 @@ module.exports = function installStars({ app, pool, adminGate, audit, sendNotice
     } catch (err) { console.error('[stars] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
-  return { starShare, starsOf };
+  return { starShare, starsOf, settings };
 };

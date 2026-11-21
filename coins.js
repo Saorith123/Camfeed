@@ -665,5 +665,5 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
 
   // 🎯 challenges: everybody's XP right now
   async function xpNowOf(emails) { await ensure(); return xpOf(emails, await settings()); }
-  return { heldCents, balance, framesOf, badgesOf, xpNowOf };
+  return { heldCents, balance, framesOf, badgesOf, xpNowOf, settings };
 };
