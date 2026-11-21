@@ -973,19 +973,25 @@ setTimeout(() => { fixCutFeedVideos(); setInterval(fixCutFeedVideos, 20 * 1000);
 async function fixFragmentedVideos() {
   if (!thumbsReady()) return;
   try {
-    const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'feed:fragment_fix_v1'").catch(() => ({ rows: [1] }));
+    const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'feed:fragment_fix_v2'").catch(() => ({ rows: [1] }));
     if (done.rows.length) return;
-    const rows = (await pool.query("SELECT id, media_type, media_url, feed_url, video_secs FROM posts WHERE video_secs BETWEEN 1 AND 6 AND shared_post_id IS NULL ORDER BY id DESC LIMIT 300")).rows;
+    // v2: also videos never measured (NULL / 0), and a light copy that is shorter than the real video is made again
+    const rows = (await pool.query("SELECT id, media_type, media_url, feed_url, video_secs FROM posts WHERE COALESCE(video_secs, 0) <= 6 AND shared_post_id IS NULL AND (media_type = 'video' OR media_url LIKE '%\"type\":\"video\"%') ORDER BY id DESC LIMIT 400")).rows;
     let fixed = 0;
+    console.log('[feedvideo] checking', rows.length, 'short / unmeasured videos for a wrong length…');
     for (const row of rows) {
       const v = pubMedia(row).video; if (!v) continue;
       const real = await realVideoSecs(v).catch(() => null);
-      if (real === null || real <= Number(row.video_secs) + 1) continue;
+      if (real === null) continue;
+      const light = String(row.feed_url || '').startsWith('http') ? await videoSecs(row.feed_url).catch(() => null) : null;
+      const shortLight = light !== null && light < real - 1;
+      if (real <= Number(row.video_secs || 0) + 1 && !shortLight) { if (!row.video_secs) await pool.query('UPDATE posts SET video_secs = $2 WHERE id = $1', [row.id, Math.round(real)]).catch(() => {}); continue; }
+      console.log('[feedvideo] post', row.id, 'real length', Math.round(real), 's (was', row.video_secs, '/ light', light, ') → light copy again');
       // the light copy is remade from the whole video (an old one may be fine, but a fresh one is sure)
       await pool.query('UPDATE posts SET video_secs = $2, feed_url = NULL, feed_checked = FALSE WHERE id = $1', [row.id, Math.round(real)]).catch(() => {});
       fixed++;
     }
-    await pool.query("INSERT INTO creator_settings (key, value) VALUES ('feed:fragment_fix_v1', $1) ON CONFLICT (key) DO NOTHING", [String(fixed)]).catch(() => {});
+    await pool.query("INSERT INTO creator_settings (key, value) VALUES ('feed:fragment_fix_v2', $1) ON CONFLICT (key) DO NOTHING", [String(fixed)]).catch(() => {});
     console.log('[feedvideo] fragmented videos fixed:', fixed, 'of', rows.length, 'checked');
   } catch (e) { console.error('[feedvideo] fragment fix:', e.message); }
 }
