@@ -114,7 +114,15 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
       // why the bot can not be reached (never the token itself): 401 Unauthorized = the token is wrong
       const raw = String(process.env.TG_PAY_BOT_TOKEN || '');
       const shape = raw ? ('length ' + raw.length + (raw !== raw.trim() ? ', has spaces at the ends' : '') + (/\s/.test(raw.trim()) ? ', has spaces inside' : '') + (/^\d{5,}:/.test(raw.trim()) ? '' : ', does not start with numbers and ":"')) : 'empty';
-      res.json({ success: true, on: on(), bot: me && me.ok ? me.result.username : '', botError: me && me.ok ? '' : lastErr, tokenShape: me && me.ok ? '' : shape, chats });
+      let hookInfo = null;
+      if (me && me.ok) {                                                     // is Telegram really sending here? (set it again when not)
+        const w = await api('getWebhookInfo', {});
+        if (w && w.ok) {
+          if (!String(w.result.url || '').endsWith('/api/tg-pay/hook')) { await hook(); }
+          hookInfo = { url: w.result.url || '', pending: w.result.pending_update_count || 0, lastError: w.result.last_error_message || '' };
+        }
+      }
+      res.json({ success: true, on: on(), hook: hookInfo, bot: me && me.ok ? me.result.username : '', botError: me && me.ok ? '' : lastErr, tokenShape: me && me.ok ? '' : shape, chats });
     } catch (e) { console.error('[tg-pay] admin:', e.message); res.status(500).json({ success: false, error: 'Could not do it.' }); }
   });
 
