@@ -7,7 +7,7 @@ const crypto = require('crypto');
 
 module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
   const token = () => String(process.env.TG_PAY_BOT_TOKEN || '').trim();
-  const on = () => /^\d{5,}:[A-Za-z0-9_-]{30,}$/.test(token());
+  const on = () => /^\d{5,}:\S{20,}$/.test(token());
   const secret = () => crypto.createHash('sha256').update('camfeed-pay:' + token()).digest('hex').slice(0, 40);
   let ready = null;
   function ensure() {
@@ -17,13 +17,16 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
     })().catch((e) => { ready = null; throw e; });
     return ready;
   }
+  let lastErr = '';
   async function api(method, body) {
     if (!on()) return null;
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
     try {
       const r = await fetch(`https://api.telegram.org/bot${token()}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: ctl.signal });
-      return await r.json();
-    } catch (e) { return null; } finally { clearTimeout(t); }
+      const j = await r.json().catch(() => null);
+      if (!j || !j.ok) lastErr = method + ': ' + (j ? (j.error_code + ' ' + (j.description || '')) : ('HTTP ' + r.status));
+      return j;
+    } catch (e) { lastErr = method + ': ' + (e.name === 'AbortError' ? 'no answer from Telegram (timeout)' : e.message); return null; } finally { clearTimeout(t); }
   }
   // the bot is told where to send what happens (once after every start)
   async function hook() {
@@ -108,7 +111,10 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
       if (act === 'rehook') { await hook(); return res.json({ success: true }); }
       const chats = (await pool.query('SELECT chat_id::text, name, linked_by, linked_at FROM tg_pay_chats ORDER BY linked_at')).rows;
       const me = on() ? await api('getMe', {}) : null;
-      res.json({ success: true, on: on(), bot: me && me.ok ? me.result.username : '', chats });
+      // why the bot can not be reached (never the token itself): 401 Unauthorized = the token is wrong
+      const raw = String(process.env.TG_PAY_BOT_TOKEN || '');
+      const shape = raw ? ('length ' + raw.length + (raw !== raw.trim() ? ', has spaces at the ends' : '') + (/\s/.test(raw.trim()) ? ', has spaces inside' : '') + (/^\d{5,}:/.test(raw.trim()) ? '' : ', does not start with numbers and ":"')) : 'empty';
+      res.json({ success: true, on: on(), bot: me && me.ok ? me.result.username : '', botError: me && me.ok ? '' : lastErr, tokenShape: me && me.ok ? '' : shape, chats });
     } catch (e) { console.error('[tg-pay] admin:', e.message); res.status(500).json({ success: false, error: 'Could not do it.' }); }
   });
 
