@@ -719,8 +719,8 @@
         d.paused.forEach(function (u) {
           paused.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center' }, [
             el('span', { style: 'flex:1;min-width:200px', text: who(u) + '  ←  ' + AT('ឈ្មោះចាស់៖ ', 'old name: ') + (u.verified_name || '—') }),
-            sup ? el('button', { class: 'btn-sm', text: AT('✅ បើកវិញ', '✅ Give back'), onclick: function () { call({ action: 'restore', email: u.email }).then(load); } }) : el('span'),
-            sup ? el('button', { class: 'btn-sm btn-gray', text: AT('ដក ✔', 'Take the ✔ away'), onclick: function () { var r = prompt(AT('មូលហេតុ', 'Reason')); if (r !== null) call({ action: 'remove', email: u.email, note: r }).then(load); } }) : el('span')
+            sup ? el('button', { class: 'btn-sm', text: AT('✅ បើកវិញ', '✅ Give back'), onclick: function () { call({ action: 'restore', targetEmail: u.email }).then(load); } }) : el('span'),
+            sup ? el('button', { class: 'btn-sm btn-gray', text: AT('ដក ✔', 'Take the ✔ away'), onclick: function () { var r = prompt(AT('មូលហេតុ', 'Reason')); if (r !== null) call({ action: 'remove', targetEmail: u.email, note: r }).then(load); } }) : el('span')
           ]));
         });
 
@@ -729,7 +729,7 @@
         d.verified.forEach(function (u) {
           have.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center' }, [
             el('span', { style: 'flex:1;min-width:200px', text: '✔ ' + who(u) + ' · ' + (u.verified_path || '') + (u.verified_at ? ' · ' + String(u.verified_at).slice(0, 10) : '') }),
-            sup ? el('button', { class: 'btn-sm btn-gray', text: AT('ដក ✔', 'Take the ✔ away'), onclick: function () { var r = prompt(AT('មូលហេតុ (បំពានច្បាប់ លក់គណនី …)', 'Reason (broke the rules, sold the account …)')); if (r !== null) call({ action: 'remove', email: u.email, note: r }).then(load); } }) : el('span')
+            sup ? el('button', { class: 'btn-sm btn-gray', text: AT('ដក ✔', 'Take the ✔ away'), onclick: function () { var r = prompt(AT('មូលហេតុ (បំពានច្បាប់ លក់គណនី …)', 'Reason (broke the rules, sold the account …)')); if (r !== null) call({ action: 'remove', targetEmail: u.email, note: r }).then(load); } }) : el('span')
           ]));
         });
 
@@ -1741,7 +1741,7 @@
           if (d.isSuperAdmin) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('± កែលុយ', '± Change'), onclick: function () {
             var v = prompt(AT('ចំនួន (ដុល្លារ) — បូក = បញ្ចូល, ដក (−) = ដកចេញ', 'Amount (USD) — plus = add, minus (−) = take')); if (!v) return;
             var why = prompt(AT('មូលហេតុ (អ្នកផ្សាយនឹងឃើញ)', 'Reason (the advertiser will see it)')); if (!why) return;
-            adm('/api/admin/ad-wallet', { action: 'adjust', email: u.email, usd: Number(v), note: why }).then(function (x) { if (!x.success) alert(x.error || 'Failed'); draw(); });
+            adm('/api/admin/ad-wallet', { action: 'adjust', targetEmail: u.email, usd: Number(String(v).replace('−', '-').replace('$', '')), note: why }).then(function (x) { if (!x.success) alert(x.error || 'Failed'); draw(); });
           } }));
           box.appendChild(row);
         });
@@ -1749,7 +1749,7 @@
         box.appendChild(el('div', { style: 'font-weight:800;margin-top:14px', text: AT('ការបញ្ចូលលុយចុងក្រោយ', 'Latest top-ups') }));
         d.topups.slice(0, 30).forEach(function (t) {
           var row = el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;font-size:13.5px' }, [
-            el('span', { style: 'flex:1;min-width:200px', text: 'W' + t.id + ' · ' + ((t.first_name || '') + ' ' + (t.last_name || '')).trim() + ' · ' + usd(t.cents) + ' · ' + (ST[t.status] || t.status) + ' · ' + String(t.created_at || '').slice(0, 16).replace('T', ' ') })
+            el('span', { style: 'flex:1;min-width:200px', text: 'W' + t.id + ' · ' + ((t.first_name || '') + ' ' + (t.last_name || '')).trim() + ' · ' + usd(t.cents) + ' · ' + (ST[t.status] || t.status) + ' · ' + (t.created_at ? new Date(t.created_at).toLocaleString() : '') })
           ]);
           if (d.isSuperAdmin && (t.status === 'pending' || t.status === 'expired')) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('🔄 សួរ PayWay ម្ដងទៀត', '🔄 Ask PayWay again'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'recheck', id: t.id }).then(draw); } }));
           box.appendChild(row);

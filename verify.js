@@ -176,7 +176,7 @@ module.exports = function ({ app, pool, adminGate, audit, sendNotice }) {
         return res.json({ success: true });
       }
       if (act === 'restore' || act === 'remove') {               // a paused tick: give it back after checking the new name; or take it away
-        const email = String(b.email || ''), note = clean(b.note, 400);
+        const email = String(b.targetEmail || ''), note = clean(b.note, 400);   // not "email": auth.js turns a body "email" into the Admin's own
         if (act === 'restore') await pool.query("UPDATE users SET verified_paused = FALSE, verified_at = NOW(), verified_name = TRIM(CONCAT(first_name, ' ', last_name)) WHERE email = $1 AND verified = TRUE", [email]);
         else {
           await pool.query("UPDATE users SET verified = FALSE, verified_paused = FALSE WHERE email = $1", [email]);

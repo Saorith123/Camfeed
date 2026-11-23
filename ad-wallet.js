@@ -183,7 +183,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
       }
       if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only the Super Admin can change money.' });
       if (act === 'adjust') {                     // add (+) or take (−) money by hand, always with a reason
-        const email = String(b.email || ''), cents = Math.round(Number(b.usd) * 100), note = String(b.note || '').trim().slice(0, 200);
+        const email = String(b.targetEmail || ''), cents = Math.round(Number(String(b.usd).replace('−', '-')) * 100), note = String(b.note || '').trim().slice(0, 200);
         if (!email || !cents || Math.abs(cents) > 1000000 || !note) return res.status(400).json({ success: false, error: 'Write the amount and the reason.' });
         if (cents < 0 && (await balanceOf(email)) + cents < 0) return res.status(400).json({ success: false, error: 'The wallet does not have that much.' });
         await pool.query("INSERT INTO ad_credit (user_email, cents, kind, note) VALUES ($1, $2, 'admin', $3)", [email, cents, note]);
