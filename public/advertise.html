@@ -8,7 +8,7 @@
     <script src="pwa.js" defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CamFeed - Ads Manager</title>
+    <title>CamFeed</title>
     <link rel="icon" type="image/png" href="logo-icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Noto+Color+Emoji&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -23,303 +23,418 @@
         .tab { flex: 1; padding: 11px; border: none; border-radius: 12px; background: #e4e6eb; font-weight: 800; font-size: 14px; cursor: pointer; color: #444; }
         .tab.on { background: #1877f2; color: #fff; }
         .card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-        .card h2 { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
-        .step { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: #1877f2; color: #fff; align-items: center; justify-content: center; font-size: 13px; margin-right: 8px; }
-        .muted { color: #65676b; font-size: 13px; line-height: 1.5; }
+        .card h2 { font-size: 16px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; }
+        .step { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: #1877f2; color: #fff; align-items: center; justify-content: center; font-size: 13px; margin-right: 8px; flex-shrink: 0; }
+        .muted { color: #4b5563; font-size: 13.5px; line-height: 1.6; }
         .goals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-        .opt { border: 2px solid #e4e6eb; border-radius: 12px; padding: 10px; cursor: pointer; background: #fff; text-align: left; }
+        .opt { border: 2px solid #e4e6eb; border-radius: 12px; padding: 10px; cursor: pointer; background: #fff; text-align: left; color: #111827; }
         .opt.on { border-color: #1877f2; background: #e7f3ff; }
-        .opt b { display: block; font-size: 14px; } .opt span { font-size: 12px; color: #65676b; }
+        .opt b { display: block; font-size: 14px; } .opt span { font-size: 12.5px; color: #4b5563; }
         .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-        .chip { border: 1.5px solid #dddfe2; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; }
+        .chip { border: 1.5px solid #d1d5db; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; color: #111827; }
         .chip.on { background: #1877f2; border-color: #1877f2; color: #fff; }
-        label { display: block; font-size: 12.5px; font-weight: 700; color: #65676b; margin: 10px 0 4px; }
-        input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid #dddfe2; border-radius: 10px; font-size: 14px; background: #f8f9fa; outline: none; }
+        .chip.kw { background: #e7f3ff; border-color: #b6dcff; color: #0b4fa3; }
+        .chip.kw i { font-style: normal; margin-left: 6px; opacity: .7; }
+        label { display: block; font-size: 13px; font-weight: 700; color: #374151; margin: 12px 0 4px; }
+        input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 14px; background: #f8f9fa; outline: none; color: #111827; }
         input:focus, select:focus, textarea:focus { border-color: #1877f2; background: #fff; }
         .btn { background: #1877f2; color: #fff; border: none; padding: 12px 20px; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; }
-        .btn.gray { background: #e4e6eb; color: #050505; } .btn:disabled { opacity: .55; cursor: default; }
+        .btn.gray { background: #e4e6eb; color: #050505; } .btn.small { padding: 8px 14px; font-size: 13px; border-radius: 10px; } .btn:disabled { opacity: .55; cursor: default; }
+        .pick { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border: 2px dashed #b6dcff; border-radius: 12px; background: #f5faff; color: #1877f2; font-weight: 800; font-size: 14px; cursor: pointer; }
         .msg { margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; display: none; }
         .msg.ok { display: block; background: #e6f6ec; color: #176f35; } .msg.bad { display: block; background: #fdecec; color: #b42318; }
         .est { background: linear-gradient(135deg, #e7f3ff, #f0fbff); border: 1.5px solid #b6dcff; border-radius: 14px; padding: 14px; margin-top: 12px; }
-        .est .big { font-size: 26px; font-weight: 800; color: #1877f2; }
+        .est .big { font-size: 28px; font-weight: 800; color: #1877f2; line-height: 1.3; }
+        .est .row { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; } .est .row div { flex: 1; min-width: 130px; background: #fff; border-radius: 10px; padding: 8px 10px; }
+        .est .row b { display: block; font-size: 18px; color: #111827; } .est .row span { font-size: 12.5px; color: #4b5563; }
         .posts { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 280px; overflow-y: auto; }
         .postopt { display: flex; gap: 10px; align-items: center; border: 2px solid #e4e6eb; border-radius: 12px; padding: 8px; cursor: pointer; }
         .postopt.on { border-color: #1877f2; background: #e7f3ff; }
-        .postopt .th { width: 54px; height: 54px; border-radius: 8px; background: #e4e6eb; object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden; }
+        .postopt .th { width: 54px; height: 54px; border-radius: 8px; background: #e4e6eb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden; }
         .postopt .th img, .postopt .th video { width: 100%; height: 100%; object-fit: cover; }
-        .preview { border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; margin-top: 8px; }
-        .preview .ph { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; font-weight: 700; }
-        .preview .pm { background: #e4e6eb; min-height: 120px; display: flex; align-items: center; justify-content: center; color: #65676b; overflow: hidden; }
-        .preview .pm img, .preview .pm video { width: 100%; max-height: 240px; object-fit: cover; display: block; }
-        .badge-s { font-size: 11px; background: #e7f3ff; color: #1877f2; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
+        .prod { display: flex; gap: 10px; align-items: center; border: 1px solid #e4e6eb; border-radius: 12px; padding: 8px; margin-top: 8px; }
+        .prod img { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: #e4e6eb; flex-shrink: 0; }
+        .prod .f { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; } .prod input { padding: 8px 10px; }
+        .x { background: #f0f2f5; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+        .preview { border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff; margin-top: 12px; }
+        .preview .ph { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+        .preview .ph img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #e4e6eb; }
+        .preview .ph .n { font-weight: 800; font-size: 14px; } .preview .ph .s { font-size: 12px; color: #4b5563; }
+        .preview .pm { background: #e4e6eb; min-height: 120px; display: flex; align-items: center; justify-content: center; color: #4b5563; overflow: hidden; }
+        .preview .pm img, .preview .pm video { width: 100%; max-height: 260px; object-fit: cover; display: block; }
+        .strip { display: flex; gap: 8px; overflow-x: auto; padding: 0 12px 12px; scroll-snap-type: x mandatory; }
+        .strip .it { flex: 0 0 150px; border: 1px solid #e4e6eb; border-radius: 10px; overflow: hidden; scroll-snap-align: start; background: #fff; }
+        .strip .it img { width: 150px; height: 150px; object-fit: cover; display: block; background: #e4e6eb; }
+        .strip .it div { padding: 6px 8px; font-size: 13px; } .strip .it b { display: block; color: #1877f2; }
+        .cta { display: flex; justify-content: flex-end; padding: 10px 12px; border-top: 1px solid #f0f2f5; }
+        .cta span { background: #1877f2; color: #fff; padding: 7px 16px; border-radius: 18px; font-weight: 700; font-size: 13px; }
         .req { border: 1px solid #e4e6eb; border-radius: 12px; padding: 12px; margin-top: 10px; }
-        .pill { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: #e7f3ff; color: #1877f2; }
-        .pill.live { background: #d1fae5; color: #065f46; } .pill.rejected, .pill.ended, .pill.completed { background: #f1f5f9; color: #64748b; } .pill.quoted, .pill.payment_sent { background: #fff4d6; color: #92580a; }
-        .pay { background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 12px; padding: 12px; margin-top: 10px; white-space: pre-wrap; font-size: 13.5px; }
-        .pay img { max-width: 220px; width: 100%; display: block; margin: 10px auto 0; border-radius: 8px; }
+        .pill { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: #e7f3ff; color: #1877f2; }
+        .pill.live { background: #d1fae5; color: #065f46; } .pill.rejected, .pill.ended, .pill.completed { background: #f1f5f9; color: #475569; } .pill.quoted, .pill.payment_sent, .pill.starting { background: #fff4d6; color: #92580a; }
+        .pay { background: #f8fafc; border: 1.5px dashed #94a3b8; border-radius: 12px; padding: 14px; margin-top: 10px; font-size: 14px; line-height: 1.6; }
+        .pay .amt { font-size: 26px; font-weight: 800; color: #111827; } .pay .code { display: inline-block; font-size: 20px; font-weight: 800; letter-spacing: 1px; background: #fff; border: 2px solid #1877f2; color: #1877f2; border-radius: 10px; padding: 2px 12px; }
+        .pay img { max-width: 240px; width: 100%; display: block; margin: 10px auto 0; border-radius: 8px; }
+        .pay .txt { white-space: pre-wrap; color: #374151; font-size: 13.5px; margin-top: 8px; }
         .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
         .stat { background: #f8fafc; border-radius: 12px; padding: 10px; }
-        .stat b { display: block; font-size: 20px; } .stat span { font-size: 12px; color: #65676b; }
+        .stat b { display: block; font-size: 20px; } .stat span { font-size: 12.5px; color: #4b5563; }
         .bars { display: flex; align-items: flex-end; gap: 4px; height: 90px; margin-top: 10px; }
         .bar { flex: 1; background: #1877f2; border-radius: 4px 4px 0 0; min-height: 2px; }
-        .days { display: flex; gap: 4px; } .days div { flex: 1; text-align: center; font-size: 9.5px; color: #65676b; }
+        .days { display: flex; gap: 4px; } .days div { flex: 1; text-align: center; font-size: 9.5px; color: #4b5563; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100; display: none; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 20px 12px; }
         .modal.show { display: flex; } .modal .card { max-width: 560px; width: 100%; }
         .progress { height: 8px; background: #e4e6eb; border-radius: 6px; overflow: hidden; margin-top: 6px; } .progress i { display: block; height: 100%; background: #1877f2; }
+        .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     </style>
 </head>
 <body>
     <style>body.in-app .top-nav{display:none}</style><script>try{if(/CamFeedApp/.test(navigator.userAgent))document.addEventListener("DOMContentLoaded",function(){document.body.classList.add("in-app")});}catch(e){}</script>
-    <div class="top-nav"><button class="back-btn" onclick="history.length > 1 ? history.back() : (location.href='feed.html')">←</button><div class="nav-title">📢 Ads Manager · ផ្សាយពាណិជ្ជកម្ម</div></div>
-    <div class="container">
-        <div class="tabs">
-            <button class="tab on" id="tabNew" onclick="showTab('new')">➕ បង្កើតយុទ្ធនាការ</button>
-            <button class="tab" id="tabMine" onclick="showTab('mine')">📊 យុទ្ធនាការរបស់ខ្ញុំ</button>
-        </div>
+    <div class="top-nav"><button class="back-btn" onclick="history.length > 1 ? history.back() : (location.href='feed.html')">←</button><div class="nav-title" id="navTitle"></div></div>
+    <div class="container" id="root"></div>
 
-        <div id="paneNew" style="display:flex; flex-direction:column; gap:14px;">
-            <div class="card">
-                <h2>ឲ្យមនុស្សរាប់ពាន់ឃើញអាជីវកម្មរបស់អ្នក</h2>
-                <p class="muted">ជ្រើសគោលដៅ ជ្រើសអ្នកមើល កំណត់ថវិកា ហើយយើងគណនាចំនួនអ្នកមើលឲ្យអ្នកភ្លាមៗ។ <b>ថវិកាត្រូវកាត់តាមចំនួនអ្នកមើលពិតប្រាកដ</b> (តម្លៃក្នុង ១០០០ ដងបង្ហាញ) ហើយអ្នកឃើញលទ្ធផលពិតរៀងរាល់ថ្ងៃ។ ពាណិជ្ជកម្មនឹងចាប់ផ្តើមក្រោយយើងពិនិត្យ និងទទួលបានការបង់ប្រាក់។</p>
-                <p class="muted" id="rateLine" style="margin-top:6px;"></p>
-            </div>
-
-            <div class="card">
-                <h2><span class="step">1</span>តើអ្នកចង់បានអ្វី? (Goal)</h2>
-                <div class="goals" id="goals"></div>
-            </div>
-
-            <div class="card">
-                <h2><span class="step">2</span>អ្វីដែលត្រូវបង្ហាញ (Creative)</h2>
-                <div class="chips">
-                    <button type="button" class="chip on" id="modeNewBtn" onclick="setMode('new')">🆕 ពាណិជ្ជកម្មថ្មី</button>
-                    <button type="button" class="chip" id="modePostBtn" onclick="setMode('post')">🚀 Boost ប្រកាសរបស់ខ្ញុំ</button>
-                </div>
-                <div id="modeNew">
-                    <label>រូបភាព ឬវីដេអូ</label>
-                    <input id="fFile" type="file" accept="image/*,video/mp4,video/webm,video/quicktime"><div class="muted" id="fUp" style="margin-top:4px;"></div>
-                    <label>ពាក្យពណ៌នា (Caption)</label>
-                    <textarea id="fCaption" rows="2" maxlength="500" placeholder="បញ្ចុះតម្លៃពិសេស ៥០% ថ្ងៃនេះ!"></textarea>
-                    <div id="linkBox"><label>តំណភ្ជាប់ពេលចុច (Link)</label><input id="fTarget" placeholder="https://t.me/yourshop"></div>
-                    <label>ប៊ូតុងសកម្មភាព (Button)</label>
-                    <select id="fCta"><option value="learn_more">ស្វែងយល់បន្ថែម</option><option value="message">ផ្ញើសារមកខ្ញុំ</option><option value="shop">ទិញឥឡូវ</option><option value="call">ទាក់ទង</option><option value="none">គ្មានប៊ូតុង</option></select>
-                </div>
-                <div id="modePost" style="display:none;">
-                    <p class="muted" style="margin-top:8px;">ជ្រើសប្រកាសសាធារណៈរបស់អ្នក។ វានឹងបង្ហាញជា <b>Sponsored</b> ដល់មនុស្សច្រើនជាងមុន ហើយមនុស្សអាច Like, Comment, Share បានដូចធម្មតា។</p>
-                    <div class="posts" id="postList"><div class="muted">កំពុងផ្ទុក...</div></div>
-                </div>
-                <div class="preview" id="preview"></div>
-            </div>
-
-            <div class="card">
-                <h2><span class="step">3</span>កន្លែងបង្ហាញ (Placement)</h2>
-                <div class="goals" style="grid-template-columns: minmax(0,1fr);">
-                    <button type="button" class="opt on" data-place="feed_banner"><b>📱 Feed ធម្មតា</b><span>បង្ហាញជា Sponsored ក្នុងចំណោមប្រកាស (បន្ទាប់ពីរៀងរាល់ ៦ ប្រកាស)</span></button>
-                    <button type="button" class="opt" data-place="video_preroll"><b>🎬 វីដេអូមុន Reels (មាន Skip)</b><span>បង្ហាញមុនពេលមើល Reels ហើយមនុស្សអាច Skip បន្ទាប់ពីប៉ុន្មានវិនាទី</span></button>
-                    <button type="button" class="opt" data-place="both"><b>✨ ទាំងពីរ (Feed + វីដេអូ)</b><span>ឲ្យមនុស្សច្រើនបំផុតឃើញ</span></button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2><span class="step">4</span>អ្នកមើល (Audience)</h2>
-                <label>ប្រទេស</label>
-                <select id="fCountry"><option value="">ទាំងអស់ (All)</option><option>Cambodia</option><option>Thailand</option><option>Vietnam</option><option>Laos</option><option>Malaysia</option><option>Singapore</option><option>China</option><option>United States</option></select>
-                <label>ចំណាប់អារម្មណ៍ (ជ្រើសបានច្រើន — ទុកចោលបើចង់បានមនុស្សគ្រប់គ្នា)</label>
-                <div class="chips" id="interests"></div>
-                <p class="muted" style="margin-top:8px;">យើងបង្ហាញដល់មនុស្សដែលតែងមើល ឬចូលចិត្តខ្លឹមសារប្រភេទនេះ។ បើយើងមិនទាន់ដឹងចំណាប់អារម្មណ៍របស់អ្នកមើលណាម្នាក់ គាត់នៅតែអាចឃើញ។</p>
-            </div>
-
-            <div class="card">
-                <h2><span class="step">5</span>ថវិកា និងរយៈពេល (Budget)</h2>
-                <label>ថវិកាសរុប (USD)</label>
-                <div class="chips" id="budgetChips"></div>
-                <input id="fBudget" type="number" min="1" step="0.5" value="5" style="margin-top:8px;">
-                <label>រយៈពេល (ថ្ងៃ)</label>
-                <div class="chips" id="dayChips"></div>
-                <input id="fDays" type="number" min="1" max="30" value="5" style="margin-top:8px;">
-                <div class="est" id="est">កំពុងគណនា...</div>
-            </div>
-
-            <div class="card">
-                <h2><span class="step">6</span>ព័ត៌មានទំនាក់ទំនង</h2>
-                <label>ឈ្មោះអាជីវកម្ម</label><input id="fName" maxlength="80" placeholder="ឧ. RS Shop Cam">
-                <label>លេខទូរស័ព្ទ ឬ Telegram</label><input id="fContact" maxlength="120" placeholder="+855 ... / @username">
-                <div style="margin-top:14px;"><button class="btn" id="fSend" onclick="sendRequest()">ផ្ញើសំណើ (Submit)</button></div>
-                <div class="msg" id="fMsg"></div>
-            </div>
-        </div>
-
-        <div id="paneMine" style="display:none;">
-            <div class="card"><h2>📋 យុទ្ធនាការរបស់ខ្ញុំ</h2><div id="myReqs" class="muted">កំពុងផ្ទុក...</div></div>
-        </div>
+    <div class="modal" id="modal" onclick="if(event.target===this) closeModal()">
+        <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h2 id="modalTitle"></h2><button class="btn gray small" onclick="closeModal()">✕</button></div><div id="modalBody"></div></div>
     </div>
-
-    <div class="modal" id="reportModal" onclick="if(event.target===this) this.classList.remove('show')">
-        <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;"><h2>📊 លទ្ធផល (Results)</h2><button class="btn gray" style="padding:6px 12px" onclick="document.getElementById('reportModal').classList.remove('show')">✕</button></div><div id="reportBody"></div></div>
-    </div>
+    <input type="file" id="fileOne" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none">
+    <input type="file" id="fileMany" accept="image/*" multiple style="display:none">
 
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
         if (!currentUser) window.location.href = 'index.html';
-        const GOALS = [
-            { id: 'reach', icon: '👀', t: 'ឲ្យមនុស្សច្រើនឃើញ', d: 'ស្គាល់ម៉ាក ឬហាងរបស់អ្នក' },
-            { id: 'traffic', icon: '🔗', t: 'ទៅមើលតំណរបស់អ្នក', d: 'ចុចចូល Telegram / គេហទំព័រ' },
-            { id: 'engagement', icon: '👍', t: 'Like / Comment / Share', d: 'ត្រូវ Boost ប្រកាស' },
-            { id: 'messages', icon: '💬', t: 'ឲ្យគេឆាតមករក', d: 'ប៊ូតុងផ្ញើសារឆាតភ្លាម' },
-            { id: 'video_views', icon: '🎬', t: 'ឲ្យគេមើលវីដេអូ', d: 'វីដេអូរបស់អ្នក' }
-        ];
-        const INTEREST_KM = { 'Comedy': '😂 កំប្លែង', 'Music': '🎵 តន្ត្រី', 'Gaming': '🎮 ហ្គេម', 'Food': '🍜 អាហារ', 'Vehicles & Motorcycles': '🏍️ យានយន្ត', 'Technology': '💻 បច្ចេកវិទ្យា', 'News': '📰 ព័ត៌មាន', 'Sports': '⚽ កីឡា', 'Education': '📚 ការអប់រំ', 'Travel': '✈️ ដំណើរកំសាន្ត', 'Lifestyle': '🌿 ជីវិតរស់នៅ' };
-        const STATUS_KM = { pending: '⏳ កំពុងពិនិត្យ', quoted: '💬 អនុម័តហើយ - សូមបង់ប្រាក់', payment_sent: '🔎 កំពុងផ្ទៀងផ្ទាត់ការបង់ប្រាក់', live: '🟢 កំពុងបង្ហាញ', ended: '✔ ចប់ហើយ', completed: '✔ ថវិកាអស់', rejected: '✖ មិនអនុម័ត' };
-        const GOAL_KM = { reach: '👀 ឲ្យមនុស្សច្រើនឃើញ', traffic: '🔗 ទៅមើលតំណ', engagement: '👍 Like/Comment/Share', messages: '💬 ឆាតមករក', video_views: '🎬 មើលវីដេអូ' };
-        const PLACE_KM = { feed_banner: '📱 Feed', video_preroll: '🎬 វីដេអូ (Skip)', both: '✨ Feed + វីដេអូ' };
-        const st = { goal: 'reach', mode: 'new', place: 'feed_banner', postId: null, interests: new Set(), mediaUrl: '', posts: [], info: { paymentText: '', paymentQr: '', minBudget: 2, cpmFeed: 0.5, cpmVideo: 0.8 } };
+        // one language on the whole page: Khmer, or English when the person chose English
+        let LANG = 'km'; try { LANG = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km'; } catch (e) {}
+        const T = (km, en) => (LANG === 'en' ? en : km);
+        const num = (n) => Number(n || 0).toLocaleString('en-US');
         const $ = (id) => document.getElementById(id);
-        let estTimer = null;
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
+        const GOALS = [
+            { id: 'products', icon: '🛍️', t: T('លក់ផលិតផល', 'Sell products'), d: T('បង្ហាញទំនិញច្រើនមុខ ឲ្យគេឆាតមកទិញ', 'Show several products; people message you to buy') },
+            { id: 'messages', icon: '💬', t: T('ឲ្យគេឆាតមករក', 'Get messages'), d: T('ប៊ូតុងផ្ញើសារមកអ្នកភ្លាម', 'A button to message you at once') },
+            { id: 'reach', icon: '👀', t: T('ឲ្យមនុស្សច្រើនឃើញ', 'Reach more people'), d: T('ឲ្យគេស្គាល់ហាង ឬម៉ាករបស់អ្នក', 'Make your shop or brand known') },
+            { id: 'engagement', icon: '👍', t: T('ចូលចិត្ត មតិ និងចែករំលែក', 'Likes, comments and shares'), d: T('ផ្សព្វផ្សាយការបង្ហោះមួយរបស់អ្នក', 'Promote one of your posts') },
+            { id: 'video_views', icon: '🎬', t: T('ឲ្យគេមើលវីដេអូ', 'Video views'), d: T('វីដេអូរបស់អ្នក', 'Your video') },
+            { id: 'traffic', icon: '🔗', t: T('ឲ្យគេចុចតំណភ្ជាប់', 'Link clicks'), d: T('ទៅកាន់ Telegram ឬវេបសាយរបស់អ្នក', 'To your Telegram or website') },
+        ];
+        const PLACES = [
+            { id: 'feed_banner', t: T('📱 ទំព័រដើម', '📱 Home feed'), d: T('បង្ហាញក្នុងចំណោមការបង្ហោះ (ម្ដងក្នុងរៀងរាល់ ៦ ការបង្ហោះ)', 'Shown between posts (once every 6 posts)') },
+            { id: 'video_preroll', t: T('🎬 មុនវីដេអូខ្លី', '🎬 Before short videos'), d: T('បង្ហាញមុនវីដេអូខ្លី ហើយអ្នកមើលអាចរំលងបានក្រោយប៉ុន្មានវិនាទី', 'Shown before short videos; people can skip after a few seconds') },
+            { id: 'both', t: T('✨ ទាំងពីរកន្លែង', '✨ Both places'), d: T('ឲ្យមនុស្សឃើញច្រើនបំផុត', 'The most people see it') },
+        ];
+        const CTAS = [['learn_more', T('ស្វែងយល់បន្ថែម', 'Learn more')], ['message', T('ផ្ញើសារ', 'Send message')], ['shop', T('ទិញឥឡូវ', 'Shop now')], ['call', T('ទាក់ទង', 'Contact')], ['none', T('គ្មានប៊ូតុង', 'No button')]];
+        const STATUS = { pending: T('⏳ កំពុងពិនិត្យ', '⏳ Being checked'), quoted: T('💵 រង់ចាំការបង់ប្រាក់', '💵 Waiting for payment'), payment_sent: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'),
+            starting: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'), live: T('🟢 កំពុងបង្ហាញ', '🟢 Running'), ended: T('✔ ចប់ហើយ', '✔ Ended'), completed: T('✔ ថវិកាអស់ហើយ', '✔ Budget used'), rejected: T('✖ មិនអនុម័ត', '✖ Not approved') };
+        const st = { goal: 'products', mode: 'new', place: 'feed_banner', postId: null, mediaUrl: '', items: [], kws: [], provs: new Set(), gender: '', amin: 0, amax: 0, posts: [], words: [], info: { minBudget: 2, provinces: [] } };
+        let estTimer = null, pollTimer = null;
+
+        function chip(label, on, fn, cls) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (on ? ' on' : '') + (cls ? ' ' + cls : ''); b.textContent = label; b.addEventListener('click', fn); return b; }
         function setMsg(id, ok, text) { const m = $(id); m.className = 'msg ' + (ok ? 'ok' : 'bad'); m.textContent = text; }
-        function showTab(t) { $('paneNew').style.display = t === 'new' ? 'flex' : 'none'; $('paneMine').style.display = t === 'mine' ? 'block' : 'none'; $('tabNew').classList.toggle('on', t === 'new'); $('tabMine').classList.toggle('on', t === 'mine'); if (t === 'mine') loadMine(); }
+        function closeModal() { $('modal').classList.remove('show'); }
+        function openModal(title, html) { $('modalTitle').textContent = title; $('modalBody').innerHTML = html; $('modal').classList.add('show'); }
+
+        // ---------------- the page ----------------
+        function build() {
+            $('navTitle').textContent = T('📢 ផ្សាយពាណិជ្ជកម្ម', '📢 Advertise');
+            $('root').innerHTML = `
+            <div class="tabs"><button class="tab on" id="tabNew">${T('➕ បង្កើតពាណិជ្ជកម្ម', '➕ New ad')}</button><button class="tab" id="tabMine">${T('📊 ពាណិជ្ជកម្មរបស់ខ្ញុំ', '📊 My ads')}</button></div>
+            <div id="paneNew" style="display:flex;flex-direction:column;gap:14px;">
+                <div class="card"><h2>${T('ឲ្យអ្នកដែលចាប់អារម្មណ៍ ឃើញអាជីវកម្មរបស់អ្នក', 'Show your business to the people who care')}</h2>
+                    <p class="muted">${T('CamFeed បង្ហាញពាណិជ្ជកម្មរបស់អ្នកទៅកាន់អ្នកដែលកំពុងស្វែងរក ឬមើលអ្វីដែលទាក់ទងនឹងផលិតផលរបស់អ្នក។ អ្នកបង់តាមចំនួនដងបង្ហាញពិតប្រាកដ ហើយមើលលទ្ធផលបានរៀងរាល់ថ្ងៃ។', 'CamFeed shows your ad to people who are searching for or watching things related to what you sell. You pay for real views only, and see the results every day.')}</p>
+                    <p class="muted" id="rateLine" style="margin-top:6px;"></p></div>
+
+                <div class="card"><h2><span class="step">1</span>${T('តើអ្នកចង់បានអ្វី?', 'What do you want?')}</h2><div class="goals" id="goals"></div></div>
+
+                <div class="card"><h2><span class="step">2</span>${T('អ្វីដែលត្រូវបង្ហាញ', 'What to show')}</h2>
+                    <div class="chips" id="modeChips"></div>
+                    <div id="boxProducts"></div>
+                    <div id="boxMedia">
+                        <label>${T('រូបភាព ឬវីដេអូ', 'Picture or video')}</label>
+                        <button type="button" class="pick" id="pickOne">🖼️ ${T('ជ្រើសរូបភាព ឬវីដេអូ', 'Choose a picture or video')}</button><div class="muted" id="upOne" style="margin-top:4px;"></div>
+                    </div>
+                    <div id="boxPost" style="display:none;"><p class="muted" style="margin-top:8px;">${T('ជ្រើសការបង្ហោះសាធារណៈមួយរបស់អ្នក។ មនុស្សនៅតែអាចចូលចិត្ត បញ្ចេញមតិ និងចែករំលែកបានដូចធម្មតា។', 'Choose one of your public posts. People can still like, comment and share as usual.')}</p><div class="posts" id="postList"></div></div>
+                    <div id="boxCaption"><label>${T('ពាក្យពណ៌នា', 'Text')}</label><textarea id="fCaption" rows="3" maxlength="500" placeholder="${T('ឧ. បញ្ចុះតម្លៃ 50% ថ្ងៃនេះ!', 'e.g. 50% off today!')}"></textarea></div>
+                    <div id="boxLink"><label>${T('តំណភ្ជាប់ពេលចុច', 'Link to open')}</label><input id="fTarget" placeholder="https://t.me/yourshop"></div>
+                    <div id="boxCta"><label>${T('ប៊ូតុង', 'Button')}</label><select id="fCta">${CTAS.map(c => `<option value="${c[0]}">${esc(c[1])}</option>`).join('')}</select></div>
+                    <div class="preview" id="preview"></div>
+                </div>
+
+                <div class="card"><h2><span class="step">3</span>${T('ពាក្យគន្លឹះ', 'Keywords')}</h2>
+                    <p class="muted">${T('CamFeed បង្ហាញពាណិជ្ជកម្មរបស់អ្នកមុនគេ ទៅកាន់អ្នកដែលស្វែងរក ឬមើលពាក្យទាំងនេះ។ ឧ. លក់ MacBook → «MacBook» «កុំព្យូទ័រយួរដៃ»។', 'CamFeed shows your ad first to people who search for or watch these. e.g. selling a MacBook → "MacBook", "laptop".')}</p>
+                    <div class="chips" id="kwChips"></div>
+                    <div style="display:flex;gap:8px;margin-top:10px;"><input id="kwIn" list="kwList" placeholder="${T('សរសេរពាក្យ ហើយចុច បន្ថែម', 'Type a word and press Add')}"><button type="button" class="btn gray small" id="kwAdd">${T('បន្ថែម', 'Add')}</button></div>
+                    <datalist id="kwList"></datalist>
+                    <div style="margin-top:10px;"><button type="button" class="btn small" id="kwAi">🤖 ${T('ឲ្យ AI ជ្រើសពីរូប និងពាក្យពណ៌នា', 'Let the AI choose from the pictures and text')}</button></div>
+                    <div class="muted" id="kwMsg" style="margin-top:6px;"></div>
+                </div>
+
+                <div class="card"><h2><span class="step">4</span>${T('អ្នកដែលនឹងឃើញ', 'Who will see it')}</h2>
+                    <label>${T('ខេត្ត / រាជធានី', 'Province')}</label><div class="chips" id="provChips"></div>
+                    <label>${T('អាយុ', 'Age')}</label>
+                    <div class="two"><select id="fAmin"></select><select id="fAmax"></select></div>
+                    <label>${T('ភេទ', 'Gender')}</label><div class="chips" id="genChips"></div>
+                    <p class="muted" style="margin-top:10px;">${T('អ្នកដែលមិនបានបំពេញខេត្ត អាយុ ឬភេទក្នុងប្រូហ្វាល នៅតែអាចឃើញ។', 'People who did not fill in their province, age or gender can still see it.')}</p>
+                </div>
+
+                <div class="card"><h2><span class="step">5</span>${T('កន្លែងបង្ហាញ', 'Where')}</h2><div class="goals" id="places" style="grid-template-columns:minmax(0,1fr);"></div></div>
+
+                <div class="card"><h2><span class="step">6</span>${T('ថវិកា និងរយៈពេល', 'Budget and days')}</h2>
+                    <label>${T('ថវិកាសរុប (ដុល្លារ)', 'Total budget (USD)')}</label><div class="chips" id="budgetChips"></div>
+                    <input id="fBudget" type="number" min="1" step="0.5" value="5" style="margin-top:8px;">
+                    <label>${T('រយៈពេល (ថ្ងៃ)', 'Days')}</label><div class="chips" id="dayChips"></div>
+                    <input id="fDays" type="number" min="1" max="30" value="5" style="margin-top:8px;">
+                    <div class="est" id="est"></div>
+                    <div style="margin-top:14px;"><button class="btn" id="fSend">${T('បន្តទៅបង់ប្រាក់ →', 'Continue to payment →')}</button></div>
+                    <div class="msg" id="fMsg"></div>
+                </div>
+            </div>
+            <div id="paneMine" style="display:none;"><div class="card"><h2>${T('📋 ពាណិជ្ជកម្មរបស់ខ្ញុំ', '📋 My ads')}</h2><div id="myReqs" class="muted"></div></div></div>`;
+            $('tabNew').onclick = () => showTab('new'); $('tabMine').onclick = () => showTab('mine');
+            $('pickOne').onclick = () => $('fileOne').click();
+            $('kwAdd').onclick = () => addKw($('kwIn').value); $('kwIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addKw($('kwIn').value); } });
+            $('kwAi').onclick = suggestKw; $('fSend').onclick = sendRequest;
+            ['fBudget', 'fDays'].forEach(i => $(i).addEventListener('input', () => { drawBudget(); estimate(); }));
+            ['fCaption', 'fCta'].forEach(i => $(i).addEventListener('input', drawPreview));
+            const ages = [0, 13, 18, 25, 35, 45, 55, 65];
+            $('fAmin').innerHTML = ages.map(a => `<option value="${a}">${a ? T('ពី ' + a + ' ឆ្នាំ', 'From ' + a) : T('ពីអាយុណាក៏បាន', 'Any age from')}</option>`).join('');
+            $('fAmax').innerHTML = ages.map(a => `<option value="${a}">${a ? T('ដល់ ' + a + ' ឆ្នាំ', 'To ' + a) : T('ដល់អាយុណាក៏បាន', 'Any age to')}</option>`).join('');
+            ['fAmin', 'fAmax'].forEach(i => $(i).addEventListener('change', () => { st.amin = Number($('fAmin').value); st.amax = Number($('fAmax').value); estimate(); }));
+        }
+        function showTab(t) {
+            $('paneNew').style.display = t === 'new' ? 'flex' : 'none'; $('paneMine').style.display = t === 'mine' ? 'block' : 'none';
+            $('tabNew').classList.toggle('on', t === 'new'); $('tabMine').classList.toggle('on', t === 'mine'); if (t === 'mine') loadMine();
+        }
 
         function drawGoals() {
-            $('goals').innerHTML = GOALS.map(g => `<button type="button" class="opt ${st.goal === g.id ? 'on' : ''}" data-goal="${g.id}"><b>${g.icon} ${g.t}</b><span>${g.d}</span></button>`).join('');
-            $('goals').querySelectorAll('[data-goal]').forEach(b => b.addEventListener('click', () => { st.goal = b.dataset.goal; if (st.goal === 'engagement' && st.mode !== 'post') setMode('post'); if (st.goal === 'messages') $('fCta').value = 'message'; drawGoals(); syncGoal(); }));
+            $('goals').innerHTML = GOALS.map(g => `<button type="button" class="opt ${st.goal === g.id ? 'on' : ''}" data-goal="${g.id}"><b>${g.icon} ${esc(g.t)}</b><span>${esc(g.d)}</span></button>`).join('');
+            $('goals').querySelectorAll('[data-goal]').forEach(b => b.addEventListener('click', () => { st.goal = b.dataset.goal; if (st.goal === 'engagement') st.mode = 'post'; if (st.goal === 'products') st.mode = 'new'; drawGoals(); syncGoal(); }));
         }
         function syncGoal() {
-            $('linkBox').style.display = (st.goal === 'messages' || st.goal === 'reach') ? 'none' : 'block';
-            drawPreview();
+            const prod = st.goal === 'products';
+            $('modeChips').innerHTML = '';
+            if (!prod) { $('modeChips').appendChild(chip(T('🆕 ពាណិជ្ជកម្មថ្មី', '🆕 New ad'), st.mode === 'new', () => setMode('new'))); $('modeChips').appendChild(chip(T('🚀 ការបង្ហោះរបស់ខ្ញុំ', '🚀 One of my posts'), st.mode === 'post', () => setMode('post'))); }
+            $('boxProducts').style.display = prod ? 'block' : 'none';
+            $('boxMedia').style.display = !prod && st.mode === 'new' ? 'block' : 'none';
+            $('boxPost').style.display = !prod && st.mode === 'post' ? 'block' : 'none';
+            $('boxCaption').style.display = st.mode === 'post' ? 'none' : 'block';
+            $('boxLink').style.display = st.goal === 'traffic' && st.mode === 'new' ? 'block' : 'none';
+            $('boxCta').style.display = !prod && st.goal !== 'messages' && st.mode === 'new' ? 'block' : 'none';
+            if (st.mode === 'post' && !st.posts.length) loadPosts();
+            drawProducts(); drawPreview();
         }
-        function setMode(m) {
-            st.mode = m; $('modeNew').style.display = m === 'new' ? 'block' : 'none'; $('modePost').style.display = m === 'post' ? 'block' : 'none';
-            $('modeNewBtn').classList.toggle('on', m === 'new'); $('modePostBtn').classList.toggle('on', m === 'post');
-            if (m === 'post' && !st.posts.length) loadPosts(); drawPreview();
+        function setMode(m) { st.mode = m; syncGoal(); }
+
+        // ---- 🛍️ products ----
+        function drawProducts() {
+            const box = $('boxProducts'); if (st.goal !== 'products') return;
+            box.innerHTML = `<label>${T('ផលិតផល (រហូតដល់ 10 មុខ)', 'Products (up to 10)')}</label>` + st.items.map((it, i) => `
+                <div class="prod"><img src="${esc(it.image)}" alt=""><div class="f"><input data-i="${i}" data-k="name" maxlength="60" value="${esc(it.name)}" placeholder="${T('ឈ្មោះផលិតផល', 'Product name')}"><input data-i="${i}" data-k="price" maxlength="30" value="${esc(it.price)}" placeholder="${T('តម្លៃ ឧ. $900', 'Price e.g. $900')}"></div><button type="button" class="x" data-del="${i}">✕</button></div>`).join('') +
+                (st.items.length < 10 ? `<button type="button" class="pick" id="pickMany" style="margin-top:8px;">➕ ${T('បន្ថែមរូបផលិតផល', 'Add product pictures')}</button>` : '') + '<div class="muted" id="upMany" style="margin-top:4px;"></div>';
+            box.querySelectorAll('input[data-i]').forEach(inp => inp.addEventListener('input', () => { st.items[Number(inp.dataset.i)][inp.dataset.k] = inp.value; drawPreview(); }));
+            box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { st.items.splice(Number(b.dataset.del), 1); drawProducts(); drawPreview(); }));
+            const pm = $('pickMany'); if (pm) pm.onclick = () => $('fileMany').click();
         }
+        async function upload(f) {
+            const u = await (await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name, content_type: f.type || 'application/octet-stream' }) })).json();
+            if (!u.uploadUrl) throw new Error(T('មិនអាចផ្ញើឯកសារនេះបានទេ', 'This file can not be sent'));
+            const put = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f });
+            if (!put.ok) throw new Error(T('ផ្ញើមិនបាន', 'Upload failed') + ' (' + put.status + ')');
+            return u.publicUrl;
+        }
+        $('fileMany').addEventListener('change', async (ev) => {
+            const files = Array.from(ev.target.files || []).slice(0, 10 - st.items.length); ev.target.value = '';
+            for (let i = 0; i < files.length; i++) {
+                $('upMany').textContent = T('កំពុងផ្ញើ ', 'Uploading ') + (i + 1) + '/' + files.length + '…';
+                try { st.items.push({ image: await upload(files[i]), name: '', price: '' }); } catch (e) { $('upMany').textContent = '❌ ' + e.message; return; }
+            }
+            drawProducts(); drawPreview();
+        });
+        $('fileOne').addEventListener('change', async (ev) => {
+            const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; if (!f) return;
+            st.mediaUrl = ''; $('upOne').textContent = T('កំពុងផ្ញើ…', 'Uploading…');
+            try { st.mediaUrl = await upload(f); $('upOne').textContent = T('✅ រួចរាល់', '✅ Done'); drawPreview(); } catch (e) { $('upOne').textContent = '❌ ' + e.message; }
+        });
+
         async function loadPosts() {
+            $('postList').innerHTML = `<div class="muted">${T('កំពុងផ្ទុក…', 'Loading…')}</div>`;
             try {
                 const d = await (await fetch('/api/ads/my-posts')).json(); st.posts = d.posts || [];
                 $('postList').innerHTML = st.posts.length ? st.posts.map(p => {
                     const isVid = p.media_type === 'video', isImg = p.media_type === 'image';
                     const th = isImg ? `<img src="${esc(p.media_url)}" alt="">` : (isVid ? `<video src="${esc(p.media_url)}" muted preload="metadata"></video>` : '📝');
-                    return `<div class="postopt ${st.postId === p.id ? 'on' : ''}" data-pid="${Number(p.id)}"><div class="th">${th}</div><div><div class="notranslate" translate="no" style="font-size:13.5px;font-weight:700;">${esc(p.content || (isVid ? '🎬 វីដេអូ' : '🖼️ រូបភាព'))}</div><div class="muted">${new Date(p.created_at).toLocaleDateString()}</div></div></div>`;
-                }).join('') : '<div class="muted">អ្នកមិនទាន់មានប្រកាសសាធារណៈទេ។</div>';
+                    return `<div class="postopt ${st.postId === p.id ? 'on' : ''}" data-pid="${Number(p.id)}"><div class="th">${th}</div><div><div class="notranslate" translate="no" style="font-size:13.5px;font-weight:700;">${esc(p.content || (isVid ? T('🎬 វីដេអូ', '🎬 Video') : T('🖼️ រូបភាព', '🖼️ Picture')))}</div><div class="muted">${new Date(p.created_at).toLocaleDateString()}</div></div></div>`;
+                }).join('') : `<div class="muted">${T('អ្នកមិនទាន់មានការបង្ហោះសាធារណៈទេ។', 'You have no public posts yet.')}</div>`;
                 $('postList').querySelectorAll('[data-pid]').forEach(el => el.addEventListener('click', () => { st.postId = Number(el.dataset.pid); $('postList').querySelectorAll('.postopt').forEach(x => x.classList.toggle('on', x === el)); drawPreview(); }));
-            } catch (e) { $('postList').innerHTML = '<div class="muted">ផ្ទុកមិនបាន</div>'; }
+            } catch (e) { $('postList').innerHTML = `<div class="muted">${T('ផ្ទុកមិនបាន', 'Could not load')}</div>`; }
         }
         function drawPreview() {
-            let media = '<div class="muted" style="padding:20px;">រូបភាព ឬវីដេអូរបស់អ្នក</div>', cap = $('fCaption').value, nm = $('fName').value || 'ឈ្មោះអាជីវកម្ម';
-            if (st.mode === 'new' && st.mediaUrl) media = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(st.mediaUrl) ? `<video src="${esc(st.mediaUrl)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(st.mediaUrl)}" alt="">`;
-            if (st.mode === 'post') { const p = st.posts.find(x => x.id === st.postId); if (p) { cap = p.content; media = p.media_type === 'image' ? `<img src="${esc(p.media_url)}" alt="">` : (p.media_type === 'video' ? `<video src="${esc(p.media_url)}" muted playsinline preload="metadata"></video>` : '<div class="muted" style="padding:20px;">📝 ប្រកាសអត្ថបទ</div>'); } }
-            $('preview').innerHTML = `<div class="ph"><span><span class="badge-s">Sponsored · ពាណិជ្ជកម្ម</span> <span class="notranslate" translate="no">${esc(nm)}</span></span><span class="muted">Ad</span></div>${cap ? `<div class="notranslate" translate="no" style="padding:0 12px 8px;font-size:14px;white-space:pre-wrap;">${esc(cap)}</div>` : ''}<div class="pm">${media}</div>`;
+            const me = st.info.me || {};
+            let cap = $('fCaption').value, media = `<div class="pm"><div class="muted" style="padding:20px;">${T('រូបភាព ឬវីដេអូរបស់អ្នក', 'Your picture or video')}</div></div>`;
+            if (st.goal === 'products') media = st.items.length ? `<div class="strip">${st.items.map(it => `<div class="it"><img src="${esc(it.image)}" alt=""><div><span class="notranslate" translate="no">${esc(it.name || T('ឈ្មោះផលិតផល', 'Product name'))}</span><b>${esc(it.price || '')}</b></div></div>`).join('')}</div>` : `<div class="pm"><div class="muted" style="padding:20px;">${T('រូបផលិតផលរបស់អ្នក', 'Your product pictures')}</div></div>`;
+            else if (st.mode === 'new' && st.mediaUrl) media = `<div class="pm">${/\.(mp4|webm|mov|m4v)(\?|$)/i.test(st.mediaUrl) ? `<video src="${esc(st.mediaUrl)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(st.mediaUrl)}" alt="">`}</div>`;
+            else if (st.mode === 'post') { const p = st.posts.find(x => x.id === st.postId); if (p) { cap = p.content; media = `<div class="pm">${p.media_type === 'image' ? `<img src="${esc(p.media_url)}" alt="">` : (p.media_type === 'video' ? `<video src="${esc(p.media_url)}" muted playsinline preload="metadata"></video>` : `<div class="muted" style="padding:20px;">📝</div>`)}</div>`; } }
+            const ctaId = (st.goal === 'products' || st.goal === 'messages') ? 'message' : $('fCta').value;
+            const ctaLabel = (CTAS.find(c => c[0] === ctaId) || [])[1];
+            $('preview').innerHTML = `<div class="ph"><img src="${esc(me.pic || 'logo-icon.png')}" alt=""><div><div class="n notranslate" translate="no">${esc(me.name || '')}</div><div class="s">${T('ផ្សាយពាណិជ្ជកម្ម', 'Sponsored')}</div></div></div>` +
+                (cap ? `<div class="notranslate" translate="no" style="padding:0 12px 10px;font-size:14px;white-space:pre-wrap;">${esc(cap)}</div>` : '') + media +
+                (ctaId !== 'none' && st.mode === 'new' ? `<div class="cta"><span>${esc(ctaLabel || '')}</span></div>` : '');
         }
 
-        function chip(label, on, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (on ? ' on' : ''); b.textContent = label; b.addEventListener('click', fn); return b; }
-        function drawChips() {
-            $('interests').innerHTML = ''; Object.keys(INTEREST_KM).forEach(k => $('interests').appendChild(chip(INTEREST_KM[k], st.interests.has(k), () => { st.interests.has(k) ? st.interests.delete(k) : st.interests.add(k); drawChips(); })));
-            $('budgetChips').innerHTML = ''; [2, 5, 10, 20, 50].forEach(v => $('budgetChips').appendChild(chip('$' + v, Number($('fBudget').value) === v, () => { $('fBudget').value = v; drawChips(); estimate(); })));
-            $('dayChips').innerHTML = ''; [1, 3, 5, 7, 14, 30].forEach(v => $('dayChips').appendChild(chip(v + ' ថ្ងៃ', Number($('fDays').value) === v, () => { $('fDays').value = v; drawChips(); estimate(); })));
+        // ---- 🏷️ keywords ----
+        function drawKw() {
+            $('kwChips').innerHTML = '';
+            if (!st.kws.length) $('kwChips').innerHTML = `<span class="muted">${T('មិនទាន់មានពាក្យគន្លឹះទេ', 'No keywords yet')}</span>`;
+            st.kws.forEach((w, i) => { const b = chip(w, false, () => { st.kws.splice(i, 1); drawKw(); estimate(); }, 'kw'); const x = document.createElement('i'); x.textContent = '✕'; b.appendChild(x); $('kwChips').appendChild(b); });
         }
-        document.querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => { st.place = b.dataset.place; document.querySelectorAll('[data-place]').forEach(x => x.classList.toggle('on', x === b)); estimate(); }));
+        function findWord(v) {
+            const n = String(v || '').trim().toLowerCase(); if (!n) return null;
+            for (const w of st.words) { if (w.word.toLowerCase() === n || String(w.syn || '').toLowerCase().split(',').map(s => s.trim()).includes(n)) return w.word; }
+            return null;
+        }
+        function addKw(v) {
+            const w = findWord(v);
+            if (!w) { $('kwMsg').textContent = T('រកមិនឃើញពាក្យនេះក្នុងបញ្ជីទេ។ សូមជ្រើសពីបញ្ជីដែលលោតឡើង។', 'This word is not in the list. Please choose one from the list.'); return; }
+            $('kwMsg').textContent = ''; $('kwIn').value = '';
+            if (!st.kws.includes(w) && st.kws.length < 12) st.kws.push(w); drawKw(); estimate();
+        }
+        async function suggestKw() {
+            const urls = st.goal === 'products' ? st.items.map(i => i.image) : (st.mode === 'new' && st.mediaUrl ? [st.mediaUrl] : []);
+            let text = $('fCaption').value + ' ' + st.items.map(i => i.name).join(', ');
+            if (st.mode === 'post') { const p = st.posts.find(x => x.id === st.postId); if (p) text = p.content || ''; }
+            if (!urls.length && !text.trim()) { $('kwMsg').textContent = T('សូមបន្ថែមរូប ឬពាក្យពណ៌នាជាមុនសិន។', 'Please add a picture or some text first.'); return; }
+            $('kwAi').disabled = true; $('kwMsg').textContent = T('🤖 AI កំពុងមើល…', '🤖 The AI is looking…');
+            try {
+                const d = await (await fetch('/api/ads/suggest-keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, urls: urls.slice(0, 3) }) })).json();
+                if (!d.success) throw new Error(d.error === 'busy' ? T('AI រវល់បន្តិច សូមសាកម្ដងទៀតក្រោយមួយភ្លែត។', 'The AI is busy. Please try again in a moment.') : T('មិនបាន', 'Failed'));
+                (d.words || []).forEach(w => { if (!st.kws.includes(w) && st.kws.length < 12) st.kws.push(w); });
+                $('kwMsg').textContent = (d.words || []).length ? T('✅ AI បានជ្រើស ' + d.words.length + ' ពាក្យ។ ចុចលើពាក្យណាដែលមិនត្រូវ ដើម្បីលុប។', '✅ The AI chose ' + d.words.length + ' words. Tap a wrong one to remove it.') : T('AI រកមិនឃើញពាក្យសមស្របទេ។ សូមបន្ថែមដោយខ្លួនឯង។', 'The AI found nothing that fits. Please add some yourself.');
+                drawKw(); estimate();
+            } catch (e) { $('kwMsg').textContent = '❌ ' + e.message; }
+            $('kwAi').disabled = false;
+        }
 
-        function estimate() { clearTimeout(estTimer); estTimer = setTimeout(doEstimate, 250); }
+        // ---- 📍 who ----
+        function drawWho() {
+            const pc = $('provChips'); pc.innerHTML = '';
+            pc.appendChild(chip(T('ទាំងអស់', 'All'), !st.provs.size, () => { st.provs.clear(); drawWho(); estimate(); }));
+            (st.info.provinces || []).forEach(p => pc.appendChild(chip(T(p.km, p.en), st.provs.has(p.id), () => { st.provs.has(p.id) ? st.provs.delete(p.id) : st.provs.add(p.id); drawWho(); estimate(); })));
+            const gc = $('genChips'); gc.innerHTML = '';
+            [['', T('ទាំងអស់', 'All')], ['Male', T('ប្រុស', 'Male')], ['Female', T('ស្រី', 'Female')]].forEach(g => gc.appendChild(chip(g[1], st.gender === g[0], () => { st.gender = g[0]; drawWho(); estimate(); })));
+        }
+        function drawPlaces() {
+            $('places').innerHTML = PLACES.map(p => `<button type="button" class="opt ${st.place === p.id ? 'on' : ''}" data-place="${p.id}"><b>${esc(p.t)}</b><span>${esc(p.d)}</span></button>`).join('');
+            $('places').querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => { st.place = b.dataset.place; drawPlaces(); estimate(); }));
+        }
+        function drawBudget() {
+            $('budgetChips').innerHTML = ''; [2, 5, 10, 20, 50].forEach(v => $('budgetChips').appendChild(chip('$' + v, Number($('fBudget').value) === v, () => { $('fBudget').value = v; drawBudget(); estimate(); })));
+            $('dayChips').innerHTML = ''; [1, 3, 5, 7, 14, 30].forEach(v => $('dayChips').appendChild(chip(T(v + ' ថ្ងៃ', v + (v === 1 ? ' day' : ' days')), Number($('fDays').value) === v, () => { $('fDays').value = v; drawBudget(); estimate(); })));
+        }
+
+        // ---- the numbers: what can REALLY be delivered is the big number ----
+        function estimate() { clearTimeout(estTimer); estTimer = setTimeout(doEstimate, 300); }
         async function doEstimate() {
             const b = Number($('fBudget').value), d = Number($('fDays').value);
-            if (!(b > 0) || !(d > 0)) { $('est').textContent = 'សូមបញ្ចូលថវិកា និងចំនួនថ្ងៃ។'; return; }
+            if (!(b > 0) || !(d > 0)) { $('est').textContent = T('សូមបញ្ចូលថវិកា និងចំនួនថ្ងៃ។', 'Please enter the budget and the days.'); return; }
             try {
-                const q = new URLSearchParams({ budget: b, days: d, placement: st.place, country: $('fCountry').value });
+                const q = new URLSearchParams({ budget: b, days: d, placement: st.place, kw: st.kws.join(','), prov: [...st.provs].join(','), g: st.gender, amin: st.amin || '', amax: st.amax || '' });
                 const r = await (await fetch('/api/ads/estimate?' + q)).json();
                 if (!r.success) throw new Error('x');
-                const low = r.canDeliver < r.views;
-                $('est').innerHTML = `<div class="muted">ប៉ាន់ស្មានចំនួនបង្ហាញ (Views)</div><div class="big">${r.views.toLocaleString()}</div>
-                    <div class="muted">≈ ${r.viewsPerDay.toLocaleString()} ដង ក្នុងមួយថ្ងៃ · ថវិកា $${(b / d).toFixed(2)} ក្នុងមួយថ្ងៃ · តម្លៃ $${r.cpm.toFixed(2)} ក្នុង ១០០០ ដង</div>
-                    ${low ? `<div class="muted" style="margin-top:8px;color:#92580a;"><b>ចំណាំ:</b> ពេលនេះមានអ្នកប្រើសកម្ម ${r.activeUsers.toLocaleString()} នាក់ ហើយម្នាក់ឃើញបានអតិបរមា ៣ ដង ក្នុងមួយថ្ងៃ។ ដូច្នេះអាចបង្ហាញបានត្រឹម ~${r.canDeliver.toLocaleString()} ដងក្នុង ${d} ថ្ងៃ។ ថវិកាដែលមិនបានចំណាយនឹងមិនត្រូវកាត់ទេ។</div>` : ''}
-                    <div class="muted" style="margin-top:8px;">អ្នកបង់តាមចំនួនអ្នកមើលពិតប្រាកដ។ ពាណិជ្ជកម្មឈប់ពេលថវិកាអស់ ឬគ្រប់ថ្ងៃ។</div>`;
-            } catch (e) { $('est').textContent = 'គណនាមិនបាន'; }
+                const real = Math.min(r.views, r.canDeliver), left = r.views > r.canDeliver;
+                const used = r.views ? Math.min(b, b * real / r.views) : 0;
+                $('est').innerHTML = `<div class="muted">${T('ប៉ាន់ស្មានចំនួនដងបង្ហាញក្នុង ' + d + ' ថ្ងៃ', 'Estimated views in ' + d + (d === 1 ? ' day' : ' days'))}</div><div class="big">~${num(real)}</div>
+                    <div class="row"><div><b>${num(r.activeUsers)}</b><span>${T('នាក់ដែលត្រូវនឹងអ្នកដែលអ្នកជ្រើស', 'people match who you chose')}</span></div>
+                    ${st.kws.length ? `<div><b>${num(r.interested)}</b><span>${T('នាក់ក្នុងនោះ ចាប់អារម្មណ៍លើពាក្យគន្លឹះរបស់អ្នក (ឃើញមុនគេ)', 'of them are interested in your keywords (see it first)')}</span></div>` : ''}</div>
+                    <div class="muted" style="margin-top:8px;">${T('តម្លៃ $' + r.cpm.toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ម្នាក់ឃើញមិនលើស 3 ដងក្នុងមួយថ្ងៃ', '$' + r.cpm.toFixed(2) + ' per 1,000 views · one person sees it at most 3 times a day')}</div>
+                    ${left ? `<div class="muted" style="margin-top:8px;color:#92400e;"><b>${T('ចំណាំ៖', 'Note:')}</b> ${T('ថវិកា $' + b + ' អាចទិញបាន ' + num(r.views) + ' ដង ប៉ុន្តែពេលនេះមានមនុស្សគ្រប់គ្រាន់សម្រាប់ប្រហែល ' + num(real) + ' ដងប៉ុណ្ណោះ (ប្រហែល $' + used.toFixed(2) + ')។ ប្រាក់ដែលមិនបានប្រើ CamFeed នឹងមិនកាត់ទេ។ អ្នកអាចបន្ថយថវិកា ឬបន្ថែមថ្ងៃ។', '$' + b + ' could buy ' + num(r.views) + ' views, but right now there are enough people for about ' + num(real) + ' only (about $' + used.toFixed(2) + '). CamFeed does not take money that is not used. You can lower the budget or add days.')}</div>` : ''}`;
+            } catch (e) { $('est').textContent = T('គណនាមិនបាន', 'Could not calculate'); }
         }
-        ['fBudget', 'fDays'].forEach(i => $(i).addEventListener('input', () => { drawChips(); estimate(); }));
-        $('fCountry').addEventListener('change', estimate);
-        ['fCaption', 'fName'].forEach(i => $(i).addEventListener('input', drawPreview));
 
-        $('fFile').addEventListener('change', async (ev) => {
-            const f = ev.target.files && ev.target.files[0]; const up = $('fUp'); st.mediaUrl = '';
-            if (!f) return; up.textContent = 'កំពុងអាប់ឡូត...';
-            try {
-                const u = await (await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name, content_type: f.type || 'application/octet-stream' }) })).json();
-                if (!u.uploadUrl) throw new Error(u.error || 'មិនអនុញ្ញាតឯកសារនេះ');
-                const put = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f });
-                if (!put.ok) throw new Error('អាប់ឡូតមិនបាន (' + put.status + ')');
-                st.mediaUrl = u.publicUrl; up.textContent = '✅ អាប់ឡូតរួចរាល់'; drawPreview();
-            } catch (e) { up.textContent = '❌ ' + e.message; }
-        });
-
+        // ---- send → pay ----
         async function sendRequest() {
             const btn = $('fSend'); btn.disabled = true;
-            const body = { business_name: $('fName').value, contact: $('fContact').value, objective: st.goal, placement: st.place, interests: [...st.interests], country: $('fCountry').value,
-                budget_usd: $('fBudget').value, days: $('fDays').value, caption: $('fCaption').value, target_url: (st.goal === 'messages' || st.goal === 'reach') ? '' : $('fTarget').value, cta: $('fCta').value };
-            if (st.mode === 'post') { body.post_id = st.postId; body.caption = ''; body.target_url = ''; } else body.media_url = st.mediaUrl;
+            const prod = st.goal === 'products';
+            const body = { objective: st.goal, placement: st.place, budget_usd: $('fBudget').value, days: $('fDays').value, caption: $('fCaption').value,
+                target_url: st.goal === 'traffic' ? $('fTarget').value : '', cta: (prod || st.goal === 'messages') ? 'message' : $('fCta').value,
+                keywords: st.kws, provinces: [...st.provs], age_min: st.amin, age_max: st.amax, gender: st.gender };
+            if (prod) { body.items = st.items.map(i => ({ image: i.image, name: i.name, price: i.price })); }
+            else if (st.mode === 'post') { body.post_id = st.postId; body.caption = ''; body.target_url = ''; }
+            else body.media_url = st.mediaUrl;
+            if (prod && !st.items.length) { setMsg('fMsg', false, T('សូមបន្ថែមរូបផលិតផលយ៉ាងហោចណាស់មួយ។', 'Please add at least one product picture.')); btn.disabled = false; return; }
             try {
                 const d = await (await fetch('/api/ads/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-                if (d.success) { setMsg('fMsg', true, '✅ បានផ្ញើសំណើហើយ! យើងនឹងពិនិត្យ ហើយប្រាប់ឲ្យអ្នកបង់ប្រាក់។ មើលក្នុង "យុទ្ធនាការរបស់ខ្ញុំ"។'); setTimeout(() => showTab('mine'), 1200); }
-                else setMsg('fMsg', false, '❌ ' + (d.error || 'ផ្ញើមិនបាន'));
-            } catch (e) { setMsg('fMsg', false, '❌ បញ្ហាបណ្តាញ'); }
+                if (d.success) { $('fMsg').className = 'msg'; showTab('mine'); await loadMine(); openPay(d.id); }
+                else setMsg('fMsg', false, '❌ ' + (d.error || T('ផ្ញើមិនបាន', 'Could not send')));
+            } catch (e) { setMsg('fMsg', false, T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); }
             btn.disabled = false;
         }
-
-        async function sendPaid(id) {
-            const d = await (await fetch('/api/ads/my/' + id + '/paid', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pay_ref: $('ref-' + id).value }) })).json().catch(() => ({}));
-            if (d.success) loadMine(); else alert(d.error || 'មិនអាចរក្សាទុកបាន');
-        }
         const money = (c) => '$' + (Number(c || 0) / 100).toFixed(2);
-
+        let mine = [];
+        function payBox(r, where) {
+            const code = 'A' + Number(r.id);
+            return `<div class="pay"><div>${T('ត្រូវបង់', 'Amount to pay')}</div><div class="amt">${money(r.price_cents)}</div>
+                <div style="margin-top:6px;">${T('សរសេរលេខនេះក្នុង «ចំណាំ» ពេលផ្ទេរ៖', 'Write this in the transfer note:')} <span class="code">${code}</span></div>
+                ${st.info.paymentQr ? `<img src="${esc(st.info.paymentQr)}" alt="QR">` : ''}
+                <div class="txt">${esc(st.info.paymentText || '')}</div>
+                <div style="margin-top:10px;"><label>${T('លេខប្រតិបត្តិការ (បើមាន)', 'Transaction number (if you have it)')}</label><input id="ref-${where}-${Number(r.id)}" maxlength="120"></div>
+                <div style="margin-top:10px;"><button class="btn" onclick="sendPaid(${Number(r.id)}, '${where}')">✅ ${T('ខ្ញុំបានបង់ហើយ', 'I have paid')}</button></div>
+                <div class="muted" style="margin-top:8px;">${T('CamFeed ពិនិត្យការបង់ប្រាក់ ហើយពាណិជ្ជកម្មចាប់ផ្ដើមភ្លាម។ អ្នកនឹងទទួលបានការជូនដំណឹង។', 'CamFeed checks the payment and the ad starts at once. You will get a notification.')}</div></div>`;
+        }
+        function openPay(id) { const r = mine.find(x => Number(x.id) === Number(id)); if (r && r.status === 'quoted') openModal(T('💵 បង់ប្រាក់', '💵 Pay'), payBox(r, 'm')); }
+        async function sendPaid(id, where) {
+            const inp = $('ref-' + where + '-' + id);
+            const d = await (await fetch('/api/ads/my/' + id + '/paid', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pay_ref: inp ? inp.value : '' }) })).json().catch(() => ({}));
+            if (d.success) { closeModal(); loadMine(); } else alert(d.error || T('មិនបាន', 'Failed'));
+        }
         async function loadMine() {
-            const box = $('myReqs');
+            const box = $('myReqs'); clearTimeout(pollTimer);
             try {
                 const d = await (await fetch('/api/ads/my')).json();
-                if (!d.success || !d.requests.length) { box.textContent = 'មិនទាន់មានយុទ្ធនាការទេ។'; return; }
-                box.innerHTML = d.requests.map(r => {
+                mine = (d.success && d.requests) || [];
+                if (!mine.length) { box.textContent = T('មិនទាន់មានពាណិជ្ជកម្មទេ។', 'No ads yet.'); return; }
+                box.innerHTML = mine.map(r => {
                     const shown = r.ad_status === 'completed' ? 'completed' : (r.ad_status && r.status === 'live' && r.ends_at && new Date(r.ends_at) < new Date() ? 'ended' : r.status);
                     let extra = '';
-                    if (r.status === 'quoted') {
-                        extra = `<div style="margin-top:8px;font-weight:800;">💵 ត្រូវបង់: ${money(r.price_cents)} (${Number(r.days)} ថ្ងៃ)</div>` + (r.admin_note ? `<div class="muted">${esc(r.admin_note)}</div>` : '') +
-                            `<div class="pay">${esc(st.info.paymentText || 'សូមទាក់ទងក្រុមការងារដើម្បីទទួលព័ត៌មានបង់ប្រាក់។')}${st.info.paymentQr ? `<img src="${esc(st.info.paymentQr)}" alt="QR">` : ''}</div>` +
-                            `<div style="margin-top:8px;"><label>លេខយោងប្រតិបត្តិការ ឬឈ្មោះដែលបានបង់ (Payment reference)</label><input id="ref-${Number(r.id)}" maxlength="120"></div>` +
-                            `<div style="margin-top:8px;"><button class="btn" onclick="sendPaid(${Number(r.id)})">✅ ខ្ញុំបានបង់ប្រាក់ហើយ</button></div>`;
-                    } else if (r.status === 'rejected' && r.admin_note) extra = `<div class="muted" style="margin-top:6px;">${esc(r.admin_note)}</div>`;
+                    if (r.status === 'quoted') extra = (r.admin_note ? `<div class="muted" style="margin-top:6px;color:#b42318;">${esc(r.admin_note)}</div>` : '') + payBox(r, 'l');
+                    else if (r.status === 'payment_sent' || r.status === 'starting') extra = `<div class="muted" style="margin-top:6px;">${T('CamFeed កំពុងពិនិត្យការបង់ប្រាក់ ' + money(r.price_cents) + ' (ចំណាំ A' + Number(r.id) + ')។ ទំព័រនេះនឹងប្ដូរដោយខ្លួនឯង។', 'CamFeed is checking your payment of ' + money(r.price_cents) + ' (note A' + Number(r.id) + '). This page updates by itself.')}</div>`;
+                    else if (r.status === 'rejected' && r.admin_note) extra = `<div class="muted" style="margin-top:6px;">${esc(r.admin_note)}</div>`;
                     else if (r.ad_id) {
                         const pct = r.budget_cents ? Math.min(100, Math.round(Number(r.spent_cents) / r.budget_cents * 100)) : 0;
-                        extra = `<div class="muted" style="margin-top:8px;">👁️ ${Number(r.impressions).toLocaleString()} views · 🔗 ${Number(r.clicks).toLocaleString()} clicks · ចំណាយ ${money(r.spent_cents)} / ${money(r.budget_cents)}</div><div class="progress"><i style="width:${pct}%"></i></div>` +
-                            `<div style="margin-top:10px;"><button class="btn gray" onclick="openReport(${Number(r.id)})">📊 មើលលទ្ធផលលម្អិត</button></div>`;
+                        extra = `<div class="muted" style="margin-top:8px;">👁️ ${num(r.impressions)} ${T('ដងបង្ហាញ', 'views')} · 👆 ${num(r.clicks)} ${T('ដងចុច', 'clicks')} · ${T('ចំណាយ', 'spent')} ${money(r.spent_cents)} / ${money(r.budget_cents)}</div><div class="progress"><i style="width:${pct}%"></i></div>` +
+                            `<div style="margin-top:10px;"><button class="btn gray small" onclick="openReport(${Number(r.id)})">📊 ${T('មើលលទ្ធផលលម្អិត', 'See detailed results')}</button></div>`;
                     }
-                    return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b class="notranslate" translate="no">${esc(r.business_name)}</b><span class="pill ${esc(shown)}">${STATUS_KM[shown] || esc(shown)}</span></div>
-                        <div class="muted">${GOAL_KM[r.objective] || ''} · ${PLACE_KM[r.placement] || ''} · ${Number(r.days)} ថ្ងៃ · ថវិកា ${money(r.budget_cents)}${r.post_id ? ' · 🚀 Boost' : ''}</div>${extra}</div>`;
+                    const goal = (GOALS.find(g => g.id === r.objective) || {}).t || '', place = (PLACES.find(p => p.id === r.placement) || {}).t || '';
+                    return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b>A${Number(r.id)}</b><span class="pill ${esc(shown)}">${STATUS[shown] || esc(shown)}</span></div>
+                        <div class="muted">${esc(goal)} · ${esc(place)} · ${T(Number(r.days) + ' ថ្ងៃ', Number(r.days) + (Number(r.days) === 1 ? ' day' : ' days'))} · ${T('ថវិកា', 'budget')} ${money(r.budget_cents)}</div>${r.caption ? `<div class="notranslate" translate="no" style="font-size:13.5px;margin-top:4px;">${esc(String(r.caption).slice(0, 120))}</div>` : ''}${extra}</div>`;
                 }).join('');
-            } catch (e) { box.textContent = 'ផ្ទុកមិនបាន'; }
+                if (mine.some(r => r.status === 'payment_sent' || r.status === 'starting')) pollTimer = setTimeout(loadMine, 15000);
+            } catch (e) { box.textContent = T('ផ្ទុកមិនបាន', 'Could not load'); }
         }
-
         async function openReport(id) {
-            $('reportBody').innerHTML = '<div class="muted" style="margin-top:10px;">កំពុងផ្ទុក...</div>'; $('reportModal').classList.add('show');
+            openModal(T('📊 លទ្ធផល', '📊 Results'), `<div class="muted" style="margin-top:10px;">${T('កំពុងផ្ទុក…', 'Loading…')}</div>`);
             try {
                 const d = await (await fetch('/api/ads/my/' + id + '/report')).json();
-                if (!d.success) { $('reportBody').innerHTML = `<div class="muted" style="margin-top:10px;">${esc(d.error || 'មិនទាន់មានលទ្ធផល')}</div>`; return; }
+                if (!d.success) { $('modalBody').innerHTML = `<div class="muted" style="margin-top:10px;">${T('មិនទាន់មានលទ្ធផល', 'No results yet')}</div>`; return; }
                 const r = d.report, cells = [
-                    ['👁️ Views', r.views.toLocaleString()], ['👤 Reach (មនុស្សមិនជាន់គ្នា)', r.reach.toLocaleString()],
-                    ['🔗 Clicks', r.clicks.toLocaleString()], ['📈 CTR', r.ctr + '%'],
-                    ['💵 ចំណាយ', '$' + r.spent.toFixed(2) + ' / $' + r.budget.toFixed(2)], ['💰 តម្លៃក្នុង ១ Click', r.costPerClick === null ? '—' : '$' + r.costPerClick]
+                    [T('👁️ ដងបង្ហាញ', '👁️ Views'), num(r.views)], [T('👤 មនុស្សដែលបានឃើញ', '👤 People reached'), num(r.reach)],
+                    [T('👆 ដងចុច', '👆 Clicks'), num(r.clicks)], [T('📈 អត្រាចុច', '📈 Click rate'), r.ctr + '%'],
+                    [T('💵 ចំណាយ', '💵 Spent'), '$' + r.spent.toFixed(2) + ' / $' + r.budget.toFixed(2)], [T('💰 តម្លៃក្នុង 1 ដងចុច', '💰 Cost per click'), r.costPerClick === null ? '—' : '$' + r.costPerClick]
                 ];
-                if (r.messages || r.objective === 'messages') cells.push(['💬 ចុចផ្ញើសារ', r.messages.toLocaleString()]);
-                if (r.engagement) cells.push(['👍 Reactions', r.engagement.reactions.toLocaleString()], ['💭 Comments', r.engagement.comments.toLocaleString()], ['↗️ Shares', r.engagement.shares.toLocaleString()], ['🔥 Engagement សរុប', r.engagement.total.toLocaleString()]);
-                if (r.videoViews) cells.push(['🎬 Views វីដេអូ', r.videoViews.toLocaleString()], ['⏭️ Skip', r.skips.toLocaleString() + (r.skipRate !== null ? ' (' + r.skipRate + '%)' : '')], ['✅ មើលចប់', r.completes.toLocaleString() + (r.completionRate !== null ? ' (' + r.completionRate + '%)' : '')]);
-                cells.push(['📱 Feed views', r.feedViews.toLocaleString()]);
+                if (r.messages || r.objective === 'messages' || r.objective === 'products') cells.push([T('💬 ចុចផ្ញើសារ', '💬 Message taps'), num(r.messages)]);
+                if (r.engagement) cells.push([T('👍 ការចូលចិត្ត', '👍 Reactions'), num(r.engagement.reactions)], [T('💭 មតិ', '💭 Comments'), num(r.engagement.comments)], [T('↗️ ចែករំលែក', '↗️ Shares'), num(r.engagement.shares)]);
+                if (r.videoViews) cells.push([T('🎬 ដងបង្ហាញមុនវីដេអូ', '🎬 Video views'), num(r.videoViews)], [T('⏭️ រំលង', '⏭️ Skipped'), num(r.skips) + (r.skipRate !== null ? ' (' + r.skipRate + '%)' : '')], [T('✅ មើលចប់', '✅ Watched to the end'), num(r.completes) + (r.completionRate !== null ? ' (' + r.completionRate + '%)' : '')]);
                 const max = Math.max(1, ...r.daily.map(x => x.views));
-                $('reportBody').innerHTML = `<div class="grid2">${cells.map(c => `<div class="stat"><b>${esc(c[1])}</b><span>${c[0]}</span></div>`).join('')}</div>
-                    <h2 style="margin-top:16px;font-size:14px;">Views ១៤ ថ្ងៃចុងក្រោយ</h2>
-                    <div class="bars">${r.daily.map(x => `<div class="bar" title="${esc(x.day)}: ${x.views} views, ${x.clicks} clicks, $${x.spent}" style="height:${Math.max(2, Math.round(x.views / max * 100))}%"></div>`).join('')}</div>
+                $('modalBody').innerHTML = `<div class="grid2">${cells.map(c => `<div class="stat"><b>${esc(c[1])}</b><span>${esc(c[0])}</span></div>`).join('')}</div>
+                    <h2 style="margin-top:16px;font-size:14px;">${T('ដងបង្ហាញ 14 ថ្ងៃចុងក្រោយ', 'Views, last 14 days')}</h2>
+                    <div class="bars">${r.daily.map(x => `<div class="bar" title="${esc(x.day)}: ${x.views}" style="height:${Math.max(2, Math.round(x.views / max * 100))}%"></div>`).join('')}</div>
                     <div class="days">${r.daily.map(x => `<div>${esc(x.day.slice(8))}</div>`).join('')}</div>
-                    <p class="muted" style="margin-top:10px;">${r.endsAt ? 'បញ្ចប់: ' + new Date(r.endsAt).toLocaleDateString() : ''} · ស្ថានភាព: ${esc(r.status)}</p>`;
-            } catch (e) { $('reportBody').innerHTML = '<div class="muted">ផ្ទុកមិនបាន</div>'; }
+                    <p class="muted" style="margin-top:10px;">${r.endsAt ? T('បញ្ចប់៖ ', 'Ends: ') + new Date(r.endsAt).toLocaleDateString() : ''}</p>`;
+            } catch (e) { $('modalBody').innerHTML = `<div class="muted">${T('ផ្ទុកមិនបាន', 'Could not load')}</div>`; }
         }
 
         (async function init() {
-            drawGoals(); drawChips(); syncGoal();
-            try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) { st.info = i; $('rateLine').textContent = `តម្លៃ: Feed $${Number(i.cpmFeed).toFixed(2)} និង វីដេអូ $${Number(i.cpmVideo).toFixed(2)} ក្នុង ១០០០ ដងបង្ហាញ · ថវិកាអប្បបរមា $${i.minBudget}`; $('fBudget').min = i.minBudget; } } catch (e) {}
-            estimate();
+            build();
+            try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) { st.info = i; $('rateLine').textContent = T('តម្លៃ៖ ទំព័រដើម $' + Number(i.cpmFeed).toFixed(2) + ' និងមុនវីដេអូ $' + Number(i.cpmVideo).toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ថវិកាតិចបំផុត $' + i.minBudget, 'Price: home feed $' + Number(i.cpmFeed).toFixed(2) + ' and before videos $' + Number(i.cpmVideo).toFixed(2) + ' per 1,000 views · smallest budget $' + i.minBudget); $('fBudget').min = i.minBudget; } } catch (e) {}
+            try { const k = await (await fetch('/api/ads/keywords')).json(); st.words = k.words || []; $('kwList').innerHTML = st.words.map(w => `<option value="${esc(w.word)}">${esc(w.grp)}</option>`).join(''); } catch (e) {}
+            drawGoals(); syncGoal(); drawKw(); drawWho(); drawPlaces(); drawBudget(); estimate();
             if (new URLSearchParams(location.search).get('tab') === 'mine') showTab('mine');
         })();
     </script>

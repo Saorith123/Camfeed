@@ -4,7 +4,7 @@
 //  * In a Party Room a person spends coins on a gift for somebody on a seat. The receiver gets a share of the gift's value
 //    (Admin sets the %, start 50%) in the same wallet as the creator money; it can be withdrawn after a few days (Admin sets).
 //  * 1 coin = 1 US cent. Packs, the share, the waiting days, the payment details and every gift are set in the Admin panel.
-module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents, starShare, starsOf }) {
+module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents, starShare, starsOf, onTopup }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const COIN_CENTS = 1;
   // 👑 levels by XP (like Bigo): XP comes from coins spent (gifts, frames, VIP), gift coins received, minutes in rooms and the
@@ -178,6 +178,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const waiting = await pool.query("SELECT COUNT(*)::int AS n FROM coin_topups WHERE user_email = $1 AND status = 'pending'", [e]);
       if (waiting.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for CamFeed to check them.' });
       const r = await pool.query('INSERT INTO coin_topups (user_email, usd, coins, method, payer_ref, receipt_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id', [e, Number(p.usd) || 0, Number(p.web) || 0, method, ref, receipt]);
+      try { if (onTopup) onTopup(r.rows[0].id, { email: e, usd: Number(p.usd) || 0, coins: Number(p.web) || 0, method, ref, receipt }); } catch (x) {}   // 💰 the owner's Telegram: ✅ / ❌
       // tell the administrators
       try {
         const admins = await pool.query("SELECT email FROM users WHERE role IN ('admin', 'super_admin')");
@@ -621,19 +622,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         audit(a.adminEmail, 'party-frame', String(g.id || 'new'), en + ' ' + coins + ' coins / ' + days + ' days' + (g.active === false ? ' (off)' : ''));
       } else if (act === 'decide') {
         if (!superOnly()) return;
-        const st = b.status === 'approved' ? 'approved' : 'rejected';
         const note = String(b.note || '').trim().slice(0, 300);
-        if (st === 'rejected' && !note) return res.status(400).json({ success: false, error: 'Please write the reason.' });
-        const up = await pool.query("UPDATE coin_topups SET status = $2, note = $3, decided_by = $4, decided_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *", [parseInt(b.id, 10) || 0, st, note, a.adminEmail]);
-        const t = up.rows[0];
-        if (!t) return res.status(409).json({ success: false, error: 'Already decided.' });
-        if (st === 'approved') {
-          await pool.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'topup', $3, $4, $5)", [t.user_email, t.coins, 'Top-up $' + Number(t.usd).toFixed(2) + ' ' + t.method, t.id, a.adminEmail]);
-          await sendNotice(a.adminEmail, t.user_email, '🪙 អបអរសាទរ! CamFeed បានបញ្ចូល ' + t.coins + ' កាក់ ទៅក្នុងគណនីរបស់អ្នករួចហើយ។ អរគុណ!').catch(() => {});
-        } else {
-          await sendNotice(a.adminEmail, t.user_email, 'សំណើបញ្ចូលកាក់ $' + Number(t.usd).toFixed(2) + ' របស់អ្នកមិនត្រូវបានអនុម័តទេ។ មូលហេតុ៖ ' + note + '។ សូមទាក់ទង CamFeed បើមានចម្ងល់។').catch(() => {});
-        }
-        audit(a.adminEmail, 'coin-topup-' + st, t.user_email, '$' + Number(t.usd).toFixed(2) + ' ' + t.coins + ' coins ' + note);
+        if (b.status !== 'approved' && !note) return res.status(400).json({ success: false, error: 'Please write the reason.' });
+        const d = await decideTopup(parseInt(b.id, 10) || 0, b.status === 'approved', note, a.adminEmail);
+        if (!d.ok) return res.status(409).json({ success: false, error: 'Already decided.' });
       } else if (act === 'adjust') {
         if (!superOnly()) return;
         const who = String(b.user || '').trim();
@@ -665,5 +657,22 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
 
   // 🎯 challenges: everybody's XP right now
   async function xpNowOf(emails) { await ensure(); return xpOf(emails, await settings()); }
-  return { heldCents, balance, framesOf, badgesOf, xpNowOf, settings };
+  // ✅ / ❌ one coin top-up (Admin › Coins, or the owner's Telegram button)
+  async function decideTopup(id, approve, note, by) {
+    await ensure();
+    const st = approve ? 'approved' : 'rejected';
+    const up = await pool.query("UPDATE coin_topups SET status = $2, note = $3, decided_by = $4, decided_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *", [id, st, note || '', by]);
+    const t = up.rows[0];
+    if (!t) return { ok: false, text: 'Already decided.' };
+    if (approve) {
+      await pool.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'topup', $3, $4, $5)", [t.user_email, t.coins, 'Top-up $' + Number(t.usd).toFixed(2) + ' ' + t.method, t.id, by]);
+      await sendNotice(by, t.user_email, '🪙 អបអរសាទរ! CamFeed បានបញ្ចូល ' + t.coins + ' កាក់ ទៅក្នុងគណនីរបស់អ្នករួចហើយ។ អរគុណ!').catch(() => {});
+    } else {
+      await sendNotice(by, t.user_email, 'សំណើបញ្ចូលកាក់ $' + Number(t.usd).toFixed(2) + ' របស់អ្នកមិនត្រូវបានអនុម័តទេ។ មូលហេតុ៖ ' + (note || 'CamFeed មិនទាន់ឃើញប្រាក់ចូល') + '។ សូមទាក់ទង CamFeed បើមានចម្ងល់។').catch(() => {});
+    }
+    audit(by, 'coin-topup-' + st, t.user_email, '$' + Number(t.usd).toFixed(2) + ' ' + t.coins + ' coins ' + (note || ''));
+    return { ok: true, text: approve ? ('🪙 ' + t.coins + ' កាក់ បានបញ្ចូលហើយ') : 'បានបដិសេធ' };
+  }
+
+  return { heldCents, balance, framesOf, badgesOf, xpNowOf, settings, decideTopup };
 };

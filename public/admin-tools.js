@@ -1599,9 +1599,43 @@
       });
     });
   }
+  // 💰 the owner's Telegram: payments to check come there with ✅ / ❌ (ads and coin top-ups)
+  function tgPayCard(p) {
+    var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
+    function draw() {
+      adm('/api/admin/tg-pay', {}).then(function (d) {
+        box.textContent = '';
+        box.appendChild(el('div', { class: 'at-h', text: '💰 Telegram for payments' }));
+        if (!d.success) { box.appendChild(el('div', { text: d.error || 'Failed' })); return; }
+        if (!d.on) { box.appendChild(el('div', { style: 'font-size:13px;color:#65676b;line-height:1.6', text: 'Off. 1) In Telegram open @BotFather → /newbot → make a NEW bot only for payments. 2) Render › Camfeed-1 › Environment: add the KEY TG_PAY_BOT_TOKEN with the token @BotFather gave (never send the token to anyone). 3) Deploy, then come back here and press "Link my Telegram".' })); return; }
+        box.appendChild(el('div', { style: 'font-size:13px;color:#65676b;margin-bottom:8px', text: 'Bot: @' + (d.bot || '?') + ' · When someone presses "I paid" (ads) or sends a coin top-up, it comes to these Telegram accounts with ✅ received / ❌ not received. ✅ starts the ad / adds the coins at once.' }));
+        (d.chats || []).forEach(function (c) {
+          box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid #eef0f2' }, [el('b', { text: '✅ ' + (c.name || c.chat_id) }), el('span', { style: 'font-size:12px;color:#65676b;flex:1', text: 'linked by ' + (c.linked_by || '—') + ' · ' + ago(c.linked_at) }),
+            el('button', { class: 'btn-sm btn-gray', text: 'Unlink', onclick: function () { if (confirm('Unlink this Telegram?')) adm('/api/admin/tg-pay', { action: 'unlink', chat_id: c.chat_id }).then(draw); } })]));
+        });
+        if (!(d.chats || []).length) box.appendChild(el('div', { style: 'font-size:13px;color:#b42318', text: 'No Telegram linked yet.' }));
+        var info = el('div', { style: 'margin-top:8px;font-size:13px' });
+        box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap' }, [
+          el('button', { class: 'btn-sm', text: '🔗 Link my Telegram', onclick: function () {
+            adm('/api/admin/tg-pay', { action: 'link' }).then(function (x) {
+              info.textContent = ''; if (!x.success) { info.textContent = x.error || 'Failed'; return; }
+              info.appendChild(el('div', { text: 'Open this on the phone that has YOUR Telegram (works for 15 minutes, one time):' }));
+              if (x.link) info.appendChild(el('a', { href: x.link, target: '_blank', rel: 'noopener', style: 'font-weight:700;word-break:break-all', text: x.link }));
+              else info.appendChild(el('code', { text: '/start ' + x.code }));
+              info.appendChild(el('div', { style: 'color:#65676b', text: 'Then press Start in Telegram, and press ↻ here.' }));
+            });
+          } }),
+          el('button', { class: 'btn-sm btn-gray', text: '🧪 Send a test', onclick: function () { adm('/api/admin/tg-pay', { action: 'test' }); } }),
+          el('button', { class: 'btn-sm btn-gray', text: '↻', onclick: draw })]));
+        box.appendChild(info);
+      });
+    }
+    draw();
+  }
   function loadAdsAdmin() {
     var p = document.getElementById('panel-ads'); if (!p) return;
     p.textContent = '';
+    tgPayCard(p);
     var out = el('div', { id: 'adMsg' });
     var name = el('input', { class: 'at-in', maxlength: '80', placeholder: 'e.g. RS Shop Cam' });
     var place = el('select', { class: 'at-in' }, [el('option', { value: 'feed_banner', text: '📱 Banner in the Feed (one after every 6 posts)' }), el('option', { value: 'video_preroll', text: '🎬 Video ad before reels (with Skip button)' })]);

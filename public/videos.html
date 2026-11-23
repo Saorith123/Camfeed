@@ -1203,12 +1203,12 @@
             fetch('/api/sponsored-ads/' + encodeURIComponent(ad.id) + '/impression', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placement: 'video' }) }).catch(() => {});
             const skipBtn = document.getElementById('prerollSkip');
             let left = Math.min(Math.max(parseInt(ad.skip_seconds, 10) || 5, 3), 15), shownFor = 0;
-            skipBtn.disabled = true; skipBtn.textContent = 'រំលងក្នុង ' + left + ' វិ (Skip in ' + left + 's)';
+            skipBtn.disabled = true; skipBtn.textContent = 'រំលងក្នុង ' + left + ' វិ';
             clearInterval(prerollTimer);
             prerollTimer = setInterval(() => {
                 shownFor++; left--;
-                if (left > 0) skipBtn.textContent = 'រំលងក្នុង ' + left + ' វិ (Skip in ' + left + 's)';
-                else { skipBtn.disabled = false; skipBtn.textContent = 'រំលង Skip ▶'; }
+                if (left > 0) skipBtn.textContent = 'រំលងក្នុង ' + left + ' វិ';
+                else { skipBtn.disabled = false; skipBtn.textContent = 'រំលង ▶'; }
                 if (!isVid && shownFor >= 10) { adEv(ad.id, 'complete'); closeReelPreroll('done'); }      // a picture ad closes by itself
             }, 1000);
             const pv = document.getElementById('prerollVideo');
@@ -1782,13 +1782,13 @@
     })();
     </script>
     <div id="prerollAdOverlay" class="preroll-ad-overlay">
-        <button type="button" id="prerollSkip" class="skip-ad-pill" onclick="if(!this.disabled) closeReelPreroll('skip')" disabled>Skip</button>
+        <button type="button" id="prerollSkip" class="skip-ad-pill" onclick="if(!this.disabled) closeReelPreroll('skip')" disabled>រំលង</button>
         <div id="prerollMedia" class="preroll-media"></div>
         <div class="preroll-info">
-            <span class="sponsored-badge">Sponsored · ពាណិជ្ជកម្ម</span>
+            <span class="sponsored-badge">ផ្សាយពាណិជ្ជកម្ម</span>
             <div id="prerollAdvertiser" class="notranslate" translate="no" style="font-weight:800; font-size:15px; margin-top:6px;"></div>
             <div id="prerollCaption" class="notranslate" translate="no" style="font-size:13.5px; margin-top:2px; opacity:.9;"></div>
-            <button type="button" id="prerollCta" onclick="clickReelPrerollAd()" style="margin-top:8px; background:#1877f2; color:#fff; border:none; padding:9px 20px; border-radius:20px; font-weight:800; font-size:14px; cursor:pointer;">មើលបន្ថែម (Learn more)</button>
+            <button type="button" id="prerollCta" onclick="clickReelPrerollAd()" style="margin-top:8px; background:#1877f2; color:#fff; border:none; padding:9px 20px; border-radius:20px; font-weight:800; font-size:14px; cursor:pointer;">មើលបន្ថែម</button>
         </div>
     </div>
 <script>

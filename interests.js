@@ -458,5 +458,45 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
   });
 
   ensure().catch(() => {});
-  return { bumpPost, onSearch, onProfile, onWatch, onSkip, feedJoinSql, feedScoreSql, searchIds, kick: () => setTimeout(tick, 3000), ready: () => ensure().catch(() => {}) };
+  // ---- for ads ----
+  async function resolveWords(words) {                // ["laptop", "MacBook"] -> [{id, word}] (only words in the list)
+    await ensure(); await loadDict();
+    const out = [], seen = new Set();
+    for (const w of (Array.isArray(words) ? words : String(words || '').split(',')).slice(0, 20)) {
+      const id = dict.byText.get(norm(w));
+      if (id && !seen.has(id)) { seen.add(id); out.push({ id, word: dict.byId.get(id).word }); }
+    }
+    return out.slice(0, 12);
+  }
+  function wordsOf(ids) { return String(ids || '').split(',').map((x) => dict.byId.get(parseInt(x, 10))).filter(Boolean).map((r) => ({ id: r.id, word: r.word, grp: r.grp })); }
+  async function allWords() { await ensure(); await loadDict(); return dict.rows.map((r) => ({ id: r.id, word: r.word, grp: r.grp, syn: r.synonyms })); }
+  async function userTop(email, n) {                   // my keywords now: Map id -> score
+    email = String(email || '').toLowerCase(); const m = new Map(); if (!email) return m;
+    try {
+      await ensure();
+      const r = await pool.query(`SELECT u.kw_id, ${effSql('u')} AS s FROM user_kw u WHERE u.user_email = $1 ORDER BY 2 DESC LIMIT $2`, [email, n || 40]);
+      for (const x of r.rows) if (Number(x.s) >= 0.3) m.set(Number(x.kw_id), Number(x.s));
+    } catch (e) {}
+    return m;
+  }
+  async function interestedCount(ids, emails) {        // how many of these people have a score for one of these keywords
+    if (!ids.length) return 0;
+    const r = await pool.query(`SELECT COUNT(DISTINCT u.user_email)::int AS n FROM user_kw u WHERE u.kw_id = ANY($1::int[]) AND ${effSql('u')} >= 1 ${emails ? 'AND u.user_email = ANY($2::text[])' : ''}`, emails ? [ids, emails] : [ids]);
+    return r.rows[0].n;
+  }
+  // the AI reads the ad (caption + up to 3 pictures) and chooses keywords from the list
+  async function suggest(text, urls) {
+    await ensure(); await loadDict();
+    const frames = [];
+    for (const u of (urls || []).slice(0, 3)) { const b = await frame(u, /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u) ? '1' : null); if (b) frames.push(b); }
+    if (!frames.length && !String(text || '').trim()) return [];
+    const ans = await askGemini({ content: text }, frames);
+    if (!ans || ans.retry) return null;
+    const out = [], seen = new Set();
+    for (const k of (Array.isArray(ans.keywords) ? ans.keywords : [])) { const id = k && dict.byText.get(norm(k.word)); if (id && !seen.has(id)) { seen.add(id); out.push(dict.byId.get(id).word); } }
+    return out.slice(0, 8);
+  }
+
+  return { bumpPost, onSearch, onProfile, onWatch, onSkip, feedJoinSql, feedScoreSql, searchIds, kick: () => setTimeout(tick, 3000), ready: () => ensure().catch(() => {}),
+    resolveWords, wordsOf, allWords, userTop, interestedCount, suggest, loadDict };
 };

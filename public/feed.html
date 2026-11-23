@@ -3798,18 +3798,66 @@
                 tmp.remove();
             } catch (e) { card.remove(); }
         }
-        const AD_CTA_KM = { learn_more: 'ស្វែងយល់បន្ថែម', message: 'ផ្ញើសារ', shop: 'ទិញឥឡូវ', call: 'ទាក់ទង', none: '' };
+        const AD_CTA_KM = (() => { const en = (() => { try { return localStorage.getItem('camfeed_lang') === 'en'; } catch (e) { return false; } })();
+            return en ? { learn_more: 'Learn more', message: 'Send message', shop: 'Shop now', call: 'Contact', none: '' } : { learn_more: 'ស្វែងយល់បន្ថែម', message: 'ផ្ញើសារ', shop: 'ទិញឥឡូវ', call: 'ទាក់ទង', none: '' }; })();
+        const AD_T = (km, en) => { try { return localStorage.getItem('camfeed_lang') === 'en' ? en : km; } catch (e) { return km; } };
+        // ⋯ on an ad: why do I see this? / hide it
+        function adMenu(adId, btn) {
+            const old = document.getElementById('adMenuBox'); if (old) { old.remove(); return; }
+            const box = document.createElement('div'); box.id = 'adMenuBox';
+            box.style.cssText = 'position:absolute;right:10px;top:40px;background:#fff;border:1px solid #e4e6eb;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.15);z-index:20;min-width:230px;overflow:hidden;';
+            const item = (t, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.style.cssText = 'display:block;width:100%;text-align:left;padding:11px 14px;border:none;background:#fff;font-size:14px;cursor:pointer;'; b.onclick = fn; box.appendChild(b); };
+            item(AD_T('❓ ហេតុអ្វីខ្ញុំឃើញនេះ?', '❓ Why am I seeing this?'), async () => {
+                box.remove();
+                let lines = [];
+                try {
+                    const d = await (await fetch('/api/sponsored-ads/' + encodeURIComponent(adId) + '/why')).json();
+                    if (d.success) {
+                        if (d.keywords && d.keywords.length) lines.push(AD_T('• អ្នកបានស្វែងរក ឬមើលអំពី៖ ', '• You searched for or watched: ') + d.keywords.join(', '));
+                        if (d.province) lines.push(AD_T('• អ្នកនៅ ' + d.province.km, '• You are in ' + d.province.en));
+                        if (d.age) lines.push(AD_T('• អ្នកផ្សាយជ្រើសអាយុ ' + d.age.min + '–' + d.age.max + ' ឆ្នាំ', '• The advertiser chose ages ' + d.age.min + '–' + d.age.max));
+                        if (d.gender) lines.push(AD_T('• អ្នកផ្សាយជ្រើសភេទ' + (d.gender === 'Male' ? 'ប្រុស' : 'ស្រី'), '• The advertiser chose ' + (d.gender === 'Male' ? 'men' : 'women')));
+                    }
+                } catch (e) {}
+                if (!lines.length) lines.push(AD_T('• ពាណិជ្ជកម្មនេះបង្ហាញដល់មនុស្សទូទៅនៅលើ CamFeed។', '• This ad is shown to people on CamFeed in general.'));
+                lines.push('', AD_T('CamFeed មិនប្រើសារឆាតរបស់អ្នកទេ។ អ្នកអាចមើល ឬលុបចំណាប់អារម្មណ៍របស់អ្នកក្នុង Menu › ចំណាប់អារម្មណ៍របស់ខ្ញុំ។', 'CamFeed never uses your chat messages. You can see or delete your interests in Menu › My interests.'));
+                alert(lines.join('\n'));
+            });
+            item(AD_T('🙈 លាក់ពាណិជ្ជកម្មនេះ', '🙈 Hide this ad'), () => {
+                box.remove();
+                fetch('/api/sponsored-ads/' + encodeURIComponent(adId) + '/hide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+                cachedSponsoredAds = cachedSponsoredAds.filter(a => String(a.id) !== String(adId));
+                document.querySelectorAll('.sponsored-ad-card[data-ad-id="' + Number(adId) + '"]').forEach(c => c.remove());
+            });
+            btn.closest('.sponsored-ad-card').appendChild(box);
+        }
         function buildSponsoredFeedCard(ad) {
+            const pic = ad.advertiser_pic ? `<img src="${esc(ad.advertiser_pic)}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;background:#e4e6eb;">` : '';
             const header = `
-                    <div class="sponsored-header">
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <span class="sponsored-badge">Sponsored · ពាណិជ្ជកម្ម</span>
-                            <span class="notranslate" translate="no" style="font-weight:700; font-size:13.5px; color:#050505;">${esc(ad.advertiser_name)}</span>
+                    <div class="sponsored-header" style="position:relative;">
+                        <div style="display:flex; align-items:center; gap:8px; ${ad.owner_email ? 'cursor:pointer;' : ''}" ${ad.owner_email ? `onclick="window.location.href='profile.html?email=' + encodeURIComponent('${esc(ad.owner_email)}')"` : ''}>
+                            ${pic}
+                            <div><div class="notranslate" translate="no" style="font-weight:700; font-size:14px; color:#050505;">${esc(ad.advertiser_name)}</div>
+                            <div style="font-size:12px; color:#65676b;">${AD_T('ផ្សាយពាណិជ្ជកម្ម', 'Sponsored')}</div></div>
                         </div>
-                        <span style="font-size:11px; color:#65676b;">Ad</span>
+                        <button type="button" onclick="adMenu(${Number(ad.id)}, this)" style="background:none;border:none;font-size:20px;color:#65676b;cursor:pointer;padding:4px 8px;">⋯</button>
                     </div>`;
+            const items = Array.isArray(ad.items) ? ad.items : [];
+            if (!ad.post_id && items.length) {          // 🛍️ several products: slide left / right; a tap opens the chat with the seller
+                return `
+                <div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" style="position:relative;">
+                    ${header}
+                    ${ad.caption ? `<div class="notranslate" translate="no" style="padding:4px 14px 10px 14px; font-size:14.5px; color:#1c1e21; white-space:pre-wrap;">${esc(ad.caption)}</div>` : ''}
+                    <div style="display:flex; gap:8px; overflow-x:auto; padding:0 14px 12px; scroll-snap-type:x mandatory;">
+                        ${items.map(it => `<div onclick="adMessage(${Number(ad.id)})" style="flex:0 0 160px; border:1px solid #e4e6eb; border-radius:10px; overflow:hidden; scroll-snap-align:start; cursor:pointer; background:#fff;">
+                            <img src="${esc(it.image)}" alt="" loading="lazy" style="width:160px; height:160px; object-fit:cover; display:block; background:#e4e6eb;">
+                            <div style="padding:6px 8px; font-size:13px;"><div class="notranslate" translate="no" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(it.name || '')}</div><b style="color:#1877f2;">${esc(it.price || '')}</b></div></div>`).join('')}
+                    </div>
+                    ${ad.owner_email ? `<div style="padding:10px 14px; display:flex; justify-content:flex-end; border-top:1px solid #f0f2f5;"><button type="button" onclick="adMessage(${Number(ad.id)})" style="background:#1877f2; color:#fff; border:none; padding:7px 16px; border-radius:18px; font-weight:700; font-size:13px; cursor:pointer;">💬 ${AD_T('ផ្ញើសារ', 'Send message')}</button></div>` : ''}
+                </div>`;
+            }
             if (ad.post_id) {
-                return `<div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" data-post-id="${Number(ad.post_id)}">${header}<div class="sponsored-post-slot" style="min-height:60px;"></div>${ad.cta === 'message' && ad.owner_email ? `<div style="padding:10px 14px; background:#fff; border-top:1px solid #f0f2f5; text-align:right;"><button type="button" onclick="adMessage(${Number(ad.id)})" style="background:#1877f2; color:#fff; border:none; padding:7px 16px; border-radius:18px; font-weight:700; font-size:13px; cursor:pointer;">💬 ${AD_CTA_KM.message}</button></div>` : ''}</div>`;
+                return `<div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" data-post-id="${Number(ad.post_id)}" style="position:relative;">${header}<div class="sponsored-post-slot" style="min-height:60px;"></div>${ad.cta === 'message' && ad.owner_email ? `<div style="padding:10px 14px; background:#fff; border-top:1px solid #f0f2f5; text-align:right;"><button type="button" onclick="adMessage(${Number(ad.id)})" style="background:#1877f2; color:#fff; border:none; padding:7px 16px; border-radius:18px; font-weight:700; font-size:13px; cursor:pointer;">💬 ${AD_CTA_KM.message}</button></div>` : ''}</div>`;
             }
             const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
             const hasLink = /^https?:\/\//i.test(ad.target_url || '');
@@ -3821,7 +3869,7 @@
                 : `<img src="${esc(ad.media_url)}" style="width:100%; max-height:380px; object-fit:cover; display:block; ${canAct ? 'cursor:pointer;' : ''}" ${canAct ? `onclick="${clickFn}"` : ''} alt="">`;
             const label = AD_CTA_KM[ad.cta] || AD_CTA_KM.learn_more;
             return `
-                <div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}">
+                <div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" style="position:relative;">
                     ${header}
                     ${ad.caption ? `<div class="notranslate" translate="no" style="padding:4px 14px 10px 14px; font-size:14.5px; color:#1c1e21; white-space:pre-wrap;">${esc(ad.caption)}</div>` : ''}
                     ${mediaHtml}
