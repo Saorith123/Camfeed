@@ -2,11 +2,11 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check'], ['keywords', '🏷️ AI Keywords']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check'], ['keywords', '🏷️ AI Keywords'], ['verify', '✔ Official accounts']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
-    ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
+    ['👥 People', ['umanage', 'users', 'accounts', 'verify', 'chats']],
     ['🛡️ Content & safety', ['reports', 'copyright', 'content', 'keywords', 'posts', 'live']],
     ['💰 Money', ['monetization', 'views', 'coins', 'ads']],
     ['🎉 Fun', ['party', 'challenges', 'stars', 'sounds']],
@@ -656,6 +656,100 @@
   }
 
   // ---------- ©️ Copyright: claims ("this uses my work") and copies found by the fingerprints ----------
+  // ---------- ✔ Official accounts: requests, paused ticks (name changed / yearly check), all ticks, the rules. Only the Super Admin decides. ----------
+  function verifyAdmin(body) {
+    var PATH = { business: AT('🏪 ហាង ឬក្រុមហ៊ុន — ពិនិត្យលេខចុះបញ្ជីលើគេហទំព័រក្រសួងពាណិជ្ជកម្ម', '🏪 Shop or company — check the registration number on the Ministry of Commerce website'),
+      official: AT('🏛️ បុគ្គល ឬស្ថាប័នល្បី — បើកតំណ ហើយមើលថាមានលេខកូដ', '🏛️ Well-known person or organisation — open the link and look for the code'),
+      creator: AT('🎬 អ្នកបង្កើតមាតិកាធំ — មើលអ្នកតាមដាន ឬបើកតំណឆានែល ហើយមើលលេខកូដ', '🎬 Big content creator — look at the followers, or open the channel link and look for the code') };
+    var CK = { days: AT('ថ្ងៃប្រើ', 'Days on CamFeed'), clean: AT('មិនដែលបំពាន', 'Never broke rules'), phone: AT('លេខទូរស័ព្ទ', 'Phone'), pic: AT('រូប និងឈ្មោះ', 'Picture and name'), posts: AT('បង្ហោះ 30 ថ្ងៃ', 'Posts in 30 days'), followers: AT('អ្នកតាមដាន', 'Followers') };
+    var state = { status: 'pending' };
+    function call(x) { return adm('/api/admin/verify', x); }
+    var top = el('div', { class: 'at-card' }); body.appendChild(top);
+    var list = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(list);
+    var paused = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(paused);
+    var have = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(have);
+    var rules = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(rules);
+    function who(x) { return ((x.first_name || '') + ' ' + (x.last_name || '')).trim(); }
+    function linkEl(u) { return /^https?:\/\//i.test(u || '') ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: u, style: 'word-break:break-all' }) : el('span', { text: '—' }); }
+    function load() {
+      call({ action: 'list', status: state.status }).then(function (d) {
+        if (!d.success) { top.textContent = d.error || 'Failed'; return; }
+        var sup = d.isSuperAdmin;
+        top.textContent = '';
+        top.appendChild(el('div', { class: 'at-h', text: AT('✔ គណនីផ្លូវការ', '✔ Official accounts') }));
+        top.appendChild(el('div', { style: 'color:#65676b;font-size:13.5px;line-height:1.6', text: AT('សញ្ញា ✔ = គណនីនេះជាគណនីផ្លូវការ មិនមែនក្លែងបន្លំ។ ផ្ដល់តែគណនីដែលមានលក្ខខណ្ឌគ្រប់ និងបញ្ជាក់បានច្បាស់។ មិនលក់។ មានតែ Super Admin អាចផ្ដល់ ឬដក។ CamFeed មិនសុំអត្តសញ្ញាណប័ណ្ណទេ។',
+          'The ✔ means this is the official account, not a fake. Give it only when every condition is met and the proof is clear. Never sold. Only the Super Admin can give or take it. CamFeed never asks for ID cards.') }));
+        var tabs = el('div', { class: 'at-row', style: 'gap:8px;margin-top:10px;flex-wrap:wrap' });
+        [['pending', AT('⏳ កំពុងរង់ចាំ', '⏳ Waiting')], ['approved', AT('✅ បានអនុម័ត', '✅ Approved')], ['rejected', AT('✖ មិនអនុម័ត', '✖ Not approved')]].forEach(function (t) {
+          tabs.appendChild(el('button', { class: 'btn-sm' + (state.status === t[0] ? '' : ' btn-gray'), text: t[1], onclick: function () { state.status = t[0]; load(); } }));
+        });
+        top.appendChild(tabs);
+
+        list.textContent = '';
+        list.appendChild(el('div', { class: 'at-h', text: AT('ពាក្យសុំ', 'Requests') + ' (' + d.requests.length + ')' }));
+        if (!d.requests.length) list.appendChild(el('div', { style: 'color:#65676b', text: AT('មិនមាន', 'None') }));
+        d.requests.forEach(function (q) {
+          var box = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-top:10px' });
+          box.appendChild(el('div', { style: 'font-weight:800;font-size:15px', text: 'V' + q.id + ' · ' + who(q) + (q.account_type === 'business' ? ' · 🏪' : '') + ' · 👥 ' + Number(q.followers || 0).toLocaleString() }));
+          box.appendChild(el('div', { style: 'margin-top:4px', text: PATH[q.path] || q.path }));
+          box.appendChild(el('div', { style: 'margin-top:6px' }, [el('b', { text: AT('លេខកូដ៖ ', 'Code: ') }), el('span', { text: q.code, style: 'font-weight:800;color:#1877f2;font-size:16px' })]));
+          if (q.reg_no) box.appendChild(el('div', { style: 'margin-top:4px' }, [el('b', { text: AT('លេខចុះបញ្ជី៖ ', 'Registration no.: ') }), el('span', { text: q.reg_no })]));
+          box.appendChild(el('div', { style: 'margin-top:4px' }, [el('b', { text: AT('តំណ៖ ', 'Link: ') }), linkEl(q.link)]));
+          if (q.link2) box.appendChild(el('div', { style: 'margin-top:4px' }, [el('b', { text: AT('អត្ថបទព័ត៌មាន៖ ', 'News article: ') }), linkEl(q.link2)]));
+          if (q.note) box.appendChild(el('div', { style: 'margin-top:4px;white-space:pre-wrap', text: '📝 ' + q.note }));
+          var ck = []; try { ck = JSON.parse(q.checks || '[]'); } catch (e) {}
+          box.appendChild(el('div', { style: 'margin-top:6px;font-size:13px;color:#374151', text: ck.map(function (c) { return (c.ok ? '✅ ' : '❌ ') + (CK[c.k] || c.k) + (c.have !== undefined ? ' (' + c.have + ')' : ''); }).join(' · ') }));
+          if (q.admin_note) box.appendChild(el('div', { style: 'margin-top:4px;color:#65676b', text: AT('កំណត់ចំណាំ៖ ', 'Note: ') + q.admin_note }));
+          if (q.status === 'pending') {
+            if (!sup) box.appendChild(el('div', { style: 'margin-top:8px;color:#b45309', text: AT('មានតែ Super Admin ទេដែលអាចសម្រេច។', 'Only the Super Admin can decide.') }));
+            else {
+              var note = el('input', { class: 'at-in', placeholder: AT('មូលហេតុ (ផ្ញើទៅអ្នកដាក់ពាក្យ ពេលមិនអនុម័ត)', 'Reason (sent to the person when not approved)'), style: 'margin-top:8px' });
+              box.appendChild(note);
+              box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px' }, [
+                el('button', { class: 'btn-sm', text: AT('✅ ផ្ដល់ ✔', '✅ Give the ✔'), onclick: function () { if (confirm(AT('ផ្ដល់ ✔ ឲ្យ ', 'Give the ✔ to ') + who(q) + '?')) call({ action: 'decide', id: q.id, ok: true, note: note.value }).then(load); } }),
+                el('button', { class: 'btn-sm btn-gray', text: AT('✖ មិនអនុម័ត', '✖ Not approve'), onclick: function () { call({ action: 'decide', id: q.id, ok: false, note: note.value }).then(load); } })
+              ]));
+            }
+          }
+          list.appendChild(box);
+        });
+
+        paused.textContent = '';
+        paused.appendChild(el('div', { class: 'at-h', text: AT('⏸️ ✔ កំពុងផ្អាក (ប្ដូរឈ្មោះ ឬដល់ពេលពិនិត្យប្រចាំឆ្នាំ)', '⏸️ Paused ✔ (name changed or yearly check)') + ' (' + d.paused.length + ')' }));
+        d.paused.forEach(function (u) {
+          paused.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center' }, [
+            el('span', { style: 'flex:1;min-width:200px', text: who(u) + '  ←  ' + AT('ឈ្មោះចាស់៖ ', 'old name: ') + (u.verified_name || '—') }),
+            sup ? el('button', { class: 'btn-sm', text: AT('✅ បើកវិញ', '✅ Give back'), onclick: function () { call({ action: 'restore', email: u.email }).then(load); } }) : el('span'),
+            sup ? el('button', { class: 'btn-sm btn-gray', text: AT('ដក ✔', 'Take the ✔ away'), onclick: function () { var r = prompt(AT('មូលហេតុ', 'Reason')); if (r !== null) call({ action: 'remove', email: u.email, note: r }).then(load); } }) : el('span')
+          ]));
+        });
+
+        have.textContent = '';
+        have.appendChild(el('div', { class: 'at-h', text: AT('គណនីដែលមាន ✔', 'Accounts with the ✔') + ' (' + d.verified.length + ')' }));
+        d.verified.forEach(function (u) {
+          have.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap;align-items:center' }, [
+            el('span', { style: 'flex:1;min-width:200px', text: '✔ ' + who(u) + ' · ' + (u.verified_path || '') + (u.verified_at ? ' · ' + String(u.verified_at).slice(0, 10) : '') }),
+            sup ? el('button', { class: 'btn-sm btn-gray', text: AT('ដក ✔', 'Take the ✔ away'), onclick: function () { var r = prompt(AT('មូលហេតុ (បំពានច្បាប់ លក់គណនី …)', 'Reason (broke the rules, sold the account …)')); if (r !== null) call({ action: 'remove', email: u.email, note: r }).then(load); } }) : el('span')
+          ]));
+        });
+
+        rules.textContent = '';
+        rules.appendChild(el('div', { class: 'at-h', text: AT('⚙️ លក្ខខណ្ឌ', '⚙️ Conditions') }));
+        var c = d.cfg || {}, ins = {};
+        [['minDays', AT('ប្រើ CamFeed យ៉ាងតិច (ថ្ងៃ)', 'Used CamFeed at least (days)')], ['minFollowers', AT('អ្នកតាមដានយ៉ាងតិច (សម្រាប់អ្នកបង្កើតមាតិកាដែលគ្មានឆានែលផ្សេង)', 'Followers at least (for creators without another channel)')],
+         ['minPosts30', AT('ការបង្ហោះយ៉ាងតិចក្នុង 30 ថ្ងៃ', 'Posts at least in the last 30 days')], ['years', AT('ពិនិត្យឡើងវិញរៀងរាល់ (ឆ្នាំ)', 'Check again every (years)')]].forEach(function (f) {
+          ins[f[0]] = el('input', { class: 'at-in', type: 'number', min: '0', value: c[f[0]] });
+          rules.appendChild(el('label', { style: 'display:block;margin-top:8px;font-size:13px;font-weight:700', text: f[1] }));
+          rules.appendChild(ins[f[0]]);
+        });
+        if (sup) rules.appendChild(el('button', { class: 'btn-sm', style: 'margin-top:10px', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () {
+          var x = { action: 'settings' }; Object.keys(ins).forEach(function (k) { x[k] = Number(ins[k].value); }); call(x).then(load);
+        } }));
+      });
+    }
+    load();
+  }
+
   // ---------- 🏷️ AI Keywords: the shared keyword list, what the AI gave each post, and fixing it by hand ----------
   function keywordsAdmin(body) {
     var state = { q: '' };
@@ -2075,7 +2169,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'views') { var pvw = document.getElementById('panel-views'); pvw.textContent = ''; viewsAdmin(pvw); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); } else if (tab === 'keywords') { var pkw = document.getElementById('panel-keywords'); pkw.textContent = ''; keywordsAdmin(pkw); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'views') { var pvw = document.getElementById('panel-views'); pvw.textContent = ''; viewsAdmin(pvw); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); } else if (tab === 'keywords') { var pkw = document.getElementById('panel-keywords'); pkw.textContent = ''; keywordsAdmin(pkw); } else if (tab === 'verify') { var pvf = document.getElementById('panel-verify'); pvf.textContent = ''; verifyAdmin(pvf); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

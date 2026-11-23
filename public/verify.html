@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <script src="auth-client.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1877f2">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CamFeed</title>
+    <link rel="icon" type="image/png" href="logo-icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Noto+Color+Emoji&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, input, button, select, textarea { font-family: 'Battambang', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, 'Noto Color Emoji', sans-serif; }
+        body { background: #f0f2f5; color: #050505; min-height: 100vh; padding-bottom: 60px; }
+        .top-nav { background: #fff; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); position: sticky; top: 0; z-index: 50; }
+        .back-btn { background: #f0f2f5; border: none; width: 38px; height: 38px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+        .nav-title { font-size: 17px; font-weight: 800; color: #1877f2; }
+        .container { max-width: 640px; margin: 16px auto; padding: 0 12px; display: flex; flex-direction: column; gap: 14px; }
+        .card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+        .card h2 { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+        .muted { color: #4b5563; font-size: 13.5px; line-height: 1.6; }
+        label { display: block; font-size: 13px; font-weight: 700; color: #374151; margin: 12px 0 4px; }
+        input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 14px; background: #f8f9fa; outline: none; color: #111827; }
+        input:focus, select:focus, textarea:focus { border-color: #1877f2; background: #fff; }
+        .btn { background: #1877f2; color: #fff; border: none; padding: 12px 20px; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 14px; }
+        .btn:disabled { opacity: .55; cursor: default; }
+        .opt { display: flex; gap: 10px; align-items: flex-start; width: 100%; border: 2px solid #e4e6eb; border-radius: 12px; padding: 11px 12px; margin-top: 8px; background: #fff; cursor: pointer; text-align: left; color: #111827; font: inherit; }
+        .opt.on { border-color: #1877f2; background: #e7f3ff; }
+        .opt .ic { font-size: 22px; line-height: 1; } .opt b { display: block; font-size: 14.5px; } .opt span { font-size: 12.5px; color: #4b5563; line-height: 1.5; }
+        .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; padding: 7px 0; border-bottom: 1px solid #f0f2f5; line-height: 1.5; }
+        .chk:last-child { border-bottom: 0; }
+        .msg { margin-top: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; display: none; line-height: 1.6; }
+        .msg.ok { display: block; background: #e6f6ec; color: #176f35; } .msg.bad { display: block; background: #fdecec; color: #b42318; }
+        .status { display: flex; gap: 12px; align-items: center; }
+        .status .big { font-size: 36px; }
+        .code { display: inline-block; font-size: 22px; font-weight: 800; letter-spacing: 1px; background: #fff; border: 2px solid #1877f2; color: #1877f2; border-radius: 10px; padding: 2px 12px; margin: 6px 0; }
+        .steps { margin: 6px 0 0 18px; font-size: 13.5px; line-height: 1.7; color: #374151; }
+    </style>
+</head>
+<body>
+    <style>body.in-app .top-nav{display:none}</style><script>try{if(/CamFeedApp/.test(navigator.userAgent))document.addEventListener("DOMContentLoaded",function(){document.body.classList.add("in-app")});}catch(e){}</script>
+    <div class="top-nav"><button class="back-btn" onclick="history.length > 1 ? history.back() : (location.href='feed.html')">←</button><div class="nav-title" id="navTitle"></div></div>
+    <div class="container" id="root"></div>
+<script>
+(function () {
+    const currentUser = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
+    if (!currentUser) { location.href = 'index.html'; return; }
+    const LANG = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km';
+    const T = (km, en) => (LANG === 'en' ? en : km);
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const num = (n) => Number(n || 0).toLocaleString('en-US');
+    const msg = (id, ok, t) => { const m = $(id); m.className = 'msg ' + (ok ? 'ok' : 'bad'); m.textContent = t; };
+    const api = async (url, body) => { const r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); return r.json().catch(() => ({ success: false })); };
+    $('navTitle').textContent = T('✔ គណនីផ្លូវការ', '✔ Official account');
+
+    const CATS = { shop: ['ហាង', 'Shop'], company: ['ក្រុមហ៊ុន', 'Company'], media: ['សារព័ត៌មាន', 'Media'], organization: ['អង្គការ', 'Organisation'], government: ['ស្ថាប័នរដ្ឋ', 'Government'],
+        public_figure: ['បុគ្គលល្បី', 'Public figure'], artist: ['សិល្បករ', 'Artist'], creator: ['អ្នកបង្កើតមាតិកា', 'Content creator'], education: ['ការអប់រំ', 'Education'], health: ['សុខភាព', 'Health'], food: ['ម្ហូបអាហារ', 'Food'], other: ['ផ្សេងៗ', 'Other'] };
+    const PATHS = [
+        { id: 'business', ic: '🏪', t: T('ហាង ឬក្រុមហ៊ុន', 'Shop or company'), d: T('បញ្ជាក់ដោយលេខចុះបញ្ជីពាណិជ្ជកម្ម (CamFeed ពិនិត្យលើគេហទំព័រក្រសួងពាណិជ្ជកម្ម)', 'Proven by the business registration number (CamFeed checks it on the Ministry of Commerce website)') },
+        { id: 'official', ic: '🏛️', t: T('បុគ្គល ឬស្ថាប័នល្បី', 'Well-known person or organisation'), d: T('ដាក់លេខកូដ CamFeed លើផេក ឬ Telegram ផ្លូវការរបស់អ្នក', 'Put the CamFeed code on your official page or Telegram channel') },
+        { id: 'creator', ic: '🎬', t: T('អ្នកបង្កើតមាតិកាធំ', 'Big content creator'), d: T('មានអ្នកតាមដានច្រើននៅ CamFeed ឬមានឆានែលធំនៅ YouTube, TikTok, Facebook (ដាក់លេខកូដ CamFeed នៅទីនោះ)', 'Many followers on CamFeed, or a big YouTube, TikTok or Facebook channel (put the CamFeed code there)') },
+    ];
+    const CHECK = {
+        days: (c) => T('ប្រើ CamFeed យ៉ាងតិច ' + c.need + ' ថ្ងៃ (អ្នក៖ ' + num(c.have) + ' ថ្ងៃ)', 'Used CamFeed for at least ' + c.need + ' days (you: ' + num(c.have) + ')'),
+        clean: () => T('មិនដែលបំពានច្បាប់ CamFeed', 'Never broke the CamFeed rules'),
+        phone: () => T('បានផ្ទៀងផ្ទាត់លេខទូរស័ព្ទ', 'Phone number confirmed'),
+        pic: () => T('មានរូបប្រូហ្វាល និងឈ្មោះពិត', 'Has a profile picture and a real name'),
+        posts: (c) => T('បង្ហោះយ៉ាងតិច ' + c.need + ' ដងក្នុង 30 ថ្ងៃចុងក្រោយ (អ្នក៖ ' + num(c.have) + ')', 'At least ' + c.need + ' posts in the last 30 days (you: ' + num(c.have) + ')'),
+        followers: (c) => T('អ្នកតាមដានយ៉ាងតិច ' + num(c.need) + ' នាក់ (អ្នក៖ ' + num(c.have) + ') — មិនចាំបាច់ បើបញ្ជាក់តាមផ្លូវផ្សេង', 'At least ' + num(c.need) + ' followers (you: ' + num(c.have) + ') — not needed when proven another way'),
+    };
+    const st = { path: '', type: 'personal', cat: '', d: null, code: '' };
+
+    function draw() {
+        const d = st.d, r = d.request;
+        let status;
+        if (d.verified && !d.paused) status = `<div class="status"><div class="big">✔</div><div><b>${T('គណនីរបស់អ្នក ជាគណនីផ្លូវការ', 'Your account is an official account')}</b><div class="muted">${T('សញ្ញា ✔ បង្ហាញក្បែរឈ្មោះរបស់អ្នក។ ប្ដូរឈ្មោះ = ✔ ផ្អាកសិន រហូតដល់ CamFeed ពិនិត្យម្ដងទៀត។', 'The ✔ shows next to your name. Changing the name pauses it until CamFeed checks again.')}</div></div></div>`;
+        else if (d.verified && d.paused) status = `<div class="status"><div class="big">⏸️</div><div><b>${T('សញ្ញា ✔ កំពុងផ្អាក', 'Your ✔ is paused')}</b><div class="muted">${T('ព្រោះអ្នកបានប្ដូរឈ្មោះ ឬដល់ពេលពិនិត្យប្រចាំឆ្នាំ។ CamFeed នឹងពិនិត្យ ឬអ្នកអាចដាក់ពាក្យម្ដងទៀតខាងក្រោម។', 'Because the name changed or it is time for the yearly check. CamFeed will check, or you can ask again below.')}</div></div></div>`;
+        else if (r && r.status === 'pending') status = `<div class="status"><div class="big">⏳</div><div><b>${T('CamFeed កំពុងពិនិត្យពាក្យសុំរបស់អ្នក', 'CamFeed is checking your request')}</b><div class="muted">${T('លេខកូដរបស់អ្នក៖', 'Your code:')} <span class="code">${esc(r.code)}</span><br>${T('សូមទុកលេខកូដនេះនៅលើផេក ឬឆានែលរបស់អ្នក រហូតដល់ទទួលចម្លើយ។', 'Keep this code on your page or channel until you get the answer.')}</div></div></div>`;
+        else if (r && r.status === 'rejected') status = `<div class="status"><div class="big">✖</div><div><b>${T('ពាក្យសុំលើកមុន មិនទាន់ទទួលបាន', 'The last request was not accepted')}</b><div class="muted">${esc(r.admin_note || '')} ${T('អ្នកអាចដាក់ពាក្យម្ដងទៀតក្រោយ 30 ថ្ងៃ។', 'You can ask again after 30 days.')}</div></div></div>`;
+        else status = `<div class="muted">${T('សញ្ញា ✔ បង្ហាញថា គណនីនេះជាគណនីផ្លូវការ មិនមែនក្លែងបន្លំ។ CamFeed ផ្ដល់ឲ្យតែគណនីដែលមានលក្ខខណ្ឌគ្រប់ និងបញ្ជាក់បានថាជាម្ចាស់ពិតប្រាកដ។ ✔ មិនលក់ទេ។', 'The ✔ shows the account is the official one, not a fake. CamFeed gives it only to accounts that meet every condition and prove who they are. It is never sold.')}</div>`;
+
+        const canAsk = (!d.verified || d.paused) && !(r && r.status === 'pending');
+        const checks = d.checks.map(c => `<div class="chk"><span>${c.ok ? '✅' : (c.soft ? '➖' : '❌')}</span><span>${esc((CHECK[c.k] || (() => c.k))(c))}</span></div>`).join('');
+        const pathBox = !st.path ? '' : st.path === 'business'
+            ? `<label>${T('លេខចុះបញ្ជីពាណិជ្ជកម្ម', 'Business registration number')}</label><input id="fReg" maxlength="60">
+               <label>${T('តំណភ្ជាប់គេហទំព័រ ឬផេករបស់ហាង (មិនបង្ខំ)', 'Link of the shop website or page (optional)')}</label><input id="fLink" placeholder="https://">`
+            : `<div class="muted" style="margin-top:10px;">${T('ជំហាន៖', 'Steps:')}<ol class="steps"><li>${T('ចម្លងលេខកូដនេះ៖', 'Copy this code:')} <span class="code">${esc(st.code)}</span></li>
+               <li>${T('ដាក់វានៅលើផេក ឬឆានែលផ្លូវការរបស់អ្នក (ក្នុងការបង្ហោះមួយ ឬផ្នែកណែនាំខ្លួន)', 'Put it on your official page or channel (in a post or in the about part)')}</li>
+               <li>${T('ដាក់តំណភ្ជាប់ផេកនោះខាងក្រោម ហើយផ្ញើ។ CamFeed ពិនិត្យរួច អ្នកអាចលុបលេខកូដវិញ។', 'Put the link of that page below and send. After CamFeed checks, you can remove the code.')}</li></ol></div>
+               <label>${st.path === 'creator' ? T('តំណភ្ជាប់ឆានែល YouTube, TikTok ឬ Facebook (មិនបង្ខំ បើមានអ្នកតាមដានគ្រប់នៅ CamFeed)', 'Link of the YouTube, TikTok or Facebook channel (optional when you have enough followers on CamFeed)') : T('តំណភ្ជាប់ផេក ឬ Telegram ផ្លូវការ', 'Link of the official page or Telegram channel')}</label><input id="fLink" placeholder="https://">
+               <label>${T('តំណភ្ជាប់អត្ថបទព័ត៌មានអំពីអ្នក (មិនបង្ខំ)', 'A news article about you (optional)')}</label><input id="fLink2" placeholder="https://">`;
+
+        $('root').innerHTML = `
+            <div class="card"><h2>${T('ប្រភេទគណនី', 'Account type')}</h2>
+                <button type="button" class="opt ${st.type === 'personal' ? 'on' : ''}" data-type="personal"><span class="ic">👤</span><div><b>${T('ផ្ទាល់ខ្លួន', 'Personal')}</b><span>${T('ឈ្មោះត្រូវមាននាមខ្លួន និងនាមត្រកូល', 'The name has a first and a last name')}</span></div></button>
+                <button type="button" class="opt ${st.type === 'business' ? 'on' : ''}" data-type="business"><span class="ic">🏪</span><div><b>${T('អាជីវកម្ម ស្ថាប័ន ឬបុគ្គលល្បី', 'Business, organisation or public figure')}</b><span>${T('ឈ្មោះមួយពាក្យបាន (ឧ. ឈ្មោះហាង) និងបង្ហាញប្រភេទក្រោមឈ្មោះ', 'A one-word name is allowed (e.g. the shop name) and the kind shows under the name')}</span></div></button>
+                <div id="catBox" style="display:${st.type === 'business' ? '' : 'none'}"><label>${T('ប្រភេទ', 'Kind')}</label><select id="fCat"><option value="">—</option>${Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${st.cat === k ? 'selected' : ''}>${esc(T(v[0], v[1]))}</option>`).join('')}</select></div>
+                <button class="btn" id="saveType" type="button">${T('រក្សាទុក', 'Save')}</button><div class="msg" id="typeMsg"></div>
+            </div>
+            <div class="card"><h2>✔ ${T('គណនីផ្លូវការ', 'Official account')}</h2>${status}</div>
+            ${canAsk ? `<div class="card"><h2>${T('លក្ខខណ្ឌ', 'Conditions')}</h2>${checks}
+                ${d.canApply ? '' : `<div class="msg bad" style="display:block;">${T('លក្ខខណ្ឌខ្លះមិនទាន់គ្រប់។ សូមព្យាយាមម្ដងទៀតពេលគ្រប់។', 'Some conditions are not met yet. Please try again when they are.')}</div>`}</div>
+            ${d.canApply ? `<div class="card"><h2>${T('បញ្ជាក់ថាជាអ្នកពិតប្រាកដ', 'Prove it is really you')}</h2>
+                <div class="muted">${T('CamFeed មិនសុំអត្តសញ្ញាណប័ណ្ណទេ។ ជ្រើសផ្លូវមួយ៖', 'CamFeed never asks for an ID card. Choose one way:')}</div>
+                ${PATHS.map(p => `<button type="button" class="opt ${st.path === p.id ? 'on' : ''}" data-path="${p.id}"><span class="ic">${p.ic}</span><div><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div></button>`).join('')}
+                ${pathBox}
+                ${st.path ? `<label>${T('ពាក្យបន្ថែម (មិនបង្ខំ)', 'Anything to add (optional)')}</label><textarea id="fNote" rows="3" maxlength="600"></textarea>
+                <button class="btn" id="send" type="button">${T('ផ្ញើពាក្យសុំ', 'Send the request')}</button>` : ''}<div class="msg" id="sendMsg"></div></div>` : ''}` : ''}`;
+
+        document.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => { st.type = b.dataset.type; draw(); }));
+        document.querySelectorAll('[data-path]').forEach(b => b.addEventListener('click', async () => {
+            st.path = b.dataset.path;
+            if (st.path !== 'business' && !st.code) { const c = await api('/api/verify/code', {}); st.code = c.code || ''; }
+            draw();
+        }));
+        $('fCat') && $('fCat').addEventListener('change', (e) => { st.cat = e.target.value; });
+        $('saveType').addEventListener('click', async () => {
+            if (st.type === 'business' && !st.cat) { msg('typeMsg', false, T('សូមជ្រើសប្រភេទ។', 'Please choose the kind.')); return; }
+            const x = await api('/api/account/type', { type: st.type, category: st.cat });
+            if (x.success) msg('typeMsg', true, T('✅ បានរក្សាទុក។', '✅ Saved.') + (st.type === 'business' ? ' ' + T('ឥឡូវអ្នកអាចប្ដូរឈ្មោះជាមួយពាក្យបាន (ការកំណត់ › ប្ដូរឈ្មោះ)។', 'You can now use a one-word name (Settings › Change name).') : ''));
+            else msg('typeMsg', false, x.code === 'need_last' ? T('គណនីផ្ទាល់ខ្លួនត្រូវមាននាមខ្លួន និងនាមត្រកូល។ សូមប្ដូរឈ្មោះជាមុនសិន។', 'A personal account needs a first and a last name. Please change the name first.') : T('រក្សាទុកមិនបាន', 'Could not save'));
+        });
+        $('send') && $('send').addEventListener('click', async () => {
+            const btn = $('send'); btn.disabled = true;
+            const x = await api('/api/verify/request', { path: st.path, reg_no: ($('fReg') || {}).value || '', link: ($('fLink') || {}).value || '', link2: ($('fLink2') || {}).value || '', note: ($('fNote') || {}).value || '' });
+            if (x.success) { await load(); window.scrollTo(0, 0); return; }
+            const KM = { 'Please write the business registration number.': 'សូមសរសេរលេខចុះបញ្ជីពាណិជ្ជកម្ម។', 'Please add the link of your official page or channel.': 'សូមដាក់តំណភ្ជាប់ផេក ឬឆានែលផ្លូវការ។',
+                'Please add the link of your big channel (YouTube, TikTok or Facebook).': 'សូមដាក់តំណភ្ជាប់ឆានែលធំរបស់អ្នក (YouTube, TikTok ឬ Facebook)។', 'Some of the conditions are not met yet.': 'លក្ខខណ្ឌខ្លះមិនទាន់គ្រប់។',
+                'Your request is already being checked.': 'ពាក្យសុំរបស់អ្នកកំពុងត្រូវបានពិនិត្យ។', 'You can ask again 30 days after the last answer.': 'អ្នកអាចដាក់ពាក្យម្ដងទៀត 30 ថ្ងៃក្រោយចម្លើយលើកមុន។' };
+            msg('sendMsg', false, LANG === 'en' ? (x.error || 'Could not send.') : (KM[x.error] || 'ផ្ញើមិនបាន។'));
+            btn.disabled = false;
+        });
+    }
+    async function load() {
+        const d = await api('/api/verify/me');
+        if (!d.success) { $('root').innerHTML = `<div class="card muted">${T('ផ្ទុកមិនបាន', 'Could not load')}</div>`; return; }
+        st.d = d; st.type = d.accountType === 'business' ? 'business' : 'personal';
+        st.cat = d.category || '';
+        draw();
+    }
+    load();
+})();
+</script>
+</body>
+</html>

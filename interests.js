@@ -261,12 +261,10 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
     const parts = [{ text: prompt }, ...frames.map((b) => ({ inline_data: { mime_type: 'image/jpeg', data: b.toString('base64') } }))];
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 60000);
     try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal,
-        body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }) });
+      const resp = await require('./gemini').generate(key, { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, ctl.signal);   // 🤖 the model name lives in gemini.js
       if (resp.status === 429) { aiErr('429 limit reached (too many requests today / this minute)'); return { retry: true }; }
-      const data = await resp.json().catch(() => null);
-      if (!resp.ok) { aiErr(resp.status + ' ' + ((data && data.error && data.error.message) || '').slice(0, 200)); return null; }
+      const data = resp.data;
+      if (!resp.ok) { aiErr(resp.status + ' [' + resp.model + '] ' + ((data && data.error && data.error.message) || '').slice(0, 200)); return null; }
       const parts2 = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
       const txt = parts2.filter((x) => x && x.text && !x.thought).map((x) => x.text).join('');
       if (!txt) { aiErr('empty answer' + (data && data.candidates && data.candidates[0] && data.candidates[0].finishReason ? ' (' + data.candidates[0].finishReason + ')' : '') + (data && data.promptFeedback && data.promptFeedback.blockReason ? ' blocked: ' + data.promptFeedback.blockReason : '')); return null; }

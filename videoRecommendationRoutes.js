@@ -461,19 +461,7 @@ Respond ONLY with valid JSON:
     parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: { responseMimeType: 'application/json' },
-      }),
-    }
-  );
-
-  const data = await response.json();
+  const data = (await require('./gemini').generate(apiKey, { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json' } })).data || {};   // 🤖 gemini.js
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) return;
 

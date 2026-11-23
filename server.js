@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 164;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 166;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -569,19 +569,7 @@ Respond strictly in JSON format: {"category": "CategoryName", "tags": "tag1, tag
       parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: { responseMimeType: 'application/json' }
-        })
-      }
-    );
-
-    const data = await response.json();
+    const data = (await require('./gemini').generate(apiKey, { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json' } })).data || {};   // 🤖 gemini.js
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (rawText) {
       const parsed = JSON.parse(rawText);
@@ -1388,6 +1376,7 @@ app.get('/api/posts', async (req, res) => {
   try {
     if (!postsSchemaReady) {
       await pool.query("ALTER TABLE posts ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) DEFAULT ''").catch(() => {});
+      await verify.ensure().catch(() => {});
       postsSchemaReady = true;
     }
     const cteAndJoins = `
@@ -1416,7 +1405,7 @@ app.get('/api/posts', async (req, res) => {
         GROUP BY shared_post_id
       )
       SELECT
-        p.*, u.first_name, u.last_name, u.profile_pic,
+        p.*, u.first_name, u.last_name, u.profile_pic, ${verify.tickSql('u')} AS author_verified, ${verify.tickSql('ou')} AS orig_author_verified,
         COALESCE(ls.likes_count, 0) AS likes_count,
         COALESCE(cs.comments_count, 0) AS comments_count,
         COALESCE(ss.shares_count, 0) AS shares_count,
@@ -2122,14 +2111,16 @@ app.get('/api/user-profile', async (req, res) => {
       (SELECT COUNT(*) FROM posts p WHERE p.user_email = u.email) as posts_count,
       (SELECT COUNT(*) FROM follows f1 JOIN follows f2 ON f2.follower_email = f1.following_email AND f2.following_email = f1.follower_email WHERE f1.follower_email = u.email) as friends_count,
       (EXISTS(SELECT 1 FROM creator_applications ca WHERE LOWER(ca.user_email) = LOWER(u.email) AND ca.status = 'approved')) as is_creator,
+      ${verify.tickSql('u')} AS is_verified,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = $2 AND f.following_email = u.email)) as is_following,
       (EXISTS(SELECT 1 FROM follows f WHERE f.follower_email = u.email AND f.following_email = $2)) as is_followed_by
       FROM users u WHERE u.email = $1
     `;
+    await verify.ensure().catch(() => {});
     const result = await pool.query(query, [email, viewerEmail]);
     if (result.rows.length > 0) {
       const u = result.rows[0];
-      for (const internal of ['password', 'sessions_epoch', 'telegram_id', 'email_verified', 'notification_prefs']) delete u[internal];
+      for (const internal of ['password', 'sessions_epoch', 'telegram_id', 'email_verified', 'notification_prefs', 'verified', 'verified_paused', 'verified_name', 'verified_at']) delete u[internal];
       u.is_friend = u.is_following && u.is_followed_by;
       // "email" is turned into the public id on the way out, so the contact e-mail travels in its own field, only when allowed
       const isSelf = String(viewerEmail || '').toLowerCase() === String(email || '').toLowerCase();
@@ -2584,7 +2575,7 @@ function adminNeed(path, body) {
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
     'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
-    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads' })[first];
+    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads', verify: 'users' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
@@ -2593,7 +2584,7 @@ function adminNeed(path, body) {
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
-  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules'].includes(first);
+  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules', 'verify'].includes(first);
   const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (first === 'keywords' && act === 'posts') || (!act && keys.every((k) => FILTER.includes(k))))
     : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
   return { sec, level: read ? 'view' : 'edit' };
@@ -2659,7 +2650,8 @@ const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls
 const series = require('./series')({ app, pool });
 const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   onDecide: (...a) => onPaymentDecision(...a) });   // 💰 the owner's ✅ / ❌ on Telegram
-const country = require('./country')({ pool });   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
+const country = require('./country')({ pool });
+const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
@@ -2869,8 +2861,15 @@ app.put('/api/settings/name', async (req, res) => {
   const password = String((req.body && req.body.password) || '');
   const km = String(req.get('accept-language') || '').toLowerCase().startsWith('km') || req.body && req.body.lang === 'km';
   try {
-    if (!firstName || !lastName) {
+    if (!firstName) {
       return res.status(400).json({ success: false, message: km ? 'សូមវាយនាមខ្លួន និងនាមត្រកូល។' : 'First and last name are required.' });
+    }
+    {
+      const bad = await verify.checkName(email, firstName, lastName);    // ✔ / 🏪 rules: one word only for a business account, reserved names, official names
+      if (bad) {
+        const KM = { 'This name can not be used.': 'ឈ្មោះនេះមិនអាចប្រើបានទេ។', 'This is the name of an official account. Please choose another name.': 'នេះជាឈ្មោះរបស់គណនីផ្លូវការ។ សូមជ្រើសឈ្មោះផ្សេង។' };
+        return res.status(400).json({ success: false, message: km ? (KM[bad] || 'សូមវាយនាមខ្លួន និងនាមត្រកូល។ (ឈ្មោះមួយពាក្យ បានតែគណនីអាជីវកម្ម)') : bad });
+      }
     }
     const cur = await pool.query('SELECT name_changed_at, password FROM users WHERE email = $1', [email]);
     const row = cur.rows[0];
@@ -2892,6 +2891,7 @@ app.put('/api/settings/name', async (req, res) => {
       'UPDATE users SET first_name = $1, last_name = $2, name_changed_at = NOW() WHERE email = $3 RETURNING *',
       [firstName, lastName, email]);
     const nu = upd.rows[0]; if (nu) delete nu.password;          // never send the password hash back
+    verify.afterRename(email);                                     // ✔ pauses until CamFeed checks the new name
     res.json({ success: true, user: nu });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
