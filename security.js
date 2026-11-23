@@ -166,6 +166,7 @@ function checkBody(body) {
 }
 
 function inputGuard(req, res, next) {
+  if (String(req.originalUrl || '').split('?')[0] === '/api/tg-pay/hook') return next();   // 💰 Telegram's own message ("message" is an object there); tg-pay.js checks it
   try {
     const err = checkBody(req.body);
     if (err) return res.status(400).json({ success: false, error: err.tooLong ? 'This text is too long.' : 'Some of the information is not valid.', field: err.field });
