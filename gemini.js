@@ -24,9 +24,10 @@ async function listFlash(key) {
   } catch (e) { return []; }
 }
 let spareList = null, spareAt = 0;
+const dead = new Set();                         // models Google answered 404 for ("no longer available"): never tried again
 async function spareFor(key, tried) {          // another model to use while the usual one is too busy (503): one not tried yet in this call
   if (!spareList || Date.now() - spareAt > 6 * 3600 * 1000) { spareList = await listFlash(key); spareAt = Date.now(); }
-  return spareList.find((n) => !tried.includes(n)) || '';
+  return spareList.find((n) => !tried.includes(n) && !dead.has(n)) || '';
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -50,11 +51,13 @@ async function generate(key, body, signal, opts) {
   const bg = !!(opts && opts.background);
   let busyTries = 0, useSpare = '', switched = false;
   const tried = [];
+  let lastBusy = null;                          // the real reason to show (busy / limit), not a retired spare's 404
   for (let attempt = 0; attempt < 8; attempt++) {
     const m = useSpare || model();
     if (!tried.includes(m)) tried.push(m);
     const resp = await fetch(`${BASE}/models/${m}:generateContent?key=${key}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
     const data = await resp.json().catch(() => null);
+    if (resp.status === 429 || resp.status === 503 || resp.status === 500) lastBusy = { status: resp.status, ok: false, data, model: m };
     if (resp.status === 429 && !bg && busyTries < 6) {
       busyTries++;
       const sp = await spareFor(key, tried);
@@ -67,6 +70,12 @@ async function generate(key, body, signal, opts) {
       if (sp) { useSpare = sp; console.log('[gemini] busy:', m, '→ spare', sp); await wait(500); continue; }
       if (busyTries === 2) { await wait(3000); continue; }
     }
+    if (resp.status === 404 && useSpare && busyTries < 7) {            // a spare that is retired: forget it, take the next one
+      dead.add(m); busyTries++;
+      const sp = await spareFor(key, tried);
+      if (sp) { useSpare = sp; continue; }
+      return lastBusy || { status: resp.status, ok: false, data, model: m };
+    }
     if (resp.status === 404 && !useSpare && !switched && !process.env.GEMINI_MODEL) {
       switched = true;
       const msg = String((data && data.error && data.error.message) || '');
@@ -74,9 +83,10 @@ async function generate(key, body, signal, opts) {
       const next = (said && said !== m) ? said : await pickFromList(key);
       if (next && next !== m) { learned = next; console.log('[gemini] model', m, '→', next); continue; }
     }
+    if (resp.status === 404 && lastBusy) return lastBusy;
     return { status: resp.status, ok: resp.ok, data, model: m };
   }
-  return { status: 0, ok: false, data: null, model: model() };
+  return lastBusy || { status: 0, ok: false, data: null, model: model() };
 }
 
 module.exports = { generate, model };
