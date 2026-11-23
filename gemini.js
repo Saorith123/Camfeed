@@ -24,9 +24,9 @@ async function listFlash(key) {
   } catch (e) { return []; }
 }
 let spareList = null, spareAt = 0;
-async function spareFor(key, busy) {           // another model to use while the usual one is too busy (503)
+async function spareFor(key, tried) {          // another model to use while the usual one is too busy (503): one not tried yet in this call
   if (!spareList || Date.now() - spareAt > 6 * 3600 * 1000) { spareList = await listFlash(key); spareAt = Date.now(); }
-  return spareList.find((n) => n !== busy) || '';
+  return spareList.find((n) => !tried.includes(n)) || '';
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -47,15 +47,18 @@ async function pickFromList(key) {
 // 404 (model retired) → switch model; 503 / 500 (Google busy, "high demand") → wait a little and try again, then try a spare model once
 async function generate(key, body, signal) {
   let busyTries = 0, useSpare = '', switched = false;
-  for (let attempt = 0; attempt < 5; attempt++) {
+  const tried = [];
+  for (let attempt = 0; attempt < 8; attempt++) {
     const m = useSpare || model();
+    if (!tried.includes(m)) tried.push(m);
     const resp = await fetch(`${BASE}/models/${m}:generateContent?key=${key}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
     const data = await resp.json().catch(() => null);
-    if ((resp.status === 503 || resp.status === 500) && busyTries < 3) {
+    if ((resp.status === 503 || resp.status === 500) && busyTries < 6) {
       busyTries++;
-      if (busyTries <= 2) { await wait(busyTries * 1500); continue; }        // 1.5 s, then 3 s
-      const sp = await spareFor(key, m);
-      if (sp) { useSpare = sp; console.log('[gemini] busy:', m, '→ spare', sp); continue; }
+      if (busyTries === 1) { await wait(1500); continue; }                    // the same model once more after 1.5 s
+      const sp = await spareFor(key, tried);                                   // then up to 4 other models (newest flash first, then flash-lite)
+      if (sp) { useSpare = sp; console.log('[gemini] busy:', m, '→ spare', sp); await wait(500); continue; }
+      if (busyTries === 2) { await wait(3000); continue; }
     }
     if (resp.status === 404 && !useSpare && !switched && !process.env.GEMINI_MODEL) {
       switched = true;
