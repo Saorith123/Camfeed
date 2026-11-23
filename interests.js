@@ -257,19 +257,20 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
   }
   // one question to Gemini with pictures; the answer as JSON (null = no answer, {retry: true} = the limit was reached)
   async function geminiJson(prompt, frames, opts) {
-    const key = process.env.GEMINI_API_KEY; if (!key) { aiErr('GEMINI_API_KEY is missing'); return null; }
+    const fail = (m) => { aiErr(m); if (opts) opts.err = m; };          // the reason of THIS question (another one may succeed meanwhile)
+    const key = process.env.GEMINI_API_KEY; if (!key) { fail('GEMINI_API_KEY is missing'); return null; }
     const parts = [{ text: prompt }, ...frames.map((b) => ({ inline_data: { mime_type: 'image/jpeg', data: b.toString('base64') } }))];
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 60000);
     try {
       const resp = await require('./gemini').generate(key, { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, ctl.signal, opts);   // 🤖 the model name lives in gemini.js
-      if (resp.status === 429) { aiErr('429 limit reached (too many requests today / this minute)'); return { retry: true }; }
+      if (resp.status === 429) { fail('429 limit reached (too many requests today / this minute)'); return { retry: true }; }
       const data = resp.data;
-      if (!resp.ok) { aiErr(resp.status + ' [' + resp.model + '] ' + ((data && data.error && data.error.message) || '').slice(0, 200)); return null; }
+      if (!resp.ok) { fail(resp.status + ' [' + resp.model + '] ' + ((data && data.error && data.error.message) || '').slice(0, 200)); return null; }
       const parts2 = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
       const txt = parts2.filter((x) => x && x.text && !x.thought).map((x) => x.text).join('');
-      if (!txt) { aiErr('empty answer' + (data && data.candidates && data.candidates[0] && data.candidates[0].finishReason ? ' (' + data.candidates[0].finishReason + ')' : '') + (data && data.promptFeedback && data.promptFeedback.blockReason ? ' blocked: ' + data.promptFeedback.blockReason : '')); return null; }
-      try { const j = JSON.parse(txt.replace(/^```(?:json)?\s*|\s*```$/g, '')); aiErr(''); return j; } catch (e) { aiErr('answer was not JSON'); return null; }
-    } catch (e) { aiErr(e.name === 'AbortError' ? 'no answer in 60 s' : ('network: ' + ((e.cause && e.cause.code) || '') + ' ' + e.message)); return null; } finally { clearTimeout(tm); }
+      if (!txt) { fail('empty answer [' + resp.model + ']' + (data && data.candidates && data.candidates[0] && data.candidates[0].finishReason ? ' (' + data.candidates[0].finishReason + ')' : '') + (data && data.promptFeedback && data.promptFeedback.blockReason ? ' blocked: ' + data.promptFeedback.blockReason : '')); return null; }
+      try { const t2 = txt.replace(/^```(?:json)?\s*|\s*```$/g, ''); let j; try { j = JSON.parse(t2); } catch (e1) { const mm = t2.match(/\{[\s\S]*\}/); if (!mm) throw e1; j = JSON.parse(mm[0]); } aiErr(''); return j; } catch (e) { fail('answer was not JSON [' + resp.model + ']: ' + txt.slice(0, 80)); return null; }
+    } catch (e) { fail(e.name === 'AbortError' ? 'no answer in 60 s' : ('network: ' + ((e.cause && e.cause.code) || '') + ' ' + e.message)); return null; } finally { clearTimeout(tm); }
   }
   async function addWord(word, grp, synonyms, source, reviewed) {
     word = String(word || '').replace(/\s+/g, ' ').trim().slice(0, 60); if (!word) return null;
@@ -499,8 +500,9 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
     const frames = [];
     for (const u of (urls || []).slice(0, 3)) { const b = await frame(u, /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u) ? '1' : null); if (b) frames.push(b); }
     if (!frames.length && !String(text || '').trim()) return [];
-    const ans = await askGemini({ content: text }, frames);
-    if (!ans || ans.retry) return { error: ans && ans.retry ? 'busy' : 'ai', why: lastAi.err };
+    const o = {};
+    const ans = await askGemini({ content: text }, frames, o);
+    if (!ans || ans.retry) return { error: ans && ans.retry ? 'busy' : 'ai', why: o.err || (frames.length ? '' : 'no picture could be read') || lastAi.err };
     const out = [], seen = new Set();
     for (const k of (Array.isArray(ans.keywords) ? ans.keywords : [])) { const id = k && dict.byText.get(norm(k.word)); if (id && !seen.has(id)) { seen.add(id); out.push(dict.byId.get(id).word); } }
     return out.slice(0, 8);
