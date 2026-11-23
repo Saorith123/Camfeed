@@ -10,6 +10,26 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 const model = () => String(process.env.GEMINI_MODEL || '').trim() || learned || DEFAULT_MODEL;
 
+// the plain "flash" models Google offers now, newest first (and the lighter "flash-lite" ones after them, as a spare)
+async function listFlash(key) {
+  try {
+    const r = await fetch(`${BASE}/models?key=${key}&pageSize=200`);
+    const d = await r.json().catch(() => null);
+    const names = ((d && d.models) || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => String(m.name || '').replace(/^models\//, ''))
+      .filter((n) => /^gemini-[\d.]+-flash(-lite)?$/.test(n));
+    const v = (n) => parseFloat(n.split('-')[1]) - (/-lite$/.test(n) ? 100 : 0);
+    return names.sort((a, b) => v(b) - v(a));
+  } catch (e) { return []; }
+}
+let spareList = null, spareAt = 0;
+async function spareFor(key, busy) {           // another model to use while the usual one is too busy (503)
+  if (!spareList || Date.now() - spareAt > 6 * 3600 * 1000) { spareList = await listFlash(key); spareAt = Date.now(); }
+  return spareList.find((n) => n !== busy) || '';
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function pickFromList(key) {
   try {
     const r = await fetch(`${BASE}/models?key=${key}&pageSize=200`);
@@ -24,12 +44,21 @@ async function pickFromList(key) {
 }
 
 // POST generateContent; returns { status, ok, data, model }
+// 404 (model retired) → switch model; 503 / 500 (Google busy, "high demand") → wait a little and try again, then try a spare model once
 async function generate(key, body, signal) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const m = model();
+  let busyTries = 0, useSpare = '', switched = false;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const m = useSpare || model();
     const resp = await fetch(`${BASE}/models/${m}:generateContent?key=${key}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
     const data = await resp.json().catch(() => null);
-    if (resp.status === 404 && attempt === 0 && !process.env.GEMINI_MODEL) {
+    if ((resp.status === 503 || resp.status === 500) && busyTries < 3) {
+      busyTries++;
+      if (busyTries <= 2) { await wait(busyTries * 1500); continue; }        // 1.5 s, then 3 s
+      const sp = await spareFor(key, m);
+      if (sp) { useSpare = sp; console.log('[gemini] busy:', m, '→ spare', sp); continue; }
+    }
+    if (resp.status === 404 && !useSpare && !switched && !process.env.GEMINI_MODEL) {
+      switched = true;
       const msg = String((data && data.error && data.error.message) || '');
       const said = (msg.match(/use\s+models\/([a-z0-9.\-]+)/i) || [])[1];
       const next = (said && said !== m) ? said : await pickFromList(key);
