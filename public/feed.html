@@ -3738,12 +3738,25 @@
         // ---- Sponsored ads: a banner after every 6 posts (the ads come from the server; text is escaped, links are web links only) ----
         // placement 'feed_banner' or 'both' shows here. An ad can also be a BOOSTED POST (ad.post_id): then the real post is shown, with Like / Comment / Share.
         let cachedSponsoredAds = [];
+        let adFirst = 6, adEvery = 50;                  // ⚙️ set by the Admin: the first ad after N posts, the next ones every M posts
+        // which ad goes after post number n (1, 2, 3 …), or null; an ad is never repeated in the same visit
+        function adSlot(n) {
+            const list = feedAdList(); if (!list.length || n < adFirst) return null;
+            if (n !== adFirst && (n - adFirst) % adEvery !== 0) return null;
+            const k = n === adFirst ? 0 : (n - adFirst) / adEvery;
+            return k < list.length ? list[k] : null;
+        }
         const feedAdList = () => cachedSponsoredAds.filter(a => a.placement === 'feed_banner' || a.placement === 'both');
         async function fetchSponsoredAdsCatalog() {
             try {
                 const res = await fetch('/api/sponsored-ads');
                 const data = await res.json();
-                if (data.success && Array.isArray(data.ads)) { cachedSponsoredAds = data.ads; injectAdsIntoRenderedFeed(); }
+                if (data.success && Array.isArray(data.ads)) {
+                    cachedSponsoredAds = data.ads;
+                    if (data.firstAfter > 0) adFirst = data.firstAfter;
+                    if (data.every > 0) adEvery = data.every;
+                    injectAdsIntoRenderedFeed();
+                }
             } catch (e) {}
         }
         // the ads can arrive after the first posts are already on screen: place them in the posts that are there
@@ -3752,9 +3765,9 @@
             const banners = feedAdList();
             if (!container || !banners.length || container.querySelector('.sponsored-ad-card')) return;
             const posts = Array.from(container.children).filter(e => e.classList && e.classList.contains('post-item'));
-            let n = 0;
-            for (let i = 5; i < posts.length; i += 6) {
-                posts[i].insertAdjacentHTML('afterend', buildSponsoredFeedCard(banners[n++ % banners.length]));
+            for (let i = 0; i < posts.length; i++) {
+                const ad = adSlot(i + 1); if (!ad) continue;
+                posts[i].insertAdjacentHTML('afterend', buildSponsoredFeedCard(ad));
                 afterAdInsert(posts[i].nextElementSibling);
             }
         }
@@ -3885,9 +3898,9 @@
         function maybeInsertFeedAd(container, containerId) {
             if (containerId !== 'postsContainer' || !cachedSponsoredAds.length) return;
             const banners = feedAdList(); if (!banners.length) return;
-            const shown = container.querySelectorAll(':scope > .post-item, :scope > .sponsored-ad-card').length;
-            if (shown > 0 && (shown + 1) % 6 === 0) {
-                const ad = banners[Math.floor(shown / 6) % banners.length];
+            const posts = container.querySelectorAll(':scope > .post-item').length;    // called just before the next post is added: the number of posts already shown
+            const ad = adSlot(posts);
+            if (ad) {
                 container.insertAdjacentHTML('beforeend', buildSponsoredFeedCard(ad));
                 afterAdInsert(container.lastElementChild);
             }

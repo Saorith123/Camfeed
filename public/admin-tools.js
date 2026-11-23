@@ -13,6 +13,22 @@
     ['⚙️ Settings', ['system', 'appcfg', 'perms']],
   ];
 
+  // ---------- 🌐 the Admin's language: Khmer or English, one at a time (the button at the top right) ----------
+  var ALANG = (function () { try { return localStorage.getItem('admin_lang') === 'en' ? 'en' : 'km'; } catch (e) { return 'km'; } })();
+  function AT(km, en) { return ALANG === 'en' ? en : km; }
+  (function langButton() {
+    function add() {
+      if (document.getElementById('atLangBtn')) return;
+      var b = document.createElement('button'); b.id = 'atLangBtn'; b.type = 'button';
+      b.textContent = ALANG === 'en' ? '🌐 ភាសាខ្មែរ' : '🌐 English';
+      b.title = ALANG === 'en' ? 'ប្ដូរទៅភាសាខ្មែរ' : 'Switch to English';
+      b.style.cssText = 'position:fixed;top:10px;right:12px;z-index:9000;background:#fff;border:1px solid #ccd0d5;border-radius:18px;padding:7px 14px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.12)';
+      b.onclick = function () { try { localStorage.setItem('admin_lang', ALANG === 'en' ? 'km' : 'en'); } catch (e) {} location.reload(); };
+      document.body.appendChild(b);
+    }
+    if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+  })();
+
   // ---------- helpers ----------
   function el(tag, props, kids) {
     var e = document.createElement(tag); props = props || {};
@@ -1606,59 +1622,106 @@
     function draw() {
       adm('/api/admin/tg-pay', {}).then(function (d) {
         box.textContent = '';
-        box.appendChild(el('div', { class: 'at-h', text: '💰 Telegram for payments' }));
-        if (!d.success) { box.appendChild(el('div', { text: d.error || 'Failed' })); return; }
-        if (!d.on) { box.appendChild(el('div', { style: 'font-size:13px;color:#65676b;line-height:1.6', text: 'Off. 1) In Telegram open @BotFather → /newbot → make a NEW bot only for payments. 2) Render › Camfeed-1 › Environment: add the KEY TG_PAY_BOT_TOKEN with the token @BotFather gave (never send the token to anyone). 3) Deploy, then come back here and press "Link my Telegram".' })); return; }
-        if (!d.bot) box.appendChild(el('div', { style: 'font-size:13px;color:#b42318;margin-bottom:8px;white-space:pre-wrap', text: '⚠️ Telegram did not accept the bot. ' + (d.botError || '') + '\nToken: ' + (d.tokenShape || '') + (/401/.test(d.botError || '') ? '\n→ 401 = the token is wrong. Copy it again from @BotFather › /mybots › your bot › API Token.' : '') }));
-        if (d.hook && d.hook.lastError) box.appendChild(el('div', { style: 'font-size:12px;color:#92400e;margin-bottom:6px', text: 'Telegram → CamFeed: last problem "' + d.hook.lastError + '"' + (d.hook.pending ? ' · ' + d.hook.pending + ' waiting' : '') + ' (it clears after the next message works)' }));
-        box.appendChild(el('div', { style: 'font-size:13px;color:#65676b;margin-bottom:8px', text: 'Bot: @' + (d.bot || '?') + ' · When someone presses "I paid" (ads) or sends a coin top-up, it comes to these Telegram accounts with ✅ received / ❌ not received. ✅ starts the ad / adds the coins at once.' }));
+        box.appendChild(el('div', { class: 'at-h', text: AT('💰 Telegram សម្រាប់ពិនិត្យការបង់ប្រាក់', '💰 Telegram for checking payments') }));
+        if (!d.success) { box.appendChild(el('div', { text: d.error || AT('មិនបាន', 'Failed') })); return; }
+        if (!d.on) {
+          box.appendChild(el('div', { style: 'font-size:13.5px;color:#444;line-height:1.7;white-space:pre-wrap', text: AT(
+            'មិនទាន់បើកទេ។\n១) ក្នុង Telegram បើក @BotFather → /newbot → បង្កើត Bot ថ្មីមួយសម្រាប់តែការបង់ប្រាក់។\n២) Render › Camfeed-1 › Environment៖ បន្ថែម KEY ឈ្មោះ TG_PAY_BOT_TOKEN ហើយដាក់ Token ដែល BotFather ផ្ដល់ឲ្យ (កុំផ្ញើ Token ទៅអ្នកណាទាល់តែសោះ)។\n៣) Deploy រួចត្រឡប់មកទីនេះវិញ ហើយចុច «ភ្ជាប់ Telegram របស់ខ្ញុំ»។',
+            'Off.\n1) In Telegram open @BotFather → /newbot → make a NEW bot only for payments.\n2) Render › Camfeed-1 › Environment: add the KEY TG_PAY_BOT_TOKEN with the token from BotFather (never send the token to anyone).\n3) Deploy, come back here and press "Link my Telegram".') }));
+          return;
+        }
+        if (!d.bot) box.appendChild(el('div', { style: 'font-size:13px;color:#b42318;margin-bottom:8px;white-space:pre-wrap', text: AT('⚠️ Telegram មិនទទួលស្គាល់ Bot ទេ។ ', '⚠️ Telegram did not accept the bot. ') + (d.botError || '') + '\nToken: ' + (d.tokenShape || '') + (/401/.test(d.botError || '') ? AT('\n→ 401 = Token ខុស។ ចម្លងម្ដងទៀតពី @BotFather › /mybots › Bot របស់អ្នក › API Token។', '\n→ 401 = the token is wrong. Copy it again from @BotFather › /mybots › your bot › API Token.') : '') }));
+        if (d.hook && d.hook.lastError) box.appendChild(el('div', { style: 'font-size:12.5px;color:#92400e;margin-bottom:6px', text: AT('បញ្ហាចុងក្រោយ (Telegram → CamFeed)៖ ', 'Last problem (Telegram → CamFeed): ') + d.hook.lastError + (d.hook.pending ? ' · ' + d.hook.pending + AT(' កំពុងរង់ចាំ', ' waiting') : '') + AT(' (បាត់ទៅវិញពេលសារបន្ទាប់ដំណើរការ)', ' (it clears after the next message works)') }));
+        box.appendChild(el('div', { style: 'font-size:13.5px;color:#444;margin-bottom:8px;line-height:1.6', text: 'Bot: @' + (d.bot || '?') + ' · ' + AT(
+          'ពេលអ្នកផ្សាយពាណិជ្ជកម្មចុច «ខ្ញុំបានបង់ហើយ» ឬមាននរណាម្នាក់ទិញកាក់ សារមួយនឹងមកដល់ Telegram ខាងក្រោម ជាមួយប៊ូតុង ✅ បានទទួលប្រាក់ / ❌ មិនទាន់ទទួល។ ចុច ✅ = ពាណិជ្ជកម្មចាប់ផ្ដើម ឬកាក់ចូលគណនីភ្លាម។',
+          'When an advertiser presses "I paid" or someone buys coins, a message comes to the Telegram accounts below with ✅ received / ❌ not received. Pressing ✅ starts the ad / adds the coins at once.') }));
         (d.chats || []).forEach(function (c) {
-          box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid #eef0f2' }, [el('b', { text: '✅ ' + (c.name || c.chat_id) }), el('span', { style: 'font-size:12px;color:#65676b;flex:1', text: 'linked by ' + (c.linked_by || '—') + ' · ' + ago(c.linked_at) }),
-            el('button', { class: 'btn-sm btn-gray', text: 'Unlink', onclick: function () { if (confirm('Unlink this Telegram?')) adm('/api/admin/tg-pay', { action: 'unlink', chat_id: c.chat_id }).then(draw); } })]));
+          box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid #eef0f2' }, [el('b', { text: '✅ ' + (c.name || c.chat_id) }), el('span', { style: 'font-size:12px;color:#65676b;flex:1', text: AT('ភ្ជាប់ដោយ ', 'linked by ') + (c.linked_by || '—') + ' · ' + ago(c.linked_at) }),
+            el('button', { class: 'btn-sm btn-gray', text: AT('ផ្ដាច់', 'Unlink'), onclick: function () { if (confirm(AT('ផ្ដាច់ Telegram នេះមែនទេ?', 'Unlink this Telegram?'))) adm('/api/admin/tg-pay', { action: 'unlink', chat_id: c.chat_id }).then(draw); } })]));
         });
-        if (!(d.chats || []).length) box.appendChild(el('div', { style: 'font-size:13px;color:#b42318', text: 'No Telegram linked yet.' }));
+        if (!(d.chats || []).length) box.appendChild(el('div', { style: 'font-size:13px;color:#b42318', text: AT('មិនទាន់ភ្ជាប់ Telegram ណាមួយទេ។', 'No Telegram linked yet.') }));
         var info = el('div', { style: 'margin-top:8px;font-size:13px' });
         box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap' }, [
-          el('button', { class: 'btn-sm', text: '🔗 Link my Telegram', onclick: function () {
+          el('button', { class: 'btn-sm', text: AT('🔗 ភ្ជាប់ Telegram របស់ខ្ញុំ', '🔗 Link my Telegram'), onclick: function () {
             adm('/api/admin/tg-pay', { action: 'link' }).then(function (x) {
-              info.textContent = ''; if (!x.success) { info.textContent = x.error || 'Failed'; return; }
-              info.appendChild(el('div', { text: 'Open this on the phone that has YOUR Telegram (works for 15 minutes, one time):' }));
+              info.textContent = ''; if (!x.success) { info.textContent = x.error || AT('មិនបាន', 'Failed'); return; }
+              info.appendChild(el('div', { text: AT('បើកតំណនេះនៅលើទូរស័ព្ទដែលមាន Telegram របស់អ្នក (ប្រើបាន ១៥ នាទី និងតែម្ដង)៖', 'Open this on the phone that has YOUR Telegram (works for 15 minutes, one time):') }));
               if (x.link) info.appendChild(el('a', { href: x.link, target: '_blank', rel: 'noopener', style: 'font-weight:700;word-break:break-all', text: x.link }));
-              else info.appendChild(el('code', { text: '/start ' + x.code }));
-              info.appendChild(el('div', { style: 'color:#65676b', text: 'Then press Start in Telegram, and press ↻ here.' }));
+              info.appendChild(el('div', { style: 'margin-top:4px', text: AT('ឬផ្ញើបន្ទាត់នេះទាំងមូលទៅ Bot៖', 'Or send this whole line to the bot:') }));
+              info.appendChild(el('code', { text: '/start ' + x.code }));
+              info.appendChild(el('div', { style: 'color:#65676b', text: AT('បន្ទាប់មកចុច ↻ នៅទីនេះ។', 'Then press ↻ here.') }));
             });
           } }),
-          el('button', { class: 'btn-sm btn-gray', text: '🧪 Send a test', onclick: function () { adm('/api/admin/tg-pay', { action: 'test' }); } }),
+          el('button', { class: 'btn-sm btn-gray', text: AT('🧪 ផ្ញើសារសាកល្បង', '🧪 Send a test'), onclick: function () { adm('/api/admin/tg-pay', { action: 'test' }); } }),
           el('button', { class: 'btn-sm btn-gray', text: '↻', onclick: draw })]));
         box.appendChild(info);
       });
     }
     draw();
   }
+  // ⚙️ how ads are shown: the Admin changes these numbers at any time (no new app needed)
+  function adSettingsCard(p) {
+    var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
+    var ROWS = [
+      ['firstAfter', AT('ពាណិជ្ជកម្មដំបូង៖ បង្ហាញក្រោយការបង្ហោះទីប៉ុន្មាន', 'First ad: shown after how many posts'), AT('ឧ. 6 = អ្នកប្រើអូសមើលការបង្ហោះ 6 ហើយទើបឃើញពាណិជ្ជកម្មដំបូង។', 'e.g. 6 = people scroll past 6 posts, then see the first ad.')],
+      ['every', AT('ពាណិជ្ជកម្មបន្ទាប់ៗ៖ ម្ដងក្នុងរៀងរាល់ប៉ុន្មានការបង្ហោះ', 'Next ads: once every how many posts'), AT('ឧ. 50 = ក្រោយពាណិជ្ជកម្មដំបូង ពាណិជ្ជកម្មបន្ទាប់លេចឡើងរៀងរាល់ 50 ការបង្ហោះ។ លេខធំ = ពាណិជ្ជកម្មតិច។', 'e.g. 50 = after the first ad, the next one comes every 50 posts. Bigger number = fewer ads.')],
+      ['sameMax', AT('ពាណិជ្ជកម្មមួយដដែល៖ មនុស្សម្នាក់ឃើញច្រើនបំផុតប៉ុន្មានដងក្នុងមួយថ្ងៃ', 'One same ad: the most times one person sees it in a day'), AT('រួមទាំងការឃើញលើកដំបូង។ ឧ. 3។', 'Including the first time. e.g. 3.')],
+      ['gapHours', AT('ពាណិជ្ជកម្មមួយដដែល៖ ត្រូវរង់ចាំប៉ុន្មានម៉ោង ទើបឃើញម្ដងទៀត', 'One same ad: hours to wait before the same person sees it again'), AT('ឧ. 3 = ឃើញម៉ោង 8 ព្រឹក → ម្ដងទៀតមិនមុនម៉ោង 11 ព្រឹក។', 'e.g. 3 = seen at 8 am → again not before 11 am.')],
+      ['totalPerDay', AT('ពាណិជ្ជកម្មសរុប៖ មនុស្សម្នាក់ឃើញច្រើនបំផុតប៉ុន្មានក្នុងមួយថ្ងៃ', 'All ads together: the most one person sees in a day'), AT('ទោះមានអ្នកផ្សាយច្រើនប៉ុណ្ណាក៏ដោយ។ ឧ. 20។', 'However many advertisers there are. e.g. 20.')],
+      ['cpmFeed', AT('តម្លៃ (ដុល្លារ) ក្នុង 1,000 ដងបង្ហាញ នៅទំព័រដើម', 'Price (USD) per 1,000 views in the home feed'), AT('ឧ. 0.50', 'e.g. 0.50')],
+      ['cpmVideo', AT('តម្លៃ (ដុល្លារ) ក្នុង 1,000 ដងបង្ហាញ មុនវីដេអូ', 'Price (USD) per 1,000 views before videos'), AT('ឧ. 0.80', 'e.g. 0.80')],
+      ['minBudget', AT('ថវិកាតិចបំផុតសម្រាប់ពាណិជ្ជកម្មមួយ (ដុល្លារ)', 'Smallest budget for one ad (USD)'), AT('ឧ. 2', 'e.g. 2')],
+    ];
+    adm('/api/admin/ads/settings', {}).then(function (d) {
+      box.textContent = '';
+      box.appendChild(el('div', { class: 'at-h', text: AT('⚙️ ការកំណត់ការបង្ហាញពាណិជ្ជកម្ម', '⚙️ How ads are shown') }));
+      if (!d.success) { box.appendChild(el('div', { text: d.error || AT('មិនបាន', 'Failed') })); return; }
+      box.appendChild(el('div', { style: 'font-size:13.5px;color:#444;margin-bottom:10px;line-height:1.6', text: AT('ពាណិជ្ជកម្មដែលអ្នកប្រើមិនទាន់ធ្លាប់ឃើញ បង្ហាញមុនគេ។ ពាណិជ្ជកម្មដែលធ្លាប់ឃើញហើយ បង្ហាញម្ដងទៀតបាន តាមចំនួនដង និងម៉ោងខាងក្រោម។ ប្ដូរលេខណាមួយហើយចុច «រក្សាទុក»។ App មិនចាំបាច់ Build ថ្មីទេ។',
+        'Ads a person has never seen come first. Ads already seen can come back, within the times and hours below. Change any number and press "Save". No new app is needed.') }));
+      var inputs = {};
+      ROWS.forEach(function (r) {
+        var lim = (d.limits || {})[r[0]] || [0, 1000];
+        var inp = el('input', { class: 'at-in', type: 'number', step: ['cpmFeed', 'cpmVideo', 'minBudget', 'gapHours'].indexOf(r[0]) >= 0 ? '0.01' : '1', min: String(lim[0]), max: String(lim[1]), value: String(d.settings[r[0]]), style: 'max-width:140px' });
+        inputs[r[0]] = inp;
+        box.appendChild(el('div', { style: 'padding:10px 0;border-bottom:1px solid #eef0f2' }, [
+          el('div', { style: 'font-weight:700;font-size:14.5px;margin-bottom:3px', text: r[1] }),
+          el('div', { style: 'font-size:12.5px;color:#65676b;margin-bottom:6px', text: r[2] + ' ' + AT('(ចន្លោះ ', '(from ') + lim[0] + AT(' ដល់ ', ' to ') + lim[1] + ')' }), inp]));
+      });
+      var msg = el('div', { style: 'margin-top:8px;font-size:13px' });
+      box.appendChild(el('div', { style: 'margin-top:12px' }, [el('button', { class: 'btn-sm', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () {
+        var set = {}; Object.keys(inputs).forEach(function (k) { set[k] = Number(inputs[k].value); });
+        adm('/api/admin/ads/settings', { set: set }).then(function (x) { msg.textContent = x.success ? AT('✅ បានរក្សាទុក។', '✅ Saved.') : ('❌ ' + (x.error || '')); if (x.success) Object.keys(inputs).forEach(function (k) { inputs[k].value = String(x.settings[k]); }); });
+      } }), msg]));
+    });
+  }
   // 📜 what may never be advertised (⛔) or only to adults (🔞 18+); the AI checks each new ad against this list
   function adRulesCard(p) {
     var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
+    function ruleSel(v) { var x = el('select', { class: 'at-in', style: 'flex:1;min-width:150px' }, [el('option', { value: 'block', text: AT('⛔ មិនអនុញ្ញាត', '⛔ Not allowed') }), el('option', { value: 'adult', text: AT('🔞 តែអ្នកអាយុ 18+', '🔞 18+ only') })]); x.value = v || 'block'; return x; }
     function draw(d) {
       box.textContent = '';
-      box.appendChild(el('div', { class: 'at-h', text: '📜 Ad rules' }));
-      box.appendChild(el('div', { style: 'font-size:13px;color:#65676b;margin-bottom:8px', text: 'The AI looks at every new ad (pictures + text) and tells you in Telegram if it seems to touch one of these. ⛔ = never allowed, 🔞 = shown only to people we know are 18 or older. The AI only warns: you decide with ✅ / ❌. Check this list with a lawyer before you send it to a ministry.' }));
+      box.appendChild(el('div', { class: 'at-h', text: AT('📜 គោលការណ៍ពាណិជ្ជកម្ម', '📜 Ad rules') }));
+      box.appendChild(el('div', { style: 'font-size:13.5px;color:#444;margin-bottom:8px;line-height:1.6', text: AT(
+        'AI ពិនិត្យពាណិជ្ជកម្មថ្មីនីមួយៗ (រូប និងអត្ថបទ) ហើយប្រាប់អ្នកក្នុង Telegram ប្រសិនបើវាទំនងជាប៉ះពាល់នឹងប្រភេទណាមួយខាងក្រោម។ ⛔ = មិនអនុញ្ញាតទាល់តែសោះ។ 🔞 = បង្ហាញតែអ្នកដែលយើងដឹងថាមានអាយុ 18 ឡើងទៅ។ AI គ្រាន់តែព្រមាន៖ អ្នកជាអ្នកសម្រេចដោយចុច ✅ ឬ ❌។ សូមឲ្យអ្នកជំនាញច្បាប់ពិនិត្យបញ្ជីនេះ មុនដាក់ជូនក្រសួង។',
+        'The AI looks at every new ad (pictures + text) and tells you in Telegram if it seems to touch one of these. ⛔ = never allowed. 🔞 = shown only to people we know are 18 or older. The AI only warns: you decide with ✅ / ❌. Have a lawyer check this list before you send it to a ministry.') }));
       (d.rules || []).forEach(function (r) {
-        var km = el('input', { class: 'at-in', value: r.name_km, style: 'flex:2;min-width:140px' }), en = el('input', { class: 'at-in', value: r.name_en, style: 'flex:2;min-width:140px' });
-        var rule = el('select', { class: 'at-in', style: 'flex:1;min-width:110px' }, [el('option', { value: 'block', text: '⛔ Not allowed' }), el('option', { value: 'adult', text: '🔞 18+ only' })]); rule.value = r.rule;
+        var km = el('input', { class: 'at-in', value: r.name_km, placeholder: AT('ឈ្មោះជាភាសាខ្មែរ', 'Khmer name'), style: 'flex:2;min-width:140px' }), en = el('input', { class: 'at-in', value: r.name_en, placeholder: AT('ឈ្មោះជាភាសាអង់គ្លេស', 'English name'), style: 'flex:2;min-width:140px' });
+        var rule = ruleSel(r.rule);
         box.appendChild(el('div', { class: 'at-row', style: 'gap:6px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #eef0f2' }, [km, en, rule,
-          el('button', { class: 'btn-sm', text: '💾', onclick: function () { adm('/api/admin/ad-rules', { action: 'edit', id: r.id, name_km: km.value, name_en: en.value, rule: rule.value }).then(function (x) { if (x.success) draw(x); }); } }),
-          el('button', { class: 'btn-sm btn-gray', text: '🗑', onclick: function () { if (confirm('Delete this rule?')) adm('/api/admin/ad-rules', { action: 'delete', id: r.id }).then(function (x) { if (x.success) draw(x); }); } })]));
+          el('button', { class: 'btn-sm', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () { adm('/api/admin/ad-rules', { action: 'edit', id: r.id, name_km: km.value, name_en: en.value, rule: rule.value }).then(function (x) { if (x.success) draw(x); }); } }),
+          el('button', { class: 'btn-sm btn-gray', text: AT('🗑 លុប', '🗑 Delete'), onclick: function () { if (confirm(AT('លុបគោលការណ៍នេះមែនទេ?', 'Delete this rule?'))) adm('/api/admin/ad-rules', { action: 'delete', id: r.id }).then(function (x) { if (x.success) draw(x); }); } })]));
       });
-      var nkm = el('input', { class: 'at-in', placeholder: 'Khmer name', style: 'flex:2;min-width:140px' }), nen = el('input', { class: 'at-in', placeholder: 'English name', style: 'flex:2;min-width:140px' });
-      var nr = el('select', { class: 'at-in', style: 'flex:1;min-width:110px' }, [el('option', { value: 'block', text: '⛔ Not allowed' }), el('option', { value: 'adult', text: '🔞 18+ only' })]);
-      box.appendChild(el('div', { class: 'at-row', style: 'gap:6px;flex-wrap:wrap;margin-top:8px' }, [nkm, nen, nr, el('button', { class: 'btn-sm', text: '➕ Add', onclick: function () { adm('/api/admin/ad-rules', { action: 'add', name_km: nkm.value, name_en: nen.value, rule: nr.value }).then(function (x) { if (x.success) draw(x); }); } })]));
+      var nkm = el('input', { class: 'at-in', placeholder: AT('ឈ្មោះជាភាសាខ្មែរ', 'Khmer name'), style: 'flex:2;min-width:140px' }), nen = el('input', { class: 'at-in', placeholder: AT('ឈ្មោះជាភាសាអង់គ្លេស', 'English name'), style: 'flex:2;min-width:140px' });
+      var nr = ruleSel('block');
+      box.appendChild(el('div', { class: 'at-row', style: 'gap:6px;flex-wrap:wrap;margin-top:8px' }, [nkm, nen, nr, el('button', { class: 'btn-sm', text: AT('➕ បន្ថែម', '➕ Add'), onclick: function () { adm('/api/admin/ad-rules', { action: 'add', name_km: nkm.value, name_en: nen.value, rule: nr.value }).then(function (x) { if (x.success) draw(x); }); } })]));
     }
-    adm('/api/admin/ad-rules', {}).then(function (d) { if (d && d.success) draw(d); else box.textContent = (d && d.error) || 'Failed'; });
+    adm('/api/admin/ad-rules', {}).then(function (d) { if (d && d.success) draw(d); else box.textContent = (d && d.error) || AT('មិនបាន', 'Failed'); });
   }
   function loadAdsAdmin() {
     var p = document.getElementById('panel-ads'); if (!p) return;
     p.textContent = '';
     tgPayCard(p);
+    adSettingsCard(p);
     adRulesCard(p);
     var out = el('div', { id: 'adMsg' });
     var name = el('input', { class: 'at-in', maxlength: '80', placeholder: 'e.g. RS Shop Cam' });

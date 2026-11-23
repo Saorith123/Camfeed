@@ -232,7 +232,7 @@
                 (st.items.length < MAXM ? `<button type="button" class="pick" id="pickMany" style="margin-top:8px;">➕ ${st.items.length ? T('បន្ថែមរូបភាព ឬវីដេអូ', 'Add pictures or videos') : T('ជ្រើសរូបភាព ឬវីដេអូ (បានច្រើន)', 'Choose pictures or videos (several)')}</button>` : '') + '<div class="muted" id="upMany" style="margin-top:4px;"></div>';
             box.querySelectorAll('input[data-i]').forEach(inp => inp.addEventListener('input', () => { st.items[Number(inp.dataset.i)][inp.dataset.k] = inp.value; drawPreview(); }));
             box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { st.items.splice(Number(b.dataset.del), 1); drawProducts(); drawPreview(); }));
-            const pm = $('pickMany'); if (pm) pm.onclick = () => $('fileMany').click();
+            const pm = $('pickMany'); if (pm) pm.onclick = () => (inApp() ? appPick() : $('fileMany').click());
         }
         async function upload(f) {
             const u = await (await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name, content_type: f.type || 'application/octet-stream' }) })).json();
@@ -240,6 +240,15 @@
             const put = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f });
             if (!put.ok) throw new Error(T('ផ្ញើមិនបាន', 'Upload failed') + ' (' + put.status + ')');
             return u.publicUrl;
+        }
+        const inApp = () => !!(window.flutter_inappwebview && window.flutter_inappwebview.callHandler) && /CamFeedApp/.test(navigator.userAgent);
+        async function appPick() {
+            try {
+                $('upMany').textContent = '';
+                const r = await window.flutter_inappwebview.callHandler('camfeedPickMedia', { max: MAXM - st.items.length });
+                (Array.isArray(r) ? r : []).forEach(x => { if (x && x.url && st.items.length < MAXM) st.items.push({ url: x.url, type: x.type === 'video' ? 'video' : 'image', name: '', price: '' }); });
+                drawProducts(); drawPreview();
+            } catch (e) { $('fileMany').click(); }
         }
         $('fileMany').addEventListener('change', async (ev) => {
             const files = Array.from(ev.target.files || []).slice(0, MAXM - st.items.length); ev.target.value = '';
@@ -334,13 +343,11 @@
                 const q = new URLSearchParams({ budget: b, days: d, placement: st.place, kw: st.kws.join(','), prov: [...st.provs].join(','), g: st.gender, amin: st.amin || '', amax: st.amax || '' });
                 const r = await (await fetch('/api/ads/estimate?' + q)).json();
                 if (!r.success) throw new Error('x');
-                const real = Math.min(r.views, r.canDeliver), left = r.views > r.canDeliver;
-                const used = r.views ? Math.min(b, b * real / r.views) : 0;
-                $('est').innerHTML = `<div class="muted">${T('ប៉ាន់ស្មានចំនួនដងបង្ហាញក្នុង ' + d + ' ថ្ងៃ', 'Estimated views in ' + d + (d === 1 ? ' day' : ' days'))}</div><div class="big">~${num(real)}</div>
-                    <div class="row"><div><b>${num(r.activeUsers)}</b><span>${T('នាក់ដែលត្រូវនឹងអ្នកដែលអ្នកជ្រើស', 'people match who you chose')}</span></div>
-                    ${st.kws.length ? `<div><b>${num(r.interested)}</b><span>${T('នាក់ក្នុងនោះ ចាប់អារម្មណ៍លើពាក្យគន្លឹះរបស់អ្នក (ឃើញមុនគេ)', 'of them are interested in your keywords (see it first)')}</span></div>` : ''}</div>
-                    <div class="muted" style="margin-top:8px;">${T('តម្លៃ $' + r.cpm.toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ម្នាក់ឃើញមិនលើស 3 ដងក្នុងមួយថ្ងៃ', '$' + r.cpm.toFixed(2) + ' per 1,000 views · one person sees it at most 3 times a day')}</div>
-                    ${left ? `<div class="muted" style="margin-top:8px;color:#92400e;"><b>${T('ចំណាំ៖', 'Note:')}</b> ${T('ថវិកា $' + b + ' អាចទិញបាន ' + num(r.views) + ' ដង ប៉ុន្តែពេលនេះមានមនុស្សគ្រប់គ្រាន់សម្រាប់ប្រហែល ' + num(real) + ' ដងប៉ុណ្ណោះ (ប្រហែល $' + used.toFixed(2) + ')។ ប្រាក់ដែលមិនបានប្រើ CamFeed នឹងមិនកាត់ទេ។ អ្នកអាចបន្ថយថវិកា ឬបន្ថែមថ្ងៃ។', '$' + b + ' could buy ' + num(r.views) + ' views, but right now there are enough people for about ' + num(real) + ' only (about $' + used.toFixed(2) + '). CamFeed does not take money that is not used. You can lower the budget or add days.')}</div>` : ''}`;
+                const cr = Number((st.info.me || {}).credit || 0) / 100, pay = Math.max(0, b - cr);
+                $('est').innerHTML = `<div class="big">$${b} = ${T('ប្រហែល', 'about')} ${num(r.views)} ${T('ដងបង្ហាញ', 'views')}</div>
+                    <div class="muted" style="margin-top:6px;">${T('តម្លៃ $' + r.cpm.toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ' + d + ' ថ្ងៃ', '$' + r.cpm.toFixed(2) + ' per 1,000 views · ' + d + (d === 1 ? ' day' : ' days'))}</div>
+                    <div style="margin-top:10px;font-size:14px;line-height:1.7;">✅ ${T('អ្នកបង់តែលើការបង្ហាញពិតប្រាកដប៉ុណ្ណោះ', 'You only pay for real views')}<br>💳 ${T('ប្រាក់ដែលមិនទាន់ប្រើពេលផុតថ្ងៃ ត្រូវបានរក្សាទុកជាឥណទាន សម្រាប់ផ្សាយលើកក្រោយ', 'Money not used by the last day is kept as credit for your next ad')}</div>
+                    ${cr > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('ឥណទានរបស់អ្នក៖', 'Your credit:')} <b>$${cr.toFixed(2)}</b> → ${T('ត្រូវបង់', 'to pay')} <b>$${pay.toFixed(2)}</b></div>` : ''}`;
             } catch (e) { $('est').textContent = T('គណនាមិនបាន', 'Could not calculate'); }
         }
 
@@ -356,7 +363,7 @@
             if (st.mode === 'new' && !st.items.length) { setMsg('fMsg', false, T('សូមបន្ថែមរូបភាព ឬវីដេអូយ៉ាងហោចណាស់មួយ។', 'Please add at least one picture or video.')); btn.disabled = false; return; }
             try {
                 const d = await (await fetch('/api/ads/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-                if (d.success) { $('fMsg').className = 'msg'; showTab('mine'); await loadMine(); openPay(d.id); }
+                if (d.success) { $('fMsg').className = 'msg'; showTab('mine'); await loadMine(); if (Number(d.price) > 0) openPay(d.id); try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) st.info = i; } catch (e) {} }
                 else setMsg('fMsg', false, '❌ ' + (d.error || T('ផ្ញើមិនបាន', 'Could not send')));
             } catch (e) { setMsg('fMsg', false, T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); }
             btn.disabled = false;
@@ -385,7 +392,8 @@
                 const d = await (await fetch('/api/ads/my')).json();
                 mine = (d.success && d.requests) || [];
                 if (!mine.length) { box.textContent = T('មិនទាន់មានពាណិជ្ជកម្មទេ។', 'No ads yet.'); return; }
-                box.innerHTML = mine.map(r => {
+                const credit = Number(d.credit || 0);
+                box.innerHTML = (credit > 0 ? `<div class="pay" style="border-style:solid">💳 ${T('ឥណទានពាណិជ្ជកម្មរបស់អ្នក៖', 'Your ad credit:')} <b>${money(credit)}</b><div class="muted">${T('នឹងកាត់ចេញពីប្រាក់ត្រូវបង់ ពេលអ្នកផ្សាយលើកក្រោយ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'It is taken off the price of your next ad. It can only be used for ads.')}</div></div>` : '') + mine.map(r => {
                     const shown = r.ad_status === 'completed' ? 'completed' : (r.ad_status && r.status === 'live' && r.ends_at && new Date(r.ends_at) < new Date() ? 'ended' : r.status);
                     let extra = '';
                     if (r.status === 'quoted') extra = (r.admin_note ? `<div class="muted" style="margin-top:6px;color:#b42318;">${esc(r.admin_note)}</div>` : '') + payBox(r, 'l');
@@ -431,6 +439,8 @@
             try { const k = await (await fetch('/api/ads/keywords')).json(); st.words = k.words || []; $('kwList').innerHTML = st.words.map(w => `<option value="${esc(w.word)}">${esc(w.grp)}</option>`).join(''); } catch (e) {}
             drawGoals(); syncGoal(); drawKw(); drawWho(); drawPlaces(); drawBudget(); estimate();
             if (new URLSearchParams(location.search).get('tab') === 'mine') showTab('mine');
+            const boost = Number(new URLSearchParams(location.search).get('boost') || 0);
+            if (boost > 0) { st.goal = 'engagement'; st.mode = 'post'; st.postId = boost; drawGoals(); syncGoal(); }
         })();
     </script>
 </body>
