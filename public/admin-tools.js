@@ -29,6 +29,40 @@
     if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
   })();
 
+  // ---------- 🌐 Khmer: every English text of the Admin pages that is in admin-km.js is shown in Khmer (also texts added later) ----------
+  (function kmAdmin() {
+    var D = window.ADMIN_KM; if (ALANG !== 'km' || !D) return;
+    var pre = Object.keys(D).filter(function (k) { return k.length >= 4 && /[\s:(\$#@]$/.test(k); }).sort(function (a, b) { return b.length - a.length; });
+    function tr(s) {
+      if (!s || !/[A-Za-z]/.test(s)) return null;
+      var t = s.trim(); if (!t) return null;
+      if (Object.prototype.hasOwnProperty.call(D, t)) return s.replace(t, D[t]);
+      if (Object.prototype.hasOwnProperty.call(D, s)) return D[s];
+      for (var i = 0; i < pre.length; i++) { var k = pre[i]; if (s.indexOf(k) === 0) return D[k] + s.slice(k.length); var k2 = k.trim(); if (k2.length >= 4 && t.indexOf(k2) === 0 && t.length > k2.length && /[\s:(\$#@]/.test(k.slice(-1))) return s.replace(k2, D[k].trim()); }
+      return null;
+    }
+    var SKIP = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, CODE: 1, PRE: 1 };
+    function walk(n) {
+      if (!n) return;
+      if (n.nodeType === 3) { var p = n.parentNode; if (p && SKIP[p.nodeName]) return; if (p && p.closest && p.closest('[data-raw], .notranslate')) return; var x = tr(n.nodeValue); if (x !== null && x !== n.nodeValue) n.nodeValue = x; return; }
+      if (n.nodeType !== 1 || SKIP[n.nodeName]) return;
+      ['placeholder', 'title'].forEach(function (a) { var v = n.getAttribute && n.getAttribute(a); if (v) { var x = tr(v); if (x !== null) n.setAttribute(a, x); } });
+      if (n.nodeName === 'INPUT' && (n.type === 'button' || n.type === 'submit') && n.value) { var y = tr(n.value); if (y !== null) n.value = y; }
+      for (var c = n.firstChild; c; c = c.nextSibling) walk(c);
+    }
+    function start() {
+      walk(document.body);
+      try { if (document.title) { var tt = tr(document.title); if (tt) document.title = tt; } } catch (e) {}
+      new MutationObserver(function (ms) {
+        ms.forEach(function (m) {
+          if (m.type === 'characterData') { var x = tr(m.target.nodeValue); if (x !== null && x !== m.target.nodeValue) m.target.nodeValue = x; }
+          else m.addedNodes.forEach(walk);
+        });
+      }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  })();
+
   // ---------- helpers ----------
   function el(tag, props, kids) {
     var e = document.createElement(tag); props = props || {};
