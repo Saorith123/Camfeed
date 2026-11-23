@@ -304,7 +304,7 @@
             $('kwAi').disabled = true; $('kwMsg').textContent = T('🤖 AI កំពុងមើល…', '🤖 The AI is looking…');
             try {
                 const d = await (await fetch('/api/ads/suggest-keywords', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, urls: urls.slice(0, 3) }) })).json();
-                if (!d.success) throw new Error(d.error === 'busy' ? T('AI រវល់បន្តិច សូមសាកម្ដងទៀតក្រោយមួយភ្លែត។', 'The AI is busy. Please try again in a moment.') : T('មិនបាន', 'Failed'));
+                if (!d.success) throw new Error(d.error === 'busy' ? T('AI រវល់បន្តិច សូមសាកម្ដងទៀតក្រោយមួយភ្លែត។', 'The AI is busy. Please try again in a moment.') : (T('AI មិនបានឆ្លើយទេ។ សូមបន្ថែមពាក្យដោយខ្លួនឯង។', 'The AI did not answer. Please add words yourself.') + (d.why ? ' (' + d.why + ')' : '')));
                 (d.words || []).forEach(w => { if (!st.kws.includes(w) && st.kws.length < 12) st.kws.push(w); });
                 $('kwMsg').textContent = (d.words || []).length ? T('✅ AI បានជ្រើស ' + d.words.length + ' ពាក្យ។ ចុចលើពាក្យណាដែលមិនត្រូវ ដើម្បីលុប។', '✅ The AI chose ' + d.words.length + ' words. Tap a wrong one to remove it.') : T('AI រកមិនឃើញពាក្យសមស្របទេ។ សូមបន្ថែមដោយខ្លួនឯង។', 'The AI found nothing that fits. Please add some yourself.');
                 drawKw(); estimate();

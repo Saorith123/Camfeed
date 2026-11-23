@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 159;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 160;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -3731,7 +3731,8 @@ function adFits(ad, who) {
   if (who.age && ((ad.age_min && who.age < ad.age_min) || (ad.age_max && who.age > ad.age_max))) return false;
   return true;
 }
-const whoOf = (u) => ({ prov: provinceOf(u && u.location), age: ageOf(u && u.birthdate), gender: u && (u.gender === 'Male' || u.gender === 'Female') ? u.gender : '' });
+// the province: what the person wrote in "lives in"; if nothing, the city of their connection (Cloudflare) — a guess only, mobile data often looks like Phnom Penh
+const whoOf = (u) => ({ prov: provinceOf(u && u.location) || provinceOf(u && u.ip_city), age: ageOf(u && u.birthdate), gender: u && (u.gender === 'Male' || u.gender === 'Female') ? u.gender : '' });
 const AD_INTERESTS = ['Comedy', 'Music', 'Gaming', 'Food', 'Vehicles & Motorcycles', 'Technology', 'News', 'Sports', 'Education', 'Travel', 'Lifestyle'];
 const AD_DEFAULT_PAYMENT_TEXT = 'ABA Bank\nលេខគណនី / Account: 002217985\nសូមសរសេរក្នុងកំណត់ចំណាំ: CamFeed Ads + ឈ្មោះអាជីវកម្មរបស់អ្នក\nPlease write in the note: CamFeed Ads + your business name';
 const AD_FREQ_CAP = 3;                                                     // one person is shown the same ad at most 3 times a day
@@ -3759,7 +3760,7 @@ app.get('/api/ads/estimate', async (req, res) => {
     const est = adEstimate(budget, days, placement);
     const country = String(req.query.country || '').trim().slice(0, 60);
     const target = { provinces: adProvinces(req.query.prov).join(','), gender: adGender(req.query.g), age_min: adAge(req.query.amin), age_max: adAge(req.query.amax) };
-    const rows = (await pool.query("SELECT LOWER(email) AS email, location, birthdate, gender FROM users WHERE last_active >= NOW() - INTERVAL '30 days' AND COALESCE(is_banned, FALSE) = FALSE AND ($1 = '' OR LOWER(country) = LOWER($1)) LIMIT 200000", [country])).rows;
+    const rows = (await pool.query("SELECT LOWER(email) AS email, location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE last_active >= NOW() - INTERVAL '30 days' AND COALESCE(is_banned, FALSE) = FALSE AND ($1 = '' OR LOWER(country) = LOWER($1)) LIMIT 200000", [country])).rows;
     const fit = rows.filter((u) => adFits(target, whoOf(u)));
     const users = fit.length;
     const kws = await interests.resolveWords(String(req.query.kw || '').split(','));
@@ -3774,7 +3775,7 @@ app.get('/api/ads/estimate', async (req, res) => {
 app.get('/api/sponsored-ads', async (req, res) => {
   try {
     const me = req.authEmail || '';
-    const u = me ? (await pool.query('SELECT country, location, birthdate, gender FROM users WHERE email = $1', [me])).rows[0] : null;
+    const u = me ? (await pool.query(`SELECT country, location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE email = $1`, [me])).rows[0] : null;
     const myInterests = me ? (await pool.query('SELECT category FROM user_interest_scores WHERE user_email = $1 AND score > 0 ORDER BY score DESC LIMIT 5', [me])).rows.map((r) => r.category) : [];
     const myKw = me ? await interests.userTop(me, 60) : new Map();
     const who = whoOf(u);
@@ -3812,7 +3813,7 @@ app.get('/api/sponsored-ads/:id/why', async (req, res) => {
     if (!me || !(id > 0)) return res.status(400).json({ success: false });
     const a = (await pool.query('SELECT kw_ids, provinces, age_min, age_max, gender, interests FROM sponsored_ads WHERE id = $1', [id])).rows[0];
     if (!a) return res.status(404).json({ success: false });
-    const u = (await pool.query('SELECT location, birthdate, gender FROM users WHERE email = $1', [me])).rows[0] || {};
+    const u = (await pool.query(`SELECT location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE email = $1`, [me])).rows[0] || {};
     const who = whoOf(u), myKw = await interests.userTop(me, 60);
     const kws = interests.wordsOf(a.kw_ids).filter((k) => myKw.has(k.id)).sort((x, y) => myKw.get(y.id) - myKw.get(x.id)).slice(0, 3).map((k) => k.word);
     const prov = String(a.provinces || '').split(',').filter(Boolean);
@@ -3843,7 +3844,7 @@ app.post('/api/ads/suggest-keywords', async (req, res) => {
     const b = req.body || {};
     const urls = (Array.isArray(b.urls) ? b.urls : []).map((x) => security.safeUrl(String(x || ''))).filter(Boolean).slice(0, 3);
     const words = await interests.suggest(String(b.text || '').slice(0, 1500), urls);
-    if (words === null) return res.status(503).json({ success: false, error: 'busy' });
+    if (!Array.isArray(words)) return res.json({ success: false, error: words.error, why: words.why || '' });   // 200: the reason reaches the page
     res.json({ success: true, words });
   } catch (err) { console.error('[ads] suggest:', err.message); res.status(500).json({ success: false, error: 'Could not do it.' }); }
 });

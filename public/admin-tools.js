@@ -677,6 +677,7 @@
           el('button', { class: 'btn-sm' + (q.paused ? '' : ' btn-gray'), text: q.paused ? '▶️ Label old posts too' : '⏸ Pause old posts (new ones still labelled)', onclick: function () { call({ action: 'pause', on: !q.paused }).then(load); } }),
           el('button', { class: 'btn-sm btn-gray', text: '🔁 Label ALL posts again', onclick: function () { if (confirm('Label all posts again, one by one in the background? Keywords written by hand are kept.')) call({ action: 'redo-all' }).then(load); } })
         ]));
+        if (q.aiError && q.aiError.err) head.appendChild(el('div', { style: 'font-size:12.5px;color:#b42318;margin-top:6px', text: '⚠️ AI last problem: ' + q.aiError.err + (q.aiError.at ? ' · ' + ago(q.aiError.at) : '') }));
         if (q.worker && q.worker.last) head.appendChild(el('div', { style: 'font-size:12px;color:#65676b;margin-top:6px', text: 'Last: post #' + q.worker.last.id + ' → ' + (q.worker.last.words || []).join(', ') }));
         drawList();
       });

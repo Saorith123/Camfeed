@@ -237,6 +237,8 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
     for (const u of m.images.slice(0, 3 - Math.min(out.length, 2))) { const b = await frame(u, null); if (b) out.push(b); }
     return out.slice(0, 3);
   }
+  let lastAi = { err: '', at: null };
+  function aiErr(m) { if (m) { lastAi = { err: m, at: new Date().toISOString() }; console.error('[keywords] AI:', m); } else lastAi = { err: '', at: null }; }
   async function askGemini(row, frames) {
     const key = process.env.GEMINI_API_KEY; if (!key) return null;
     const list = dict.rows.map((r) => `${r.word} | ${r.grp}`).join('\n');
@@ -257,11 +259,14 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal,
         body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }) });
-      if (resp.status === 429) return { retry: true };
-      const data = await resp.json();
-      const txt = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-      return txt ? JSON.parse(txt) : null;
-    } catch (e) { return null; } finally { clearTimeout(tm); }
+      if (resp.status === 429) { aiErr('429 limit reached (too many requests today / this minute)'); return { retry: true }; }
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) { aiErr(resp.status + ' ' + ((data && data.error && data.error.message) || '').slice(0, 200)); return null; }
+      const parts2 = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      const txt = parts2.filter((x) => x && x.text && !x.thought).map((x) => x.text).join('');
+      if (!txt) { aiErr('empty answer' + (data && data.candidates && data.candidates[0] && data.candidates[0].finishReason ? ' (' + data.candidates[0].finishReason + ')' : '') + (data && data.promptFeedback && data.promptFeedback.blockReason ? ' blocked: ' + data.promptFeedback.blockReason : '')); return null; }
+      try { const j = JSON.parse(txt.replace(/^```(?:json)?\s*|\s*```$/g, '')); aiErr(''); return j; } catch (e) { aiErr('answer was not JSON'); return null; }
+    } catch (e) { aiErr(e.name === 'AbortError' ? 'no answer in 60 s' : ('network: ' + ((e.cause && e.cause.code) || '') + ' ' + e.message)); return null; } finally { clearTimeout(tm); }
   }
   async function addWord(word, grp, synonyms, source, reviewed) {
     word = String(word || '').replace(/\s+/g, ' ').trim().slice(0, 60); if (!word) return null;
@@ -388,7 +393,7 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
             COUNT(*) FILTER (WHERE kw_at IS NOT NULL)::int AS labelled, COUNT(*) FILTER (WHERE kw_tries >= 3 AND kw_at IS NULL)::int AS failed,
             COUNT(*) FILTER (WHERE shared_post_id IS NULL)::int AS total FROM posts`)).rows[0];
         const groups = [...new Set(dict.rows.map((r) => r.grp))];
-        return res.json({ success: true, words, groups, cats: CATS, queue: Object.assign(st, { paused: await paused(), gemini: !!process.env.GEMINI_API_KEY, worker: stats }) });
+        return res.json({ success: true, words, groups, cats: CATS, queue: Object.assign(st, { paused: await paused(), gemini: !!process.env.GEMINI_API_KEY, worker: stats, aiError: lastAi }) });
       }
       if (act === 'add' || act === 'edit') {
         const word = String(b.word || '').replace(/\s+/g, ' ').trim().slice(0, 60), grp = String(b.grp || '').trim().slice(0, 40) || 'ផ្សេងៗ';
@@ -491,7 +496,7 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
     for (const u of (urls || []).slice(0, 3)) { const b = await frame(u, /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u) ? '1' : null); if (b) frames.push(b); }
     if (!frames.length && !String(text || '').trim()) return [];
     const ans = await askGemini({ content: text }, frames);
-    if (!ans || ans.retry) return null;
+    if (!ans || ans.retry) return { error: ans && ans.retry ? 'busy' : 'ai', why: lastAi.err };
     const out = [], seen = new Set();
     for (const k of (Array.isArray(ans.keywords) ? ans.keywords : [])) { const id = k && dict.byText.get(norm(k.word)); if (id && !seen.has(id)) { seen.add(id); out.push(dict.byId.get(id).word); } }
     return out.slice(0, 8);
