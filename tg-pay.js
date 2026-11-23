@@ -18,15 +18,31 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
     return ready;
   }
   let lastErr = '';
+  // plain https over IPv4 (some servers can not reach Telegram over IPv6: Node's fetch then says only "fetch failed"); tried twice
+  function post(method, body) {
+    const https = require('https');
+    const data = Buffer.from(JSON.stringify(body || {}));
+    return new Promise((ok, no) => {
+      const rq = https.request({ hostname: 'api.telegram.org', path: `/bot${token()}/${method}`, method: 'POST', family: 4, timeout: 15000,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }, (rs) => {
+        const parts = []; rs.on('data', (c) => parts.push(c));
+        rs.on('end', () => { try { ok(JSON.parse(Buffer.concat(parts).toString('utf8'))); } catch (e) { ok({ ok: false, error_code: rs.statusCode, description: 'bad answer' }); } });
+      });
+      rq.on('timeout', () => rq.destroy(new Error('no answer from Telegram (timeout)')));
+      rq.on('error', no);
+      rq.end(data);
+    });
+  }
   async function api(method, body) {
     if (!on()) return null;
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
-    try {
-      const r = await fetch(`https://api.telegram.org/bot${token()}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}), signal: ctl.signal });
-      const j = await r.json().catch(() => null);
-      if (!j || !j.ok) lastErr = method + ': ' + (j ? (j.error_code + ' ' + (j.description || '')) : ('HTTP ' + r.status));
-      return j;
-    } catch (e) { lastErr = method + ': ' + (e.name === 'AbortError' ? 'no answer from Telegram (timeout)' : e.message); return null; } finally { clearTimeout(t); }
+    for (let i = 0; i < 2; i++) {
+      try {
+        const j = await post(method, body);
+        if (!j || !j.ok) lastErr = method + ': ' + (j ? (j.error_code + ' ' + (j.description || '')) : 'no answer');
+        return j;
+      } catch (e) { lastErr = method + ': ' + (e.code || '') + ' ' + e.message; }
+    }
+    return null;
   }
   // the bot is told where to send what happens (once after every start)
   async function hook() {
