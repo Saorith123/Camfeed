@@ -141,3 +141,7 @@ D.km = Object.assign(D.km || {}, {
 'Switching to English...':'កំពុងប្តូរភាសា...','See translation':'មើលការបកប្រែ','Hide translation':'លាក់ការបកប្រែ','Copy Link':'ចម្លងតំណភ្ជាប់','Forward':'បញ្ជូនបន្ត','Block':'ទប់ស្កាត់','Add Account':'បន្ថែមគណនី'
 });
 })(window.CAM_DICT);
+(function (D) { if (!D || !D.en) return; Object.assign(D.en, {
+'ចង់ចែករំលែកអ្វីថ្ងៃនេះ?': 'What would you like to share today?',
+'ចង់ចែករំលែកអ្វីថ្ងៃនេះ? សរសេររៀបរាប់នៅទីនេះ...': 'What would you like to share today? Write here...'
+}); })(window.CAM_DICT);

@@ -1259,7 +1259,7 @@
 
                 <div class="composer-stage-wrap" id="composerStageWrap">
                     <button type="button" class="aa-toggle-btn" onclick="toggleComposerStyleDrawer()" title="ជ្រើសរើសផ្ទៃខាងក្រោយអត្ថបទ (Aa)">Aa</button>
-                    <textarea id="postContent" rows="4" placeholder="តើអ្នកកំពុងគិតអ្វីខ្លះ?" style="margin:0; border:none; background:#f8f9fa; border-radius:12px; padding:12px 44px 12px 14px; font-size:15.5px; resize:vertical;" oninput="autoAdjustComposerStyledText()"></textarea>
+                    <textarea id="postContent" rows="4" placeholder="ចង់ចែករំលែកអ្វីថ្ងៃនេះ?" style="margin:0; border:none; background:#f8f9fa; border-radius:12px; padding:12px 44px 12px 14px; font-size:15.5px; resize:vertical;" oninput="autoAdjustComposerStyledText()"></textarea>
                 </div>
 
                 <div class="style-quick-strip" id="composerStyleQuickStrip"></div>
@@ -1553,7 +1553,7 @@
                 notifHeader: "Notifications",
                 notifEmpty: "No notifications yet",
                 createModalTitle: "Create Post",
-                postPlaceholder: "What's on your mind?",
+                postPlaceholder: "What would you like to share today?",
                 privacyLabel: "Privacy:",
                 optPublic: "🌐 Public",
                 optPrivate: "🔒 Private (Only me)",
@@ -1587,7 +1587,7 @@
                 notifHeader: "ការជូនដំណឹង",
                 notifEmpty: "មិនទាន់មានការជូនដំណឹងនៅឡើយទេ",
                 createModalTitle: "បង្កើតការបង្ហោះថ្មី",
-                postPlaceholder: "តើអ្នកកំពុងគិតអ្វីខ្លះ?",
+                postPlaceholder: "ចង់ចែករំលែកអ្វីថ្ងៃនេះ?",
                 privacyLabel: "ភាពឯកជន:",
                 optPublic: "🌐 ជាសាធារណៈ",
                 optPrivate: "🔒 ឯកជន (ខ្ញុំម្នាក់ឯង)",
@@ -3770,9 +3770,14 @@
             adEvent(adId, 'click');
             if (ad && /^https?:\/\//i.test(ad.target_url || '')) window.open(ad.target_url, '_blank', 'noopener,noreferrer');
         }
-        function adMessage(adId) {
+        // 💬 to the seller; from one picture of the album: the question about that product is already written
+        function adMessage(adId, idx) {
             const ad = adById(adId); adEvent(adId, 'message');
-            if (ad && ad.owner_email) window.location.href = 'messages.html?chat=' + encodeURIComponent(ad.owner_email);
+            if (!ad || !ad.owner_email) return;
+            let q = '';
+            const it = (Array.isArray(ad.items) && idx != null) ? ad.items[idx] : null;
+            if (it) q = AD_T('សួរអំពី៖ ', 'About: ') + [it.name, it.price].filter(Boolean).join(' · ') + (it.name || it.price ? '\n' : '') + it.url;
+            window.location.href = 'messages.html?chat=' + encodeURIComponent(ad.owner_email) + (q ? '&text=' + encodeURIComponent(q) : '');
         }
         const adSeenObserver = ('IntersectionObserver' in window) ? new IntersectionObserver((entries) => {
             entries.forEach((en) => {
@@ -3846,21 +3851,14 @@
                         <button type="button" onclick="adMenu(${Number(ad.id)}, this)" style="background:none;border:none;font-size:20px;color:#65676b;cursor:pointer;padding:4px 8px;">⋯</button>
                     </div>`;
             const items = Array.isArray(ad.items) ? ad.items : [];
-            if (!ad.post_id && items.length) {          // 🛍️ several products: slide left / right; a tap opens the chat with the seller
+            if (!ad.post_id && items.length > 1 && window.CamGrid) {     // 🖼️ several pictures / videos: the same layout as a post; the album has 💬 at the bottom
                 return `
                 <div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" style="position:relative;">
                     ${header}
                     ${ad.caption ? `<div class="notranslate" translate="no" style="padding:4px 14px 10px 14px; font-size:14.5px; color:#1c1e21; white-space:pre-wrap;">${esc(ad.caption)}</div>` : ''}
-                    <div style="display:flex; gap:8px; overflow-x:auto; padding:0 14px 12px; scroll-snap-type:x mandatory;">
-                        ${items.map(it => `<div onclick="adMessage(${Number(ad.id)})" style="flex:0 0 160px; border:1px solid #e4e6eb; border-radius:10px; overflow:hidden; scroll-snap-align:start; cursor:pointer; background:#fff;">
-                            <img src="${esc(it.image)}" alt="" loading="lazy" style="width:160px; height:160px; object-fit:cover; display:block; background:#e4e6eb;">
-                            <div style="padding:6px 8px; font-size:13px;"><div class="notranslate" translate="no" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(it.name || '')}</div><b style="color:#1877f2;">${esc(it.price || '')}</b></div></div>`).join('')}
-                    </div>
+                    ${CamGrid.html(0, items.map(it => ({ url: it.url || it.image, type: it.type, name: it.name, price: it.price })), { adId: Number(ad.id) })}
                     ${ad.owner_email ? `<div style="padding:10px 14px; display:flex; justify-content:flex-end; border-top:1px solid #f0f2f5;"><button type="button" onclick="adMessage(${Number(ad.id)})" style="background:#1877f2; color:#fff; border:none; padding:7px 16px; border-radius:18px; font-weight:700; font-size:13px; cursor:pointer;">💬 ${AD_T('ផ្ញើសារ', 'Send message')}</button></div>` : ''}
                 </div>`;
-            }
-            if (ad.post_id) {
-                return `<div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" data-post-id="${Number(ad.post_id)}" style="position:relative;">${header}<div class="sponsored-post-slot" style="min-height:60px;"></div>${ad.cta === 'message' && ad.owner_email ? `<div style="padding:10px 14px; background:#fff; border-top:1px solid #f0f2f5; text-align:right;"><button type="button" onclick="adMessage(${Number(ad.id)})" style="background:#1877f2; color:#fff; border:none; padding:7px 16px; border-radius:18px; font-weight:700; font-size:13px; cursor:pointer;">💬 ${AD_CTA_KM.message}</button></div>` : ''}</div>`;
             }
             const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
             const hasLink = /^https?:\/\//i.test(ad.target_url || '');
@@ -3868,8 +3866,8 @@
             const clickFn = isMsg ? `adMessage(${Number(ad.id)})` : `recordAdClick(${Number(ad.id)})`;
             const canAct = (hasLink || isMsg) && ad.cta !== 'none';
             const mediaHtml = isVideo
-                ? `<video src="${esc(ad.media_url)}" style="width:100%; max-height:360px; object-fit:cover; background:#000; display:block;" controls playsinline muted loop preload="metadata"></video>`
-                : `<img src="${esc(ad.media_url)}" style="width:100%; max-height:380px; object-fit:cover; display:block; ${canAct ? 'cursor:pointer;' : ''}" ${canAct ? `onclick="${clickFn}"` : ''} alt="">`;
+                ? `<video src="${esc(ad.media_url)}" style="width:100%; height:auto; max-height:85vh; object-fit:contain; background:#000; display:block;" controls playsinline muted loop preload="metadata"></video>`
+                : `<img src="${esc(ad.media_url)}" style="width:100%; height:auto; max-height:85vh; object-fit:contain; background:#f0f2f5; display:block; ${canAct ? 'cursor:pointer;' : ''}" ${canAct ? `onclick="${clickFn}"` : ''} alt="">`;
             const label = AD_CTA_KM[ad.cta] || AD_CTA_KM.learn_more;
             return `
                 <div class="sponsored-ad-card" data-ad-id="${Number(ad.id)}" style="position:relative;">

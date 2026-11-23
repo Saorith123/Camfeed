@@ -6,6 +6,7 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <script src="pwa.js" defer></script>
+    <script src="media-grid.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed</title>
@@ -96,7 +97,7 @@
         <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><h2 id="modalTitle"></h2><button class="btn gray small" onclick="closeModal()">✕</button></div><div id="modalBody"></div></div>
     </div>
     <input type="file" id="fileOne" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none">
-    <input type="file" id="fileMany" accept="image/*" multiple style="display:none">
+    <input type="file" id="fileMany" accept="image/*,video/mp4,video/webm,video/quicktime" multiple style="display:none">
 
     <script>
         const currentUser = JSON.parse(localStorage.getItem('camfeed_user') || 'null');
@@ -147,10 +148,6 @@
                 <div class="card"><h2><span class="step">2</span>${T('អ្វីដែលត្រូវបង្ហាញ', 'What to show')}</h2>
                     <div class="chips" id="modeChips"></div>
                     <div id="boxProducts"></div>
-                    <div id="boxMedia">
-                        <label>${T('រូបភាព ឬវីដេអូ', 'Picture or video')}</label>
-                        <button type="button" class="pick" id="pickOne">🖼️ ${T('ជ្រើសរូបភាព ឬវីដេអូ', 'Choose a picture or video')}</button><div class="muted" id="upOne" style="margin-top:4px;"></div>
-                    </div>
                     <div id="boxPost" style="display:none;"><p class="muted" style="margin-top:8px;">${T('ជ្រើសការបង្ហោះសាធារណៈមួយរបស់អ្នក។ មនុស្សនៅតែអាចចូលចិត្ត បញ្ចេញមតិ និងចែករំលែកបានដូចធម្មតា។', 'Choose one of your public posts. People can still like, comment and share as usual.')}</p><div class="posts" id="postList"></div></div>
                     <div id="boxCaption"><label>${T('ពាក្យពណ៌នា', 'Text')}</label><textarea id="fCaption" rows="3" maxlength="500" placeholder="${T('ឧ. បញ្ចុះតម្លៃ 50% ថ្ងៃនេះ!', 'e.g. 50% off today!')}"></textarea></div>
                     <div id="boxLink"><label>${T('តំណភ្ជាប់ពេលចុច', 'Link to open')}</label><input id="fTarget" placeholder="https://t.me/yourshop"></div>
@@ -189,7 +186,6 @@
             </div>
             <div id="paneMine" style="display:none;"><div class="card"><h2>${T('📋 ពាណិជ្ជកម្មរបស់ខ្ញុំ', '📋 My ads')}</h2><div id="myReqs" class="muted"></div></div></div>`;
             $('tabNew').onclick = () => showTab('new'); $('tabMine').onclick = () => showTab('mine');
-            $('pickOne').onclick = () => $('fileOne').click();
             $('kwAdd').onclick = () => addKw($('kwIn').value); $('kwIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addKw($('kwIn').value); } });
             $('kwAi').onclick = suggestKw; $('fSend').onclick = sendRequest;
             ['fBudget', 'fDays'].forEach(i => $(i).addEventListener('input', () => { drawBudget(); estimate(); }));
@@ -212,8 +208,7 @@
             const prod = st.goal === 'products';
             $('modeChips').innerHTML = '';
             if (!prod) { $('modeChips').appendChild(chip(T('🆕 ពាណិជ្ជកម្មថ្មី', '🆕 New ad'), st.mode === 'new', () => setMode('new'))); $('modeChips').appendChild(chip(T('🚀 ការបង្ហោះរបស់ខ្ញុំ', '🚀 One of my posts'), st.mode === 'post', () => setMode('post'))); }
-            $('boxProducts').style.display = prod ? 'block' : 'none';
-            $('boxMedia').style.display = !prod && st.mode === 'new' ? 'block' : 'none';
+            $('boxProducts').style.display = st.mode === 'new' ? 'block' : 'none';
             $('boxPost').style.display = !prod && st.mode === 'post' ? 'block' : 'none';
             $('boxCaption').style.display = st.mode === 'post' ? 'none' : 'block';
             $('boxLink').style.display = st.goal === 'traffic' && st.mode === 'new' ? 'block' : 'none';
@@ -223,12 +218,18 @@
         }
         function setMode(m) { st.mode = m; syncGoal(); }
 
-        // ---- 🛍️ products ----
+        // ---- 🖼️ pictures / videos (up to 60); for "sell products" each one may have a name and a price (both optional) ----
+        const MAXM = 60;
+        const isVid = (u) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u || '');
         function drawProducts() {
-            const box = $('boxProducts'); if (st.goal !== 'products') return;
-            box.innerHTML = `<label>${T('ផលិតផល (រហូតដល់ 10 មុខ)', 'Products (up to 10)')}</label>` + st.items.map((it, i) => `
-                <div class="prod"><img src="${esc(it.image)}" alt=""><div class="f"><input data-i="${i}" data-k="name" maxlength="60" value="${esc(it.name)}" placeholder="${T('ឈ្មោះផលិតផល', 'Product name')}"><input data-i="${i}" data-k="price" maxlength="30" value="${esc(it.price)}" placeholder="${T('តម្លៃ ឧ. $900', 'Price e.g. $900')}"></div><button type="button" class="x" data-del="${i}">✕</button></div>`).join('') +
-                (st.items.length < 10 ? `<button type="button" class="pick" id="pickMany" style="margin-top:8px;">➕ ${T('បន្ថែមរូបផលិតផល', 'Add product pictures')}</button>` : '') + '<div class="muted" id="upMany" style="margin-top:4px;"></div>';
+            const box = $('boxProducts'), prod = st.goal === 'products';
+            box.innerHTML = `<label>${T('រូបភាព និងវីដេអូ', 'Pictures and videos')} (${st.items.length}/${MAXM})</label>` +
+                (prod && st.items.length ? `<div class="muted">${T('ឈ្មោះ និងតម្លៃ មិនបាច់ដាក់ក៏បាន (អតិថិជនអាចឆាតសួរ)។', 'Name and price are optional (customers can ask in chat).')}</div>` : '') +
+                st.items.map((it, i) => `
+                <div class="prod">${isVid(it.url) ? `<video src="${esc(it.url)}#t=0.5" preload="metadata" muted style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:#000;flex-shrink:0"></video>` : `<img src="${esc(it.url)}" alt="">`}
+                    <div class="f">${prod ? `<input data-i="${i}" data-k="name" maxlength="60" value="${esc(it.name)}" placeholder="${T('ឈ្មោះផលិតផល (មិនបាច់ក៏បាន)', 'Product name (optional)')}"><input data-i="${i}" data-k="price" maxlength="30" value="${esc(it.price)}" placeholder="${T('តម្លៃ (មិនបាច់ក៏បាន)', 'Price (optional)')}">` : `<span class="muted">${i + 1}</span>`}</div>
+                    <button type="button" class="x" data-del="${i}">✕</button></div>`).join('') +
+                (st.items.length < MAXM ? `<button type="button" class="pick" id="pickMany" style="margin-top:8px;">➕ ${st.items.length ? T('បន្ថែមរូបភាព ឬវីដេអូ', 'Add pictures or videos') : T('ជ្រើសរូបភាព ឬវីដេអូ (បានច្រើន)', 'Choose pictures or videos (several)')}</button>` : '') + '<div class="muted" id="upMany" style="margin-top:4px;"></div>';
             box.querySelectorAll('input[data-i]').forEach(inp => inp.addEventListener('input', () => { st.items[Number(inp.dataset.i)][inp.dataset.k] = inp.value; drawPreview(); }));
             box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { st.items.splice(Number(b.dataset.del), 1); drawProducts(); drawPreview(); }));
             const pm = $('pickMany'); if (pm) pm.onclick = () => $('fileMany').click();
@@ -241,19 +242,14 @@
             return u.publicUrl;
         }
         $('fileMany').addEventListener('change', async (ev) => {
-            const files = Array.from(ev.target.files || []).slice(0, 10 - st.items.length); ev.target.value = '';
+            const files = Array.from(ev.target.files || []).slice(0, MAXM - st.items.length); ev.target.value = '';
             for (let i = 0; i < files.length; i++) {
                 $('upMany').textContent = T('កំពុងផ្ញើ ', 'Uploading ') + (i + 1) + '/' + files.length + '…';
-                try { st.items.push({ image: await upload(files[i]), name: '', price: '' }); } catch (e) { $('upMany').textContent = '❌ ' + e.message; return; }
+                try { const u = await upload(files[i]); st.items.push({ url: u, type: (files[i].type || '').startsWith('video') || isVid(u) ? 'video' : 'image', name: '', price: '' }); drawProducts(); }
+                catch (e) { $('upMany').textContent = '❌ ' + e.message; return; }
             }
             drawProducts(); drawPreview();
         });
-        $('fileOne').addEventListener('change', async (ev) => {
-            const f = ev.target.files && ev.target.files[0]; ev.target.value = ''; if (!f) return;
-            st.mediaUrl = ''; $('upOne').textContent = T('កំពុងផ្ញើ…', 'Uploading…');
-            try { st.mediaUrl = await upload(f); $('upOne').textContent = T('✅ រួចរាល់', '✅ Done'); drawPreview(); } catch (e) { $('upOne').textContent = '❌ ' + e.message; }
-        });
-
         async function loadPosts() {
             $('postList').innerHTML = `<div class="muted">${T('កំពុងផ្ទុក…', 'Loading…')}</div>`;
             try {
@@ -269,8 +265,8 @@
         function drawPreview() {
             const me = st.info.me || {};
             let cap = $('fCaption').value, media = `<div class="pm"><div class="muted" style="padding:20px;">${T('រូបភាព ឬវីដេអូរបស់អ្នក', 'Your picture or video')}</div></div>`;
-            if (st.goal === 'products') media = st.items.length ? `<div class="strip">${st.items.map(it => `<div class="it"><img src="${esc(it.image)}" alt=""><div><span class="notranslate" translate="no">${esc(it.name || T('ឈ្មោះផលិតផល', 'Product name'))}</span><b>${esc(it.price || '')}</b></div></div>`).join('')}</div>` : `<div class="pm"><div class="muted" style="padding:20px;">${T('រូបផលិតផលរបស់អ្នក', 'Your product pictures')}</div></div>`;
-            else if (st.mode === 'new' && st.mediaUrl) media = `<div class="pm">${/\.(mp4|webm|mov|m4v)(\?|$)/i.test(st.mediaUrl) ? `<video src="${esc(st.mediaUrl)}" muted playsinline preload="metadata"></video>` : `<img src="${esc(st.mediaUrl)}" alt="">`}</div>`;
+            if (st.mode === 'new' && st.items.length > 1 && window.CamGrid) media = CamGrid.html(0, st.items.map(x => ({ url: x.url, type: x.type, name: x.name, price: x.price })));
+            else if (st.mode === 'new' && st.items.length === 1) media = isVid(st.items[0].url) ? `<video src="${esc(st.items[0].url)}" muted playsinline preload="metadata" controls style="width:100%;display:block;background:#000"></video>` : `<img src="${esc(st.items[0].url)}" alt="" style="width:100%;height:auto;display:block">`;
             else if (st.mode === 'post') { const p = st.posts.find(x => x.id === st.postId); if (p) { cap = p.content; media = `<div class="pm">${p.media_type === 'image' ? `<img src="${esc(p.media_url)}" alt="">` : (p.media_type === 'video' ? `<video src="${esc(p.media_url)}" muted playsinline preload="metadata"></video>` : `<div class="muted" style="padding:20px;">📝</div>`)}</div>`; } }
             const ctaId = (st.goal === 'products' || st.goal === 'messages') ? 'message' : $('fCta').value;
             const ctaLabel = (CTAS.find(c => c[0] === ctaId) || [])[1];
@@ -297,7 +293,7 @@
             if (!st.kws.includes(w) && st.kws.length < 12) st.kws.push(w); drawKw(); estimate();
         }
         async function suggestKw() {
-            const urls = st.goal === 'products' ? st.items.map(i => i.image) : (st.mode === 'new' && st.mediaUrl ? [st.mediaUrl] : []);
+            const urls = st.mode === 'new' ? st.items.map(i => i.url).slice(0, 3) : [];
             let text = $('fCaption').value + ' ' + st.items.map(i => i.name).join(', ');
             if (st.mode === 'post') { const p = st.posts.find(x => x.id === st.postId); if (p) text = p.content || ''; }
             if (!urls.length && !text.trim()) { $('kwMsg').textContent = T('សូមបន្ថែមរូប ឬពាក្យពណ៌នាជាមុនសិន។', 'Please add a picture or some text first.'); return; }
@@ -355,10 +351,9 @@
             const body = { objective: st.goal, placement: st.place, budget_usd: $('fBudget').value, days: $('fDays').value, caption: $('fCaption').value,
                 target_url: st.goal === 'traffic' ? $('fTarget').value : '', cta: (prod || st.goal === 'messages') ? 'message' : $('fCta').value,
                 keywords: st.kws, provinces: [...st.provs], age_min: st.amin, age_max: st.amax, gender: st.gender };
-            if (prod) { body.items = st.items.map(i => ({ image: i.image, name: i.name, price: i.price })); }
-            else if (st.mode === 'post') { body.post_id = st.postId; body.caption = ''; body.target_url = ''; }
-            else body.media_url = st.mediaUrl;
-            if (prod && !st.items.length) { setMsg('fMsg', false, T('សូមបន្ថែមរូបផលិតផលយ៉ាងហោចណាស់មួយ។', 'Please add at least one product picture.')); btn.disabled = false; return; }
+            if (st.mode === 'post') { body.post_id = st.postId; body.caption = ''; body.target_url = ''; }
+            else body.items = st.items.map(i => ({ url: i.url, type: i.type, name: prod ? i.name : '', price: prod ? i.price : '' }));
+            if (st.mode === 'new' && !st.items.length) { setMsg('fMsg', false, T('សូមបន្ថែមរូបភាព ឬវីដេអូយ៉ាងហោចណាស់មួយ។', 'Please add at least one picture or video.')); btn.disabled = false; return; }
             try {
                 const d = await (await fetch('/api/ads/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
                 if (d.success) { $('fMsg').className = 'msg'; showTab('mine'); await loadMine(); openPay(d.id); }

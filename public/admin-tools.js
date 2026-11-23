@@ -1635,10 +1635,31 @@
     }
     draw();
   }
+  // 📜 what may never be advertised (⛔) or only to adults (🔞 18+); the AI checks each new ad against this list
+  function adRulesCard(p) {
+    var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
+    function draw(d) {
+      box.textContent = '';
+      box.appendChild(el('div', { class: 'at-h', text: '📜 Ad rules' }));
+      box.appendChild(el('div', { style: 'font-size:13px;color:#65676b;margin-bottom:8px', text: 'The AI looks at every new ad (pictures + text) and tells you in Telegram if it seems to touch one of these. ⛔ = never allowed, 🔞 = shown only to people we know are 18 or older. The AI only warns: you decide with ✅ / ❌. Check this list with a lawyer before you send it to a ministry.' }));
+      (d.rules || []).forEach(function (r) {
+        var km = el('input', { class: 'at-in', value: r.name_km, style: 'flex:2;min-width:140px' }), en = el('input', { class: 'at-in', value: r.name_en, style: 'flex:2;min-width:140px' });
+        var rule = el('select', { class: 'at-in', style: 'flex:1;min-width:110px' }, [el('option', { value: 'block', text: '⛔ Not allowed' }), el('option', { value: 'adult', text: '🔞 18+ only' })]); rule.value = r.rule;
+        box.appendChild(el('div', { class: 'at-row', style: 'gap:6px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #eef0f2' }, [km, en, rule,
+          el('button', { class: 'btn-sm', text: '💾', onclick: function () { adm('/api/admin/ad-rules', { action: 'edit', id: r.id, name_km: km.value, name_en: en.value, rule: rule.value }).then(function (x) { if (x.success) draw(x); }); } }),
+          el('button', { class: 'btn-sm btn-gray', text: '🗑', onclick: function () { if (confirm('Delete this rule?')) adm('/api/admin/ad-rules', { action: 'delete', id: r.id }).then(function (x) { if (x.success) draw(x); }); } })]));
+      });
+      var nkm = el('input', { class: 'at-in', placeholder: 'Khmer name', style: 'flex:2;min-width:140px' }), nen = el('input', { class: 'at-in', placeholder: 'English name', style: 'flex:2;min-width:140px' });
+      var nr = el('select', { class: 'at-in', style: 'flex:1;min-width:110px' }, [el('option', { value: 'block', text: '⛔ Not allowed' }), el('option', { value: 'adult', text: '🔞 18+ only' })]);
+      box.appendChild(el('div', { class: 'at-row', style: 'gap:6px;flex-wrap:wrap;margin-top:8px' }, [nkm, nen, nr, el('button', { class: 'btn-sm', text: '➕ Add', onclick: function () { adm('/api/admin/ad-rules', { action: 'add', name_km: nkm.value, name_en: nen.value, rule: nr.value }).then(function (x) { if (x.success) draw(x); }); } })]));
+    }
+    adm('/api/admin/ad-rules', {}).then(function (d) { if (d && d.success) draw(d); else box.textContent = (d && d.error) || 'Failed'; });
+  }
   function loadAdsAdmin() {
     var p = document.getElementById('panel-ads'); if (!p) return;
     p.textContent = '';
     tgPayCard(p);
+    adRulesCard(p);
     var out = el('div', { id: 'adMsg' });
     var name = el('input', { class: 'at-in', maxlength: '80', placeholder: 'e.g. RS Shop Cam' });
     var place = el('select', { class: 'at-in' }, [el('option', { value: 'feed_banner', text: '📱 Banner in the Feed (one after every 6 posts)' }), el('option', { value: 'video_preroll', text: '🎬 Video ad before reels (with Skip button)' })]);
@@ -1706,6 +1727,7 @@
           (r.media_url || r.post_media_url) ? el('a', { href: r.media_url || r.post_media_url, target: '_blank', rel: 'noopener noreferrer', style: 'font-size:12.5px;color:#1877f2', text: 'Open picture / video ↗' }) : null,
           r.price_cents ? el('div', { style: 'margin-top:4px;font-weight:700', text: 'Quoted: $' + (r.price_cents / 100).toFixed(2) }) : null,
           r.pay_ref ? el('div', { style: 'margin-top:4px;font-weight:700;color:#92580a', text: '💳 Payment reference from advertiser: ' + r.pay_ref }) : null,
+          r.ai_note ? el('div', { style: 'margin-top:4px;font-weight:700;color:' + (/⛔/.test(r.ai_note) ? '#b42318' : (/🔞/.test(r.ai_note) ? '#92580a' : '#176f35')), text: r.ai_note }) : null,
           acts]));
       });
     });

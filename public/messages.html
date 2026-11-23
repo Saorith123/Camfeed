@@ -2312,6 +2312,10 @@
                             const uData = await uRes.json();
                             if (uData.success && uData.user) openChat(uData.user);
                         }
+                        // 🛍️ from an ad: the question about one product is already written (the person can change it before sending)
+                        const draft = String(urlParams.get('text') || '').slice(0, 500);
+                        const box = document.getElementById('messageTextInput');
+                        if (draft && box && !box.value) { box.value = draft; try { autoResizeComposerTextarea(box); updateSendOrThumbIcon(); } catch (e) {} }
                     }
                 }
             } catch (err) {

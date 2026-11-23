@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 161;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 162;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -2577,7 +2577,7 @@ function adminNeed(path, body) {
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
     'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
-    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money' })[first];
+    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
@@ -2586,7 +2586,7 @@ function adminNeed(path, body) {
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
-  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay'].includes(first);
+  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules'].includes(first);
   const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (first === 'keywords' && act === 'posts') || (!act && keys.every((k) => FILTER.includes(k))))
     : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
   return { sec, level: read ? 'view' : 'edit' };
@@ -2652,6 +2652,8 @@ const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls
 const series = require('./series')({ app, pool });
 const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   onDecide: (...a) => onPaymentDecision(...a) });   // 💰 the owner's ✅ / ❌ on Telegram
+const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
+const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
@@ -3732,9 +3734,10 @@ function adItems(v) {
   let arr = v; if (typeof arr === 'string') { try { arr = JSON.parse(arr || '[]'); } catch (e) { arr = []; } }
   if (!Array.isArray(arr)) return [];
   const out = [];
-  for (const it of arr.slice(0, 10)) {
-    const image = security.safeUrl(String((it && it.image) || '')); if (!image) continue;
-    out.push({ image, name: String((it && it.name) || '').replace(/\s+/g, ' ').trim().slice(0, 60), price: String((it && it.price) || '').replace(/\s+/g, ' ').trim().slice(0, 30) });
+  for (const it of arr.slice(0, 60)) {                // up to 60 pictures / videos; a name and a price are optional (some sellers only answer in chat)
+    const url = security.safeUrl(String((it && (it.url || it.image)) || '')); if (!url) continue;
+    const video = (it && it.type === 'video') || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+    out.push({ url, image: url, type: video ? 'video' : 'image', name: String((it && it.name) || '').replace(/\s+/g, ' ').trim().slice(0, 60), price: String((it && it.price) || '').replace(/\s+/g, ' ').trim().slice(0, 30) });
   }
   return out;
 }
@@ -3743,6 +3746,7 @@ function adFits(ad, who) {
   const prov = String(ad.provinces || '').split(',').filter(Boolean);
   if (prov.length && who.prov && !prov.includes(who.prov)) return false;
   if (ad.gender && who.gender && who.gender !== ad.gender) return false;
+  if (ad.adult && !(who.age >= 18)) return false;     // 🔞 18+ only: never shown when we do not know the age
   if (who.age && ((ad.age_min && who.age < ad.age_min) || (ad.age_max && who.age > ad.age_max))) return false;
   return true;
 }
@@ -3795,7 +3799,7 @@ app.get('/api/sponsored-ads', async (req, res) => {
     const myKw = me ? await interests.userTop(me, 60) : new Map();
     const who = whoOf(u);
     const r = await pool.query(`SELECT a.id, a.advertiser_name, a.placement, a.objective, a.cta, COALESCE(NULLIF(a.caption, ''), p.content, '') AS caption, a.target_url, COALESCE(a.media_url, p.media_url) AS media_url, a.skip_seconds, a.post_id, a.owner_email, a.interests, a.country,
-        a.items, a.kw_ids, a.provinces, a.age_min, a.age_max, a.gender, ou.first_name AS o_first, ou.last_name AS o_last, ou.profile_pic AS o_pic
+        a.items, a.kw_ids, a.provinces, a.age_min, a.age_max, a.gender, a.adult, ou.first_name AS o_first, ou.last_name AS o_last, ou.profile_pic AS o_pic
       FROM sponsored_ads a LEFT JOIN posts p ON p.id = a.post_id LEFT JOIN ad_daily d ON d.ad_id = a.id AND d.day = CURRENT_DATE LEFT JOIN users ou ON ou.email = a.owner_email
       WHERE a.status = 'active' AND (a.ends_at IS NULL OR a.ends_at > NOW()) AND COALESCE(a.owner_email, '') <> $1
         AND NOT EXISTS (SELECT 1 FROM ad_hidden h WHERE h.user_email = $1 AND h.ad_id = a.id)
@@ -3957,10 +3961,11 @@ app.post('/api/ads/request', async (req, res) => {
     if (budget < AD_MIN_BUDGET_USD * 100 || budget > 100000 * 100) return res.status(400).json({ success: false, error: 'The smallest budget is $' + AD_MIN_BUDGET_USD + '.' });
     if (b.target_url && !target) return res.status(400).json({ success: false, error: 'The link must start with http:// or https://' });
     if (objective === 'traffic' && !target && !b.post_id) return res.status(400).json({ success: false, error: 'For "more visits" please add the link people should open.' });
-    const items = objective === 'products' ? adItems(b.items) : [];
-    if (objective === 'products' && !items.length) return res.status(400).json({ success: false, error: 'Please add at least one product with a picture.' });
+    let items = b.post_id ? [] : adItems(b.items);
+    if (!b.post_id && !items.length && b.media_url) items = adItems([{ url: b.media_url }]);
+    if (!b.post_id && !items.length) return res.status(400).json({ success: false, error: 'Please add at least one picture or video.' });
     const kws = await interests.resolveWords(b.keywords);
-    let postId = null, media = items.length ? items[0].image : null, caption = String(b.caption || '').slice(0, 500);
+    let postId = null, media = items.length ? items[0].url : null, caption = String(b.caption || '').slice(0, 500);
     if (b.post_id) {                                                        // boost one of my own public posts
       postId = parseInt(b.post_id, 10);
       const p = (await pool.query("SELECT id, content FROM posts WHERE id = $1 AND user_email = $2 AND COALESCE(privacy, 'public') = 'public'", [postId, email])).rows[0];
@@ -3980,6 +3985,7 @@ app.post('/api/ads/request', async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14,$15,$16,$17,$18,$19,$20,$21,'quoted') RETURNING id`,
       [email, name, contact, placement, caption, target || null, media, days, String(b.budget_note || '').slice(0, 120), objective, postId, adInterests(b.interests).join(','), String(b.country || '').trim().slice(0, 60), budget, cta,
         items.length ? JSON.stringify(items) : '', kws.map((k) => k.id).join(','), adProvinces(b.provinces).join(','), adAge(b.age_min), adAge(b.age_max), adGender(b.gender)]);
+    adRules.check(r.rows[0].id).catch(() => {});        // 🤖 the AI looks at it now (the owner sees the result in Telegram)
     res.status(201).json({ success: true, id: r.rows[0].id, code: 'A' + r.rows[0].id });
   } catch (err) { console.error('[ads] request:', err.message); res.status(500).json({ success: false, error: 'Could not send the request.' }); }
 });
@@ -4009,8 +4015,8 @@ app.post('/api/ads/my/:id/paid', async (req, res) => {
     if (!r.rowCount) return res.status(400).json({ success: false, error: 'This request is not waiting for payment.' });
     const q = r.rows[0], base = (process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com').replace(/\/+$/, '');
     tgPay.ask('ad', id, ['💰 ពាណិជ្ជកម្ម A' + id + ' · $' + (Number(q.price_cents || 0) / 100).toFixed(2), '👤 ' + q.business_name, '📅 ' + q.days + ' ថ្ងៃ · ' + q.objective + ' · ' + q.placement,
-      q.caption ? '📝 ' + String(q.caption).slice(0, 300) : '', q.post_id ? '🚀 ' + base + '/p/' + q.post_id : (q.media_url ? '🖼️ ' + q.media_url : ''), adItems(q.items).length ? '🛍️ ' + adItems(q.items).map((x) => x.name + (x.price ? ' ' + x.price : '')).join(' · ').slice(0, 300) : '',
-      q.pay_ref && q.pay_ref !== 'A' + id ? '🧾 ' + q.pay_ref : '', '', 'ពិនិត្យក្នុង ABA ថាបានទទួល $' + (Number(q.price_cents || 0) / 100).toFixed(2) + ' (ចំណាំ៖ A' + id + ')'].filter((x) => x !== '')).catch(() => {});
+      q.caption ? '📝 ' + String(q.caption).slice(0, 300) : '', q.post_id ? '🚀 ' + base + '/p/' + q.post_id : (q.media_url ? '🖼️ ' + q.media_url : ''), adItems(q.items).length ? '🖼️ ' + adItems(q.items).length + ' រូប/វីដេអូ' : '', adItems(q.items).some((x) => x.name) ? '🛍️ ' + adItems(q.items).filter((x) => x.name).map((x) => x.name + (x.price ? ' ' + x.price : '')).join(' · ').slice(0, 300) : '',
+      q.pay_ref && q.pay_ref !== 'A' + id ? '🧾 ' + q.pay_ref : '', q.ai_note || '', q.adult ? '🔞 បង្ហាញតែអ្នកអាយុ 18+' : '', '', 'ពិនិត្យក្នុង ABA ថាបានទទួល $' + (Number(q.price_cents || 0) / 100).toFixed(2) + ' (ចំណាំ៖ A' + id + ')'].filter((x) => x !== '')).catch(() => {});
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
@@ -4076,7 +4082,7 @@ app.post('/api/admin/ad-requests/list', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
     const r = await pool.query(`SELECT q.id, q.user_email, q.business_name, q.contact, q.placement, q.objective, q.caption, q.target_url, q.media_url, q.post_id, q.days, q.budget_note, q.interests, q.country, q.budget_cents,
-      q.status, q.price_cents, q.admin_note, q.pay_ref, q.ad_id, q.created_at, u.first_name, u.last_name,
+      q.status, q.price_cents, q.admin_note, q.pay_ref, q.ai_note, q.adult, q.ad_id, q.created_at, u.first_name, u.last_name,
       (SELECT media_type FROM posts WHERE id = q.post_id) AS post_media_type, (SELECT media_url FROM posts WHERE id = q.post_id) AS post_media_url
       FROM ad_requests q LEFT JOIN users u ON u.email = q.user_email ORDER BY (q.status IN ('pending','payment_sent')) DESC, q.id DESC LIMIT 100`);
     res.json({ success: true, requests: r.rows, isSuperAdmin: !!a.isSuperAdmin });
@@ -4128,10 +4134,10 @@ async function activateAdRequest(id, by) {
     if (!lock.rowCount) return { ok: false, error: 'Already started.' };
     const undo = () => pool.query("UPDATE ad_requests SET status = $2 WHERE id = $1 AND status = 'starting'", [id, q.status]).catch(() => {});
     const ad = await pool.query(`INSERT INTO sponsored_ads (advertiser_name, placement, caption, target_url, media_url, skip_seconds, created_by, ends_at, objective, post_id, interests, country, budget_cents, days, cpm_feed_cents, cpm_video_cents, owner_email, cta, base_likes, base_comments, base_shares,
-        items, kw_ids, provinces, age_min, age_max, gender)
-      VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval, $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26) RETURNING id`,
+        items, kw_ids, provinces, age_min, age_max, gender, adult)
+      VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval, $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) RETURNING id`,
       [q.business_name, q.placement, q.caption, q.target_url, media, a.adminEmail, String(q.days), q.objective, q.post_id, q.interests || '', q.country || '', q.budget_cents || 0, q.days,
-        AD_CPM.feed * 100, AD_CPM.video * 100, q.user_email, q.cta || 'learn_more', base.likes, base.comments, base.shares, q.items || '', q.kw_ids || '', q.provinces || '', q.age_min || 0, q.age_max || 0, q.gender || '']).catch(async (e) => { await undo(); throw e; });
+        AD_CPM.feed * 100, AD_CPM.video * 100, q.user_email, q.cta || 'learn_more', base.likes, base.comments, base.shares, q.items || '', q.kw_ids || '', q.provinces || '', q.age_min || 0, q.age_max || 0, q.gender || '', !!q.adult]).catch(async (e) => { await undo(); throw e; });
     await pool.query("UPDATE ad_requests SET status = 'live', ad_id = $1, updated_at = NOW() WHERE id = $2", [ad.rows[0].id, id]);
     audit(a.adminEmail, 'ad_activate', id, 'ad #' + ad.rows[0].id + ' for ' + q.days + ' days, budget $' + ((q.budget_cents || 0) / 100).toFixed(2) + ', paid $' + ((q.price_cents || 0) / 100).toFixed(2));
     sendAdminNotice(a.adminEmail, q.user_email, '📢 CamFeed បានទទួលប្រាក់ $' + ((q.price_cents || 0) / 100).toFixed(2) + ' ហើយ។ ពាណិជ្ជកម្ម A' + id + ' របស់អ្នកចាប់ផ្ដើមបង្ហាញហើយ។ អរគុណ!', 'admin_notice').catch(() => {});

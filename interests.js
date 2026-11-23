@@ -253,6 +253,11 @@ Caption: """${String(row.content || '').slice(0, 1500)}"""
 KEYWORD LIST (word | group):
 ${list}
 Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0}], "new": []}`;
+    return geminiJson(prompt, frames);
+  }
+  // one question to Gemini with pictures; the answer as JSON (null = no answer, {retry: true} = the limit was reached)
+  async function geminiJson(prompt, frames) {
+    const key = process.env.GEMINI_API_KEY; if (!key) { aiErr('GEMINI_API_KEY is missing'); return null; }
     const parts = [{ text: prompt }, ...frames.map((b) => ({ inline_data: { mime_type: 'image/jpeg', data: b.toString('base64') } }))];
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 60000);
     try {
@@ -503,5 +508,6 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
   }
 
   return { bumpPost, onSearch, onProfile, onWatch, onSkip, feedJoinSql, feedScoreSql, searchIds, kick: () => setTimeout(tick, 3000), ready: () => ensure().catch(() => {}),
-    resolveWords, wordsOf, allWords, userTop, interestedCount, suggest, loadDict };
+    resolveWords, wordsOf, allWords, userTop, interestedCount, suggest, loadDict, geminiJson, lastAiError: () => lastAi.err,
+    framesOfUrls: async (urls) => { const out = []; for (const u of (urls || []).slice(0, 3)) { const b = await frame(u, /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u) ? '1' : null); if (b) out.push(b); } return out; } };
 };
