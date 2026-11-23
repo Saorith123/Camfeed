@@ -239,7 +239,7 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
   }
   let lastAi = { err: '', at: null };
   function aiErr(m) { if (m) { lastAi = { err: m, at: new Date().toISOString() }; console.error('[keywords] AI:', m); } else lastAi = { err: '', at: null }; }
-  async function askGemini(row, frames) {
+  async function askGemini(row, frames, opts) {
     const key = process.env.GEMINI_API_KEY; if (!key) return null;
     const list = dict.rows.map((r) => `${r.word} | ${r.grp}`).join('\n');
     const prompt = `You label posts of CamFeed, a Cambodian social app, so people see posts and ads they care about.
@@ -253,15 +253,15 @@ Caption: """${String(row.content || '').slice(0, 1500)}"""
 KEYWORD LIST (word | group):
 ${list}
 Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0}], "new": []}`;
-    return geminiJson(prompt, frames);
+    return geminiJson(prompt, frames, opts);
   }
   // one question to Gemini with pictures; the answer as JSON (null = no answer, {retry: true} = the limit was reached)
-  async function geminiJson(prompt, frames) {
+  async function geminiJson(prompt, frames, opts) {
     const key = process.env.GEMINI_API_KEY; if (!key) { aiErr('GEMINI_API_KEY is missing'); return null; }
     const parts = [{ text: prompt }, ...frames.map((b) => ({ inline_data: { mime_type: 'image/jpeg', data: b.toString('base64') } }))];
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 60000);
     try {
-      const resp = await require('./gemini').generate(key, { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, ctl.signal);   // 🤖 the model name lives in gemini.js
+      const resp = await require('./gemini').generate(key, { contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, ctl.signal, opts);   // 🤖 the model name lives in gemini.js
       if (resp.status === 429) { aiErr('429 limit reached (too many requests today / this minute)'); return { retry: true }; }
       const data = resp.data;
       if (!resp.ok) { aiErr(resp.status + ' [' + resp.model + '] ' + ((data && data.error && data.error.message) || '').slice(0, 200)); return null; }
@@ -292,7 +292,7 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
     await loadDict();
     const frames = await framesOf(row).catch(() => []);
     if (!frames.length && !String(row.content || '').trim()) { await pool.query("UPDATE posts SET kw_at = NOW(), kw_src = 'empty' WHERE id = $1", [row.id]); return { words: [] }; }
-    const ans = await askGemini(row, frames);
+    const ans = await askGemini(row, frames, { background: true });   // labelling old posts: never uses the spare models (they are kept for people waiting)
     if (!ans || ans.retry) return ans;
     const items = [];
     for (const n of (Array.isArray(ans.new) ? ans.new : []).slice(0, 2)) {
@@ -323,12 +323,13 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
       const row = r.rows[0]; if (!row) return;
       await pool.query('UPDATE posts SET kw_tries = kw_tries + 1 WHERE id = $1', [row.id]);
       const res = await classify(row);
-      if (res && res.retry) { pauseUntil = Date.now() + 5 * 60 * 1000; await pool.query('UPDATE posts SET kw_tries = GREATEST(kw_tries - 1, 0) WHERE id = $1', [row.id]); }
+      if (res && res.retry) { pauseUntil = Date.now() + 30 * 60 * 1000;   // the daily / minute limit: rest 30 min so people's AI buttons keep working
+        await pool.query('UPDATE posts SET kw_tries = GREATEST(kw_tries - 1, 0) WHERE id = $1', [row.id]); }
       else if (res) { stats.done++; stats.last = { id: row.id, words: res.words, at: new Date().toISOString() }; }
       else stats.failed++;
     } catch (e) { stats.failed++; console.error('[keywords] tick:', e.message); } finally { busy = false; }
   }
-  setTimeout(() => { tick(); setInterval(tick, 20 * 1000); }, 45 * 1000);
+  setTimeout(() => { tick(); setInterval(tick, 60 * 1000); }, 45 * 1000);   // one post a minute (the free Gemini limit is small; people come first)
   // old scores that faded away are removed once a day
   setInterval(() => { pool.query(`DELETE FROM user_kw u WHERE ${effSql('u')} < 0.05`).catch(() => {}); }, 24 * 3600 * 1000);
 

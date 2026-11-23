@@ -45,7 +45,9 @@ async function pickFromList(key) {
 
 // POST generateContent; returns { status, ok, data, model }
 // 404 (model retired) → switch model; 503 / 500 (Google busy, "high demand") → wait a little and try again, then try a spare model once
-async function generate(key, body, signal) {
+// 429 (the limit of this model is used up) → a spare model too (each model has its own limit). opts.background: no spares (kept for people).
+async function generate(key, body, signal, opts) {
+  const bg = !!(opts && opts.background);
   let busyTries = 0, useSpare = '', switched = false;
   const tried = [];
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -53,9 +55,14 @@ async function generate(key, body, signal) {
     if (!tried.includes(m)) tried.push(m);
     const resp = await fetch(`${BASE}/models/${m}:generateContent?key=${key}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
     const data = await resp.json().catch(() => null);
+    if (resp.status === 429 && !bg && busyTries < 6) {
+      busyTries++;
+      const sp = await spareFor(key, tried);
+      if (sp) { useSpare = sp; console.log('[gemini] limit:', m, '→ spare', sp); continue; }
+    }
     if ((resp.status === 503 || resp.status === 500) && busyTries < 6) {
       busyTries++;
-      if (busyTries === 1) { await wait(1500); continue; }                    // the same model once more after 1.5 s
+      if (busyTries === 1 || bg) { if (bg && busyTries > 1) return { status: resp.status, ok: false, data, model: m }; await wait(1500); continue; }                    // the same model once more after 1.5 s
       const sp = await spareFor(key, tried);                                   // then up to 4 other models (newest flash first, then flash-lite)
       if (sp) { useSpare = sp; console.log('[gemini] busy:', m, '→ spare', sp); await wait(500); continue; }
       if (busyTries === 2) { await wait(3000); continue; }
