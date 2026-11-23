@@ -2,12 +2,12 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check'], ['keywords', '🏷️ AI Keywords']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
     ['👥 People', ['umanage', 'users', 'accounts', 'chats']],
-    ['🛡️ Content & safety', ['reports', 'copyright', 'content', 'posts', 'live']],
+    ['🛡️ Content & safety', ['reports', 'copyright', 'content', 'keywords', 'posts', 'live']],
     ['💰 Money', ['monetization', 'views', 'coins', 'ads']],
     ['🎉 Fun', ['party', 'challenges', 'stars', 'sounds']],
     ['⚙️ Settings', ['system', 'appcfg', 'perms']],
@@ -640,6 +640,122 @@
   }
 
   // ---------- ©️ Copyright: claims ("this uses my work") and copies found by the fingerprints ----------
+  // ---------- 🏷️ AI Keywords: the shared keyword list, what the AI gave each post, and fixing it by hand ----------
+  function keywordsAdmin(body) {
+    var state = { q: '' };
+    function call(extra) { return adm('/api/admin/keywords', extra); }
+    var head = el('div', { class: 'at-card' }); body.appendChild(head);
+    var postBox = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(postBox);
+    var listBox = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(listBox);
+    var groups = [], cats = [], words = [];
+    function catSelect(v) { var s = el('select', { class: 'at-in' }); cats.forEach(function (c) { var o = el('option', { value: c, text: c }); if (c === v) o.selected = true; s.appendChild(o); }); return s; }
+    function form(w, done) {       // add / edit one keyword
+      var f = el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:8px 0;padding:10px;background:#f7f8fa;border-radius:10px' });
+      var word = el('input', { class: 'at-in', placeholder: 'Keyword (Khmer)', value: w ? w.word : '' });
+      var grp = el('input', { class: 'at-in', placeholder: 'Group', list: 'kwGroups', value: w ? w.grp : '' });
+      var cat = catSelect(w ? w.cat : 'General');
+      var syn = el('input', { class: 'at-in', placeholder: 'Same meaning: laptop, notebook, …', value: w ? w.synonyms : '' });
+      var save = el('button', { class: 'btn-sm', text: w ? '💾 Save' : '➕ Add', onclick: function () {
+        call({ action: w ? 'edit' : 'add', id: w ? w.id : 0, word: word.value, grp: grp.value, cat: cat.value, synonyms: syn.value }).then(function (x) { if (x.success) { done(); load(); } });
+      } });
+      [word, grp, cat, syn, save].forEach(function (n) { f.appendChild(n); });
+      return f;
+    }
+    function load() {
+      call({ action: 'list', q: state.q }).then(function (d) {
+        if (!d.success) { head.textContent = d.error || 'Failed'; return; }
+        groups = d.groups; cats = d.cats; words = d.words;
+        var q = d.queue || {};
+        head.textContent = '';
+        head.appendChild(el('div', { class: 'at-h', text: '🏷️ AI Keywords' }));
+        head.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: 'The AI looks at 3 frames of each video (or the photos) and the caption, and chooses keywords from this list. People get scores for keywords from what they search, watch to the end, skip, like, comment, share and whose profile they open. The feed (and later the ads) match the two. Chat messages are never used.' }));
+        head.appendChild(el('div', { class: 'at-row', style: 'flex-wrap:wrap;gap:8px' }, [
+          el('span', { class: 'btn-sm btn-gray', text: '✅ Labelled: ' + (q.labelled || 0) + ' / ' + (q.total || 0) }),
+          el('span', { class: 'btn-sm btn-gray', text: '⏳ Waiting: ' + (q.waiting || 0) }),
+          el('span', { class: 'btn-sm btn-gray', text: '⚠️ Failed: ' + (q.failed || 0) }),
+          el('span', { class: 'btn-sm ' + (q.gemini ? 'btn-gray' : ''), style: q.gemini ? '' : 'background:#e41e3f;color:#fff', text: q.gemini ? '🤖 AI: on' : '🤖 AI: GEMINI_API_KEY missing' }),
+          el('button', { class: 'btn-sm' + (q.paused ? '' : ' btn-gray'), text: q.paused ? '▶️ Label old posts too' : '⏸ Pause old posts (new ones still labelled)', onclick: function () { call({ action: 'pause', on: !q.paused }).then(load); } }),
+          el('button', { class: 'btn-sm btn-gray', text: '🔁 Label ALL posts again', onclick: function () { if (confirm('Label all posts again, one by one in the background? Keywords written by hand are kept.')) call({ action: 'redo-all' }).then(load); } })
+        ]));
+        if (q.worker && q.worker.last) head.appendChild(el('div', { style: 'font-size:12px;color:#65676b;margin-top:6px', text: 'Last: post #' + q.worker.last.id + ' → ' + (q.worker.last.words || []).join(', ') }));
+        drawList();
+      });
+    }
+    // one post: what the AI chose; change by hand
+    function drawPostBox() {
+      postBox.textContent = '';
+      postBox.appendChild(el('div', { class: 'at-h', text: '🔎 Check one post' }));
+      var id = el('input', { class: 'at-in', placeholder: 'Post number, e.g. 1234', style: 'max-width:200px' });
+      var out = el('div');
+      function show() {
+        call({ action: 'detail', id: id.value }).then(function (d) {
+          out.textContent = ''; if (!d.success) { out.appendChild(empty(d.error || 'Not found')); return; }
+          var p = d.post;
+          out.appendChild(el('div', { style: 'display:flex;gap:12px;flex-wrap:wrap;margin-top:10px' }, [
+            p.thumb_url ? el('img', { src: p.thumb_url, style: 'width:120px;border-radius:8px' }) : '',
+            el('div', { style: 'flex:1;min-width:220px' }, [
+              el('a', { href: '/videos.html?post=' + p.id, target: '_blank', text: 'open post #' + p.id }),
+              el('div', { style: 'font-size:13px;white-space:pre-wrap;margin:4px 0', text: p.content || '(no caption)' }),
+              el('div', { style: 'font-size:12px;color:#65676b', text: 'Category: ' + p.ai_category + ' · labelled by: ' + (p.kw_src || '—') + (p.kw_at ? ' · ' + ago(p.kw_at) : ' · not yet') })])]));
+          var words = el('input', { class: 'at-in', style: 'width:100%;margin-top:8px', value: d.keywords.map(function (k) { return k.word; }).join(', ') });
+          var cat = catSelect(p.ai_category);
+          out.appendChild(words);
+          out.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap' }, [cat,
+            el('button', { class: 'btn-sm', text: '💾 Save these keywords', onclick: function () { call({ action: 'relabel', id: p.id, words: words.value, cat: cat.value }).then(function (x) { if (x.success) show(); }); } }),
+            el('button', { class: 'btn-sm btn-gray', text: '🤖 Ask the AI again', onclick: function () { call({ action: 'reclassify', id: p.id }).then(function (x) { if (x.success) show(); }); } })]));
+          out.appendChild(el('div', { style: 'font-size:12px;color:#65676b;margin-top:4px', text: 'Separate with commas. A word not in the list is added to it. Saved by hand = the AI will not change it.' }));
+        });
+      }
+      postBox.appendChild(el('div', { class: 'at-row', style: 'gap:8px' }, [id, el('button', { class: 'btn-sm', text: 'Show', onclick: show })]));
+      postBox.appendChild(out);
+    }
+    function drawList() {
+      listBox.textContent = '';
+      var dl = el('datalist', { id: 'kwGroups' }); groups.forEach(function (g) { dl.appendChild(el('option', { value: g })); }); listBox.appendChild(dl);
+      listBox.appendChild(el('div', { class: 'at-h', text: '📚 Keyword list (' + words.length + ')' }));
+      var q = el('input', { class: 'at-in', placeholder: 'Search keyword / group…', value: state.q, style: 'max-width:260px' });
+      var addBox = el('div');
+      listBox.appendChild(el('div', { class: 'at-row', style: 'gap:8px;flex-wrap:wrap' }, [q,
+        el('button', { class: 'btn-sm btn-gray', text: 'Search', onclick: function () { state.q = q.value; load(); } }),
+        el('button', { class: 'btn-sm', text: '➕ New keyword', onclick: function () { addBox.textContent = ''; addBox.appendChild(form(null, function () {})); } })]));
+      q.addEventListener('keydown', function (e) { if (e.key === 'Enter') { state.q = q.value; load(); } });
+      listBox.appendChild(addBox);
+      var fresh = words.filter(function (w) { return !w.reviewed; });
+      if (fresh.length) listBox.appendChild(el('div', { style: 'margin:8px 0;padding:8px 10px;background:#fff7e6;border-radius:8px;font-size:13px', text: '🆕 ' + fresh.length + ' new keyword(s) added by the AI — check them (✔ keep, ✏️ change, 🔗 join into another, 🗑 delete).' }));
+      var lastG = null;
+      words.slice().sort(function (a, b) { return (a.reviewed - b.reviewed) || (a.grp > b.grp ? 1 : a.grp < b.grp ? -1 : 0); }).forEach(function (w) {
+        if (w.grp !== lastG) { lastG = w.grp; listBox.appendChild(el('div', { style: 'font-weight:800;margin:12px 0 4px', text: w.grp })); }
+        var row = el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 8px;border-bottom:1px solid #eef0f2' + (w.reviewed ? '' : ';background:#fff7e6') });
+        var extra = el('div', { style: 'width:100%' });
+        row.appendChild(el('b', { text: w.word }));
+        row.appendChild(el('span', { style: 'font-size:12px;color:#65676b;flex:1;min-width:160px', text: w.cat + (w.synonyms ? ' · ' + w.synonyms : '') }));
+        row.appendChild(el('span', { class: 'btn-sm btn-gray', text: w.posts + ' posts' }));
+        if (!w.reviewed) row.appendChild(el('button', { class: 'btn-sm', text: '✔', title: 'Keep', onclick: function () { call({ action: 'approve', id: w.id }).then(load); } }));
+        row.appendChild(el('button', { class: 'btn-sm btn-gray', text: '👁', title: 'Posts with it', onclick: function () {
+          call({ action: 'posts', id: w.id }).then(function (d) {
+            extra.textContent = ''; if (!d.success || !d.posts.length) { extra.appendChild(empty('No posts yet.')); return; }
+            var g = el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin:6px 0' });
+            d.posts.forEach(function (p) { g.appendChild(el('a', { href: '/videos.html?post=' + p.id, target: '_blank', style: 'width:120px;font-size:11px;color:#1c1e21;text-decoration:none' }, [
+              p.thumb_url ? el('img', { src: p.thumb_url, style: 'width:120px;height:160px;object-fit:cover;border-radius:6px;background:#eee' }) : el('div', { style: 'width:120px;height:60px;background:#f0f2f5;border-radius:6px' }),
+              el('div', { text: '#' + p.id + ' ' + (p.content || '').slice(0, 50) })])); });
+            extra.appendChild(g);
+          });
+        } }));
+        row.appendChild(el('button', { class: 'btn-sm btn-gray', text: '✏️', title: 'Change', onclick: function () { extra.textContent = ''; extra.appendChild(form(w, function () {})); } }));
+        row.appendChild(el('button', { class: 'btn-sm btn-gray', text: '🔗', title: 'Join into another keyword', onclick: function () {
+          var into = prompt('Join "' + w.word + '" into which keyword? (write it exactly)'); if (!into) return;
+          var t = words.filter(function (x) { return x.word.toLowerCase() === into.trim().toLowerCase(); })[0];
+          if (!t) { alert('Not found in the list. Search it first or check the spelling.'); return; }
+          call({ action: 'merge', id: w.id, into: t.id }).then(load);
+        } }));
+        row.appendChild(el('button', { class: 'btn-sm btn-gray', text: '🗑', title: 'Delete', onclick: function () { if (confirm('Delete "' + w.word + '"? It is removed from all posts and people.')) call({ action: 'delete', id: w.id }).then(load); } }));
+        row.appendChild(extra);
+        listBox.appendChild(row);
+      });
+    }
+    drawPostBox(); load();
+  }
+
   function copyrightAdmin(body) {
     var mode = body.getAttribute('data-mode') || 'pending';
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
@@ -1701,7 +1817,7 @@
   }
 
   // ---------- 🔐 rights by section: hide what this admin can not use; Super Admin sets them in 👮 Admins & rights ----------
-  var TAB_SECTION = { copyright: 'content', inbox: 'inbox', overview: 'overview', audit: 'audit', umanage: 'users', users: 'users', accounts: 'users', chats: 'chats', reports: 'content', content: 'content', posts: 'content',
+  var TAB_SECTION = { copyright: 'content', keywords: 'content', inbox: 'inbox', overview: 'overview', audit: 'audit', umanage: 'users', users: 'users', accounts: 'users', chats: 'chats', reports: 'content', content: 'content', posts: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', monetization: 'money', coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', system: 'system', appcfg: 'system' };
   var SECTION_NAME = { inbox: '🔔 Inbox', overview: '📊 Overview', audit: '🧾 Activity Log', users: '👥 Users', chats: '💬 Chats', content: '🛡️ Content & reports', live: '🔴 Live', sounds: '🎵 Sounds', ads: '📢 Ads',
     money: '💰 Money (withdrawals, creators, referrals)', coins: '🪙 Coins & Gifts', party: '🎉 Party Room', challenges: '🎯 Challenges', stars: '⭐ Stars', system: '⚙️ System' };
@@ -1837,7 +1953,7 @@
 
   // ---------- wiring ----------
   window.onAdminTab = function (tab) {
-    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'views') { var pvw = document.getElementById('panel-views'); pvw.textContent = ''; viewsAdmin(pvw); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); }
+    if (tab === 'inbox') loadInbox(); else if (tab === 'overview') loadOverview(); else if (tab === 'umanage') { if (!document.getElementById('uQuery')) buildUsers(); } else if (tab === 'content') { if (!document.getElementById('cQuery')) buildContent(); } else if (tab === 'audit') loadAudit(true); else if (tab === 'system') loadSystem(); else if (tab === 'monetization') loadMonetizationAdmin(); else if (tab === 'ads') loadAdsAdmin(); else if (tab === 'live') loadLiveAdmin(); else if (tab === 'sounds') loadSoundsAdmin(); else if (tab === 'party') { var pp = document.getElementById('panel-party'); pp.textContent = ''; partyAdmin(pp); } else if (tab === 'coins') { var pc = document.getElementById('panel-coins'); pc.textContent = ''; coinsAdmin(pc); } else if (tab === 'stars') { var ps = document.getElementById('panel-stars'); ps.textContent = ''; starsAdmin(ps); } else if (tab === 'challenges') { var pg = document.getElementById('panel-challenges'); pg.textContent = ''; challengesAdmin(pg); } else if (tab === 'appcfg') { var pa = document.getElementById('panel-appcfg'); pa.textContent = ''; appConfigAdmin(pa); } else if (tab === 'perms') { var pp2 = document.getElementById('panel-perms'); pp2.textContent = ''; permsAdmin(pp2); } else if (tab === 'reports') { chatReportsAdmin(); } else if (tab === 'copyright') { var pcr = document.getElementById('panel-copyright'); pcr.textContent = ''; copyrightAdmin(pcr); } else if (tab === 'views') { var pvw = document.getElementById('panel-views'); pvw.textContent = ''; viewsAdmin(pvw); } else if (tab === 'chats') { if (!document.getElementById('chatQ')) loadChatsAdmin(); } else if (tab === 'keywords') { var pkw = document.getElementById('panel-keywords'); pkw.textContent = ''; keywordsAdmin(pkw); }
   };
   window.onAdminUnlocked = function () {
     switchAdminTab('inbox');

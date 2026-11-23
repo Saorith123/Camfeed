@@ -27,6 +27,14 @@ module.exports = function installSeries({ app, pool }) {
         await pool.query('CREATE INDEX IF NOT EXISTS series_items_idx ON series_items (series_id, ep)');
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS series_tab VARCHAR(40) DEFAULT NULL');
         await pool.query('ALTER TABLE series ADD COLUMN IF NOT EXISTS pos INTEGER DEFAULT 0');
+        // ➕ more tabs on the profile (the first one is users.series_tab, tab_id NULL); 4 more at most
+        await pool.query(`CREATE TABLE IF NOT EXISTS series_tabs (
+          id SERIAL PRIMARY KEY,
+          owner_email VARCHAR(255) NOT NULL,
+          name VARCHAR(40) NOT NULL,
+          pos INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW())`);
+        await pool.query('ALTER TABLE series ADD COLUMN IF NOT EXISTS tab_id INTEGER DEFAULT NULL');
         // 🎬 single videos put straight in the tab (not in a folder), mixed with the folders
         await pool.query(`CREATE TABLE IF NOT EXISTS shelf_items (
           post_id INTEGER PRIMARY KEY,
@@ -34,6 +42,7 @@ module.exports = function installSeries({ app, pool }) {
           pos INTEGER DEFAULT 0,
           added_at TIMESTAMP DEFAULT NOW())`);
         await pool.query('CREATE INDEX IF NOT EXISTS shelf_owner_idx ON shelf_items (LOWER(owner_email))');
+        await pool.query('ALTER TABLE shelf_items ADD COLUMN IF NOT EXISTS tab_id INTEGER DEFAULT NULL');
         // 📌 videos pinned at the top of the profile's video tab (3 at most)
         await pool.query(`CREATE TABLE IF NOT EXISTS profile_pins (
           owner_email VARCHAR(255) NOT NULL,
@@ -59,6 +68,13 @@ module.exports = function installSeries({ app, pool }) {
       AND (media_type = 'video' OR media_url LIKE '%"type":"video"%' OR media_url ~* '\\.(mp4|mov|m4v|webm)')`, [ids, norm(me)]);
     return r.rows.map((x) => x.id);
   }
+  // a tab id of mine, or null (= the first tab)
+  async function myTab(v, me) {
+    const id = parseInt(v, 10);
+    if (!(id > 0)) return null;
+    const r = await pool.query('SELECT id FROM series_tabs WHERE id = $1 AND LOWER(owner_email) = $2', [id, norm(me)]);
+    return r.rows.length ? id : null;
+  }
   const intList = (a, n) => (Array.isArray(a) ? a : []).map((x) => parseInt(x, 10)).filter((x) => x > 0).slice(0, n);
 
   async function owned(id, me) {
@@ -80,7 +96,9 @@ module.exports = function installSeries({ app, pool }) {
     try {
       await ensure();
       const u = await pool.query('SELECT series_tab FROM users WHERE LOWER(email) = $1', [email]);
-      const r = await pool.query(`SELECT s.id, s.title, s.description, s.unit, s.cover_url, s.updated_at,
+      const tabs = await pool.query('SELECT id, name FROM series_tabs WHERE LOWER(owner_email) = $1 ORDER BY pos, id', [email]);
+      const tid = parseInt(req.query.tab, 10) > 0 ? parseInt(req.query.tab, 10) : null;   // none = the first tab
+      const r = await pool.query(`SELECT s.id, s.title, s.description, s.unit, s.cover_url, s.updated_at, s.pos,
           COUNT(p.id)::int AS count,
           (SELECT COALESCE(p2.thumb_url, '') FROM series_items i2 JOIN posts p2 ON p2.id = i2.post_id
              WHERE i2.series_id = s.id ORDER BY i2.ep LIMIT 1) AS first_thumb,
@@ -89,19 +107,19 @@ module.exports = function installSeries({ app, pool }) {
         FROM series s
         LEFT JOIN series_items i ON i.series_id = s.id
         LEFT JOIN posts p ON p.id = i.post_id
-        WHERE LOWER(s.owner_email) = $1
+        WHERE LOWER(s.owner_email) = $1 AND s.tab_id IS NOT DISTINCT FROM $2::int
         GROUP BY s.id
         ORDER BY s.pos, s.updated_at DESC
-        LIMIT 200`, [email]);
+        LIMIT 200`, [email, tid]);
       const v = await pool.query(`SELECT h.pos, p.id, p.content, p.media_type, p.media_url, p.feed_url, p.thumb_url, p.video_secs,
           COALESCE(p.views_count, 0) AS views_count
         FROM shelf_items h JOIN posts p ON p.id = h.post_id
-        WHERE LOWER(h.owner_email) = $1 ORDER BY h.pos, h.added_at DESC LIMIT 300`, [email]);
+        WHERE LOWER(h.owner_email) = $1 AND h.tab_id IS NOT DISTINCT FROM $2::int ORDER BY h.pos, h.added_at DESC LIMIT 300`, [email, tid]);
       const items = [
         ...r.rows.map((x) => ({ kind: 'folder', pos: x.pos || 0, ...x })),
         ...v.rows.map((x) => ({ kind: 'video', ...x })),
       ].sort((a, b) => (a.pos || 0) - (b.pos || 0));
-      res.json({ success: true, tab: (u.rows[0] && u.rows[0].series_tab) || '', series: r.rows, items });
+      res.json({ success: true, tab: (u.rows[0] && u.rows[0].series_tab) || '', tabs: tabs.rows, series: r.rows, items });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
@@ -144,8 +162,9 @@ module.exports = function installSeries({ app, pool }) {
       const n = await pool.query('SELECT COUNT(*)::int AS n FROM series WHERE LOWER(owner_email) = $1', [norm(me)]);
       if (n.rows[0].n >= 200) return res.status(400).json({ success: false, error: 'too many' });
       const top = await topPos(me);
-      const r = await pool.query('INSERT INTO series (owner_email, title, description, unit, cover_url, pos) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [norm(me), title, clip(b.description, 1000), clip(b.unit, 30), /^https:\/\//.test(String(b.cover || '')) ? String(b.cover).slice(0, 600) : null, top]);
+      const tab = await myTab(b.tabId, me);
+      const r = await pool.query('INSERT INTO series (owner_email, title, description, unit, cover_url, pos, tab_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+        [norm(me), title, clip(b.description, 1000), clip(b.unit, 30), /^https:\/\//.test(String(b.cover || '')) ? String(b.cover).slice(0, 600) : null, top, tab]);
       res.json({ success: true, series: r.rows[0] });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
@@ -245,9 +264,10 @@ module.exports = function installSeries({ app, pool }) {
       const olds = ids.length ? await pool.query('DELETE FROM series_items WHERE post_id = ANY($1::int[]) RETURNING series_id', [ids]) : { rows: [] };
       for (const sid of new Set(olds.rows.map((x) => x.series_id))) await renumber(sid);
       let p = await topPos(me);
+      const tab = await myTab((req.body || {}).tabId, me);
       for (const id of ids) {
-        await pool.query(`INSERT INTO shelf_items (post_id, owner_email, pos) VALUES ($1, $2, $3)
-          ON CONFLICT (post_id) DO UPDATE SET pos = EXCLUDED.pos`, [id, norm(me), p]);
+        await pool.query(`INSERT INTO shelf_items (post_id, owner_email, pos, tab_id) VALUES ($1, $2, $3, $4)
+          ON CONFLICT (post_id) DO UPDATE SET pos = EXCLUDED.pos, tab_id = EXCLUDED.tab_id`, [id, norm(me), p, tab]);
         p--;
       }
       res.json({ success: true, added: ids.length });
@@ -283,15 +303,59 @@ module.exports = function installSeries({ app, pool }) {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
-  // 📌 pinned videos of a profile (full posts, newest pin first)
+  // ➕ a new tab (5 in all, with the first one)
+  app.post('/api/series-tabs', async (req, res) => {
+    const me = req.authEmail;
+    const name = clip((req.body || {}).name, 40);
+    if (!me) return res.status(401).json({ success: false });
+    if (!name) return res.status(400).json({ success: false, error: 'name' });
+    try {
+      await ensure();
+      const n = await pool.query('SELECT COUNT(*)::int AS n, COALESCE(MAX(pos), 0)::int AS m FROM series_tabs WHERE LOWER(owner_email) = $1', [norm(me)]);
+      if (n.rows[0].n >= 4) return res.status(400).json({ success: false, error: 'At most 5 tabs.', errorKm: 'បានច្រើនបំផុត 5' });
+      const r = await pool.query('INSERT INTO series_tabs (owner_email, name, pos) VALUES ($1, $2, $3) RETURNING id, name', [norm(me), name, n.rows[0].m + 1]);
+      res.json({ success: true, tab: r.rows[0] });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  });
+
+  app.post('/api/series-tabs/:id', async (req, res) => {
+    const me = req.authEmail;
+    const id = parseInt(req.params.id, 10);
+    const name = clip((req.body || {}).name, 40);
+    if (!me || !(id > 0) || !name) return res.status(400).json({ success: false });
+    try {
+      await ensure();
+      await pool.query('UPDATE series_tabs SET name = $3 WHERE id = $1 AND LOWER(owner_email) = $2', [id, norm(me), name]);
+      res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  });
+
+  // delete a tab: what was in it goes back to the first tab (nothing is lost)
+  app.delete('/api/series-tabs/:id', async (req, res) => {
+    const me = req.authEmail;
+    const id = parseInt(req.params.id, 10);
+    if (!me || !(id > 0)) return res.status(400).json({ success: false });
+    try {
+      await ensure();
+      const t = await pool.query('DELETE FROM series_tabs WHERE id = $1 AND LOWER(owner_email) = $2 RETURNING id', [id, norm(me)]);
+      if (t.rows.length) {
+        await pool.query('UPDATE series SET tab_id = NULL WHERE tab_id = $1', [id]);
+        await pool.query('UPDATE shelf_items SET tab_id = NULL WHERE tab_id = $1', [id]);
+      }
+      res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  });
+
+  // 📌 pinned posts of a profile (any kind: photo, video, text; newest pin first)
   app.get('/api/pins', async (req, res) => {
     const email = norm(req.query.email);
     if (!email) return res.status(400).json({ success: false });
     try {
       await ensure();
-      const r = await pool.query(`SELECT p.*, COALESCE(p.views_count, 0) AS views_count FROM profile_pins x JOIN posts p ON p.id = x.post_id
+      // only the ids: the app opens each one through /api/posts/:id, which checks who may see it
+      const r = await pool.query(`SELECT x.post_id FROM profile_pins x JOIN posts p ON p.id = x.post_id
         WHERE LOWER(x.owner_email) = $1 ORDER BY x.pinned_at DESC LIMIT 3`, [email]);
-      res.json({ success: true, posts: r.rows });
+      res.json({ success: true, ids: r.rows.map((x) => x.post_id) });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
@@ -305,12 +369,27 @@ module.exports = function installSeries({ app, pool }) {
         await pool.query('DELETE FROM profile_pins WHERE LOWER(owner_email) = $1 AND post_id = $2', [norm(me), id]);
         return res.json({ success: true, pinned: false });
       }
-      if (!(await myVideos([id], me)).length) return res.status(403).json({ success: false });
+      const own = await pool.query('SELECT id FROM posts WHERE id = $1 AND LOWER(user_email) = $2', [id, norm(me)]);
+      if (!own.rows.length) return res.status(403).json({ success: false });
       await pool.query(`INSERT INTO profile_pins (owner_email, post_id) VALUES ($1, $2) ON CONFLICT (owner_email, post_id) DO UPDATE SET pinned_at = NOW()`, [norm(me), id]);
       // 3 at most: the oldest pin goes
       await pool.query(`DELETE FROM profile_pins WHERE LOWER(owner_email) = $1 AND post_id NOT IN (
         SELECT post_id FROM profile_pins WHERE LOWER(owner_email) = $1 ORDER BY pinned_at DESC LIMIT 3)`, [norm(me)]);
       res.json({ success: true, pinned: true });
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+  });
+
+  // 🖼️ my own picture on my video (the "thumbnail" people see before they tap)
+  app.post('/api/posts/:id/thumb', async (req, res) => {
+    const me = req.authEmail;
+    const id = parseInt(req.params.id, 10);
+    const url = String((req.body || {}).thumbnailUrl || '');
+    if (!me || !(id > 0)) return res.status(400).json({ success: false });
+    if (!/^https:\/\//.test(url)) return res.status(400).json({ success: false, error: 'url' });
+    try {
+      const r = await pool.query('UPDATE posts SET thumb_url = $3 WHERE id = $1 AND LOWER(user_email) = $2 RETURNING id', [id, norm(me), url.slice(0, 600)]);
+      if (!r.rows.length) return res.status(403).json({ success: false });
+      res.json({ success: true, thumb_url: url });
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 

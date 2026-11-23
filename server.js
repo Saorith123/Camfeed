@@ -27,7 +27,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 152;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 154;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -1125,7 +1125,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
 
   try {
     const tags = await cleanTags(req, req.body.tagged);
-    const aiResult = await classifyPostWithGemini(content, mediaType, thumbnailBase64);
+    const aiResult = { category: 'General', tags: '' };   // 🏷️ the AI labels it a few seconds later in the background (interests.js), posting does not wait
 
     const query = `
       INSERT INTO posts (user_email, content, media_type, media_url, privacy, ai_category, ai_tags, media_aspect, thumb_url, tagged_emails) 
@@ -1146,6 +1146,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     if (okTags.length) await notifyTagged(okTags, req.authEmail || email, newId, 'ការបង្ហោះ');
     result.rows[0].tagged_emails = okTags.join(',');
     if (mediaType === 'video' || String(mediaUrl || '').includes('"type":"video"')) setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 4000);   // a new video gets its small feed version first
+    try { interests.kick(); } catch (e) {}
     res.status(201).json({ success: true, post: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1488,6 +1489,7 @@ app.get('/api/posts', async (req, res) => {
                            WHEN ${seenAt} < NOW() - INTERVAL '6 hours' THEN 1 ELSE 2 END)`;
     const feedOrder = useLatest ? 'feed_tier ASC, p.created_at DESC, p.id DESC' : 'feed_tier ASC, feed_rank_score DESC, p.created_at DESC';
     const newOnly = req.query.newOnly === '1';             // the app asks "anything new?" while you scroll (only never-seen posts)
+    await interests.ready();
     const feedQuery = `
       ${cteAndJoins},
       ${tierExpr} AS feed_tier,
@@ -1501,6 +1503,7 @@ app.get('/api/posts', async (req, res) => {
         CASE WHEN p.user_email = $1 THEN 10 WHEN f.following_email IS NOT NULL THEN 60 ELSE 0 END
         + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 4.0)
         + (COALESCE(uis.score, 0) * 2.5)
+        ${interests.feedScoreSql()}
         + LEAST(EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 / (24.0 * ${reshowDays}), 1.0) * 30.0
         + (RANDOM() * 45.0)
       ) ELSE (
@@ -1515,12 +1518,14 @@ app.get('/api/posts', async (req, res) => {
         + LEAST(COALESCE(p.views_count, 0) * 0.15, 20)
         + (LN(1.0 + COALESCE(ls.likes_count, 0) + COALESCE(cs.comments_count, 0) * 2.0 + COALESCE(ss.shares_count, 0) * 3.0 + COALESCE(p.views_count, 0) * 0.1) * 3.0)
         + (COALESCE(uis.score, 0) * 2.5)
+        ${interests.feedScoreSql()}
         + (60.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
         + (RANDOM() * 35.0)
       ) END AS feed_rank_score
       ${baseFrom}
       LEFT JOIN follows f ON f.follower_email = $1 AND f.following_email = p.user_email
       LEFT JOIN user_interest_scores uis ON uis.user_email = $1 AND uis.category = p.ai_category
+      ${interests.feedJoinSql('$1')}
       LEFT JOIN (SELECT post_id, MAX(created_at) AS at FROM post_views WHERE viewer_email = $1 GROUP BY post_id) pv ON pv.post_id = p.id
       LEFT JOIN feed_seen fs ON fs.viewer_email = $1 AND fs.post_id = p.id
       WHERE ${audience.postVisibleSql('p', '$1')}
@@ -2080,6 +2085,7 @@ app.get('/api/user-profile', async (req, res) => {
       if (blockCheck.rows.length > 0) {
         return res.status(403).json({ success: false, blocked: true, error: 'Profile unavailable' });
       }
+      if (req.authEmail) { try { interests.onProfile(req.authEmail, email); } catch (e) {} }   // 🏷️ opening a shop's / creator's profile says what I look for
     }
 
     const query = `
@@ -2360,6 +2366,7 @@ app.get('/api/search-content', async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 40);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const like = `%${kw.replace(/[\\%_]/g, '\\$&')}%`;
+    const kwIds = req.authEmail ? await interests.onSearch(req.authEmail, kw) : await interests.searchIds(kw);   // 🏷️ "laptop" also finds posts labelled កុំព្យូទ័រយួរដៃ
     const vid = `(p.media_type = 'video' OR COALESCE(p.media_url,'') LIKE '%"type":"video"%')`;
     const r = await pool.query(`
       SELECT p.id, p.content, p.media_type, p.media_url, p.thumb_url, p.created_at, p.user_email, u.first_name, u.last_name, u.profile_pic,
@@ -2369,9 +2376,9 @@ app.get('/api/search-content', async (req, res) => {
       WHERE p.shared_post_id IS NULL AND COALESCE(u.is_banned, FALSE) = FALSE
         AND (COALESCE(p.privacy,'public') = 'public' OR p.user_email = $1)
         AND p.user_email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
-        AND (p.content ILIKE $2 OR COALESCE(p.ai_tags,'') ILIKE $2)
+        AND (p.content ILIKE $2 OR COALESCE(p.ai_tags,'') ILIKE $2 OR p.id IN (SELECT post_id FROM post_kw WHERE kw_id = ANY($5::int[])))
         AND ${type === 'videos' ? vid : 'TRUE'}
-      ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`, [me, like, limit, offset]);
+      ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`, [me, like, limit, offset, kwIds]);
     res.json({ success: true, posts: r.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2548,7 +2555,7 @@ function adminNeed(path, body) {
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
     'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
-    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content' })[first];
+    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
@@ -2557,8 +2564,8 @@ function adminNeed(path, body) {
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
-  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright'].includes(first);
-  const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (!act && keys.every((k) => FILTER.includes(k))))
+  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords'].includes(first);
+  const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (first === 'keywords' && act === 'posts') || (!act && keys.every((k) => FILTER.includes(k))))
     : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
   return { sec, level: read ? 'view' : 'edit' };
 }
@@ -2620,7 +2627,8 @@ const push = require('./push')({ app, pool });                 // phone notifica
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, onGroupMessage: (from, members, text) => party.chatGrant(from, members, text), setting: (k, d) => ruleNum(k, d),
   restrictedBy: (to, from) => chatPrefs.isRestricted(to, from), hiddenFor: (me, kind, ids) => chatPrefs.hiddenFor(me, kind, ids) });   // a person I restricted: their calls do not ring
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });
-const series = require('./series')({ app, pool });   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
+const series = require('./series')({ app, pool });
+const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), cleanup, extractMediaUrls, ensureChat: () => chatExtras.ensureSchema() });   // pin / archive / mute / restrict / delete chat / message requests
@@ -2911,6 +2919,7 @@ function bumpInterest(email, postId, delta) {
      SELECT $1, ai_category, $3, NOW() FROM posts WHERE id = $2 AND ai_category IS NOT NULL AND ai_category <> ''
      ON CONFLICT (user_email, category) DO UPDATE SET score = GREATEST(0, user_interest_scores.score + $3), updated_at = NOW()`,
     [email, postId, delta]).catch(() => {});
+  try { interests.bumpPost(email, postId, delta); } catch (e) {}   // 🏷️ the post's keywords too
 }
 
 // ---------------------------------------------------------------------------
@@ -4178,6 +4187,8 @@ app.post('/api/watch', async (req, res) => {
   if (!me || !pid) return res.json({ success: false });
   try {
     await watchEnsure();
+    const prevW = (await pool.query('SELECT secs FROM watch_history WHERE user_email = $1 AND post_id = $2', [me, pid])).rows[0];
+    try { interests.onWatch(me, pid, secs, dur, prevW); } catch (e) {}
     await pool.query(`INSERT INTO watch_history (user_email, post_id, secs, duration, updated_at) VALUES ($1, $2, $3, $4, NOW())
                       ON CONFLICT (user_email, post_id) DO UPDATE SET secs = $3, duration = GREATEST(watch_history.duration, $4), updated_at = NOW()`, [me, pid, secs, dur]);
     if (Date.now() - watchSwept > 6 * 3600 * 1000) { watchSwept = Date.now(); pool.query("DELETE FROM watch_history WHERE updated_at < NOW() - ($1::text || ' days')::interval", [String(appConfig.cfg().watchHistoryDays)]).catch(() => {}); }   // kept N days (Admin > System > App features)
