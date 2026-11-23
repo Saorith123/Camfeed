@@ -117,8 +117,57 @@
   function stopTimer() { if (timer) { cancelAnimationFrame(timer); timer = null; } stopAudio(); }
   function openViewer(g) { buildViewer(); gi = g; si = Math.max(0, firstUnseen(groups[g])); view.classList.add('on'); document.body.style.overflow = 'hidden'; showStory(); }
   function firstUnseen(g) { for (var i = 0; i < g.stories.length; i++) if (!g.stories[i].seen) return i; return 0; }
-  function closeViewer() { stopTimer(); stopAudio(); if (curVideo) { try { curVideo.pause(); } catch (e) {} curVideo = null; } if (view) { view.classList.remove('on'); view.textContent = ''; } document.body.style.overflow = ''; renderBar(); }
-  function next() { var g = groups[gi]; if (si < g.stories.length - 1) { si++; showStory(); return; } for (var k = gi + 1; k < groups.length; k++) { gi = k; si = Math.max(0, firstUnseen(groups[k])); showStory(); return; } closeViewer(); }
+  function closeViewer() { if (stAdTimer) { clearInterval(stAdTimer); stAdTimer = null; } stopTimer(); stopAudio(); if (curVideo) { try { curVideo.pause(); } catch (e) {} curVideo = null; } if (view) { view.classList.remove('on'); view.textContent = ''; } document.body.style.overflow = ''; renderBar(); }
+  function next() { var g = groups[gi]; if (si < g.stories.length - 1) { si++; showStory(); return; } for (var k = gi + 1; k < groups.length; k++) { var kk = k; storyAdThen(function () { gi = kk; si = Math.max(0, firstUnseen(groups[kk])); showStory(); }); return; } closeViewer(); }
+
+  /* ---------- 📖 an ad between people's stories (every 3rd person), only where the advertiser ☑️ chose "Story" ---------- */
+  var stAds = [], stAdN = 0, stAdK = 0, stAdTimer = null;
+  function loadStoryAds() {
+    api('/api/sponsored-ads').then(function (d) {
+      if (d && d.success && Array.isArray(d.ads)) stAds = d.ads.filter(function (a) { return Array.isArray(a.places) && a.places.indexOf('story') >= 0 && a.media_url; });
+    });
+  }
+  loadStoryAds(); setInterval(function () { if (!document.hidden) loadStoryAds(); }, 180000);
+  function adEv(id, type) { api('/api/sponsored-ads/' + encodeURIComponent(id) + '/event', { method: 'POST', body: { type: type } }); }
+  function storyAdThen(go) {
+    if (!stAds.length || ++stAdN < 3) { go(); return; }
+    stAdN = 0;
+    var ad = stAds[stAdK++ % stAds.length];
+    stopTimer(); if (curVideo) { try { curVideo.pause(); } catch (e) {} curVideo = null; }
+    view.textContent = '';
+    api('/api/sponsored-ads/' + encodeURIComponent(ad.id) + '/impression', { method: 'POST', body: { placement: 'story' } });
+    var done = false;
+    function finish(how) { if (done) return; done = true; clearInterval(stAdTimer); stAdTimer = null; adEv(ad.id, how === 'done' ? 'complete' : 'skip'); var v = view.querySelector('video'); if (v) try { v.pause(); } catch (e) {} if (how === 'close') closeViewer(); else go(); }
+    var stage = el('div', 'st-stage'); stage.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#000';
+    var isVid = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
+    var m;
+    if (isVid) { m = document.createElement('video'); m.src = safe(ad.media_url); m.playsInline = true; m.setAttribute('playsinline', ''); m.autoplay = true; m.onended = function () { finish('done'); }; m.onerror = function () { finish('done'); }; var pl = m.play(); if (pl && pl.catch) pl.catch(function () { m.muted = true; m.play().catch(function () {}); }); }
+    else { m = el('img'); m.src = safe(ad.media_url); m.alt = ''; }
+    m.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
+    stage.appendChild(m); view.appendChild(stage);
+    var head = el('div', 'st-head'); var im = el('img'); im.src = safe(ad.advertiser_pic) || DEFAULT_PIC; im.onerror = function () { this.onerror = null; this.src = DEFAULT_PIC; }; head.appendChild(im);
+    var nm = el('div'); nm.appendChild(el('b', '', ad.advertiser_name || '')); nm.appendChild(el('small', '', lang === 'en' ? 'Sponsored' : 'ផ្សាយពាណិជ្ជកម្ម')); head.appendChild(nm); head.appendChild(el('div', 'sp'));
+    var x = el('button', 'st-x', '×'); x.onclick = function () { finish('close'); }; head.appendChild(x); view.appendChild(head);
+    var foot = el('div', 'st-foot');
+    if (ad.caption) { var c = el('div', '', ad.caption); c.style.cssText = 'margin-bottom:10px;white-space:pre-wrap;max-height:5.5em;overflow:hidden'; foot.appendChild(c); }
+    var row = el('div'); row.style.cssText = 'display:flex;gap:10px';
+    var hasLink = ad.cta !== 'none' && (/^https?:\/\//i.test(ad.target_url || '') || (ad.cta === 'message' && ad.owner_email));
+    if (hasLink) {
+      var b = el('button', '', ad.cta === 'message' ? (lang === 'en' ? '💬 Message' : '💬 ផ្ញើសារ') : ad.cta === 'shop' ? (lang === 'en' ? 'Shop now' : 'ទិញឥឡូវ') : ad.cta === 'call' ? (lang === 'en' ? 'Contact' : 'ទាក់ទង') : (lang === 'en' ? 'See more' : 'មើលបន្ថែម'));
+      b.style.cssText = 'flex:1;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:700;background:#1877f2;color:#fff;cursor:pointer';
+      b.onclick = function () {
+        if (ad.cta === 'message' && ad.owner_email) { adEv(ad.id, 'message'); location.href = 'messages.html?chat=' + encodeURIComponent(ad.owner_email); return; }
+        adEv(ad.id, 'click'); window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+      };
+      row.appendChild(b);
+    }
+    var sk = el('button'); sk.style.cssText = 'border:0;border-radius:10px;padding:12px 16px;font-size:15px;background:rgba(255,255,255,.2);color:#fff;cursor:pointer';
+    var left = Math.min(Math.max(parseInt(ad.skip_seconds, 10) || 5, 3), 15), shown = 0;
+    function label() { sk.disabled = left > 0; sk.textContent = left > 0 ? (lang === 'en' ? 'Skip in ' + left + ' s' : 'រំលងក្នុង ' + left + ' វិ') : (lang === 'en' ? 'Skip ▶' : 'រំលង ▶'); }
+    label(); sk.onclick = function () { if (left <= 0) finish('skip'); };
+    row.appendChild(sk); foot.appendChild(row); view.appendChild(foot);
+    stAdTimer = setInterval(function () { shown++; if (left > 0) { left--; label(); } if (!isVid && shown >= 10) finish('done'); }, 1000);
+  }
   function prev() { if (si > 0) { si--; showStory(); } else { for (var k = gi - 1; k >= 0; k--) { gi = k; si = groups[k].stories.length - 1; showStory(); return; } showStory(); } }
   function setBar(p) { var b = view.querySelectorAll('.st-bar i'); for (var i = 0; i < b.length; i++) b[i].style.width = i < si ? '100%' : i === si ? Math.min(100, p * 100) + '%' : '0'; }
   function tick() {

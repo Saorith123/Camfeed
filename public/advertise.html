@@ -34,6 +34,12 @@
         .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
         .chip { border: 1.5px solid #d1d5db; border-radius: 999px; padding: 7px 13px; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; color: #111827; }
         .chip.on { background: #1877f2; border-color: #1877f2; color: #fff; }
+        .ck { display: flex; align-items: center; gap: 10px; width: 100%; border: 2px solid #e4e6eb; border-radius: 12px; padding: 10px 12px; margin-top: 8px; background: #fff; cursor: pointer; text-align: left; color: #111827; font: inherit; }
+        .ck.on { border-color: #1877f2; background: #e7f3ff; }
+        .ck .box { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #9ca3af; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; font-weight: 900; }
+        .ck.on .box { background: #1877f2; border-color: #1877f2; }
+        .ck b { display: block; font-size: 14px; } .ck span { font-size: 12.5px; color: #4b5563; }
+        .provlist { max-height: 55vh; overflow-y: auto; margin-top: 8px; }
         .chip.kw { background: #e7f3ff; border-color: #b6dcff; color: #0b4fa3; }
         .chip.kw i { font-style: normal; margin-left: 6px; opacity: .7; }
         label { display: block; font-size: 13px; font-weight: 700; color: #374151; margin: 12px 0 4px; }
@@ -118,14 +124,20 @@
             { id: 'traffic', icon: '🔗', t: T('ឲ្យគេចុចតំណភ្ជាប់', 'Link clicks'), d: T('ទៅកាន់ Telegram ឬវេបសាយរបស់អ្នក', 'To your Telegram or website') },
         ];
         const PLACES = [
-            { id: 'feed_banner', t: T('📱 ទំព័រដើម', '📱 Home feed'), d: T('បង្ហាញក្នុងចំណោមការបង្ហោះ (ម្ដងក្នុងរៀងរាល់ ៦ ការបង្ហោះ)', 'Shown between posts (once every 6 posts)') },
-            { id: 'video_preroll', t: T('🎬 មុនវីដេអូខ្លី', '🎬 Before short videos'), d: T('បង្ហាញមុនវីដេអូខ្លី ហើយអ្នកមើលអាចរំលងបានក្រោយប៉ុន្មានវិនាទី', 'Shown before short videos; people can skip after a few seconds') },
-            { id: 'both', t: T('✨ ទាំងពីរកន្លែង', '✨ Both places'), d: T('ឲ្យមនុស្សឃើញច្រើនបំផុត', 'The most people see it') },
+            { id: 'feed', t: T('📰 ហ្វីត (ទំព័រដើម)', '📰 Feed (home)'), d: T('បង្ហាញក្នុងចំណោមការបង្ហោះ', 'Shown between posts') },
+            { id: 'reels', t: T('🎬 Reels (វីដេអូខ្លី)', '🎬 Reels (short videos)'), d: T('បង្ហាញមុនវីដេអូខ្លី ហើយអ្នកមើលអាចរំលងបានក្រោយប៉ុន្មានវិនាទី', 'Shown before short videos; people can skip after a few seconds') },
+            { id: 'story', t: T('📖 ស្តូរី', '📖 Stories'), d: T('បង្ហាញពេញអេក្រង់ នៅចន្លោះស្តូរីរបស់មនុស្ស', 'Full screen, between people\'s stories') },
         ];
+        const DEVICES = [
+            { id: 'android', t: T('🤖 Android', '🤖 Android'), d: T('កម្មវិធី CamFeed លើទូរស័ព្ទ Android', 'The CamFeed app on Android phones') },
+            { id: 'ios', t: T('🍎 iPhone', '🍎 iPhone'), d: T('កម្មវិធី CamFeed លើ iPhone', 'The CamFeed app on iPhone') },
+            { id: 'web', t: T('🌐 គេហទំព័រ', '🌐 Website'), d: T('camfeedkh.com លើកុំព្យូទ័រ ឬកម្មវិធីរុករក', 'camfeedkh.com on a computer or in a browser') },
+        ];
+        const OLD_PLACE = { feed_banner: ['feed'], video_preroll: ['reels'], both: ['feed', 'reels'] };
         const CTAS = [['learn_more', T('ស្វែងយល់បន្ថែម', 'Learn more')], ['message', T('ផ្ញើសារ', 'Send message')], ['shop', T('ទិញឥឡូវ', 'Shop now')], ['call', T('ទាក់ទង', 'Contact')], ['none', T('គ្មានប៊ូតុង', 'No button')]];
         const STATUS = { pending: T('⏳ កំពុងពិនិត្យ', '⏳ Being checked'), quoted: T('💵 រង់ចាំការបង់ប្រាក់', '💵 Waiting for payment'), payment_sent: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'),
             starting: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'), live: T('🟢 កំពុងបង្ហាញ', '🟢 Running'), ended: T('✔ ចប់ហើយ', '✔ Ended'), completed: T('✔ ថវិកាអស់ហើយ', '✔ Budget used'), rejected: T('✖ មិនអនុម័ត', '✖ Not approved') };
-        const st = { goal: 'products', mode: 'new', place: 'feed_banner', postId: null, mediaUrl: '', items: [], kws: [], provs: new Set(), gender: '', amin: 0, amax: 0, posts: [], words: [], info: { minBudget: 2, provinces: [] } };
+        const st = { goal: 'products', mode: 'new', places: new Set(['feed', 'reels', 'story']), devices: new Set(['android', 'ios', 'web']), cc: 'KH', postId: null, mediaUrl: '', items: [], kws: [], provs: new Set(), gender: '', amin: 0, amax: 0, posts: [], words: [], info: { minBudget: 2, provinces: [] } };
         let estTimer = null, pollTimer = null;
 
         function chip(label, on, fn, cls) { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (on ? ' on' : '') + (cls ? ' ' + cls : ''); b.textContent = label; b.addEventListener('click', fn); return b; }
@@ -165,14 +177,17 @@
                 </div>
 
                 <div class="card"><h2><span class="step">4</span>${T('អ្នកដែលនឹងឃើញ', 'Who will see it')}</h2>
-                    <label>${T('ខេត្ត / រាជធានី', 'Province')}</label><div class="chips" id="provChips"></div>
+                    <label>${T('ប្រទេស', 'Country')}</label><select id="fCountry"></select>
+                    <div id="provBox"><label>${T('ខេត្ត / រាជធានី', 'Province')}</label><div class="chips" id="provChips"></div></div>
                     <label>${T('អាយុ', 'Age')}</label>
                     <div class="two"><select id="fAmin"></select><select id="fAmax"></select></div>
                     <label>${T('ភេទ', 'Gender')}</label><div class="chips" id="genChips"></div>
                     <p class="muted" style="margin-top:10px;">${T('អ្នកដែលមិនបានបំពេញខេត្ត អាយុ ឬភេទក្នុងប្រូហ្វាល នៅតែអាចឃើញ។', 'People who did not fill in their province, age or gender can still see it.')}</p>
                 </div>
 
-                <div class="card"><h2><span class="step">5</span>${T('កន្លែងបង្ហាញ', 'Where')}</h2><div class="goals" id="places" style="grid-template-columns:minmax(0,1fr);"></div></div>
+                <div class="card"><h2><span class="step">5</span>${T('កន្លែងបង្ហាញ', 'Where')}</h2>
+                    <p class="muted">${T('ធីកមួយ ច្រើន ឬទាំងអស់ក៏បាន។', 'Tick one, several or all.')}</p><div id="places"></div>
+                    <label style="margin-top:14px;">${T('ប្រភេទទូរស័ព្ទ', 'Kind of phone')}</label><div id="devices"></div></div>
 
                 <div class="card"><h2><span class="step">6</span>${T('ថវិកា និងរយៈពេល', 'Budget and days')}</h2>
                     <label>${T('ថវិកាសរុប (ដុល្លារ)', 'Total budget (USD)')}</label><div class="chips" id="budgetChips"></div>
@@ -318,17 +333,49 @@
         }
 
         // ---- 📍 who ----
+        const provName = (id) => { const p = (st.info.provinces || []).find(x => x.id === id); return p ? T(p.km, p.en) : id; };
         function drawWho() {
+            const cs = $('fCountry');
+            if (!cs.options.length) {
+                cs.innerHTML = (st.info.countries || [{ cc: 'KH', km: 'កម្ពុជា', en: 'Cambodia' }]).map(c => `<option value="${esc(c.cc)}">${esc(T(c.km, c.en))}</option>`).join('');
+                cs.addEventListener('change', () => { st.cc = cs.value; if (st.cc !== 'KH') st.provs.clear(); drawWho(); estimate(); });
+            }
+            if (![...cs.options].some(o => o.value === st.cc)) cs.insertAdjacentHTML('beforeend', `<option value="${esc(st.cc)}">${esc(st.cc)}</option>`);
+            cs.value = st.cc;
+            $('provBox').style.display = st.cc === 'KH' ? '' : 'none';                     // 📍 provinces: only Cambodia's for now
+            // simple: "the whole country" or the few chosen (✕ to remove), and one button that opens the list
             const pc = $('provChips'); pc.innerHTML = '';
-            pc.appendChild(chip(T('ទាំងអស់', 'All'), !st.provs.size, () => { st.provs.clear(); drawWho(); estimate(); }));
-            (st.info.provinces || []).forEach(p => pc.appendChild(chip(T(p.km, p.en), st.provs.has(p.id), () => { st.provs.has(p.id) ? st.provs.delete(p.id) : st.provs.add(p.id); drawWho(); estimate(); })));
+            if (!st.provs.size) pc.appendChild(chip('📍 ' + T('ទូទាំងប្រទេស', 'The whole country'), true, () => openProvs()));
+            else [...st.provs].forEach(id => pc.appendChild(chip(provName(id) + ' ✕', true, () => { st.provs.delete(id); drawWho(); estimate(); })));
+            pc.appendChild(chip(T('ជ្រើសខេត្ត ▾', 'Choose provinces ▾'), false, () => openProvs()));
             const gc = $('genChips'); gc.innerHTML = '';
             [['', T('ទាំងអស់', 'All')], ['Male', T('ប្រុស', 'Male')], ['Female', T('ស្រី', 'Female')]].forEach(g => gc.appendChild(chip(g[1], st.gender === g[0], () => { st.gender = g[0]; drawWho(); estimate(); })));
         }
-        function drawPlaces() {
-            $('places').innerHTML = PLACES.map(p => `<button type="button" class="opt ${st.place === p.id ? 'on' : ''}" data-place="${p.id}"><b>${esc(p.t)}</b><span>${esc(p.d)}</span></button>`).join('');
-            $('places').querySelectorAll('[data-place]').forEach(b => b.addEventListener('click', () => { st.place = b.dataset.place; drawPlaces(); estimate(); }));
+        // the province list: 🔍 search + ☑️ tick; "Done" closes it
+        function openProvs() {
+            openModal(T('ជ្រើសខេត្ត / រាជធានី', 'Choose provinces'), `<input id="provQ" placeholder="🔍 ${T('ស្វែងរកខេត្ត', 'Search a province')}">
+                <div class="provlist" id="provList"></div>
+                <div style="display:flex;gap:8px;margin-top:10px;"><button class="btn gray small" id="provAll" type="button">${T('ទូទាំងប្រទេស', 'The whole country')}</button><button class="btn" id="provDone" type="button" style="flex:1;">${T('រួចរាល់', 'Done')}</button></div>`);
+            const draw = () => {
+                const q = $('provQ').value.trim().toLowerCase();
+                const l = (st.info.provinces || []).filter(p => !q || p.km.includes(q) || p.en.toLowerCase().includes(q));
+                $('provList').innerHTML = l.map(p => `<button type="button" class="ck ${st.provs.has(p.id) ? 'on' : ''}" data-p="${esc(p.id)}"><span class="box">${st.provs.has(p.id) ? '✓' : ''}</span><b>${esc(T(p.km, p.en))}</b></button>`).join('');
+                $('provList').querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { const id = b.dataset.p; st.provs.has(id) ? st.provs.delete(id) : st.provs.add(id); draw(); }));
+            };
+            $('provQ').addEventListener('input', draw);
+            $('provAll').addEventListener('click', () => { st.provs.clear(); draw(); });
+            $('provDone').addEventListener('click', () => { closeModal(); drawWho(); estimate(); });
+            draw();
         }
+        function checks(boxId, list, set) {
+            $(boxId).innerHTML = list.map(p => `<button type="button" class="ck ${set.has(p.id) ? 'on' : ''}" data-v="${p.id}"><span class="box">${set.has(p.id) ? '✓' : ''}</span><div><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div></button>`).join('');
+            $(boxId).querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => {
+                const v = b.dataset.v;
+                if (set.has(v)) { if (set.size > 1) set.delete(v); } else set.add(v);     // at least one stays ticked
+                drawPlaces(); estimate();
+            }));
+        }
+        function drawPlaces() { checks('places', PLACES, st.places); checks('devices', DEVICES, st.devices); }
         function drawBudget() {
             $('budgetChips').innerHTML = ''; [2, 5, 10, 20, 50].forEach(v => $('budgetChips').appendChild(chip('$' + v, Number($('fBudget').value) === v, () => { $('fBudget').value = v; drawBudget(); estimate(); })));
             $('dayChips').innerHTML = ''; [1, 3, 5, 7, 14, 30].forEach(v => $('dayChips').appendChild(chip(T(v + ' ថ្ងៃ', v + (v === 1 ? ' day' : ' days')), Number($('fDays').value) === v, () => { $('fDays').value = v; drawBudget(); estimate(); })));
@@ -340,7 +387,7 @@
             const b = Number($('fBudget').value), d = Number($('fDays').value);
             if (!(b > 0) || !(d > 0)) { $('est').textContent = T('សូមបញ្ចូលថវិកា និងចំនួនថ្ងៃ។', 'Please enter the budget and the days.'); return; }
             try {
-                const q = new URLSearchParams({ budget: b, days: d, placement: st.place, kw: st.kws.join(','), prov: [...st.provs].join(','), g: st.gender, amin: st.amin || '', amax: st.amax || '' });
+                const q = new URLSearchParams({ budget: b, days: d, places: [...st.places].join(','), country: st.cc, kw: st.kws.join(','), prov: [...st.provs].join(','), g: st.gender, amin: st.amin || '', amax: st.amax || '' });
                 const r = await (await fetch('/api/ads/estimate?' + q)).json();
                 if (!r.success) throw new Error('x');
                 const cr = Number((st.info.me || {}).credit || 0) / 100, pay = Math.max(0, b - cr);
@@ -355,7 +402,7 @@
         async function sendRequest() {
             const btn = $('fSend'); btn.disabled = true;
             const prod = st.goal === 'products';
-            const body = { objective: st.goal, placement: st.place, budget_usd: $('fBudget').value, days: $('fDays').value, caption: $('fCaption').value,
+            const body = { objective: st.goal, places: [...st.places], devices: [...st.devices], country: st.cc, budget_usd: $('fBudget').value, days: $('fDays').value, caption: $('fCaption').value,
                 target_url: st.goal === 'traffic' ? $('fTarget').value : '', cta: (prod || st.goal === 'messages') ? 'message' : $('fCta').value,
                 keywords: st.kws, provinces: [...st.provs], age_min: st.amin, age_max: st.amax, gender: st.gender };
             if (st.mode === 'post') { body.post_id = st.postId; body.caption = ''; body.target_url = ''; }
@@ -404,7 +451,7 @@
                         extra = `<div class="muted" style="margin-top:8px;">👁️ ${num(r.impressions)} ${T('ដងបង្ហាញ', 'views')} · 👆 ${num(r.clicks)} ${T('ដងចុច', 'clicks')} · ${T('ចំណាយ', 'spent')} ${money(r.spent_cents)} / ${money(r.budget_cents)}</div><div class="progress"><i style="width:${pct}%"></i></div>` +
                             `<div style="margin-top:10px;"><button class="btn gray small" onclick="openReport(${Number(r.id)})">📊 ${T('មើលលទ្ធផលលម្អិត', 'See detailed results')}</button></div>`;
                     }
-                    const goal = (GOALS.find(g => g.id === r.objective) || {}).t || '', place = (PLACES.find(p => p.id === r.placement) || {}).t || '';
+                    const goal = (GOALS.find(g => g.id === r.objective) || {}).t || '', place = (r.places ? String(r.places).split(',') : (OLD_PLACE[r.placement] || [])).map(x => (PLACES.find(p => p.id === x) || {}).t || '').filter(Boolean).join(' + ');
                     return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b>A${Number(r.id)}</b><span class="pill ${esc(shown)}">${STATUS[shown] || esc(shown)}</span></div>
                         <div class="muted">${esc(goal)} · ${esc(place)} · ${T(Number(r.days) + ' ថ្ងៃ', Number(r.days) + (Number(r.days) === 1 ? ' day' : ' days'))} · ${T('ថវិកា', 'budget')} ${money(r.budget_cents)}</div>${r.caption ? `<div class="notranslate" translate="no" style="font-size:13.5px;margin-top:4px;">${esc(String(r.caption).slice(0, 120))}</div>` : ''}${extra}</div>`;
                 }).join('');
@@ -435,7 +482,7 @@
 
         (async function init() {
             build();
-            try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) { st.info = i; $('rateLine').textContent = T('តម្លៃ៖ ទំព័រដើម $' + Number(i.cpmFeed).toFixed(2) + ' និងមុនវីដេអូ $' + Number(i.cpmVideo).toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ថវិកាតិចបំផុត $' + i.minBudget, 'Price: home feed $' + Number(i.cpmFeed).toFixed(2) + ' and before videos $' + Number(i.cpmVideo).toFixed(2) + ' per 1,000 views · smallest budget $' + i.minBudget); $('fBudget').min = i.minBudget; } } catch (e) {}
+            try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) { st.info = i; st.cc = (i.me && i.me.cc) || 'KH'; $('rateLine').textContent = T('តម្លៃ៖ ទំព័រដើម $' + Number(i.cpmFeed).toFixed(2) + ' និងមុនវីដេអូ $' + Number(i.cpmVideo).toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ថវិកាតិចបំផុត $' + i.minBudget, 'Price: home feed $' + Number(i.cpmFeed).toFixed(2) + ' and before videos $' + Number(i.cpmVideo).toFixed(2) + ' per 1,000 views · smallest budget $' + i.minBudget); $('fBudget').min = i.minBudget; } } catch (e) {}
             try { const k = await (await fetch('/api/ads/keywords')).json(); st.words = k.words || []; $('kwList').innerHTML = st.words.map(w => `<option value="${esc(w.word)}">${esc(w.grp)}</option>`).join(''); } catch (e) {}
             drawGoals(); syncGoal(); drawKw(); drawWho(); drawPlaces(); drawBudget(); estimate();
             if (new URLSearchParams(location.search).get('tab') === 'mine') showTab('mine');

@@ -3746,7 +3746,8 @@
             const k = n === adFirst ? 0 : (n - adFirst) / adEvery;
             return k < list.length ? list[k] : null;
         }
-        const feedAdList = () => cachedSponsoredAds.filter(a => a.placement === 'feed_banner' || a.placement === 'both');
+        const adIn = (a, w) => Array.isArray(a.places) && a.places.length ? a.places.includes(w) : (w === 'feed' ? (a.placement === 'feed_banner' || a.placement === 'both') : w === 'reels' ? (a.placement === 'video_preroll' || a.placement === 'both') : false);   // ☑️ where the advertiser chose
+        const feedAdList = () => cachedSponsoredAds.filter(a => adIn(a, 'feed'));
         async function fetchSponsoredAdsCatalog() {
             try {
                 const res = await fetch('/api/sponsored-ads');

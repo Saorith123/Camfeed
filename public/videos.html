@@ -1160,7 +1160,7 @@
         (async function loadPrerollAds() {
             try {
                 const d = await (await fetch('/api/sponsored-ads')).json();
-                if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => (a.placement === 'video_preroll' || a.placement === 'both') && a.media_url);
+                if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => (Array.isArray(a.places) && a.places.length ? a.places.includes('reels') : (a.placement === 'video_preroll' || a.placement === 'both')) && a.media_url);   // ☑️ Reels chosen
             } catch (e) {}
             setTimeout(loadPrerollAds, 180000);
         })();

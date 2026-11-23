@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 163;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 164;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -376,7 +376,7 @@ pool.connect(async (err, client, release) => {
     for (const t of ['ad_requests', 'sponsored_ads']) {      // 🛍️ products, 🏷️ keywords, 📍 provinces, age, gender
       await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS items TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS kw_ids TEXT NOT NULL DEFAULT '',
         ADD COLUMN IF NOT EXISTS provinces TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS age_min INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS age_max INTEGER NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS gender VARCHAR(8) NOT NULL DEFAULT ''`);
+        ADD COLUMN IF NOT EXISTS gender VARCHAR(8) NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS places TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS devices TEXT NOT NULL DEFAULT ''`);
     }
     await pool.query('CREATE TABLE IF NOT EXISTS ad_hidden (user_email TEXT NOT NULL, ad_id INTEGER NOT NULL, at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, ad_id))');
     await pool.query(`CREATE TABLE IF NOT EXISTS ad_daily (
@@ -1511,6 +1511,8 @@ app.get('/api/posts', async (req, res) => {
     const feedOrder = useLatest ? 'feed_tier ASC, p.created_at DESC, p.id DESC' : 'feed_tier ASC, feed_rank_score DESC, p.created_at DESC';
     const newOnly = req.query.newOnly === '1';             // the app asks "anything new?" while you scroll (only never-seen posts)
     await interests.ready();
+    await country.ensure().catch(() => {});
+    const foreign = country.foreignSql('$1', 'u', 'f.following_email IS NOT NULL');   // 🌏 another country: lower (not for people I follow)
     const feedQuery = `
       ${cteAndJoins},
       ${tierExpr} AS feed_tier,
@@ -1527,6 +1529,7 @@ app.get('/api/posts', async (req, res) => {
         ${interests.feedScoreSql()}
         + LEAST(EXTRACT(EPOCH FROM (NOW() - ${seenAt})) / 3600.0 / (24.0 * ${reshowDays}), 1.0) * 30.0
         + (RANDOM() * 45.0)
+        - ${foreign}
       ) ELSE (
         CASE
           WHEN p.user_email = $1 THEN 25
@@ -1542,6 +1545,7 @@ app.get('/api/posts', async (req, res) => {
         ${interests.feedScoreSql()}
         + (60.0 / (EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0 + 2.0))
         + (RANDOM() * 35.0)
+        - ${foreign}
       ) END AS feed_rank_score
       ${baseFrom}
       LEFT JOIN follows f ON f.follower_email = $1 AND f.following_email = p.user_email
@@ -2390,6 +2394,7 @@ app.get('/api/search-content', async (req, res) => {
     const like = `%${kw.replace(/[\\%_]/g, '\\$&')}%`;
     const kwIds = req.authEmail ? await interests.onSearch(req.authEmail, kw) : await interests.searchIds(kw);   // 🏷️ "laptop" also finds posts labelled កុំព្យូទ័រយួរដៃ
     const vid = `(p.media_type = 'video' OR COALESCE(p.media_url,'') LIKE '%"type":"video"%')`;
+    await country.ensure().catch(() => {});
     const r = await pool.query(`
       SELECT p.id, p.content, p.media_type, p.media_url, p.thumb_url, p.created_at, p.user_email, u.first_name, u.last_name, u.profile_pic,
              (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id)::int AS likes_count,
@@ -2400,7 +2405,7 @@ app.get('/api/search-content', async (req, res) => {
         AND p.user_email NOT IN (SELECT blocked_email FROM blocked_users WHERE blocker_email = $1 UNION SELECT blocker_email FROM blocked_users WHERE blocked_email = $1)
         AND (p.content ILIKE $2 OR COALESCE(p.ai_tags,'') ILIKE $2 OR p.id IN (SELECT post_id FROM post_kw WHERE kw_id = ANY($5::int[])))
         AND ${type === 'videos' ? vid : 'TRUE'}
-      ORDER BY p.created_at DESC LIMIT $3 OFFSET $4`, [me, like, limit, offset, kwIds]);
+      ORDER BY ${country.sameSql('$1', 'u')} DESC, p.created_at DESC LIMIT $3 OFFSET $4`, [me, like, limit, offset, kwIds]);
     res.json({ success: true, posts: r.rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2424,6 +2429,7 @@ app.get('/api/search-users', async (req, res) => {
              OR ($4 <> '' AND COALESCE(phone_privacy, 'public') = 'public'
                  AND (regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = $4
                       OR (regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE '0%' AND '855' || substr(regexp_replace(COALESCE(phone, ''), '\\D', '', 'g'), 2) = $4))))
+      ORDER BY ${country.sameSql('$1', 'users')} DESC
       LIMIT 10
     `;
     const likeSafe = String(keyword || '').replace(/[\\%_]/g, '\\$&');      // a typed % or _ must not act as a wildcard
@@ -2436,6 +2442,7 @@ app.get('/api/search-users', async (req, res) => {
       identities.push(phoneEmail(e164), digits, '+' + digits);                       // the hidden identity of accounts made with a phone, and old accounts that used the number as their login
       if (digits.startsWith('855')) identities.push('0' + digits.slice(3));
     }
+    await country.ensure().catch(() => {});
     const result = await pool.query(query, [email, `%${likeSafe}%`, identities, e164 ? e164.slice(1) : '']);
     { const rs = await restrictedWith(req.authEmail); if (rs.size) result.rows.forEach((r) => { if (rs.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } }); }
     res.json({ success: true, users: result.rows });
@@ -2652,6 +2659,7 @@ const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls
 const series = require('./series')({ app, pool });
 const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   onDecide: (...a) => onPaymentDecision(...a) });   // 💰 the owner's ✅ / ❌ on Telegram
+const country = require('./country')({ pool });   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
@@ -3218,20 +3226,21 @@ app.get('/api/people-suggestions', async (req, res) => {
     FROM users u LEFT JOIN m ON m.cand_email = u.email
     WHERE ${notMine(withDismissed)}
       AND (m.mutual IS NOT NULL OR EXISTS (SELECT 1 FROM follows fm3 WHERE fm3.follower_email = u.email AND fm3.following_email = $1))
-    ORDER BY EXISTS (SELECT 1 FROM follows fm2 WHERE fm2.follower_email = u.email AND fm2.following_email = $1) DESC, m.mutual DESC NULLS LAST, RANDOM()
+    ORDER BY EXISTS (SELECT 1 FROM follows fm2 WHERE fm2.follower_email = u.email AND fm2.following_email = $1) DESC, ${country.sameSql('$1', 'u')} DESC, m.mutual DESC NULLS LAST, RANDOM()
     LIMIT $2`;
   // by chance: people active in the last 30 days first (a real person more likely to answer), never someone already in the list
   const chance = (withDismissed) => `
     SELECT u.email, u.first_name, u.last_name, u.profile_pic, 0 AS mutual, FALSE AS follows_me, '[]'::json AS mutual_people, TRUE AS by_chance
     FROM users u
     WHERE ${notMine(withDismissed)} AND NOT (u.email = ANY($3::text[]))
-    ORDER BY (u.last_active IS NOT NULL AND u.last_active > NOW() - INTERVAL '30 days') DESC, (COALESCE(u.profile_pic, '') <> '') DESC, RANDOM()
+    ORDER BY ${country.sameSql('$1', 'u')} DESC, (u.last_active IS NOT NULL AND u.last_active > NOW() - INTERVAL '30 days') DESC, (COALESCE(u.profile_pic, '') <> '') DESC, RANDOM()
     LIMIT $2`;
   const run = async (sql, args) => {
     try { return (await pool.query(sql(true), args)).rows; }
     catch (e) { if (e.code === '42P01') return (await pool.query(sql(false), args)).rows; throw e; }
   };
   try {
+    await country.ensure().catch(() => {});
     const a = await run(known, [me, limit - nRandom]);
     const b = await run(chance, [me, limit - a.length, a.map((x) => x.email)]);
     // the chance ones are spread through the list (not all at the end)
@@ -3817,13 +3826,24 @@ app.post('/api/admin/ads/settings', async (req, res) => {
 });
 const adLink = (v) => { const s = String(v || '').trim(); return /^https?:\/\/[^\s<>"'`]{4,480}$/i.test(s) ? s : ''; };   // only web links: never javascript:
 const adInterests = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim()).filter((x) => AD_INTERESTS.includes(x)).slice(0, 6);
+// 📍 where the ad shows (☑️ any of: feed, reels, story) and 📱 on which phones (☑️ any of: android, ios, web). Empty = everywhere.
+const AD_PLACES = ['feed', 'reels', 'story'], AD_DEVICES = ['android', 'ios', 'web'];
+const adPlaces = (v) => { const l = (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim()).filter((x) => AD_PLACES.includes(x)); return AD_PLACES.filter((x) => l.includes(x)); };
+const adDevices = (v) => { const l = (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim()).filter((x) => AD_DEVICES.includes(x)); return AD_DEVICES.filter((x) => l.includes(x)); };
+const placementOf = (pl) => (pl.includes('reels') && !pl.includes('feed') && !pl.includes('story') ? 'video_preroll' : !pl.includes('reels') ? 'feed_banner' : 'both');
+const placesOfAd = (a) => { const l = adPlaces(a.places); return l.length ? l : a.placement === 'video_preroll' ? ['reels'] : a.placement === 'feed_banner' ? ['feed'] : ['feed', 'reels']; };
+// the phone app says which phone it is (X-CamFeed-App); everything else is the website
+const devOf = (req) => { const h = String((req.headers && req.headers['x-camfeed-app']) || '').toLowerCase(); return h === 'android' || h === 'ios' ? h : 'web'; };
 const adPlaceFeed = (p) => p === 'feed_banner' || p === 'both';
 const adPlaceVideo = (p) => p === 'video_preroll' || p === 'both';
 // how many views a budget buys: the money is split over the places chosen
-function adEstimate(budgetUsd, days, placement) {
+function adEstimate(budgetUsd, days, placement, places) {
   const cpms = [];
-  if (adPlaceFeed(placement)) cpms.push(AD_CPM.feed);
-  if (adPlaceVideo(placement)) cpms.push(AD_CPM.video);
+  if (places && places.length) places.forEach((x) => cpms.push(x === 'reels' ? AD_CPM.video : AD_CPM.feed));
+  else {
+    if (adPlaceFeed(placement)) cpms.push(AD_CPM.feed);
+    if (adPlaceVideo(placement)) cpms.push(AD_CPM.video);
+  }
   const cpm = cpms.reduce((a, b) => a + b, 0) / (cpms.length || 1);
   const views = Math.floor(budgetUsd / cpm * 1000);
   return { cpm: Number(cpm.toFixed(3)), views, perDay: Math.floor(views / Math.max(days, 1)) };
@@ -3833,10 +3853,11 @@ app.get('/api/ads/estimate', async (req, res) => {
   try {
     const budget = adNum(req.query.budget, 0), days = clampInt(req.query.days, 7, 1, 30);
     const placement = AD_PLACEMENTS.includes(req.query.placement) ? req.query.placement : 'both';
-    const est = adEstimate(budget, days, placement);
-    const country = String(req.query.country || '').trim().slice(0, 60);
-    const target = { provinces: adProvinces(req.query.prov).join(','), gender: adGender(req.query.g), age_min: adAge(req.query.amin), age_max: adAge(req.query.amax) };
-    const rows = (await pool.query("SELECT LOWER(email) AS email, location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE last_active >= NOW() - INTERVAL '30 days' AND COALESCE(is_banned, FALSE) = FALSE AND ($1 = '' OR LOWER(country) = LOWER($1)) LIMIT 200000", [country])).rows;
+    const est = adEstimate(budget, days, placement, adPlaces(req.query.places));
+    const cc = country.ccOf(req.query.country);
+    await country.ensure().catch(() => {});
+    const target = { provinces: cc && cc !== 'KH' ? '' : adProvinces(req.query.prov).join(','), gender: adGender(req.query.g), age_min: adAge(req.query.amin), age_max: adAge(req.query.amax) };
+    const rows = (await pool.query("SELECT LOWER(email) AS email, location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE last_active >= NOW() - INTERVAL '30 days' AND COALESCE(is_banned, FALSE) = FALSE AND ($1 = '' OR cc = $1 OR (cc IS NULL AND $1 = 'KH')) LIMIT 200000", [cc])).rows;
     const fit = rows.filter((u) => adFits(target, whoOf(u)));
     const users = fit.length;
     const kws = await interests.resolveWords(String(req.query.kw || '').split(','));
@@ -3851,21 +3872,25 @@ app.get('/api/ads/estimate', async (req, res) => {
 app.get('/api/sponsored-ads', async (req, res) => {
   try {
     const me = req.authEmail || '';
-    const u = me ? (await pool.query(`SELECT country, location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE email = $1`, [me])).rows[0] : null;
+    await country.ensure().catch(() => {});
+    const u = me ? (await pool.query(`SELECT country, cc, location, birthdate, gender, (SELECT s.city FROM user_sessions s WHERE s.email = users.email AND COALESCE(s.city, '') <> '' ORDER BY s.last_seen DESC LIMIT 1) AS ip_city FROM users WHERE email = $1`, [me])).rows[0] : null;
+    const dev = devOf(req);
     const myInterests = me ? (await pool.query('SELECT category FROM user_interest_scores WHERE user_email = $1 AND score > 0 ORDER BY score DESC LIMIT 5', [me])).rows.map((r) => r.category) : [];
     const myKw = me ? await interests.userTop(me, 60) : new Map();
     const who = whoOf(u);
     const r = await pool.query(`SELECT a.id, a.advertiser_name, a.placement, a.objective, a.cta, COALESCE(NULLIF(a.caption, ''), p.content, '') AS caption, a.target_url, COALESCE(a.media_url, p.media_url) AS media_url, a.skip_seconds, a.post_id, a.owner_email, a.interests, a.country,
-        a.items, a.kw_ids, a.provinces, a.age_min, a.age_max, a.gender, a.adult, ou.first_name AS o_first, ou.last_name AS o_last, ou.profile_pic AS o_pic
+        a.items, a.kw_ids, a.provinces, a.age_min, a.age_max, a.gender, a.adult, a.places, a.devices, ou.first_name AS o_first, ou.last_name AS o_last, ou.profile_pic AS o_pic
       FROM sponsored_ads a LEFT JOIN posts p ON p.id = a.post_id LEFT JOIN ad_daily d ON d.ad_id = a.id AND d.day = CURRENT_DATE LEFT JOIN users ou ON ou.email = a.owner_email
       WHERE a.status = 'active' AND (a.ends_at IS NULL OR a.ends_at > NOW()) AND COALESCE(a.owner_email, '') <> $1
         AND NOT EXISTS (SELECT 1 FROM ad_hidden h WHERE h.user_email = $1 AND h.ad_id = a.id)
         AND (a.budget_cents = 0 OR (a.spent_cents < a.budget_cents AND COALESCE(d.spent_cents, 0) < (a.budget_cents::numeric / GREATEST(a.days, 1)) * 1.25))
       ORDER BY a.id DESC LIMIT 60`, [me]);
-    const mine = String((u && u.country) || '').toLowerCase();
+    const mine = (u && (u.cc || country.ccOf(u.country))) || country.ccOf(req.headers['cf-ipcountry']);
     const out = [];
     for (const a of r.rows) {
-      if (a.country && mine && String(a.country).toLowerCase() !== mine) continue;
+      const acc = country.ccOf(a.country);
+      if (acc && mine && acc !== mine) continue;                                     // 🌏 only in the country the advertiser chose
+      const devs = adDevices(a.devices); if (devs.length && !devs.includes(dev)) continue;   // 📱 only on the phones chosen
       if (!adFits(a, who)) continue;
       const wanted = String(a.interests || '').split(',').filter(Boolean);
       const kwIds = String(a.kw_ids || '').split(',').map((x) => parseInt(x, 10)).filter((x) => x > 0);
@@ -3873,7 +3898,7 @@ app.get('/api/sponsored-ads', async (req, res) => {
       const catMatch = wanted.length ? wanted.filter((x) => myInterests.includes(x)).length : 0;
       if (wanted.length && myInterests.length && !catMatch && !kwScore) continue;   // we only leave an ad out when we KNOW the person is not interested
       const owner = a.owner_email ? ((a.o_first || '') + ' ' + (a.o_last || '')).trim() : '';
-      out.push({ ad: { id: a.id, advertiser_name: owner || a.advertiser_name, advertiser_pic: a.owner_email ? (a.o_pic || '') : '', placement: a.placement, objective: a.objective, cta: a.cta,
+      out.push({ ad: { id: a.id, advertiser_name: owner || a.advertiser_name, advertiser_pic: a.owner_email ? (a.o_pic || '') : '', placement: a.placement, places: placesOfAd(a), objective: a.objective, cta: a.cta,
         caption: String(a.caption || '').slice(0, 500), target_url: a.target_url || '', media_url: a.media_url || '', skip_seconds: a.skip_seconds, post_id: a.post_id || null, owner_email: a.owner_email || null, items: adItems(a.items) },
         match: Math.min(kwScore, 50) + catMatch * 3, rnd: Math.random() });
     }
@@ -4008,10 +4033,10 @@ async function adReport(adId) {
 app.get('/api/ads/info', (req, res) => {
   const qr = security.safeUrl(process.env.AD_PAYMENT_QR_URL || '');
   const send = (me) => res.json({ success: true, paymentText: String(process.env.AD_PAYMENT_TEXT || AD_DEFAULT_PAYMENT_TEXT).slice(0, 600), paymentQr: qr || '', contact: supportTelegramLink() || '', interests: AD_INTERESTS,
-    minBudget: AD_MIN_BUDGET_USD, cpmFeed: AD_CPM.feed, cpmVideo: AD_CPM.video, provinces: KH_PROVINCES.map((p) => ({ id: p[0], km: p[1], en: p[2] })), me });
+    minBudget: AD_MIN_BUDGET_USD, cpmFeed: AD_CPM.feed, cpmVideo: AD_CPM.video, provinces: KH_PROVINCES.map((p) => ({ id: p[0], km: p[1], en: p[2] })), countries: country.list(), me });
   if (!req.authEmail) return send(null);
-  Promise.all([pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE email = $1', [req.authEmail]), adCreditOf(req.authEmail)])
-    .then(([r, credit]) => { const u = r.rows[0]; send(u ? { name: ((u.first_name || '') + ' ' + (u.last_name || '')).trim(), pic: u.profile_pic || '', credit } : null); }).catch(() => send(null));
+  Promise.all([pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE email = $1', [req.authEmail]), adCreditOf(req.authEmail), country.ccOfUser(req.authEmail)])
+    .then(([r, credit, cc]) => { const u = r.rows[0]; send(u ? { name: ((u.first_name || '') + ' ' + (u.last_name || '')).trim(), pic: u.profile_pic || '', credit, cc: cc || 'KH' } : null); }).catch(() => send(null));
 });
 
 app.get('/api/ads/my-posts', async (req, res) => {                          // posts the person can boost (their own, public)
@@ -4028,7 +4053,11 @@ app.post('/api/ads/request', async (req, res) => {
     const b = req.body || {};
     const prof = (await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [email])).rows[0] || {};
     const name = ((prof.first_name || '') + ' ' + (prof.last_name || '')).trim().slice(0, 80) || 'CamFeed', contact = String(b.contact || '').trim().slice(0, 120);   // the ad shows the person's own profile name
-    const placement = AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner';
+    const places = adPlaces(b.places), devices = adDevices(b.devices);
+    if (b.places !== undefined && !places.length) return res.status(400).json({ success: false, error: 'Please choose at least one place where the ad shows.' });
+    if (b.devices !== undefined && !devices.length) return res.status(400).json({ success: false, error: 'Please choose at least one kind of phone.' });
+    const placement = places.length ? placementOf(places) : (AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner');
+    const cc = country.ccOf(b.country) || 'KH';
     const objective = AD_OBJECTIVES.includes(b.objective) ? b.objective : 'traffic';
     const target = b.target_url ? adLink(b.target_url) : '';
     const budget = Math.round(adNum(b.budget_usd, 0) * 100), days = clampInt(b.days, 7, 1, 30);
@@ -4056,10 +4085,11 @@ app.post('/api/ads/request', async (req, res) => {
     const useCredit = Math.min(await adCreditOf(email), budget);          // 💳 my credit pays first
     // the price is the budget: it goes straight to "please pay" (CamFeed checks the money and the ad together, with one ✅)
     const r = await pool.query(`INSERT INTO ad_requests (user_email, business_name, contact, placement, caption, target_url, media_url, days, budget_note, objective, post_id, interests, country, budget_cents, cta,
-        items, kw_ids, provinces, age_min, age_max, gender, status, credit_cents, price_cents)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'quoted',$22,$23) RETURNING id`,
-      [email, name, contact, placement, caption, target || null, media, days, String(b.budget_note || '').slice(0, 120), objective, postId, adInterests(b.interests).join(','), String(b.country || '').trim().slice(0, 60), budget, cta,
-        items.length ? JSON.stringify(items) : '', kws.map((k) => k.id).join(','), adProvinces(b.provinces).join(','), adAge(b.age_min), adAge(b.age_max), adGender(b.gender), useCredit, budget - useCredit]);
+        items, kw_ids, provinces, age_min, age_max, gender, status, credit_cents, price_cents, places, devices)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'quoted',$22,$23,$24,$25) RETURNING id`,
+      [email, name, contact, placement, caption, target || null, media, days, String(b.budget_note || '').slice(0, 120), objective, postId, adInterests(b.interests).join(','), cc, budget, cta,
+        items.length ? JSON.stringify(items) : '', kws.map((k) => k.id).join(','), cc === 'KH' ? adProvinces(b.provinces).join(',') : '', adAge(b.age_min), adAge(b.age_max), adGender(b.gender), useCredit, budget - useCredit,
+        places.join(','), devices.length === AD_DEVICES.length ? '' : devices.join(',')]);
     const reqId = r.rows[0].id;
     if (useCredit > 0) await pool.query("INSERT INTO ad_credit (user_email, cents, kind, ref_id, note) VALUES ($1, $2, 'used', $3, $4)", [email, -useCredit, reqId, 'A' + reqId]);
     // 🤖 the AI looks at it now. Paid all with credit: it starts at once when the AI sees no problem; otherwise the owner decides in Telegram
@@ -4076,7 +4106,7 @@ app.post('/api/ads/request', async (req, res) => {
 app.get('/api/ads/my', async (req, res) => {
   try {
     if (!req.authEmail) return res.status(401).json({ success: false, error: 'Please log in.' });
-    const r = await pool.query(`SELECT q.id, q.business_name, q.placement, q.objective, q.caption, q.days, q.status, q.budget_cents, q.price_cents, q.credit_cents, q.admin_note, q.pay_ref, q.post_id, q.ad_id, q.created_at, q.items, q.media_url,
+    const r = await pool.query(`SELECT q.id, q.business_name, q.placement, q.places, q.devices, q.objective, q.caption, q.days, q.status, q.budget_cents, q.price_cents, q.credit_cents, q.admin_note, q.pay_ref, q.post_id, q.ad_id, q.created_at, q.items, q.media_url,
       a.status AS ad_status, a.impressions, a.clicks, a.spent_cents, a.ends_at
       FROM ad_requests q LEFT JOIN sponsored_ads a ON a.id = q.ad_id WHERE q.user_email = $1 ORDER BY q.id DESC LIMIT 30`, [req.authEmail]);
     res.json({ success: true, requests: r.rows, credit: await adCreditOf(req.authEmail) });
@@ -4105,7 +4135,7 @@ app.post('/api/ads/my/:id/paid', async (req, res) => {
 function askOwnerAboutAd(q) {
     const id = q.id, base = (process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com').replace(/\/+$/, '');
     const credit = Number(q.credit_cents || 0);
-    return tgPay.ask('ad', id, ['💰 ពាណិជ្ជកម្ម A' + id + ' · $' + (Number(q.price_cents || 0) / 100).toFixed(2) + (credit > 0 ? ' (+ ឥណទាន $' + (credit / 100).toFixed(2) + ')' : ''), '👤 ' + q.business_name, '📅 ' + q.days + ' ថ្ងៃ · ' + q.objective + ' · ' + q.placement,
+    return tgPay.ask('ad', id, ['💰 ពាណិជ្ជកម្ម A' + id + ' · $' + (Number(q.price_cents || 0) / 100).toFixed(2) + (credit > 0 ? ' (+ ឥណទាន $' + (credit / 100).toFixed(2) + ')' : ''), '👤 ' + q.business_name, '📅 ' + q.days + ' ថ្ងៃ · ' + q.objective + ' · ' + (q.places || q.placement) + (q.devices ? ' · 📱 ' + q.devices : '') + (q.country ? ' · 🌏 ' + q.country : ''),
       q.caption ? '📝 ' + String(q.caption).slice(0, 300) : '', q.post_id ? '🚀 ' + base + '/p/' + q.post_id : (q.media_url ? '🖼️ ' + q.media_url : ''), adItems(q.items).length ? '🖼️ ' + adItems(q.items).length + ' រូប/វីដេអូ' : '', adItems(q.items).some((x) => x.name) ? '🛍️ ' + adItems(q.items).filter((x) => x.name).map((x) => x.name + (x.price ? ' ' + x.price : '')).join(' · ').slice(0, 300) : '',
       q.pay_ref && q.pay_ref !== 'A' + id ? '🧾 ' + q.pay_ref : '', q.ai_note || '', q.adult ? '🔞 បង្ហាញតែអ្នកអាយុ 18+' : '', '',
       Number(q.price_cents || 0) > 0 ? 'ពិនិត្យក្នុង ABA ថាបានទទួល $' + (Number(q.price_cents || 0) / 100).toFixed(2) + ' (ចំណាំ៖ A' + id + ')' : '💳 បង់ដោយឥណទានទាំងស្រុង៖ គ្រាន់តែពិនិត្យខ្លឹមសារពាណិជ្ជកម្ម'].filter((x) => x !== '')).catch(() => {});
@@ -4225,10 +4255,10 @@ async function activateAdRequest(id, by) {
     if (!lock.rowCount) return { ok: false, error: 'Already started.' };
     const undo = () => pool.query("UPDATE ad_requests SET status = $2 WHERE id = $1 AND status = 'starting'", [id, q.status]).catch(() => {});
     const ad = await pool.query(`INSERT INTO sponsored_ads (advertiser_name, placement, caption, target_url, media_url, skip_seconds, created_by, ends_at, objective, post_id, interests, country, budget_cents, days, cpm_feed_cents, cpm_video_cents, owner_email, cta, base_likes, base_comments, base_shares,
-        items, kw_ids, provinces, age_min, age_max, gender, adult)
-      VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval, $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) RETURNING id`,
+        items, kw_ids, provinces, age_min, age_max, gender, adult, places, devices)
+      VALUES ($1,$2,$3,$4,$5,5,$6, NOW() + ($7 || ' days')::interval, $8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29) RETURNING id`,
       [q.business_name, q.placement, q.caption, q.target_url, media, a.adminEmail, String(q.days), q.objective, q.post_id, q.interests || '', q.country || '', q.budget_cents || 0, q.days,
-        AD_CPM.feed * 100, AD_CPM.video * 100, q.user_email, q.cta || 'learn_more', base.likes, base.comments, base.shares, q.items || '', q.kw_ids || '', q.provinces || '', q.age_min || 0, q.age_max || 0, q.gender || '', !!q.adult]).catch(async (e) => { await undo(); throw e; });
+        AD_CPM.feed * 100, AD_CPM.video * 100, q.user_email, q.cta || 'learn_more', base.likes, base.comments, base.shares, q.items || '', q.kw_ids || '', q.provinces || '', q.age_min || 0, q.age_max || 0, q.gender || '', !!q.adult, q.places || '', q.devices || '']).catch(async (e) => { await undo(); throw e; });
     await pool.query("UPDATE ad_requests SET status = 'live', ad_id = $1, updated_at = NOW() WHERE id = $2", [ad.rows[0].id, id]);
     audit(a.adminEmail, 'ad_activate', id, 'ad #' + ad.rows[0].id + ' for ' + q.days + ' days, budget $' + ((q.budget_cents || 0) / 100).toFixed(2) + ', paid $' + ((q.price_cents || 0) / 100).toFixed(2));
     sendAdminNotice(a.adminEmail, q.user_email, '📢 CamFeed បានទទួលប្រាក់ $' + ((q.price_cents || 0) / 100).toFixed(2) + ' ហើយ។ ពាណិជ្ជកម្ម A' + id + ' របស់អ្នកចាប់ផ្ដើមបង្ហាញហើយ។ អរគុណ!', 'admin_notice').catch(() => {});
