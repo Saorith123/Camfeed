@@ -1550,6 +1550,7 @@
             if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
                 try {
                     const items = JSON.parse(mediaUrl);
+                    if (Array.isArray(items) && items.length > 1 && window.CamGrid) return CamGrid.html(postId, items);   // 🖼️ 2, 3, 4, 5+ (album on tap)
                     if (Array.isArray(items) && items.length > 0) {
                         const slidesHtml = items.map(item => {
                             if (item.type === 'video') {
@@ -1591,6 +1592,7 @@
         }
 
         function renderPostMediaHtml(post) {
+            if (window.CamGrid) CamGrid.markPost(post);
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
                     const sp = JSON.parse(post.media_url);
@@ -2445,5 +2447,6 @@
         })();
 
     </script>
+<script src="media-grid.js"></script>
 </body>
 </html>

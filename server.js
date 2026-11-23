@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 160;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 161;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -420,6 +420,7 @@ pool.connect(async (err, client, release) => {
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS post_id INTEGER').catch(() => {});
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS audio_ready BOOLEAN DEFAULT FALSE').catch(() => {});
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS thumb_url TEXT').catch(() => {});
+    await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS allow_download BOOLEAN NOT NULL DEFAULT TRUE').catch(() => {});   // ⬇️ the owner may turn off the download button
     await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS feed_url TEXT').catch(() => {});
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS sounds_post_uq ON sounds (post_id) WHERE post_id IS NOT NULL').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_stories_user ON stories (user_email, expires_at)').catch(() => {});
@@ -1143,6 +1144,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     // with chosen people: saved as "only me" first, the people are written, then it opens to them (never shown to others for a moment)
     const result = await pool.query(query, [email, content, mediaType, mediaUrl, aud.people.length ? 'private' : privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, '']);
     const newId = result.rows[0].id;
+    if (req.body.allowDownload === false) { await pool.query('UPDATE posts SET allow_download = FALSE WHERE id = $1', [newId]); result.rows[0].allow_download = false; }
     if (aud.people.length) {
       await audience.save('post', newId, aud.people);
       await pool.query('UPDATE posts SET privacy = $1 WHERE id = $2', [privacy, newId]);
@@ -1158,6 +1160,17 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ⬇️ the owner turns the download button of a post on / off (the pictures can still be seen; a screenshot can never be stopped)
+app.post('/api/posts/:id/download', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10), me = req.authEmail;
+    if (!me || !(id > 0)) return res.status(400).json({ success: false });
+    const r = await pool.query('UPDATE posts SET allow_download = $3 WHERE id = $1 AND user_email = $2 RETURNING allow_download', [id, me, (req.body || {}).on !== false]);
+    if (!r.rowCount) return res.status(403).json({ success: false, error: 'Only the owner can change this.' });
+    res.json({ success: true, allow_download: r.rows[0].allow_download });
+  } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 
 // Share Post to Profile
@@ -1417,6 +1430,7 @@ app.get('/api/posts', async (req, res) => {
         op.content AS orig_content,
         op.media_type AS orig_media_type,
         op.media_url AS orig_media_url,
+        op.allow_download AS orig_allow_download,
         op.thumb_url AS orig_thumb_url,
         op.feed_url AS orig_feed_url,
         op.video_secs AS orig_video_secs,
@@ -1598,6 +1612,7 @@ app.get('/api/posts/:id', async (req, res) => {
       op.content as orig_content,
       op.media_type as orig_media_type,
       op.media_url as orig_media_url,
+      op.allow_download as orig_allow_download,
       op.thumb_url as orig_thumb_url,
       op.feed_url as orig_feed_url,
       op.video_secs as orig_video_secs,

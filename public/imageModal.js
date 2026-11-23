@@ -20,7 +20,7 @@ function openImageModal(postId, mediaUrl, authorName, authorPic, postContent, cr
             <div style="position: relative;">
                 <button onclick="toggleImageMenu(event)" style="background: none; color: white; border: none; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">⋮</button>
                 <div id="imageDropdownMenu" style="position: absolute; right: 0; top: 45px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); width: 180px; display: none; overflow: hidden; font-size: 14px; color: #050505; z-index: 11000;">
-                    <a href="${mediaUrl}" download="camfeed-photo.jpg" style="padding: 12px 16px; display: flex; align-items: center; gap: 10px; text-decoration: none; color: #050505;" onclick="closeImageMenu()">📥 Save to phone</a>
+                    ${window.CamGrid && CamGrid.blocked(mediaUrl) ? '' : `<a href="${mediaUrl}" download="camfeed-photo.jpg" style="padding: 12px 16px; display: flex; align-items: center; gap: 10px; text-decoration: none; color: #050505;" onclick="closeImageMenu()">📥 Save to phone</a>`}
                     <div onclick="shareExternalPhoto('${mediaUrl}')" style="padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='white'">🔗 Share external</div>
                     <div onclick="alert('Photo reported successfully.'); closeImageMenu();" style="padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #fa383e;" onmouseover="this.style.background='#f2f2f2'" onmouseout="this.style.background='white'">⚠️ Report photo</div>
                 </div>

@@ -1514,6 +1514,7 @@
 
     <!-- Hidden Google Translate Engine -->
     <script src="imageModal.js"></script>
+    <script src="media-grid.js"></script>
     <script src="notification.js"></script>
     <script>
         let currentUser = JSON.parse(localStorage.getItem('camfeed_user')) || null;
@@ -2773,6 +2774,7 @@
             if (mediaType === 'carousel' || mediaUrl.trim().startsWith('[')) {
                 try {
                     const items = JSON.parse(mediaUrl);
+                    if (Array.isArray(items) && items.length > 1 && window.CamGrid) return CamGrid.html(postId, items);   // 🖼️ 2, 3, 4, 5+ (album on tap)
                     if (Array.isArray(items) && items.length > 0) {
                         const slidesHtml = items.map((item, sIdx) => {
                             if (item.type === 'video') {
@@ -2830,6 +2832,7 @@
         }
 
         function renderPostMediaHtml(post, dateStr, isPriority = false) {
+            if (window.CamGrid) CamGrid.markPost(post);   // ⬇️ the owner may have turned downloads off
             if (post.media_type === 'shared_profile' && post.media_url) {
                 try {
                     const sp = JSON.parse(post.media_url);

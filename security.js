@@ -76,7 +76,7 @@ function safeItem(it) {
   return out;
 }
 function safeItems(arr) {
-  if (!Array.isArray(arr) || arr.length > 20) return null;
+  if (!Array.isArray(arr) || arr.length > 60) return null;   // up to 60 pictures / videos in one post
   const out = [];
   for (const it of arr) { const c = safeItem(it); if (c === null) return null; out.push(c); }
   return out;
