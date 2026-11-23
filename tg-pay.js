@@ -142,5 +142,11 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
     } catch (e) { console.error('[tg-pay] admin:', e.message); res.status(500).json({ success: false, error: 'Could not do it.' }); }
   });
 
-  return { ask, on };
+  // a message without buttons (e.g. "💳 received $10 by PayWay")
+  async function notify(lines) {
+    if (!on()) return false;
+    try { await ensure(); for (const c of (await pool.query('SELECT chat_id FROM tg_pay_chats')).rows) await api('sendMessage', { chat_id: c.chat_id, text: lines.map(esc).join('\n'), parse_mode: 'HTML', disable_web_page_preview: true }); return true; }
+    catch (e) { console.error('[tg-pay] notify:', e.message); return false; }
+  }
+  return { ask, on, notify };
 };

@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 171;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 172;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -2575,7 +2575,7 @@ function adminNeed(path, body) {
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
     'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
-    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads', verify: 'users' })[first];
+    coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads', verify: 'users', 'ad-wallet': 'money' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
@@ -2584,7 +2584,7 @@ function adminNeed(path, body) {
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
-  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules', 'verify'].includes(first);
+  const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules', 'verify', 'ad-wallet'].includes(first);
   const read = single ? (['list', 'people', 'days', 'doc', 'search', 'detail'].includes(act) || (first === 'keywords' && act === 'posts') || (!act && keys.every((k) => FILTER.includes(k))))
     : READ_PATHS.test(p) && (p !== 'system' || keys.length === 0) && (first !== 'sounds' || keys.length === 0) && (first !== 'live' || p !== 'live' || keys.length === 0);
   return { sec, level: read ? 'view' : 'edit' };
@@ -2651,6 +2651,8 @@ const series = require('./series')({ app, pool });
 const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   onDecide: (...a) => onPaymentDecision(...a) });   // 💰 the owner's ✅ / ❌ on Telegram
 const country = require('./country')({ pool });
+const adWallet = require('./ad-wallet')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
+  tgNotify: (lines) => tgPay.notify(lines), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), creditEnsure: () => adCreditEnsure(), balanceOf: (e) => adCreditOf(e) });   // 💳 the ad wallet (ABA PayWay)
 const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
@@ -4082,7 +4084,9 @@ app.post('/api/ads/request', async (req, res) => {
     const open = await pool.query("SELECT COUNT(*)::int AS n FROM ad_requests WHERE user_email = $1 AND status IN ('pending', 'quoted', 'payment_sent')", [email]);
     if (open.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for an answer.' });
     const cta = objective === 'products' || objective === 'messages' ? 'message' : (['learn_more', 'message', 'shop', 'call', 'none'].includes(b.cta) ? b.cta : 'learn_more');
-    const useCredit = Math.min(await adCreditOf(email), budget);          // 💳 my credit pays first
+    const wallet = await adCreditOf(email);
+    if (adWallet.on() && wallet < budget) return res.status(402).json({ success: false, code: 'need_topup', balance: wallet, need: budget - wallet, error: 'Please add money to your ad wallet first.' });   // 💳 pay first (like Facebook)
+    const useCredit = Math.min(wallet, budget);          // 💳 my wallet / credit pays first
     // the price is the budget: it goes straight to "please pay" (CamFeed checks the money and the ad together, with one ✅)
     const r = await pool.query(`INSERT INTO ad_requests (user_email, business_name, contact, placement, caption, target_url, media_url, days, budget_note, objective, post_id, interests, country, budget_cents, cta,
         items, kw_ids, provinces, age_min, age_max, gender, status, credit_cents, price_cents, places, devices)

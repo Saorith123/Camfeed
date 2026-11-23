@@ -1711,6 +1711,54 @@
     });
   }
   // 💰 the owner's Telegram: payments to check come there with ✅ / ❌ (ads and coin top-ups)
+  // 💳 the ad wallets: ABA PayWay on / off, the money each advertiser has, the top-ups, adding / taking money by hand (Super Admin)
+  function adWalletCard(p) {
+    var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
+    var ST = { pending: AT('⏳ រង់ចាំ', '⏳ waiting'), paid: AT('✅ បានបង់', '✅ paid'), expired: AT('⌛ ផុតកំណត់', '⌛ ended'), failed: AT('❌ QR មិនបាន', '❌ QR failed') };
+    function usd(c) { return '$' + (Number(c || 0) / 100).toFixed(2); }
+    function draw() {
+      adm('/api/admin/ad-wallet', { action: 'list' }).then(function (d) {
+        box.textContent = '';
+        box.appendChild(el('div', { class: 'at-h', text: AT('💳 កាបូបពាណិជ្ជកម្ម (ABA PayWay)', '💳 Ad wallets (ABA PayWay)') }));
+        if (!d.success) { box.appendChild(el('div', { text: d.error || AT('មិនបាន', 'Failed') })); return; }
+        box.appendChild(el('div', { style: 'font-size:13.5px;line-height:1.7;color:#444', text: d.payway
+          ? (d.sandbox ? AT('🧪 PayWay បើកហើយ — កំពុងសាកល្បង (Sandbox) មិនមែនលុយពិត។ ពេលរួចរាល់ ប្ដូរ KEY ទាំង ៥ ក្នុង Render ទៅជា Production។', '🧪 PayWay is on — testing (Sandbox), not real money. When ready, change the 5 KEYs in Render to Production.')
+            : AT('✅ PayWay បើកហើយ (លុយពិត)។ អ្នកផ្សាយបញ្ចូលលុយតាម KHQR ហើយលុយចូលកាបូបដោយខ្លួនឯង បន្ទាប់ពី CamFeed សួរ PayWay ម្ដងទៀត។', '✅ PayWay is on (real money). Advertisers add money by KHQR; it goes in by itself after CamFeed asks PayWay again.'))
+          : AT('PayWay មិនទាន់បើកទេ។ ដាក់ក្នុង Render › Environment៖ PAYWAY_MERCHANT_ID, PAYWAY_API_KEY, PAYWAY_API_URL (និង RSA ពីរ)។ ពេលបិទ ការបង់ប្រាក់ធ្វើតាមវិធីចាស់ (ពិនិត្យដោយដៃក្នុង Telegram)។', 'PayWay is not on yet. Put in Render › Environment: PAYWAY_MERCHANT_ID, PAYWAY_API_KEY, PAYWAY_API_URL (and the two RSA keys). While it is off, payments use the old way (checked by hand in Telegram).') }));
+        if (d.lastError) box.appendChild(el('div', { style: 'font-size:12.5px;color:#b42318;margin-top:6px', text: AT('⚠️ បញ្ហាចុងក្រោយ៖ ', '⚠️ Last problem: ') + d.lastError }));
+        // the rules
+        var mn = el('input', { class: 'at-in', type: 'number', min: '1', value: d.cfg.minUsd, style: 'max-width:110px' }), mx = el('input', { class: 'at-in', type: 'number', min: '1', value: d.cfg.maxUsd, style: 'max-width:110px' });
+        box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center' }, [
+          el('span', { text: AT('បញ្ចូលតិចបំផុត $', 'Smallest top-up $') }), mn, el('span', { text: AT('ច្រើនបំផុត $', 'Biggest $') }), mx,
+          d.isSuperAdmin ? el('button', { class: 'btn-sm', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'settings', minUsd: Number(mn.value), maxUsd: Number(mx.value) }).then(draw); } }) : el('span')
+        ]));
+        // the wallets
+        box.appendChild(el('div', { style: 'font-weight:800;margin-top:14px', text: AT('កាបូបរបស់អ្នកផ្សាយ', 'Advertisers\' wallets') + ' (' + d.people.length + ')' }));
+        d.people.forEach(function (u) {
+          var row = el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #f0f2f5;padding-bottom:6px' }, [
+            el('span', { style: 'flex:1;min-width:180px', text: ((u.first_name || '') + ' ' + (u.last_name || '')).trim() + ' · ' + usd(u.balance) })
+          ]);
+          if (d.isSuperAdmin) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('± កែលុយ', '± Change'), onclick: function () {
+            var v = prompt(AT('ចំនួន (ដុល្លារ) — បូក = បញ្ចូល, ដក (−) = ដកចេញ', 'Amount (USD) — plus = add, minus (−) = take')); if (!v) return;
+            var why = prompt(AT('មូលហេតុ (អ្នកផ្សាយនឹងឃើញ)', 'Reason (the advertiser will see it)')); if (!why) return;
+            adm('/api/admin/ad-wallet', { action: 'adjust', email: u.email, usd: Number(v), note: why }).then(function (x) { if (!x.success) alert(x.error || 'Failed'); draw(); });
+          } }));
+          box.appendChild(row);
+        });
+        // the top-ups
+        box.appendChild(el('div', { style: 'font-weight:800;margin-top:14px', text: AT('ការបញ្ចូលលុយចុងក្រោយ', 'Latest top-ups') }));
+        d.topups.slice(0, 30).forEach(function (t) {
+          var row = el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;font-size:13.5px' }, [
+            el('span', { style: 'flex:1;min-width:200px', text: 'W' + t.id + ' · ' + ((t.first_name || '') + ' ' + (t.last_name || '')).trim() + ' · ' + usd(t.cents) + ' · ' + (ST[t.status] || t.status) + ' · ' + String(t.created_at || '').slice(0, 16).replace('T', ' ') })
+          ]);
+          if (d.isSuperAdmin && (t.status === 'pending' || t.status === 'expired')) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('🔄 សួរ PayWay ម្ដងទៀត', '🔄 Ask PayWay again'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'recheck', id: t.id }).then(draw); } }));
+          box.appendChild(row);
+        });
+      });
+    }
+    draw();
+  }
+
   function tgPayCard(p) {
     var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
     function draw() {
@@ -1815,6 +1863,7 @@
     var p = document.getElementById('panel-ads'); if (!p) return;
     p.textContent = '';
     tgPayCard(p);
+    adWalletCard(p);
     adSettingsCard(p);
     adRulesCard(p);
     var out = el('div', { id: 'adMsg' });

@@ -394,7 +394,8 @@
                 $('est').innerHTML = `<div class="big">$${b} = ${T('ប្រហែល', 'about')} ${num(r.views)} ${T('ដងបង្ហាញ', 'views')}</div>
                     <div class="muted" style="margin-top:6px;">${T('តម្លៃ $' + r.cpm.toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ' + d + ' ថ្ងៃ', '$' + r.cpm.toFixed(2) + ' per 1,000 views · ' + d + (d === 1 ? ' day' : ' days'))}</div>
                     <div style="margin-top:10px;font-size:14px;line-height:1.7;">✅ ${T('អ្នកបង់តែលើការបង្ហាញពិតប្រាកដប៉ុណ្ណោះ', 'You only pay for real views')}<br>💳 ${T('ប្រាក់ដែលមិនទាន់ប្រើពេលផុតថ្ងៃ ត្រូវបានរក្សាទុកជាឥណទាន សម្រាប់ផ្សាយលើកក្រោយ', 'Money not used by the last day is kept as credit for your next ad')}</div>
-                    ${cr > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('ឥណទានរបស់អ្នក៖', 'Your credit:')} <b>$${cr.toFixed(2)}</b> → ${T('ត្រូវបង់', 'to pay')} <b>$${pay.toFixed(2)}</b></div>` : ''}`;
+                    ${W.payway ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('កាបូបពាណិជ្ជកម្ម៖', 'Ad wallet:')} <b>${money(W.balance)}</b>${W.balance / 100 < b ? ` → ${T('ត្រូវបញ្ចូលបន្ថែម', 'add')} <b>$${Math.max(b - W.balance / 100, 0).toFixed(2)}</b>` : ' ✅'}</div>`
+                      : (cr > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('ឥណទានរបស់អ្នក៖', 'Your credit:')} <b>$${cr.toFixed(2)}</b> → ${T('ត្រូវបង់', 'to pay')} <b>$${pay.toFixed(2)}</b></div>` : '')}`;
             } catch (e) { $('est').textContent = T('គណនាមិនបាន', 'Could not calculate'); }
         }
 
@@ -410,12 +411,72 @@
             if (st.mode === 'new' && !st.items.length) { setMsg('fMsg', false, T('សូមបន្ថែមរូបភាព ឬវីដេអូយ៉ាងហោចណាស់មួយ។', 'Please add at least one picture or video.')); btn.disabled = false; return; }
             try {
                 const d = await (await fetch('/api/ads/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
-                if (d.success) { $('fMsg').className = 'msg'; showTab('mine'); await loadMine(); if (Number(d.price) > 0) openPay(d.id); try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) st.info = i; } catch (e) {} }
+                if (d.success) { $('fMsg').className = 'msg'; showTab('mine'); await loadWallet(); await loadMine(); if (Number(d.price) > 0) openPay(d.id); try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) st.info = i; } catch (e) {} }
+                else if (d.code === 'need_topup') { setMsg('fMsg', false, T('💳 កាបូបពាណិជ្ជកម្មមិនគ្រប់ទេ។ សូមបញ្ចូលលុយ ', '💳 The ad wallet is not enough. Please add ') + money(d.need) + T(' ជាមុនសិន។', ' first.')); openTopup(d.need / 100, () => sendRequest()); }
                 else setMsg('fMsg', false, '❌ ' + (d.error || T('ផ្ញើមិនបាន', 'Could not send')));
             } catch (e) { setMsg('fMsg', false, T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); }
             btn.disabled = false;
         }
         const money = (c) => '$' + (Number(c || 0) / 100).toFixed(2);
+
+        // ---- 💳 the ad wallet (pay first, by ABA PayWay KHQR): money in once, every ad is paid from it ----
+        let W = { payway: false, balance: 0, min: 2, max: 1000, history: [] }, topTimer = null;
+        async function loadWallet() {
+            try { const d = await (await fetch('/api/ad-wallet')).json(); if (d.success) W = d; } catch (e) {}
+        }
+        const KIND = { topup: T('➕ បញ្ចូលលុយ (ABA)', '➕ Added (ABA)'), used: T('📢 ផ្សាយពាណិជ្ជកម្ម', '📢 Ad'), leftover: T('↩️ លុយនៅសល់ពីពាណិជ្ជកម្ម', '↩️ Left from an ad'),
+            refund: T('↩️ ត្រឡប់វិញ (មិនអនុម័ត)', '↩️ Given back (not approved)'), admin: T('🛠️ CamFeed កែតម្រូវ', '🛠️ Changed by CamFeed') };
+        function walletCard() {
+            return `<div class="pay" style="border-style:solid;background:#fff;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div><div class="muted">💳 ${T('កាបូបពាណិជ្ជកម្ម', 'Ad wallet')}</div><div class="amt">${money(W.balance)}</div></div>
+                    <button class="btn small" type="button" onclick="openTopup()">➕ ${T('បញ្ចូលលុយ', 'Add money')}</button>
+                </div>
+                ${W.sandbox ? `<div class="muted" style="color:#92580a;margin-top:6px;">🧪 ${T('កំពុងសាកល្បង (Sandbox) — មិនមែនលុយពិត', 'Testing (Sandbox) — not real money')}</div>` : ''}
+                <div class="muted" style="margin-top:6px;">${T('ពាណិជ្ជកម្មនីមួយៗ កាត់លុយពីកាបូបនេះភ្លាម។ លុយដែលមិនទាន់ប្រើ ត្រឡប់ចូលកាបូបវិញ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'Each ad is paid from this wallet at once. Money not used comes back. It can only be used for ads.')}</div>
+                ${W.history && W.history.length ? `<details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:700;font-size:13.5px;">${T('ប្រវត្តិ', 'History')}</summary>
+                    ${W.history.map(h => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 0;border-bottom:1px solid #f0f2f5;"><span>${KIND[h.kind] || esc(h.kind)}${h.ref && (h.kind === 'used' || h.kind === 'refund') ? ' A' + Number(h.ref) : h.ref && h.kind === 'topup' ? ' W' + Number(h.ref) : ''} · ${esc(new Date(h.at).toLocaleDateString())}</span><b style="color:${h.cents < 0 ? '#b42318' : '#176f35'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></div>`).join('')}</details>` : ''}
+            </div>`;
+        }
+        // ➕ add money: choose the amount → PayWay gives a KHQR with that amount → the page waits until PayWay says it is paid
+        function openTopup(needUsd, after) {
+            if (!W.payway) { alert(T('ការបញ្ចូលលុយតាម ABA មិនទាន់រួចរាល់ទេ។', 'Adding money by ABA is not ready yet.')); return; }
+            const start = Math.max(W.min, Math.ceil((needUsd || 0) * 100) / 100 || W.min);
+            openModal('💳 ' + T('បញ្ចូលលុយ', 'Add money'), `<div class="muted">${T('ចំនួន (ដុល្លារ)', 'Amount (USD)')}</div>
+                <div class="chips" id="topChips"></div><input id="topAmt" type="number" min="${W.min}" max="${W.max}" step="0.5" value="${start}" style="margin-top:8px;">
+                <button class="btn" type="button" id="topGo" style="width:100%;margin-top:12px;">${T('បង្កើត QR សម្រាប់បង់', 'Make the QR to pay')}</button><div class="msg" id="topMsg"></div><div id="topQr"></div>`);
+            const chips = $('topChips'); [...new Set([start, 5, 10, 20, 50].filter(v => v >= W.min && v <= W.max))].forEach(v => chips.appendChild(chip('$' + v, Number($('topAmt').value) === v, () => { $('topAmt').value = v; chips.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.textContent === '$' + v)); })));
+            $('topGo').addEventListener('click', async () => {
+                const btn = $('topGo'); btn.disabled = true;
+                try {
+                    const d = await (await fetch('/api/ad-wallet/topup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: Number($('topAmt').value) }) })).json();
+                    if (!d.success) { setMsg('topMsg', false, d.code === 'amount' ? T('ចំនួនត្រូវចាប់ពី $' + d.min + ' ដល់ $' + d.max, 'The amount must be from $' + d.min + ' to $' + d.max) : (T('ABA PayWay មិនទាន់ផ្ដល់ QR ទេ។ សូមសាកម្ដងទៀតក្រោយ។', 'ABA PayWay did not give a QR. Please try again later.') + (d.why ? ' (' + esc(d.why) + ')' : ''))); btn.disabled = false; return; }
+                    $('topMsg').className = 'msg'; btn.style.display = 'none'; $('topChips').style.display = 'none'; $('topAmt').style.display = 'none';
+                    $('topQr').innerHTML = `<div style="text-align:center;margin-top:8px;">
+                        <div style="font-size:26px;font-weight:800;">$${Number(d.amount).toFixed(2)}</div>
+                        <div class="muted">${T('ស្កេន KHQR នេះ ពីកម្មវិធីធនាគារណាក៏បាន', 'Scan this KHQR from any bank app')} · <b>W${Number(d.id)}</b></div>
+                        ${d.qrImage && /^data:image\/(png|jpeg);base64,/.test(d.qrImage) ? `<img src="${esc(d.qrImage)}" alt="KHQR" style="width:100%;max-width:260px;margin:10px auto;display:block;border-radius:12px;">` : ''}
+                        ${d.deeplink ? `<a class="btn" href="${esc(d.deeplink)}" style="display:block;text-decoration:none;margin-top:6px;">📱 ${T('បើក ABA ដើម្បីបង់', 'Open ABA to pay')}</a>` : ''}
+                        ${d.sandbox ? `<div class="muted" style="color:#92580a;margin-top:8px;">🧪 ${T('Sandbox: បង់ដោយកម្មវិធីសាកល្បងរបស់ PayWay (មិនមែនលុយពិត)', 'Sandbox: pay with the PayWay test app (not real money)')}</div>` : ''}
+                        <div class="muted" id="topWait" style="margin-top:10px;">⏳ ${T('កំពុងរង់ចាំការបង់ប្រាក់… ទំព័រនេះនឹងប្ដូរដោយខ្លួនឯង (QR ប្រើបាន ' + d.minutes + ' នាទី)', 'Waiting for the payment… this page changes by itself (the QR works for ' + d.minutes + ' minutes)')}</div></div>`;
+                    clearInterval(topTimer);
+                    const until = Date.now() + (d.minutes + 5) * 60 * 1000;
+                    topTimer = setInterval(async () => {
+                        if (!$('topWait') || Date.now() > until) { clearInterval(topTimer); return; }
+                        try {
+                            const x = await (await fetch('/api/ad-wallet/topup/' + Number(d.id))).json();
+                            if (x.success && x.status === 'paid') {
+                                clearInterval(topTimer);
+                                $('topQr').innerHTML = `<div class="msg ok" style="display:block;font-size:15px;text-align:center;">✅ ${T('បានបញ្ចូល $' + Number(d.amount).toFixed(2) + ' ហើយ!', 'Added $' + Number(d.amount).toFixed(2) + '!')}<br>${T('កាបូប៖ ', 'Wallet: ')}<b>${money(x.balance)}</b></div>`;
+                                await loadWallet(); loadMine(); estimate();
+                                if (after) setTimeout(() => { closeModal(); after(); }, 1200);
+                            } else if (x.success && x.status === 'expired') { clearInterval(topTimer); $('topWait').textContent = T('⌛ QR ផុតកំណត់ហើយ។ សូមបង្កើតថ្មី។', '⌛ The QR has ended. Please make a new one.'); }
+                        } catch (e) {}
+                    }, 3000);
+                } catch (e) { setMsg('topMsg', false, T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); btn.disabled = false; }
+            });
+        }
+        window.openTopup = openTopup;
         let mine = [];
         function payBox(r, where) {
             const code = 'A' + Number(r.id);
@@ -438,9 +499,9 @@
             try {
                 const d = await (await fetch('/api/ads/my')).json();
                 mine = (d.success && d.requests) || [];
-                if (!mine.length) { box.textContent = T('មិនទាន់មានពាណិជ្ជកម្មទេ។', 'No ads yet.'); return; }
                 const credit = Number(d.credit || 0);
-                box.innerHTML = (credit > 0 ? `<div class="pay" style="border-style:solid">💳 ${T('ឥណទានពាណិជ្ជកម្មរបស់អ្នក៖', 'Your ad credit:')} <b>${money(credit)}</b><div class="muted">${T('នឹងកាត់ចេញពីប្រាក់ត្រូវបង់ ពេលអ្នកផ្សាយលើកក្រោយ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'It is taken off the price of your next ad. It can only be used for ads.')}</div></div>` : '') + mine.map(r => {
+                if (!mine.length) { box.innerHTML = walletCard() + `<div class="muted" style="margin-top:10px;">${T('មិនទាន់មានពាណិជ្ជកម្មទេ។', 'No ads yet.')}</div>`; return; }
+                const reqHtml = (r) => {
                     const shown = r.ad_status === 'completed' ? 'completed' : (r.ad_status && r.status === 'live' && r.ends_at && new Date(r.ends_at) < new Date() ? 'ended' : r.status);
                     let extra = '';
                     if (r.status === 'quoted') extra = (r.admin_note ? `<div class="muted" style="margin-top:6px;color:#b42318;">${esc(r.admin_note)}</div>` : '') + payBox(r, 'l');
@@ -454,7 +515,8 @@
                     const goal = (GOALS.find(g => g.id === r.objective) || {}).t || '', place = (r.places ? String(r.places).split(',') : (OLD_PLACE[r.placement] || [])).map(x => (PLACES.find(p => p.id === x) || {}).t || '').filter(Boolean).join(' + ');
                     return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b>A${Number(r.id)}</b><span class="pill ${esc(shown)}">${STATUS[shown] || esc(shown)}</span></div>
                         <div class="muted">${esc(goal)} · ${esc(place)} · ${T(Number(r.days) + ' ថ្ងៃ', Number(r.days) + (Number(r.days) === 1 ? ' day' : ' days'))} · ${T('ថវិកា', 'budget')} ${money(r.budget_cents)}</div>${r.caption ? `<div class="notranslate" translate="no" style="font-size:13.5px;margin-top:4px;">${esc(String(r.caption).slice(0, 120))}</div>` : ''}${extra}</div>`;
-                }).join('');
+                };
+                box.innerHTML = (W.payway ? walletCard() : (credit > 0 ? `<div class="pay" style="border-style:solid">💳 ${T('ឥណទានពាណិជ្ជកម្មរបស់អ្នក៖', 'Your ad credit:')} <b>${money(credit)}</b><div class="muted">${T('នឹងកាត់ចេញពីប្រាក់ត្រូវបង់ ពេលអ្នកផ្សាយលើកក្រោយ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'It is taken off the price of your next ad. It can only be used for ads.')}</div></div>` : '')) + mine.map(reqHtml).join('');
                 if (mine.some(r => r.status === 'payment_sent' || r.status === 'starting')) pollTimer = setTimeout(loadMine, 15000);
             } catch (e) { box.textContent = T('ផ្ទុកមិនបាន', 'Could not load'); }
         }
@@ -483,6 +545,7 @@
         (async function init() {
             build();
             try { const i = await (await fetch('/api/ads/info')).json(); if (i.success) { st.info = i; st.cc = (i.me && i.me.cc) || 'KH'; $('rateLine').textContent = T('តម្លៃ៖ ទំព័រដើម $' + Number(i.cpmFeed).toFixed(2) + ' និងមុនវីដេអូ $' + Number(i.cpmVideo).toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ថវិកាតិចបំផុត $' + i.minBudget, 'Price: home feed $' + Number(i.cpmFeed).toFixed(2) + ' and before videos $' + Number(i.cpmVideo).toFixed(2) + ' per 1,000 views · smallest budget $' + i.minBudget); $('fBudget').min = i.minBudget; } } catch (e) {}
+            await loadWallet();
             try { const k = await (await fetch('/api/ads/keywords')).json(); st.words = k.words || []; $('kwList').innerHTML = st.words.map(w => `<option value="${esc(w.word)}">${esc(w.grp)}</option>`).join(''); } catch (e) {}
             drawGoals(); syncGoal(); drawKw(); drawWho(); drawPlaces(); drawBudget(); estimate();
             if (new URLSearchParams(location.search).get('tab') === 'mine') showTab('mine');
