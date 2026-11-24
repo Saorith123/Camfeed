@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 174;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 178;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -390,7 +390,8 @@ pool.connect(async (err, client, release) => {
       id SERIAL PRIMARY KEY, user_email TEXT NOT NULL, amount_cents INTEGER NOT NULL, method VARCHAR(20) NOT NULL, account_name VARCHAR(80), account_number VARCHAR(40),
       status VARCHAR(20) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), decided_at TIMESTAMPTZ, decided_by TEXT, note TEXT)`);
     await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS ux_withdraw_pending ON withdrawal_requests (user_email) WHERE status = 'pending'");   // one open request at a time
-    for (const col of ['payout_code TEXT', 'code_issued_at TIMESTAMPTZ', 'code_viewed_at TIMESTAMPTZ', 'reissue_requested_at TIMESTAMPTZ', 'reissue_count INTEGER NOT NULL DEFAULT 0']) {
+    for (const col of ['payout_code TEXT', 'code_issued_at TIMESTAMPTZ', 'code_viewed_at TIMESTAMPTZ', 'reissue_requested_at TIMESTAMPTZ', 'reissue_count INTEGER NOT NULL DEFAULT 0',
+      'hold_until TIMESTAMPTZ', 'name_check VARCHAR(12)', 'new_details BOOLEAN NOT NULL DEFAULT FALSE', 'tg_sent BOOLEAN NOT NULL DEFAULT FALSE']) {
       await pool.query('ALTER TABLE withdrawal_requests ADD COLUMN IF NOT EXISTS ' + col).catch(() => {});
     }
     await pool.query('CREATE TABLE IF NOT EXISTS referrals (referred_email TEXT PRIMARY KEY, referrer_email TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())');
@@ -2647,7 +2648,20 @@ const push = require('./push')({ app, pool });                 // phone notifica
 const chatExtras = require('./chat-extras')({ app, pool, cleanup, extractMediaUrls, mediaBase: () => storyMediaBase(), push, onGroupMessage: (from, members, text) => party.chatGrant(from, members, text), setting: (k, d) => ruleNum(k, d),
   restrictedBy: (to, from) => chatPrefs.isRestricted(to, from), hiddenFor: (me, kind, ids) => chatPrefs.hiddenFor(me, kind, ids) });   // a person I restricted: their calls do not ring
 const chatPrefs = require('./chat-prefs')({ app, pool, cleanup, extractMediaUrls });
-const series = require('./series')({ app, pool });
+const series = require('./series')({ app, pool, onThumb: (id, url, me) => checkCover(id, url, me) });
+// 🖼️ a cover picture chosen by the owner: the AI looks at it; 18+ / shocking → back to the automatic picture (and the owner is told)
+async function checkCover(id, url, me) {
+  try {
+    if (!process.env.GEMINI_API_KEY) return;
+    const frames = await interests.framesOfUrls([url]);
+    if (!frames.length) return;
+    const ans = await interests.geminiJson('This picture is the cover of a video on a family-friendly social app in Cambodia. Is it sexual / nudity, shocking violence or gore? Answer only JSON: {"bad": true|false, "why": "few words"}', frames);
+    if (ans && ans.bad === true) {
+      await pool.query('UPDATE posts SET thumb_url = NULL WHERE id = $1 AND thumb_url = $2', [id, url]);       // NULL = the automatic picture is made again
+      sendAdminNotice('CamFeed', me, '🖼️ CamFeed បានប្ដូររូបក្របវីដេអូរបស់អ្នក ទៅជារូបស្វ័យប្រវត្តិវិញ ព្រោះរូបនោះមិនសមរម្យ។', 'admin_notice').catch(() => {});
+    }
+  } catch (e) { console.error('[cover] check:', e.message); }
+}
 const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   onDecide: (...a) => onPaymentDecision(...a) });   // 💰 the owner's ✅ / ❌ on Telegram
 const country = require('./country')({ pool });
@@ -3698,7 +3712,7 @@ app.post('/api/admin/system', async (req, res) => {
     const has = (k) => !!process.env[k];
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, checks: {
       database: db, databaseMs: dbMs, jwtSecret: has('JWT_SECRET'), adminPin: !!ADMIN_MASTER_KEY, emailCodes: !!(mailer && mailer.isConfigured && mailer.isConfigured()), phoneCodes: gateway.isConfigured(),
-      telegramLogin: tgLogin.isConfigured(), turnstile: has('TURNSTILE_SECRET_KEY'), mediaStorage: has('R2_BUCKET_NAME') && has('R2_ACCESS_KEY_ID') && has('R2_SECRET_ACCESS_KEY'), aiCategories: has('GEMINI_API_KEY'),
+      telegramLogin: tgLogin.isConfigured(), turnstile: has('TURNSTILE_SECRET_KEY'), googlePlay: require('./google-play').on(), payway: has('PAYWAY_MERCHANT_ID') && has('PAYWAY_API_KEY') && has('PAYWAY_API_URL'), mediaStorage: has('R2_BUCKET_NAME') && has('R2_ACCESS_KEY_ID') && has('R2_SECRET_ACCESS_KEY'), aiCategories: has('GEMINI_API_KEY'),
       supportTelegram: supportTelegramLink(), feedMode: process.env.FEED_MODE === 'latest' ? 'latest' : 'ranked', videoFeedMode: process.env.VIDEO_FEED_MODE === 'latest' ? 'latest' : 'ranked',
       maskUserIds: process.env.MASK_USER_IDS !== 'false', debugErrors: process.env.DEBUG_ERRORS === 'true', cspEnforced: process.env.CSP_ENFORCE === 'true',
       uptimeMinutes: Math.round(process.uptime() / 60), memoryMb: Math.round(process.memoryUsage().rss / 1048576), node: process.version } });
@@ -4271,6 +4285,10 @@ async function activateAdRequest(id, by) {
 }
 // 💰 the owner pressed ✅ / ❌ on Telegram
 async function onPaymentDecision(kind, id, ok, by) {
+  if (kind === 'wd') {                                    // 💵 a withdrawal: ✅ = paid (only after the waiting time), ❌ = refused (the money goes back)
+    const r = await decideWithdrawal(id, ok ? 'paid' : 'rejected', ok ? '' : 'CamFeed មិនអាចផ្ទេរបានទេ។ សូមពិនិត្យឈ្មោះ និងលេខគណនី ហើយស្នើម្ដងទៀត', by || 'telegram', '', false);
+    return { ok: r.ok, text: r.ok ? (ok ? '💵 W' + id + ' បានបង់ — បានប្រាប់ម្ចាស់ហើយ' : '❌ W' + id + ' បដិសេធ — លុយត្រឡប់ចូលកាបូបវិញ') : r.error };
+  }
   if (kind === 'coin') return coins.decideTopup(id, ok, ok ? '' : 'CamFeed មិនទាន់ឃើញប្រាក់ចូលគណនីទេ', by);
   if (kind !== 'ad') return { ok: false, text: 'Unknown.' };
   if (ok) { const r = await activateAdRequest(id, by); return { ok: r.ok, text: r.ok ? '📢 ពាណិជ្ជកម្ម A' + id + ' ចាប់ផ្ដើមហើយ' : r.error }; }
@@ -4981,7 +4999,7 @@ async function syncViewEarnings(email) {
 // ---- Rules the Super Admin can change at any time in Admin > Monetization (saved in creator_settings as 'r:<NAME>').
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {
-  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000]],
+  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000], ['WITHDRAW_DAY_MAX_USD', 'wdDayMax', 0, 100000], ['WITHDRAW_MONTH_MAX_USD', 'wdMonthMax', 0, 1000000], ['WITHDRAW_HOLD_HOURS', 'wdHoldHours', 0, 168]],
   app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16], ['CHAT_MAX_MONTHS', 'chatMaxMonths', 1, 24], ['COPYRIGHT_MAX_STRIKES', 'copyrightStrikes', 1, 10]],
   referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
 };
@@ -5002,7 +5020,9 @@ const ruleNum = (k, d) => {
 };
 const creatorRules = () => {
   const n = ruleNum;
-  return { followers: n('CREATOR_MIN_FOLLOWERS', 1000), views: n('CREATOR_MIN_VIEWS', 10000), ageDays: n('CREATOR_MIN_ACCOUNT_DAYS', 30), posts: n('CREATOR_MIN_POSTS', 5), minWithdrawCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100) };
+  return { followers: n('CREATOR_MIN_FOLLOWERS', 1000), views: n('CREATOR_MIN_VIEWS', 10000), ageDays: n('CREATOR_MIN_ACCOUNT_DAYS', 30), posts: n('CREATOR_MIN_POSTS', 5), minWithdrawCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100),
+    // 🛡️ withdrawals: the most a person can take in one day / one month (0 = no limit), and how long a first withdrawal or new account details wait
+    wdDayMax: n('WITHDRAW_DAY_MAX_USD', 200), wdMonthMax: n('WITHDRAW_MONTH_MAX_USD', 1000), wdHoldHours: n('WITHDRAW_HOLD_HOURS', 24) };
 };
 async function creatorStats(email) {
   const r = await pool.query(
@@ -5212,13 +5232,31 @@ app.post('/api/monetization/withdraw', async (req, res) => {
     if (cents > wallet) return res.status(400).json({ success: false, error: 'Your balance is not enough.' });
     const held = await coins.heldCents(email);          // money from Party Room gifts waits a few days (Admin sets how many)
     if (held > 0 && cents > wallet - held) return res.status(400).json({ success: false, error: 'Gift money from Party Room can be withdrawn a few days after you receive it. You can withdraw $' + (Math.max(0, wallet - held) / 100).toFixed(2) + ' now.' });
+    // 🛡️ the most in one day / one month (Admin sets; 0 = no limit). Refused requests do not count.
+    const used = (await pool.query(`SELECT COALESCE(SUM(amount_cents) FILTER (WHERE created_at > NOW() - INTERVAL '1 day'), 0)::int AS d, COALESCE(SUM(amount_cents) FILTER (WHERE created_at > NOW() - INTERVAL '30 days'), 0)::int AS m
+      FROM withdrawal_requests WHERE user_email = $1 AND status <> 'rejected'`, [email])).rows[0];
+    if (rules.wdDayMax > 0 && used.d + cents > Math.round(rules.wdDayMax * 100)) return res.status(400).json({ success: false, code: 'day_max', error: 'The most you can withdraw in one day is $' + Number(rules.wdDayMax).toFixed(2) + '. You can still take $' + (Math.max(0, Math.round(rules.wdDayMax * 100) - used.d) / 100).toFixed(2) + ' today.' });
+    if (rules.wdMonthMax > 0 && used.m + cents > Math.round(rules.wdMonthMax * 100)) return res.status(400).json({ success: false, code: 'month_max', error: 'The most you can withdraw in 30 days is $' + Number(rules.wdMonthMax).toFixed(2) + '. You can still take $' + (Math.max(0, Math.round(rules.wdMonthMax * 100) - used.m) / 100).toFixed(2) + '.' });
+    // 🛡️ a first withdrawal, or account details never paid before, waits some hours (time to notice a stolen account)
+    const paidBefore = (await pool.query("SELECT 1 FROM withdrawal_requests WHERE user_email = $1 AND status = 'paid' AND method = $2 AND regexp_replace(COALESCE(account_number, ''), '\\D', '', 'g') = $3 LIMIT 1", [email, method, accountNumber.replace(/\D/g, '')])).rows.length > 0;
+    const holdH = paidBefore ? 0 : Number(rules.wdHoldHours) || 0;
+    // 🛡️ the name on the bank account and the name on CamFeed: the same → ✅; not the same (or Khmer vs Latin letters) → ⚠️ the Admin looks closer
+    let nameCheck = '';
+    if (!CODE_METHODS.includes(method)) {
+      const u = (await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [email])).rows[0] || {};
+      const flat = (x) => String(x || '').toLowerCase().replace(/[^a-z\u1780-\u17ff]/g, '');
+      const a1 = flat(accountName), n1 = flat((u.first_name || '') + (u.last_name || '')), n2 = flat((u.last_name || '') + (u.first_name || ''));
+      nameCheck = a1 && (a1 === n1 || a1 === n2) ? 'same' : 'differ';
+    }
     let id;
     try {
-      const ins = await pool.query('INSERT INTO withdrawal_requests (user_email, amount_cents, method, account_name, account_number) VALUES ($1, $2, $3, $4, $5) RETURNING id', [email, cents, method, accountName, accountNumber]);
+      const ins = await pool.query(`INSERT INTO withdrawal_requests (user_email, amount_cents, method, account_name, account_number, hold_until, name_check, new_details)
+        VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::int > 0 THEN NOW() + ($6::int || ' hours')::interval ELSE NULL END, $7, $8) RETURNING id`, [email, cents, method, accountName, accountNumber, holdH, nameCheck, !paidBefore]);
       id = ins.rows[0].id;
     } catch (e) { if (e && e.code === '23505') return res.status(409).json({ success: false, error: 'You already have a withdrawal waiting to be paid.' }); throw e; }
     await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal', $3, $4, $1)", [email, -cents, 'Withdrawal request #' + id, id]);   // the money is set aside at once
-    res.json({ success: true, id });
+    res.json({ success: true, id, holdHours: holdH });
+    if (!holdH) withdrawTelegram(id).catch(() => {});                            // 📲 the owner's Telegram (after the waiting time for new details)
   } catch (err) { console.error('[monetization] withdraw error:', err.message); res.status(500).json({ success: false, error: 'Could not send your request.' }); }
 });
 
@@ -5404,7 +5442,7 @@ app.post('/api/admin/withdrawals', async (req, res) => {
   try {
     const a = await adminGate(req, res); if (!a) return;
     const r = await pool.query(
-      `SELECT w.id, w.user_email, w.amount_cents, w.method, w.account_name, w.account_number, w.status, w.created_at, w.decided_at, w.decided_by, w.note, (w.payout_code IS NOT NULL) AS has_code, w.code_viewed_at, w.reissue_requested_at, w.reissue_count, u.first_name, u.last_name, u.public_id
+      `SELECT w.id, w.user_email, w.amount_cents, w.method, w.account_name, w.hold_until, w.name_check, w.new_details, w.account_number, w.status, w.created_at, w.decided_at, w.decided_by, w.note, (w.payout_code IS NOT NULL) AS has_code, w.code_viewed_at, w.reissue_requested_at, w.reissue_count, u.first_name, u.last_name, u.public_id
        FROM withdrawal_requests w JOIN users u ON u.email = w.user_email ORDER BY CASE WHEN w.status = 'pending' THEN 0 WHEN w.reissue_requested_at IS NOT NULL THEN 1 ELSE 2 END, w.created_at DESC LIMIT 100`);
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, withdrawals: r.rows.map((x) => Object.assign({}, x, { amount: x.amount_cents / 100 })) });
   } catch (err) { console.error('[admin] withdrawals error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -5417,29 +5455,57 @@ app.post('/api/admin/withdrawals/decide', async (req, res) => {
     if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can decide a withdrawal.' });
     const status = ['paid', 'rejected'].includes(b.status) ? b.status : ''; const id = parseInt(b.id, 10);
     if (!status || !id) return res.status(400).json({ success: false, error: 'Invalid request.' });
-    const note = String(b.note || '').slice(0, 300);
-    const cur = (await pool.query("SELECT method FROM withdrawal_requests WHERE id = $1 AND status = 'pending'", [id])).rows[0];
-    if (!cur) return res.status(409).json({ success: false, error: 'This request was already decided.' });
+    const r = await decideWithdrawal(id, status, String(b.note || '').slice(0, 300), a.adminEmail, b.code, b.force === true);
+    if (!r.ok) return res.status(r.http || 400).json({ success: false, error: r.error });
+    res.json({ success: true });
+  } catch (err) { console.error('[admin] withdrawal decide error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+
+// 💵 pay / refuse a withdrawal (from Admin or from the owner's Telegram)
+async function decideWithdrawal(id, status, note, by, codeIn, force) {
+  {
+    const cur = (await pool.query("SELECT method, hold_until FROM withdrawal_requests WHERE id = $1 AND status = 'pending'", [id])).rows[0];
+    if (!cur) return { ok: false, http: 409, error: 'This request was already decided.' };
+    if (status === 'paid' && !force && cur.hold_until && new Date(cur.hold_until).getTime() > Date.now()) return { ok: false, http: 400, code: 'hold', error: 'New account details: please wait until ' + new Date(cur.hold_until).toISOString().slice(0, 16).replace('T', ' ') + ' UTC before paying (or tick "pay now").' };
     let sealed = null;
     if (status === 'paid' && CODE_METHODS.includes(cur.method)) {
-      const code = String(b.code || '').trim();
-      if (!CODE_RE.test(code)) return res.status(400).json({ success: false, error: 'Please enter the code (letters, numbers, spaces or dashes).' });
-      try { sealed = sealCode(code); } catch (e) { return res.status(500).json({ success: false, error: 'Server key is missing: set PAYOUT_CODE_KEY (or JWT_SECRET) on Render first.' }); }
+      const code = String(codeIn || '').trim();
+      if (!CODE_RE.test(code)) return { ok: false, http: 400, error: 'Please enter the code (letters, numbers, spaces or dashes).' };
+      try { sealed = sealCode(code); } catch (e) { return { ok: false, http: 500, error: 'Server key is missing: set PAYOUT_CODE_KEY (or JWT_SECRET) on Render first.' }; }
     }
-    if (status === 'rejected' && !note) return res.status(400).json({ success: false, error: 'Please write the reason.' });
-    const upd = await pool.query("UPDATE withdrawal_requests SET status = $1, decided_at = NOW(), decided_by = $2, note = $3, payout_code = $5, code_issued_at = CASE WHEN $5::text IS NULL THEN NULL ELSE NOW() END WHERE id = $4 AND status = 'pending' RETURNING user_email, amount_cents, method", [status, a.adminEmail, note, id, sealed]);
-    if (!upd.rows.length) return res.status(409).json({ success: false, error: 'This request was already decided.' });
-    if (status === 'rejected') await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal_refund', $3, $4, $5)", [upd.rows[0].user_email, upd.rows[0].amount_cents, 'Withdrawal #' + id + ' was refused' + (note ? ': ' + note : ''), id, a.adminEmail]);
+    if (status === 'rejected' && !note) return { ok: false, http: 400, error: 'Please write the reason.' };
+    const upd = await pool.query("UPDATE withdrawal_requests SET status = $1, decided_at = NOW(), decided_by = $2, note = $3, payout_code = $5, code_issued_at = CASE WHEN $5::text IS NULL THEN NULL ELSE NOW() END WHERE id = $4 AND status = 'pending' RETURNING user_email, amount_cents, method", [status, by, note, id, sealed]);
+    if (!upd.rows.length) return { ok: false, http: 409, error: 'This request was already decided.' };
+    if (status === 'rejected') await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by) VALUES ($1, $2, 'withdrawal_refund', $3, $4, $5)", [upd.rows[0].user_email, upd.rows[0].amount_cents, 'Withdrawal #' + id + ' was refused' + (note ? ': ' + note : ''), id, by]);
     const amt = usdText(upd.rows[0].amount_cents), m = upd.rows[0].method;
     const text = status === 'rejected' ? '❌ សំណើដកប្រាក់ ' + amt + ' មិនត្រូវបានអនុម័ត៖ ' + note + '។ ទឹកប្រាក់ត្រូវបានប្រគល់ទៅកាបូបរបស់អ្នកវិញ។'
       : m === 'TopUp' ? '✅ ការដកប្រាក់ ' + amt + ' ជោគជ័យ! សូមចុចដើម្បីមើលកូដបញ្ចូលទឹកប្រាក់ទូរស័ព្ទរបស់អ្នក។'
       : m === 'WingCash' ? '✅ ការដកប្រាក់ ' + amt + ' ជោគជ័យ! សូមចុចដើម្បីមើលកូដសម្រាប់ដកប្រាក់នៅភ្នាក់ងារ Wing។'
       : '✅ ការដកប្រាក់ជោគជ័យ សូមពិនិត្យមើលទឹកប្រាក់ក្នុងគណនីធនាគាររបស់អ្នក (' + amt + ')។';
-    await sendAdminNotice(a.adminEmail, upd.rows[0].user_email, text, 'wallet_notice').catch((e) => console.error('[withdraw] notice error:', e.message));
-    audit(a.adminEmail, 'withdrawal-' + status, upd.rows[0].user_email, '#' + id + ' ' + (upd.rows[0].amount_cents / 100).toFixed(2) + ' USD');
-    res.json({ success: true });
-  } catch (err) { console.error('[admin] withdrawal decide error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
-});
+    await sendAdminNotice(by, upd.rows[0].user_email, text, 'wallet_notice').catch((e) => console.error('[withdraw] notice error:', e.message));
+    audit(by, 'withdrawal-' + status, upd.rows[0].user_email, '#' + id + ' ' + (upd.rows[0].amount_cents / 100).toFixed(2) + ' USD');
+    return { ok: true, user: upd.rows[0].user_email };
+  }
+}
+
+// 📲 a new withdrawal on the owner's Telegram: bank / KHQR → ✅ paid / ❌ refuse right there; Wing cash-out / phone top-up need a code → open Admin
+async function withdrawTelegram(id) {
+  const w = (await pool.query(`SELECT w.*, u.first_name, u.last_name, (SELECT COALESCE(SUM(amount_cents), 0) FROM wallet_ledger l WHERE l.user_email = w.user_email)::int AS left_cents
+    FROM withdrawal_requests w JOIN users u ON u.email = w.user_email WHERE w.id = $1 AND w.status = 'pending' AND w.tg_sent = FALSE`, [id])).rows[0];
+  if (!w) return;
+  const lines = ['💵 ដកប្រាក់ W' + id + ' · ' + usdText(w.amount_cents), '👤 ' + ((w.first_name || '') + ' ' + (w.last_name || '')).trim(),
+    '🏦 ' + w.method + (CODE_METHODS.includes(w.method) ? ' · ' + (w.account_name || '') : '') + ' · ' + (w.account_number || ''),
+    CODE_METHODS.includes(w.method) ? '' : '🪪 ' + (w.account_name || '') + (w.name_check === 'same' ? ' ✅ ឈ្មោះដូច CamFeed' : ' ⚠️ ឈ្មោះមិនដូច CamFeed — សូមពិនិត្យ'),
+    w.new_details ? '🆕 លេខគណនីថ្មី (មិនដែលបង់ពីមុន)' : '', '💰 នៅសល់ក្នុងកាបូប ' + usdText(w.left_cents)].filter(Boolean);
+  let sent;
+  if (CODE_METHODS.includes(w.method)) sent = await tgPay.notify(lines.concat(['🔑 ត្រូវដាក់លេខកូដ៖ សូមបើក Admin › 💰 ការរកប្រាក់ › 💵 ការដកប្រាក់']));
+  else sent = await tgPay.ask('wd', id, lines.concat(['ផ្ទេរលុយរួច ទើបចុច ✅']), ['✅ បានផ្ទេររួច', '❌ បដិសេធ']);
+  if (sent) await pool.query('UPDATE withdrawal_requests SET tg_sent = TRUE WHERE id = $1', [id]);
+}
+// requests that waited (new account details) go to Telegram when their time is over
+setInterval(async () => {
+  try { for (const r of (await pool.query("SELECT id FROM withdrawal_requests WHERE status = 'pending' AND tg_sent = FALSE AND (hold_until IS NULL OR hold_until <= NOW()) ORDER BY id LIMIT 10")).rows) await withdrawTelegram(r.id); } catch (e) {}
+}, 10 * 60 * 1000).unref();
 
 
 app.post('/api/admin/withdrawals/reissue', async (req, res) => {

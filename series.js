@@ -2,7 +2,7 @@
 // in order (episode 1, 2, 3 … — the word "ភាគ" / "មេរៀន" … is theirs to choose too). Everybody can make them.
 // The tab on the profile has a name the owner chooses ("រឿង", "មេរៀន" …; empty = the app's default).
 // A video is in ONE series at most. The videos stay ordinary posts (Feed, Reels …): a series only groups them.
-module.exports = function installSeries({ app, pool }) {
+module.exports = function installSeries({ app, pool, onThumb }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const clip = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n);
   let ready = null;
@@ -385,11 +385,12 @@ module.exports = function installSeries({ app, pool }) {
     const id = parseInt(req.params.id, 10);
     const url = String((req.body || {}).thumbnailUrl || '');
     if (!me || !(id > 0)) return res.status(400).json({ success: false });
-    if (!/^https:\/\//.test(url)) return res.status(400).json({ success: false, error: 'url' });
+    if (!/^https:\/\//.test(url) || !require('./security').safeUrl(url)) return res.status(400).json({ success: false, error: 'url' });   // only our own storage
     try {
       const r = await pool.query('UPDATE posts SET thumb_url = $3 WHERE id = $1 AND LOWER(user_email) = $2 RETURNING id', [id, norm(me), url.slice(0, 600)]);
       if (!r.rows.length) return res.status(403).json({ success: false });
       res.json({ success: true, thumb_url: url });
+      if (typeof onThumb === 'function') onThumb(id, url, me);                 // 🤖 the picture is checked after (not 18+ / not shocking)
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 

@@ -143,7 +143,8 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const tops = await pool.query('SELECT id, usd, coins, method, status, note, created_at, decided_at FROM coin_topups WHERE user_email = $1 ORDER BY id DESC LIMIT 10', [e]);
       res.json({ success: true, balance: await balance(e), coinCents: COIN_CENTS, share: s.share, holdDays: s.holdDays,
         walletOn: s.walletOn, walletCents: walletCents ? await walletCents(e) : 0,
-        packs: s.packs.map((p, i) => ({ i, usd: Number(p.usd) || 0, coins: Number(p.web) || 0, appCoins: Number(p.app) || 0 })),
+        packs: s.packs.map((p, i) => ({ i, usd: Number(p.usd) || 0, coins: Number(p.web) || 0, appCoins: Number(p.app) || 0, playId: playIdOf(p) })),
+        play: gplay.on(), playAccount: gplay.accountIdOf(e),               // 🛒 Google Play in the Android app
         payinfo: s.payinfo, gifts: gifts.rows.map(giftOut), topups: tops.rows });
     } catch (err) { console.error('[coins] get:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
@@ -152,7 +153,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     const e = me(req, res); if (!e) return;
     try {
       await ensure();
-      const r = await pool.query(`SELECT l.id, l.coins, l.kind, l.created_at, g.emoji, g.name_km, g.name_en, ge.count,
+      const r = await pool.query(`SELECT l.id, l.coins, l.kind, l.created_at, CASE WHEN l.note LIKE 'Google Play%' THEN 'Google Play' ELSE '' END AS note, g.emoji, g.name_km, g.name_en, ge.count,
                                     u.first_name AS to_first_name, u.last_name AS to_last_name
                                   FROM coin_ledger l LEFT JOIN gift_events ge ON l.kind = 'gift' AND ge.id = l.ref_id
                                   LEFT JOIN gift_catalog g ON g.id = ge.gift_id LEFT JOIN users u ON LOWER(u.email) = ge.to_email
@@ -188,6 +189,43 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       } catch (x) { /* best effort */ }
       res.json({ success: true, id: r.rows[0].id });
     } catch (err) { console.error('[coins] topup:', err.message); res.status(500).json({ success: false, error: 'Could not send.' }); }
+  });
+
+  // ---- 🛒 Google Play (Android app): the app sends the purchase; CamFeed asks Google if it is real, then adds the coins ONCE ----
+  // The product ids in Play Console must be the same as here: cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20 (= the pack's price in $),
+  // or the "play" id written for a pack in Admin. The coins given are the pack's "app" coins (Google keeps a part of the price).
+  const gplay = require('./google-play');
+  function playIdOf(p) { return String(p.play || ('cf_coins_' + String(Number(p.usd) || 0).replace('.', '_'))).slice(0, 100); }
+  let playReady = null;
+  const playEnsure = () => playReady || (playReady = pool.query(`CREATE TABLE IF NOT EXISTS play_purchases (token TEXT PRIMARY KEY, user_email TEXT NOT NULL, product_id TEXT NOT NULL,
+    order_id TEXT, coins INTEGER NOT NULL, test BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`).catch((e) => { playReady = null; throw e; }));
+  app.post('/api/coins/play', async (req, res) => {
+    const e = me(req, res); if (!e) return;
+    const b = req.body || {}, productId = String(b.productId || '').slice(0, 100), token = String(b.purchaseToken || '').slice(0, 1000);
+    if (!productId || token.length < 10) return res.status(400).json({ success: false });
+    if (!gplay.on()) return res.status(503).json({ success: false, code: 'off', error: 'Not ready yet.' });
+    try {
+      await ensure(); await playEnsure();
+      const s = await settings();
+      const p = s.packs.find((x) => playIdOf(x) === productId);
+      if (!p || !(Number(p.app) > 0)) return res.status(400).json({ success: false, code: 'product', error: 'Unknown pack.' });
+      const old = (await pool.query('SELECT user_email, coins FROM play_purchases WHERE token = $1', [token])).rows[0];
+      if (old) return old.user_email === e ? res.json({ success: true, already: true, coins: old.coins, balance: await balance(e) }) : res.status(409).json({ success: false, code: 'used' });
+      const g = await gplay.checkProduct(productId, token);
+      if (!g.ok) { console.error('[coins] play check:', g.http, g.why); return res.status(502).json({ success: false, code: 'google', why: g.http }); }
+      if (g.state === 2) return res.status(202).json({ success: false, code: 'pending' });              // paid later (e.g. cash at a shop): try again then
+      if (g.state !== 0) return res.status(400).json({ success: false, code: 'cancelled' });
+      if (g.account && g.account !== gplay.accountIdOf(e)) return res.status(409).json({ success: false, code: 'other' });
+      const coins = Number(p.app);
+      const c = await pool.connect();
+      try {
+        await c.query('BEGIN');
+        const ins = await c.query('INSERT INTO play_purchases (token, user_email, product_id, order_id, coins, test) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token) DO NOTHING RETURNING token', [token, e, productId, g.order, coins, !!g.test]);
+        if (ins.rows.length) await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'topup', $3, $1)", [e, coins, 'Google Play ' + productId + (g.order ? ' ' + g.order : '') + (g.test ? ' (test)' : '')]);
+        await c.query('COMMIT');
+      } catch (x) { try { await c.query('ROLLBACK'); } catch (y) {} throw x; } finally { c.release(); }
+      res.json({ success: true, coins, balance: await balance(e) });
+    } catch (err) { console.error('[coins] play:', err.message); res.status(500).json({ success: false, error: 'Could not add the coins.' }); }
   });
 
   // ---- 💰 change money in my wallet (rewards, video earnings, gifts...) into coins: at once, no checking needed ----
@@ -549,7 +587,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       if (act === 'settings') {
         if (!superOnly()) return;
         if (Array.isArray(b.packs)) {
-          const packs = b.packs.map((p) => ({ usd: Math.round(Number(p.usd) * 100) / 100, web: parseInt(p.web, 10), app: parseInt(p.app, 10) }))
+          const packs = b.packs.map((p) => Object.assign({ usd: Math.round(Number(p.usd) * 100) / 100, web: parseInt(p.web, 10), app: parseInt(p.app, 10) }, /^[a-z0-9_.]{1,100}$/.test(String(p.play || '')) ? { play: String(p.play) } : {}))
             .filter((p) => p.usd > 0 && p.usd <= 1000 && p.web > 0 && p.web <= 1000000 && p.app >= 0 && p.app <= 1000000).slice(0, 8);
           if (!packs.length) return res.status(400).json({ success: false, error: 'Add at least one pack (price > 0 and coins > 0).' });
           await setSetting('packs', JSON.stringify(packs));

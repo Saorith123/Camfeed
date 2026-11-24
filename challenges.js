@@ -7,7 +7,7 @@ const appCfg = require('./app-config');
 module.exports = function installChallenges({ app, pool, adminGate, audit, sendNotice, xpNowOf, badgesOf, coinMoney }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const me = (req, res) => { const e = norm(req.authEmail); if (!e) res.status(401).json({ success: false, error: 'Please log in.' }); return e; };
-  const METRICS = ['gift_recv', 'gift_sent', 'room_minutes', 'seat_minutes', 'xp', 'checkins', 'room_followers', 'video_views', 'posts', 'followers'];
+  const METRICS = ['gift_recv', 'gift_sent', 'room_minutes', 'seat_minutes', 'xp', 'checkins', 'room_followers', 'video_views', 'watch_minutes', 'posts', 'followers'];
   const REWARDS = ['coins', 'money', 'frame', 'vip', 'xp', 'note'];
 
   let ready = null;
@@ -60,6 +60,9 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     room_followers: `SELECT owner_email AS e, COUNT(*)::bigint AS n FROM party_follows WHERE created_at >= $1 AND created_at < $2 AND ${WHO('owner_email')} GROUP BY owner_email`,
     video_views: `SELECT LOWER(p.user_email) AS e, COUNT(*)::bigint AS n FROM post_views v JOIN posts p ON p.id = v.post_id
                   WHERE v.created_at >= $1 AND v.created_at < $2 AND (v.viewer_email IS NULL OR LOWER(v.viewer_email) <> LOWER(p.user_email)) AND ${WHO('LOWER(p.user_email)')} GROUP BY LOWER(p.user_email)`,
+    // ⏱️ minutes other people watched my videos (where each one stopped, at most the video's length), counted by when they last watched
+    watch_minutes: `SELECT LOWER(p.user_email) AS e, (SUM(LEAST(w.secs, CASE WHEN w.duration > 0 THEN w.duration ELSE w.secs END)) / 60)::bigint AS n FROM watch_history w JOIN posts p ON p.id = w.post_id
+                  WHERE w.updated_at >= $1 AND w.updated_at < $2 AND LOWER(w.user_email) <> LOWER(p.user_email) AND ${WHO('LOWER(p.user_email)')} GROUP BY LOWER(p.user_email)`,
     posts: `SELECT LOWER(user_email) AS e, COUNT(*)::bigint AS n FROM posts WHERE created_at >= $1 AND created_at < $2 AND ${WHO('LOWER(user_email)')} GROUP BY LOWER(user_email)`,
     followers: `SELECT LOWER(following_email) AS e, COUNT(*)::bigint AS n FROM follows WHERE created_at >= $1 AND created_at < $2 AND ${WHO('LOWER(following_email)')} GROUP BY LOWER(following_email)`,
   };
@@ -71,6 +74,7 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     seat_minutes: ['party_minutes', 'user_email', 'hour', 'SUM(seat)', ''],
     room_followers: ['party_follows', 'owner_email', 'created_at', 'COUNT(*)', ''],
     video_views: ['post_views v JOIN posts p ON p.id = v.post_id', 'LOWER(p.user_email)', 'v.created_at', 'COUNT(*)', 'AND (v.viewer_email IS NULL OR LOWER(v.viewer_email) <> LOWER(p.user_email))'],
+    watch_minutes: ['watch_history w JOIN posts p ON p.id = w.post_id', 'LOWER(p.user_email)', 'w.updated_at', 'SUM(LEAST(w.secs, CASE WHEN w.duration > 0 THEN w.duration ELSE w.secs END)) / 60', 'AND LOWER(w.user_email) <> LOWER(p.user_email)'],
     posts: ['posts', 'LOWER(user_email)', 'created_at', 'COUNT(*)', ''],
     followers: ['follows', 'LOWER(following_email)', 'created_at', 'COUNT(*)', ''],
   };

@@ -134,5 +134,11 @@ window.ADMIN_KM = {
   // ---- system ----
   '📊 Count everything in the database': '📊 រាប់អ្វីៗទាំងអស់ក្នុងមូលដ្ឋានទិន្នន័យ', '📊 Days': '📊 ថ្ងៃ', '↻ Check again': '↻ ពិនិត្យម្ដងទៀត', '↻ Refresh': '↻ ផ្ទុកឡើងវិញ', '✕ Close': '✕ បិទ', '✕ Show everybody': '✕ បង្ហាញទាំងអស់',
   '✉️ Invited by CamFeed': '✉️ អញ្ជើញដោយ CamFeed', '✉️ Waiting for the person to accept': '✉️ រង់ចាំអ្នកនោះទទួលយក', '🖼️ Open': '🖼️ បើក', 'Picture put by ': 'រូបដាក់ដោយ ', 'Link: ': 'តំណ៖ ', 'Last changed by ': 'ប្ដូរចុងក្រោយដោយ ',
+  'Coins by Google Play (app)': 'កាក់តាម Google Play (កម្មវិធី)', 'Ad wallet by ABA PayWay': 'កាបូបពាណិជ្ជកម្មតាម ABA PayWay', 'Working': 'ដំណើរការ',
+  'Set GOOGLE_PLAY_SERVICE_ACCOUNT (the JSON key of a service account added in Play Console › Users and permissions). Products: cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20.': 'ដាក់ GOOGLE_PLAY_SERVICE_ACCOUNT (JSON Key របស់ Service Account ដែលបានបន្ថែមក្នុង Play Console › Users and permissions)។ ផលិតផល៖ cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20។',
+  'Most a person can withdraw in one day ($, 0 = no limit)': 'ចំនួនច្រើនបំផុតដែលម្នាក់អាចដកក្នុងមួយថ្ងៃ ($, 0 = គ្មានកំណត់)', 'Most a person can withdraw in 30 days ($, 0 = no limit)': 'ចំនួនច្រើនបំផុតដែលម្នាក់អាចដកក្នុង ៣០ ថ្ងៃ ($, 0 = គ្មានកំណត់)',
+  'A first withdrawal / new account number waits … hours before it can be paid (0 = no wait)': 'ការដកលើកដំបូង / លេខគណនីថ្មី ត្រូវរង់ចាំ … ម៉ោង ទើបអាចបង់បាន (0 = មិនរង់ចាំ)', 'Smallest withdrawal ($)': 'ដកតិចបំផុត ($)',
+  '⚠️ Name not the same as on CamFeed — check': '⚠️ ឈ្មោះមិនដូចក្នុង CamFeed — សូមពិនិត្យ', '✅ Same name as on CamFeed': '✅ ឈ្មោះដូចក្នុង CamFeed', '🆕 New account number': '🆕 លេខគណនីថ្មី', 'Wait until ': 'រង់ចាំដល់ ', '⏳ Wait until ': '⏳ រង់ចាំដល់ ',
+  'Mark paid': 'សម្គាល់ថាបានបង់', 'Reject': 'បដិសេធ', 'No withdrawal request yet.': 'មិនទាន់មានសំណើដកប្រាក់ទេ។',
   'Logged in as:': 'ចូលជា៖', 'Logged in as: ': 'ចូលជា៖ '
 };

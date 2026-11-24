@@ -73,6 +73,7 @@ function safeItem(it) {
   const url = safeUrl(it.url); if (!url) return null;
   const out = { url };
   if (it.type !== undefined) { if (typeof it.type !== 'string' || !ENUM_RE.test(it.type)) return null; out.type = it.type; }
+  if (it.thumb !== undefined && it.thumb !== '') { const t = safeUrl(it.thumb); if (!t) return null; out.thumb = t; }   // 🖼️ the cover picture chosen for a video
   return out;
 }
 function safeItems(arr) {

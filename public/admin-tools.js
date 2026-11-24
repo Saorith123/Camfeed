@@ -417,7 +417,8 @@
     database: ['Database (Supabase)', 'The website can not work without it.'], jwtSecret: ['JWT_SECRET', 'Set a long random value in Render, otherwise login tokens are not safe.'], adminPin: ['Admin PIN (ADMIN_SECRET_KEY)', 'Without it nobody can open the admin center.'],
     emailCodes: ['E-mail codes (Resend)', 'Needed for Gmail sign-up and forgot password. Check RESEND_API_KEY and the verified domain.'], phoneCodes: ['Phone codes (Telegram Gateway)', 'Paused when TELEGRAM_GATEWAY_TOKEN is not set: people use Gmail or message you on Telegram.'],
     telegramLogin: ['Telegram login', 'Off by decision (ENABLE_TELEGRAM_LOGIN).'], turnstile: ['Human check (Cloudflare Turnstile)', 'Set TURNSTILE_SECRET_KEY to stop bots on sign-up and login.'], mediaStorage: ['Photo / video storage (R2)', 'Needs R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.'],
-    aiCategories: ['AI post categories (Gemini)', 'Without it every post is "General", so the feed can not learn what people like.'], supportTelegram: ['Support Telegram link', 'Set SUPPORT_TELEGRAM so people can message you from the sign-up page.'] };
+    aiCategories: ['AI post categories (Gemini)', 'Without it every post is "General", so the feed can not learn what people like.'], supportTelegram: ['Support Telegram link', 'Set SUPPORT_TELEGRAM so people can message you from the sign-up page.'],
+    googlePlay: ['Coins by Google Play (app)', 'Set GOOGLE_PLAY_SERVICE_ACCOUNT (the JSON key of a service account added in Play Console › Users and permissions). Products: cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20.'], payway: ['Ad wallet by ABA PayWay', 'Set PAYWAY_MERCHANT_ID, PAYWAY_API_KEY and PAYWAY_API_URL.'] };
   function loadSystem() {
     var p = document.getElementById('panel-system'); p.textContent = ''; p.appendChild(empty('Checking…'));
     adm('/api/admin/system').then(function (d) {
@@ -1065,9 +1066,12 @@
   }
 
   // ---------- 🎯 Challenges: goals for a time with steps (tier 1, 2, 3…) and/or Top N places; rewards = coins / frame / VIP / XP / a note / money ----------
-  var CH_METRIC = { gift_recv: '🎁 Gift coins received', gift_sent: '🎁 Gift coins sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
-  var CH_METRIC_KM = { gift_recv: 'កាក់អំណោយដែលបានទទួល', gift_sent: 'កាក់អំណោយដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
-  var CH_UNIT = { gift_recv: 'coins · កាក់', gift_sent: 'coins · កាក់', room_minutes: 'min · នាទី', seat_minutes: 'min · នាទី', xp: 'XP', checkins: 'days · ថ្ងៃ', room_followers: 'people · នាក់', video_views: 'views · ដង', posts: 'posts · ដង', followers: 'people · នាក់' };
+  var CH_METRIC = { gift_recv: '🎁 Gift coins received', gift_sent: '🎁 Gift coins sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', watch_minutes: '⏱️ Minutes people watched my videos (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
+  var CH_METRIC_KM = { gift_recv: 'កាក់អំណោយដែលបានទទួល', gift_sent: 'កាក់អំណោយដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់ខ្ញុំ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
+  var CH_UNIT = { gift_recv: 'coins · កាក់', gift_sent: 'coins · កាក់', room_minutes: 'min · នាទី', seat_minutes: 'min · នាទី', xp: 'XP', checkins: 'days · ថ្ងៃ', room_followers: 'people · នាក់', video_views: 'views · ដង', watch_minutes: 'min · នាទី', posts: 'posts · ដង', followers: 'people · នាក់' };
+  // which counts fit which place (the lists only show these; 'both' shows all)
+  var CH_AREA = { party: ['gift_recv', 'gift_sent', 'room_minutes', 'seat_minutes', 'xp', 'checkins', 'room_followers'], monetize: ['video_views', 'watch_minutes', 'posts', 'followers'] };
+  function chFit(sel, area) { var ok = CH_AREA[area]; Array.prototype.forEach.call(sel.options, function (o) { var show = !ok || ok.indexOf(o.value) >= 0 || o.selected; o.hidden = !show; o.disabled = !show; }); }
   var CH_REWARD = { coins: '🪙 Coins', money: '💵 Money ($, Admin approves)', frame: '🖼️ Frame', vip: '👑 VIP days', xp: '⚡ XP', note: '📝 Note only (e.g. a chance to become a Star)' };
   function challengesAdmin(body) {
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
@@ -1104,6 +1108,8 @@
       var bk = el('textarea', { class: 'at-in', rows: '3', style: 'width:100%', placeholder: 'អ្វីដែលអ្នកចូលរួមទទួលបាន (ខ្មែរ) — ឧ. ឱកាសក្លាយជាតារា ឱកាសរកលុយពីវីដេអូ…' }); bk.value = c.body_km || '';
       var be = el('textarea', { class: 'at-in', rows: '2', style: 'width:100%', placeholder: 'What people get (English)' }); be.value = c.body_en || '';
       var area = sel({ party: '🎉 Party Room', monetize: '💰 Monetize', both: 'Both' }, c.area), metric = sel(CH_METRIC, c.metric);
+      metric.classList.add('ch-metric'); chFit(metric, area.value);
+      area.addEventListener('change', function () { f.querySelectorAll('select.ch-metric').forEach(function (s) { chFit(s, area.value); }); });   // only the counts that fit the place
       var st = inp(local(c.starts_at), 200, '', 'datetime-local'), en = inp(local(c.ends_at), 200, '', 'datetime-local');
       var jm = sel({ join: 'People press "Join" (places can be limited)', auto: 'Everybody is in automatically' }, c.join_mode), mp = inp(c.max_people, 90, '0 = no limit', 'number');
       var ml = inp(c.min_level, 70, '0', 'number'), md = inp(c.min_days, 70, '0', 'number'), so = inp(c.sort, 70, '0', 'number');
@@ -1129,6 +1135,7 @@
         function addCond(cd) {
           cd = cd || { metric: 'checkins', need: 0, mode: 'total' };
           var m = sel(CH_METRIC, cd.metric); Object.keys(CH_METRIC).forEach(function (k, i) { m.options[i].text = CH_METRIC[k] + ' · ' + CH_METRIC_KM[k]; });
+          m.classList.add('ch-metric'); chFit(m, area.value);
           var daily = cd.mode === 'daily';
           var amt = inp(daily ? cd.per_day : (cd.need || ''), 90, '0', 'number'), unit = el('span', { style: 'color:#65676b;font-size:12.5px' });
           var mode = el('select', { class: 'at-in', style: 'width:auto;display:inline-block' });
@@ -1581,7 +1588,7 @@
   }
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {
-    CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: 'Smallest withdrawal ($)',
+    CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: 'Smallest withdrawal ($)', WITHDRAW_DAY_MAX_USD: 'Most a person can withdraw in one day ($, 0 = no limit)', WITHDRAW_MONTH_MAX_USD: 'Most a person can withdraw in 30 days ($, 0 = no limit)', WITHDRAW_HOLD_HOURS: 'A first withdrawal / new account number waits … hours before it can be paid (0 = no wait)',
     COPYRIGHT_MAX_STRIKES: '©️ Copyright: upheld claims / removed copies in one year before the person\'s earnings stop (1–10)',
     NAME_CHANGE_DAYS: 'A person can change their name once every … days (0 = any time)', GROUP_CALL_MAX: 'People in one group call at most (2–16)', CHAT_MAX_MONTHS: 'Chat messages are deleted after … months at most, for everyone (1–24)',
     REFERRAL_REWARD_USD: 'Reward per invited friend ($)', REFERRAL_ACTIVE_DAYS: 'Friend must use CamFeed on … different days', REFERRAL_POSTS: 'Friend must post … public photos / videos', REFERRAL_WINDOW_DAYS: 'Within … days after signing up', REFERRAL_MAX_PER_MONTH: 'Paid automatically per inviter per month (more = waits for you)'
@@ -1642,7 +1649,9 @@
             note = prompt('Internal note / bank reference (optional):', ''); if (note === null) return;
           } else { note = prompt('Reason for refusing (the creator sees it):', ''); if (!note) return; }
           if (!confirm((status === 'paid' ? 'Mark ' + money(w.amount) + ' as PAID to ' : 'Refuse and refund ' + money(w.amount) + ' to ') + nm(w) + '?')) return;
-          adm('/api/admin/withdrawals/decide', { id: w.id, status: status, note: note, code: code }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
+          var force = status === 'paid' && w.hold_until && new Date(w.hold_until) > new Date() && confirm('⏳ New account details: the waiting time is not over. Pay now anyway?');
+          if (status === 'paid' && w.hold_until && new Date(w.hold_until) > new Date() && !force) return;
+          adm('/api/admin/withdrawals/decide', { id: w.id, status: status, note: note, code: code, force: !!force }).then(function (x) { if (x.success) loadMonetizationAdmin(); else alert(x.error || 'Failed'); });
         }
         function reissue() {
           var code = prompt('Enter the NEW code for ' + nm(w) + ' (' + (ML[w.method] || w.method) + ', ' + w.account_number + '):', ''); if (!code) return;
@@ -1654,7 +1663,16 @@
           if (w.reissue_requested_at && d.isSuperAdmin) kids.push(el('button', { class: 'btn-sm btn-green', text: '🔑 Send new code', onclick: reissue }));
           kids.push(el('span', { style: 'font-size:12px;color:#65676b;display:block', text: (w.reissue_requested_at ? '⚠️ Asked for a new code. ' : '') + (w.code_viewed_at ? 'Code seen by owner.' : 'Code not seen yet.') }));
         } else kids.push(el('span', { style: 'font-size:12px;color:#65676b', text: w.note || '' }));
-        var hot = w.reissue_requested_at ? 'background:#fff4e5' : '';
+        // 🛡️ what to look at before paying
+        if (w.status === 'pending') {
+          var warn = [];
+          if (w.name_check === 'differ') warn.push('⚠️ Name not the same as on CamFeed — check');
+          else if (w.name_check === 'same') warn.push('✅ Same name as on CamFeed');
+          if (w.new_details) warn.push('🆕 New account number');
+          if (w.hold_until && new Date(w.hold_until) > new Date()) warn.push('⏳ Wait until ' + new Date(w.hold_until).toLocaleString());
+          warn.forEach(function (t) { kids.push(el('div', { style: 'font-size:12px;margin-top:4px;color:' + (/^⚠️/.test(t) ? '#b45309' : '#65676b') }, [el('span', { text: t.indexOf('⏳ Wait until ') === 0 ? '⏳ Wait until ' : t }), el('span', { text: t.indexOf('⏳ Wait until ') === 0 ? t.slice(13) : '' })])); });
+        }
+        var hot = w.reissue_requested_at ? 'background:#fff4e5' : (w.status === 'pending' && w.name_check === 'differ' ? 'background:#fffbeb' : '');
         return el('tr', { style: hot }, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(w) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: w.public_id || '' })]), el('td', { style: 'font-weight:800', text: money(w.amount) }), el('td', { text: ML[w.method] || w.method }), el('td', { text: w.account_name || '' }), el('td', { text: w.account_number || '' }), el('td', { text: fmt(w.created_at) }), el('td', {}, [statusBadge(w.status)]), el('td', {}, kids)]);
       })));
     });

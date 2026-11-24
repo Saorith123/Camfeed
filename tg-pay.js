@@ -55,7 +55,8 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   // to every linked Telegram: the payment to check, with the two buttons
-  async function ask(kind, id, lines) {
+  async function ask(kind, id, lines, labels) {
+    const L = Array.isArray(labels) && labels.length === 2 ? labels : ['✅ បានទទួលប្រាក់', '❌ មិនទាន់ទទួល'];
     if (!on()) return false;
     try {
       await ensure();
@@ -63,7 +64,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
       const text = lines.map(esc).join('\n');
       for (const c of chats) {
         await api('sendMessage', { chat_id: c.chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true,
-          reply_markup: { inline_keyboard: [[{ text: '✅ បានទទួលប្រាក់', callback_data: `${kind}:ok:${id}` }, { text: '❌ មិនទាន់ទទួល', callback_data: `${kind}:no:${id}` }]] } });
+          reply_markup: { inline_keyboard: [[{ text: L[0], callback_data: `${kind}:ok:${id}` }, { text: L[1], callback_data: `${kind}:no:${id}` }]] } });
       }
       return chats.length > 0;
     } catch (e) { console.error('[tg-pay] ask:', e.message); return false; }
@@ -91,7 +92,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
       if (q && q.data && q.message) {
         const linked = (await pool.query('SELECT linked_by FROM tg_pay_chats WHERE chat_id = $1 AND user_id = $2', [q.message.chat.id, q.from.id])).rows[0];
         if (!linked) { await api('answerCallbackQuery', { callback_query_id: q.id, text: 'Not allowed.', show_alert: true }); return; }
-        const m = /^(ad|coin):(ok|no):(\d{1,9})$/.exec(String(q.data));
+        const m = /^(ad|coin|wd):(ok|no):(\d{1,9})$/.exec(String(q.data));
         if (!m) { await api('answerCallbackQuery', { callback_query_id: q.id }); return; }
         const tgName = [q.from.first_name, q.from.last_name].filter(Boolean).join(' ') || String(q.from.id);
         const who = linked.linked_by || 'telegram';                            // the admin who linked this Telegram decides
@@ -100,7 +101,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
         try { out = await onDecide(m[1], parseInt(m[3], 10), m[2] === 'ok', who); } catch (e) { out = { ok: false, text: e.message }; }
         await api('answerCallbackQuery', { callback_query_id: q.id, text: (out && out.text) || 'Done', show_alert: !(out && out.ok) });
         if (out && out.ok) {
-          const mark = m[2] === 'ok' ? '\n\n✅ បានទទួល · ' : '\n\n❌ មិនទាន់ទទួល · ';
+          const mark = m[1] === 'wd' ? (m[2] === 'ok' ? '\n\n✅ បានផ្ទេរ · ' : '\n\n❌ បដិសេធ · ') : (m[2] === 'ok' ? '\n\n✅ បានទទួល · ' : '\n\n❌ មិនទាន់ទទួល · ');
           await api('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: String(q.message.text || '') + mark + tgName + '\n' + (out.text || '') });
         }
       }
