@@ -77,7 +77,7 @@
         .cta span { background: #1877f2; color: #fff; padding: 7px 16px; border-radius: 18px; font-weight: 700; font-size: 13px; }
         .req { border: 1px solid #e4e6eb; border-radius: 12px; padding: 12px; margin-top: 10px; }
         .pill { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: #e7f3ff; color: #1877f2; }
-        .pill.live { background: #d1fae5; color: #065f46; } .pill.rejected, .pill.ended, .pill.completed { background: #f1f5f9; color: #475569; } .pill.quoted, .pill.payment_sent, .pill.starting { background: #fff4d6; color: #92580a; }
+        .pill.live { background: #d1fae5; color: #065f46; } .pill.rejected, .pill.ended, .pill.completed { background: #f1f5f9; color: #475569; } .pill.quoted, .pill.payment_sent, .pill.starting, .pill.paused, .pill.checking { background: #fff4d6; color: #92580a; } .pill.cancelled, .pill.stopped { background: #f1f5f9; color: #475569; }
         .pay { background: #f8fafc; border: 1.5px dashed #94a3b8; border-radius: 12px; padding: 14px; margin-top: 10px; font-size: 14px; line-height: 1.6; }
         .pay .amt { font-size: 26px; font-weight: 800; color: #111827; } .pay .code { display: inline-block; font-size: 20px; font-weight: 800; letter-spacing: 1px; background: #fff; border: 2px solid #1877f2; color: #1877f2; border-radius: 10px; padding: 2px 12px; }
         .pay img { max-width: 240px; width: 100%; display: block; margin: 10px auto 0; border-radius: 8px; }
@@ -141,7 +141,8 @@
         const LINK_CTAS = ['install', 'download', 'signup', 'book', 'order', 'offer', 'menu', 'directions'];   // these buttons open a link
         const LINK_HINT = { install: 'https://play.google.com/store/apps/details?id=…', directions: 'https://maps.app.goo.gl/…', menu: 'https://…/menu', download: 'https://…' };
         const STATUS = { pending: T('⏳ កំពុងពិនិត្យ', '⏳ Being checked'), quoted: T('💵 រង់ចាំការបង់ប្រាក់', '💵 Waiting for payment'), payment_sent: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'),
-            starting: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'), live: T('🟢 កំពុងបង្ហាញ', '🟢 Running'), ended: T('✔ ចប់ហើយ', '✔ Ended'), completed: T('✔ ថវិកាអស់ហើយ', '✔ Budget used'), rejected: T('✖ មិនអនុម័ត', '✖ Not approved') };
+            starting: T('🔎 CamFeed កំពុងពិនិត្យការបង់ប្រាក់', '🔎 CamFeed is checking the payment'), live: T('🟢 កំពុងបង្ហាញ', '🟢 Running'), ended: T('✔ ចប់ហើយ', '✔ Ended'), completed: T('✔ ថវិកាអស់ហើយ', '✔ Budget used'), rejected: T('✖ មិនអនុម័ត', '✖ Not approved'),
+            checking: T('🤖 កំពុងពិនិត្យខ្លឹមសារ', '🤖 Checking the content'), paused: T('⏸️ បានផ្អាក', '⏸️ Paused'), stopped: T('⏹️ បានបញ្ឈប់', '⏹️ Stopped'), cancelled: T('⏹️ បានបោះបង់', '⏹️ Cancelled') };
         const st = { goal: 'products', mode: 'new', places: new Set(['feed', 'reels', 'story']), devices: new Set(['android', 'ios', 'web']), cc: 'KH', postId: null, mediaUrl: '', items: [], kws: [], provs: new Set(), gender: '', amin: 0, amax: 0, posts: [], words: [], info: { minBudget: 2, provinces: [] } };
         let estTimer = null, pollTimer = null;
 
@@ -409,7 +410,7 @@
                 $('est').innerHTML = `<div class="big">$${b} = ${T('ប្រហែល', 'about')} ${num(r.views)} ${T('ដងបង្ហាញ', 'views')}</div>
                     <div class="muted" style="margin-top:6px;">${T('តម្លៃ $' + r.cpm.toFixed(2) + ' ក្នុង 1,000 ដងបង្ហាញ · ' + d + ' ថ្ងៃ', '$' + r.cpm.toFixed(2) + ' per 1,000 views · ' + d + (d === 1 ? ' day' : ' days'))}</div>
                     <div style="margin-top:10px;font-size:14px;line-height:1.7;">✅ ${T('អ្នកបង់តែលើការបង្ហាញពិតប្រាកដប៉ុណ្ណោះ', 'You only pay for real views')}<br>💳 ${T('ប្រាក់ដែលមិនទាន់ប្រើពេលផុតថ្ងៃ ត្រូវបានរក្សាទុកជាឥណទាន សម្រាប់ផ្សាយលើកក្រោយ', 'Money not used by the last day is kept as credit for your next ad')}</div>
-                    ${W.payway ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('កាបូបពាណិជ្ជកម្ម៖', 'Ad wallet:')} <b>${money(W.balance)}</b>${W.balance / 100 < b ? ` → ${T('ត្រូវបញ្ចូលបន្ថែម', 'add')} <b>$${Math.max(b - W.balance / 100, 0).toFixed(2)}</b>` : ' ✅'}</div>`
+                    ${W.payway ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('អាចប្រើបាន៖', 'Available:')} <b>${money(wAvail())}</b>${wAvail() / 100 < b ? ` → ${T('ត្រូវបញ្ចូលបន្ថែម', 'add')} <b>$${Math.max(b - wAvail() / 100, 0).toFixed(2)}</b>` : ' ✅'}</div>`
                       : (cr > 0 ? `<div style="margin-top:10px;padding:8px 10px;background:#fff;border-radius:10px;font-size:14px;">💳 ${T('ឥណទានរបស់អ្នក៖', 'Your credit:')} <b>$${cr.toFixed(2)}</b> → ${T('ត្រូវបង់', 'to pay')} <b>$${pay.toFixed(2)}</b></div>` : '')}`;
             } catch (e) { $('est').textContent = T('គណនាមិនបាន', 'Could not calculate'); }
         }
@@ -442,16 +443,18 @@
             try { const d = await (await fetch('/api/ad-wallet')).json(); if (d.success) W = d; } catch (e) {}
         }
         const KIND = { topup: T('➕ បញ្ចូលលុយ (ABA)', '➕ Added (ABA)'), used: T('📢 ផ្សាយពាណិជ្ជកម្ម', '📢 Ad'), leftover: T('↩️ លុយនៅសល់ពីពាណិជ្ជកម្ម', '↩️ Left from an ad'),
-            refund: T('↩️ ត្រឡប់វិញ (មិនអនុម័ត)', '↩️ Given back (not approved)'), admin: T('🛠️ CamFeed កែតម្រូវ', '🛠️ Changed by CamFeed') };
+            refund: T('↩️ ត្រឡប់វិញ (មិនអនុម័ត)', '↩️ Given back (not approved)'), spend: T('📢 ចំណាយលើពាណិជ្ជកម្ម', '📢 Spent on an ad'), admin: T('🛠️ CamFeed កែតម្រូវ', '🛠️ Changed by CamFeed') };
+        const wAvail = () => (W.available !== undefined ? Number(W.available) : Number(W.balance || 0));   // the wallet minus the money kept for running ads
         function walletCard() {
             return `<div class="pay" style="border-style:solid;background:#fff;">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <div><div class="muted">💳 ${T('កាបូបពាណិជ្ជកម្ម', 'Ad wallet')}</div><div class="amt">${money(W.balance)}</div></div>
+                    <div><div class="muted">💳 ${T('អាចប្រើបាន', 'Available')}</div><div class="amt">${money(wAvail())}</div>
+                        ${Number(W.reserved) > 0 ? `<div class="muted">${T('សមតុល្យ', 'Balance')} ${money(W.balance)} · 🔒 ${T('កំពុងកក់សម្រាប់ពាណិជ្ជកម្ម', 'kept for running ads')} ${money(W.reserved)}</div>` : ''}</div>
                     <button class="btn small" type="button" onclick="openTopup()">➕ ${T('បញ្ចូលលុយ', 'Add money')}</button>
                 </div>
                 ${(W.waiting || []).map(x => `<div class="muted" style="color:#92580a;margin-top:6px;">⏳ W${Number(x.id)} · ${money(x.cents)} — ${T('CamFeed កំពុងពិនិត្យការបង់ប្រាក់', 'CamFeed is checking the payment')}</div>`).join('')}
                 ${W.sandbox ? `<div class="muted" style="color:#92580a;margin-top:6px;">🧪 ${T('កំពុងសាកល្បង (Sandbox) — មិនមែនលុយពិត', 'Testing (Sandbox) — not real money')}</div>` : ''}
-                <div class="muted" style="margin-top:6px;">${T('ពាណិជ្ជកម្មនីមួយៗ កាត់លុយពីកាបូបនេះភ្លាម។ លុយដែលមិនទាន់ប្រើ ត្រឡប់ចូលកាបូបវិញ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'Each ad is paid from this wallet at once. Money not used comes back. It can only be used for ads.')}</div>
+                <div class="muted" style="margin-top:6px;">${T('ពេលផ្សាយ ថវិកាត្រូវបានកក់ទុក ហើយលុយកាត់តាមការបង្ហាញពិតប៉ុណ្ណោះ។ បញ្ឈប់ពាណិជ្ជកម្ម = លុយមិនទាន់ប្រើ អាចប្រើវិញ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'Your budget is kept when the ad starts, and money is only taken as people really see it. Stop an ad = the money not used is free again. It can only be used for ads.')}</div>
                 ${W.history && W.history.length ? `<details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:700;font-size:13.5px;">${T('ប្រវត្តិ', 'History')}</summary>
                     ${W.history.map(h => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 0;border-bottom:1px solid #f0f2f5;"><span>${KIND[h.kind] || esc(h.kind)}${h.ref && (h.kind === 'used' || h.kind === 'refund') ? ' A' + Number(h.ref) : h.ref && h.kind === 'topup' ? ' W' + Number(h.ref) : ''} · ${esc(new Date(h.at).toLocaleDateString())}</span><b style="color:${h.cents < 0 ? '#b42318' : '#176f35'}">${h.cents < 0 ? '−' : '+'}${money(Math.abs(h.cents))}</b></div>`).join('')}</details>` : ''}
             </div>`;
@@ -597,16 +600,30 @@
                 const credit = Number(d.credit || 0);
                 if (!mine.length) { box.innerHTML = walletCard() + `<div class="muted" style="margin-top:10px;">${T('មិនទាន់មានពាណិជ្ជកម្មទេ។', 'No ads yet.')}</div>`; return; }
                 const reqHtml = (r) => {
-                    const shown = r.ad_status === 'completed' ? 'completed' : (r.ad_status && r.status === 'live' && r.ends_at && new Date(r.ends_at) < new Date() ? 'ended' : r.status);
+                    const over = r.ad_id && (r.credited || r.ad_status === 'ended' || r.ad_status === 'completed' || (r.ends_at && new Date(r.ends_at) < new Date()));
+                    let shown = r.ad_status === 'completed' ? 'completed' : (r.ad_status && r.status === 'live' && r.ends_at && new Date(r.ends_at) < new Date() ? 'ended' : r.status);
+                    if (r.status === 'live' && r.ad_status === 'paused' && !over) shown = 'paused';
+                    if (r.status === 'live' && r.ad_status === 'ended' && r.credited) shown = 'ended';
+                    if (r.billing === 'live' && (r.status === 'payment_sent' || r.status === 'starting')) shown = 'checking';
                     let extra = '';
                     if (r.status === 'quoted') extra = (r.admin_note ? `<div class="muted" style="margin-top:6px;color:#b42318;">${esc(r.admin_note)}</div>` : '') + payBox(r, 'l');
+                    else if (r.billing === 'live' && (r.status === 'payment_sent' || r.status === 'starting')) extra = `<div class="muted" style="margin-top:6px;">${T('🤖 កំពុងពិនិត្យខ្លឹមសារ។ ពេលរួច ពាណិជ្ជកម្មចាប់ផ្ដើមដោយខ្លួនឯង។ លុយកាត់តាមការបង្ហាញពិតប៉ុណ្ណោះ។', '🤖 Checking the content. It starts by itself when done. Money is only taken as people see it.')}</div>`;
                     else if (r.status === 'payment_sent' || r.status === 'starting') extra = `<div class="muted" style="margin-top:6px;">${T('CamFeed កំពុងពិនិត្យការបង់ប្រាក់ ' + money(r.price_cents) + ' (ចំណាំ A' + Number(r.id) + ')។ ទំព័រនេះនឹងប្ដូរដោយខ្លួនឯង។', 'CamFeed is checking your payment of ' + money(r.price_cents) + ' (note A' + Number(r.id) + '). This page updates by itself.')}</div>`;
                     else if (r.status === 'rejected' && r.admin_note) extra = `<div class="muted" style="margin-top:6px;">${esc(r.admin_note)}</div>`;
                     else if (r.ad_id) {
                         const pct = r.budget_cents ? Math.min(100, Math.round(Number(r.spent_cents) / r.budget_cents * 100)) : 0;
                         extra = `<div class="muted" style="margin-top:8px;">👁️ ${num(r.impressions)} ${T('ដងបង្ហាញ', 'views')} · 👆 ${num(r.clicks)} ${T('ដងចុច', 'clicks')} · ${T('ចំណាយ', 'spent')} ${money(r.spent_cents)} / ${money(r.budget_cents)}</div><div class="progress"><i style="width:${pct}%"></i></div>` +
                             `<div style="margin-top:10px;"><button class="btn gray small" onclick="openReport(${Number(r.id)})">📊 ${T('មើលលទ្ធផលលម្អិត', 'See detailed results')}</button></div>`;
+                        if (r.ad_status === 'paused' && !over) extra += `<div class="muted" style="margin-top:6px;color:#92580a;">${r.paused_by === 'admin' ? T('⏸️ CamFeed បានផ្អាកពាណិជ្ជកម្មនេះ។ សូមទាក់ទង CamFeed។', '⏸️ CamFeed paused this ad. Please contact CamFeed.') : r.paused_by === 'money' ? T('⏸️ ផ្អាក ព្រោះកាបូបអស់លុយ។ បញ្ចូលលុយ ហើយចុច ▶️ បន្ត។', '⏸️ Paused: the wallet is empty. Add money, then tap ▶️ Go on.') : T('⏸️ អ្នកបានផ្អាកពាណិជ្ជកម្មនេះ។', '⏸️ You paused this ad.')}</div>`;
                     }
+                    // ⏸️ ▶️ ⏹️ ✏️ the advertiser's own buttons
+                    const can = [];
+                    const pre = ['pending', 'quoted', 'payment_sent'].includes(r.status);
+                    if (r.ad_id && !over && r.ad_status === 'active') can.push(`<button class="btn gray small" onclick="adAct(${Number(r.id)}, 'pause')">⏸️ ${T('ផ្អាក', 'Pause')}</button>`);
+                    if (r.ad_id && !over && r.ad_status === 'paused' && r.paused_by !== 'admin') can.push(`<button class="btn small" onclick="adAct(${Number(r.id)}, 'resume')">▶️ ${T('បន្ត', 'Go on')}</button>`);
+                    if ((r.ad_id && !over) || pre) can.push(`<button class="btn gray small" onclick="adEdit(${Number(r.id)})">✏️ ${T('កែ', 'Edit')}</button>`);
+                    if ((r.ad_id && !over) || pre) can.push(`<button class="btn gray small" style="color:#b42318;" onclick="adAct(${Number(r.id)}, 'stop')">⏹️ ${pre && !r.ad_id ? T('បោះបង់', 'Cancel') : T('បញ្ឈប់', 'Stop')}</button>`);
+                    if (can.length) extra += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">${can.join('')}</div>`;
                     const goal = (GOALS.find(g => g.id === r.objective) || {}).t || '', place = (r.places ? String(r.places).split(',') : (OLD_PLACE[r.placement] || [])).map(x => (PLACES.find(p => p.id === x) || {}).t || '').filter(Boolean).join(' + ');
                     return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b>A${Number(r.id)}</b><span class="pill ${esc(shown)}">${STATUS[shown] || esc(shown)}</span></div>
                         <div class="muted">${esc(goal)} · ${esc(place)} · ${T(Number(r.days) + ' ថ្ងៃ', Number(r.days) + (Number(r.days) === 1 ? ' day' : ' days'))} · ${T('ថវិកា', 'budget')} ${money(r.budget_cents)}</div>${r.caption ? `<div class="notranslate" translate="no" style="font-size:13.5px;margin-top:4px;">${esc(String(r.caption).slice(0, 120))}</div>` : ''}${extra}</div>`;
@@ -615,6 +632,52 @@
                 if (mine.some(r => r.status === 'payment_sent' || r.status === 'starting')) pollTimer = setTimeout(loadMine, 15000);
             } catch (e) { box.textContent = T('ផ្ទុកមិនបាន', 'Could not load'); }
         }
+        // ⏸️ pause / ▶️ go on / ⏹️ stop
+        async function adAct(id, action) {
+            if (action === 'stop' && !confirm(T('បញ្ឈប់ពាណិជ្ជកម្ម A' + id + ' មែនទេ? លុយដែលមិនទាន់ប្រើ នៅក្នុងកាបូបរបស់អ្នកដដែល ហើយអាចប្រើសម្រាប់ពាណិជ្ជកម្មថ្មី។', 'Stop ad A' + id + '? The money not used stays in your wallet for a new ad.'))) return;
+            try {
+                const d = await (await fetch('/api/ads/my/' + id + '/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })).json();
+                if (!d.success) alert(d.code === 'need_topup' ? T('💳 កាបូបអស់លុយ។ សូមបញ្ចូលលុយសិន។', '💳 The wallet is empty. Please add money first.') : d.code === 'admin' ? T('CamFeed បានផ្អាកពាណិជ្ជកម្មនេះ។ សូមទាក់ទង CamFeed។', 'CamFeed paused this ad. Please contact CamFeed.') : (d.error || T('មិនបាន', 'Failed')));
+            } catch (e) { alert(T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); }
+            await loadWallet(); loadMine();
+        }
+        window.adAct = adAct;
+        // ✏️ change the words, the button, the budget, more days (a running ad: CamFeed is told about new words / links)
+        function adEdit(id) {
+            const r = mine.find(x => Number(x.id) === Number(id)); if (!r) return;
+            const fixedCta = r.objective === 'products' || r.objective === 'messages';
+            const live = r.billing === 'live';
+            openModal('✏️ ' + T('កែពាណិជ្ជកម្ម A', 'Edit ad A') + Number(id), `
+                ${r.post_id ? '' : `<label>${T('ពាក្យពណ៌នា', 'Text')}</label><textarea id="eCap" rows="3" maxlength="500">${esc(r.caption || '')}</textarea>`}
+                ${fixedCta ? '' : `<label>${T('ប៊ូតុង', 'Button')}</label><select id="eCta">${CTAS.map(c => `<option value="${c[0]}" ${c[0] === (r.cta || 'learn_more') ? 'selected' : ''}>${esc(c[1])}</option>`).join('')}</select>
+                    <div id="eLinkBox"><label>${T('តំណភ្ជាប់ពេលចុច', 'Link to open')}</label><input id="eLink" value="${esc(/^https?:/.test(r.target_url || '') ? r.target_url : '')}" placeholder="https://…"></div>
+                    <div id="ePhoneBox"><label>${T('📞 លេខទូរស័ព្ទ', '📞 Phone number')}</label><input id="ePhone" inputmode="tel" maxlength="20" value="${esc(/^tel:/.test(r.target_url || '') ? r.target_url.replace(/^tel:\+855/, '0').replace(/^tel:/, '') : '')}"></div>`}
+                ${live ? `<label>${T('ថវិកាសរុប (ដុល្លារ)', 'Total budget (USD)')}</label><input id="eBudget" type="number" min="1" step="0.5" value="${(Number(r.budget_cents) / 100).toFixed(2)}">
+                    <div class="muted">${T('បានចំណាយ', 'Spent')} ${money(r.spent_cents || 0)} · ${T('អាចប្រើបានក្នុងកាបូប', 'available in the wallet')} ${money(wAvail())}</div>` : ''}
+                <label>${T('បន្ថែមថ្ងៃ', 'Add days')}</label><select id="eDays">${[0, 1, 3, 7, 14, 30].map(n => `<option value="${n}">${n ? '+' + n + T(' ថ្ងៃ', n === 1 ? ' day' : ' days') : T('មិនបន្ថែម', 'No')}</option>`).join('')}</select>
+                ${r.ad_id ? `<div class="muted" style="margin-top:8px;">${T('ពាក្យ ឬតំណភ្ជាប់ថ្មី CamFeed នឹងពិនិត្យម្ដងទៀត។', 'CamFeed checks new words or links again.')}</div>` : ''}
+                <button class="btn" type="button" id="eSave" style="width:100%;margin-top:12px;">💾 ${T('រក្សាទុក', 'Save')}</button><div class="msg" id="eMsg"></div>`);
+            const sync = () => { if (!$('eCta')) return; const c = $('eCta').value; $('eLinkBox').style.display = (LINK_CTAS.includes(c) || c === 'learn_more' || c === 'shop' || c === 'call') ? 'block' : 'none'; $('ePhoneBox').style.display = c === 'call_now' ? 'block' : 'none'; };
+            if ($('eCta')) { $('eCta').addEventListener('change', sync); sync(); }
+            $('eSave').addEventListener('click', async () => {
+                const body = { action: 'edit', add_days: Number($('eDays').value) };
+                if ($('eCap') && $('eCap').value !== (r.caption || '')) body.caption = $('eCap').value;
+                if ($('eCta')) {
+                    const c = $('eCta').value, link = $('eLink').value.trim(), ph = $('ePhone').value.trim();
+                    const oldPh = /^tel:/.test(r.target_url || '') ? r.target_url.replace(/^tel:\+855/, '0').replace(/^tel:/, '') : '', oldLink = /^https?:/.test(r.target_url || '') ? r.target_url : '';
+                    if (c !== (r.cta || 'learn_more') || (c === 'call_now' ? ph !== oldPh : link !== oldLink)) { body.cta = c; body.target_url = link; body.phone = ph; }   // only what really changed
+                }
+                if ($('eBudget') && Math.round(Number($('eBudget').value) * 100) !== Number(r.budget_cents)) body.budget_usd = Number($('eBudget').value);
+                $('eSave').disabled = true;
+                try {
+                    const d = await (await fetch('/api/ads/my/' + id + '/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+                    if (d.success) { closeModal(); await loadWallet(); loadMine(); return; }
+                    setMsg('eMsg', false, d.code === 'need_topup' ? T('💳 កាបូបមិនគ្រប់ទេ។ សូមបញ្ចូលលុយ ', '💳 Not enough in the wallet. Please add ') + money(d.need || 0) : d.code === 'phone' ? T('📞 សូមសរសេរលេខទូរស័ព្ទ', '📞 Please write the phone number') : d.code === 'link' ? T('🔗 សូមដាក់តំណភ្ជាប់', '🔗 Please add the link') : d.code === 'spent' ? T('ថវិកាមិនអាចតិចជាងលុយដែលបានចំណាយរួចទេ', 'The budget can not be less than what is spent') : d.code === 'old' ? T('ពាណិជ្ជកម្មនេះមិនអាចប្ដូរថវិកាបានទេ។ សូមបញ្ឈប់ ហើយបង្កើតថ្មី។', 'The budget of this ad can not change. Please stop it and make a new one.') : (d.error || T('មិនបាន', 'Failed')));
+                } catch (e) { setMsg('eMsg', false, T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); }
+                $('eSave').disabled = false;
+            });
+        }
+        window.adEdit = adEdit;
         async function openReport(id) {
             openModal(T('📊 លទ្ធផល', '📊 Results'), `<div class="muted" style="margin-top:10px;">${T('កំពុងផ្ទុក…', 'Loading…')}</div>`);
             try {

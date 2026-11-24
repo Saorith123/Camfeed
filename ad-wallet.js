@@ -7,7 +7,7 @@
 'use strict';
 const crypto = require('crypto');
 
-module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, tgAsk, sendNotice, creditEnsure, balanceOf, safeUrl }) {
+module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, tgAsk, sendNotice, creditEnsure, balanceOf, safeUrl, reservedOf }) {
   const cfg = { minUsd: 2, maxUsd: 1000 };
   // 📲 the simple way (until PayWay is real): the advertiser pays to CamFeed's own ABA link, taps "I have paid",
   // and the owner taps ✅ in Telegram after seeing the money in ABA. While a link is set, this way is used instead of the PayWay QR.
@@ -116,10 +116,10 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, tgA
     try {
       const me = req.authEmail; if (!me) return res.status(401).json({ success: false });
       await ensure();
-      const bal = await balanceOf(me);
+      const bal = await balanceOf(me), reserved = reservedOf ? Math.ceil(await reservedOf(me)) : 0;
       const h = (await pool.query(`SELECT cents, kind, ref_id, note, created_at FROM ad_credit WHERE user_email = $1 ORDER BY id DESC LIMIT 50`, [me])).rows;
       const waiting = manualOn() ? (await pool.query("SELECT id, cents, created_at FROM ad_wallet_topups WHERE user_email = $1 AND method = 'manual' AND status = 'pending' ORDER BY id DESC LIMIT 5", [me])).rows : [];
-      res.json({ success: true, balance: bal, payway: walletOn(), manual: manualOn(), abaLink: manualOn() && okLink(txt.abaLink) ? txt.abaLink : '', abaQr: manualOn() ? (safeUrl(txt.abaQr) || '') : '', waiting: waiting.map((x) => ({ id: x.id, cents: Number(x.cents), at: x.created_at })), sandbox: !manualOn() && on() && sandbox(), min: cfg.minUsd, max: cfg.maxUsd, history: h.map((x) => ({ cents: Number(x.cents), kind: x.kind, ref: x.ref_id, at: x.created_at })) });
+      res.json({ success: true, balance: bal, reserved, available: Math.max(0, bal - reserved), payway: walletOn(), manual: manualOn(), abaLink: manualOn() && okLink(txt.abaLink) ? txt.abaLink : '', abaQr: manualOn() ? (safeUrl(txt.abaQr) || '') : '', waiting: waiting.map((x) => ({ id: x.id, cents: Number(x.cents), at: x.created_at })), sandbox: !manualOn() && on() && sandbox(), min: cfg.minUsd, max: cfg.maxUsd, history: h.map((x) => ({ cents: Number(x.cents), kind: x.kind, ref: x.ref_id, at: x.created_at })) });
     } catch (e) { res.status(500).json({ success: false }); }
   });
 
