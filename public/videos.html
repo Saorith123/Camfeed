@@ -828,6 +828,7 @@
                             return {
                                 id: targetId,
                                 wrapperPostId: p.id,
+                                author_earns: p.author_earns === true,
                                 user_email: creatorEmail,
                                 author_name: `${creatorFirst} ${creatorLast}`.trim() || 'User',
                                 profile_pic: creatorPic,
@@ -898,7 +899,7 @@
 
                     return `
                         <div class="reel-item" id="reel-${uid}" data-post-id="${video.id}" onclick="toggleReelPlayPause('${uid}', event)">
-                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" ${/^https:\/\//.test(video.thumb_url || '') ? `poster="${video.thumb_url}"` : ''} class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
+                            <video id="rvid-${uid}" src="${cleanVideoSrc}" data-video-src="${cleanVideoSrc}" data-earns="${video.author_earns ? '1' : '0'}" ${/^https:\/\//.test(video.thumb_url || '') ? `poster="${video.thumb_url}"` : ''} class="reel-video" loop playsinline webkit-playsinline x5-playsinline disablePictureInPicture disableremoteplayback preload="auto"
                                 onloadedmetadata="handleReelMetadata('${uid}')" onloadeddata="reelHideLoading('${uid}')" onprogress="updateReelBuffer('${uid}')" oncanplay="reelHideLoading('${uid}')" onwaiting="reelShowLoading('${uid}')" onplaying="reelHideLoading('${uid}')" onerror="reelHideLoading('${uid}')"
                                 ontimeupdate="updateReelProgress('${uid}')"
                                 onplay="document.getElementById('reel-${uid}')?.classList.remove('is-paused'); const b=document.getElementById('rplay-${uid}'); if(b) b.innerHTML=YT_REEL_SVG.pause;"
@@ -1166,13 +1167,13 @@
         }
 
         // ---- Sponsored video ad before a reel (every 5th reel, with a Skip button after a few seconds) ----
-        let preAds = [], reelsSinceAd = 0, reelAdsShown = 0, lastPrerollAt = 0, reelCfg = { first: 6, every: 10, gapMin: 5, adGapMin: 180 }, adShownAt = {}, prerollOpen = false, prerollTimer = null, prerollCurrentId = null, prerollResume = null;
+        let preAds = [], reelsSinceAd = 0, reelAdsShown = 0, lastPrerollAt = 0, reelCfg = { first: 6, every: 10, gapMin: 5, adGapMin: 180, earnersOnly: false }, adShownAt = {}, prerollOpen = false, prerollTimer = null, prerollCurrentId = null, prerollResume = null;
         (async function loadPrerollAds() {
             try {
                 const d = await (await fetch('/api/sponsored-ads')).json();
                 if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => (Array.isArray(a.places) && a.places.length ? a.places.includes('reels') : (a.placement === 'video_preroll' || a.placement === 'both')) && a.media_url);   // ☑️ Reels chosen
                 if (d.success) { const n = (v, lo, hi, def) => { v = Number(v); return Number.isFinite(v) && v >= lo && v <= hi ? v : def; };
-                    reelCfg = { first: n(d.reelFirst, 2, 100, 6), every: n(d.reelEvery, 3, 200, 10), gapMin: n(d.reelGapMin, 0, 120, 5), adGapMin: n(d.adGapMin, 0, 2880, 180) }; }   // ⚙️ set by the Admin
+                    reelCfg = { first: n(d.reelFirst, 2, 100, 6), every: n(d.reelEvery, 3, 200, 10), gapMin: n(d.reelGapMin, 0, 120, 5), adGapMin: n(d.adGapMin, 0, 2880, 180), earnersOnly: String(d.reelEarnersOnly) === '1' }; }   // ⚙️ set by the Admin
             } catch (e) {}
             setTimeout(loadPrerollAds, 180000);
         })();
@@ -1194,14 +1195,23 @@
             adEv(ad.id, 'click');
             window.cfAdOpen(ad.target_url || '');   // a web link, or 📞 "Call now"
         }
+        let warmVid = null, warmSrc = '';
+        function warmPreroll() {
+            const ad = preAds.find((x) => !adShownAt[x.id] || Date.now() - adShownAt[x.id] >= reelCfg.adGapMin * 60000);
+            if (!ad || !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '') || warmSrc === ad.media_url) return;
+            try { warmSrc = ad.media_url; warmVid = document.createElement('video'); warmVid.muted = true; warmVid.preload = 'auto'; warmVid.src = ad.media_url; warmVid.load(); } catch (e) {}
+        }
         function maybeShowReelPreroll(reelVideo) {
             if (prerollOpen || !preAds.length) return false;
-            if (++reelsSinceAd < (reelAdsShown ? reelCfg.every : reelCfg.first)) return false;   // the first ad after N videos, then every M
+            const needAds = reelAdsShown ? reelCfg.every : reelCfg.first;
+            if (++reelsSinceAd >= needAds - 1) warmPreroll();          // ⚡ one video before its turn: download the ad, so it plays at once
+            if (reelsSinceAd < needAds) return false;
+            if (reelCfg.earnersOnly && reelVideo && reelVideo.dataset.earns !== '1') return false;   // 💰 only before videos of creators who can earn   // the first ad after N videos, then every M
             if (lastPrerollAt && Date.now() - lastPrerollAt < reelCfg.gapMin * 60000) return false;   // never two ads closer than X minutes
             const free = preAds.filter((a) => !adShownAt[a.id] || Date.now() - adShownAt[a.id] >= reelCfg.adGapMin * 60000);   // the same ad again only after X minutes
             if (!free.length) return false;
             reelsSinceAd = 0; reelAdsShown++; lastPrerollAt = Date.now();
-            const ad = free[Math.floor(Math.random() * free.length)];
+            const ad = free.find((x) => x.media_url === warmSrc) || free[Math.floor(Math.random() * free.length)];   // the one already downloaded first
             adShownAt[ad.id] = Date.now();
             const ov = document.getElementById('prerollAdOverlay'); if (!ov) return false;
             prerollOpen = true; prerollCurrentId = ad.id; prerollResume = reelVideo;

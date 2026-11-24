@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 194;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 197;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -1519,6 +1519,7 @@ app.get('/api/posts', async (req, res) => {
       ${cteAndJoins},
       ${tierExpr} AS feed_tier,
       (${tierExpr} > 0) AS seen_before,
+      EXISTS (SELECT 1 FROM creator_applications ca WHERE ca.user_email = COALESCE(op.user_email, p.user_email) AND ca.status = 'approved' AND ca.earn_suspended = FALSE) AS author_earns,   -- 💰 the video's creator may earn (video ads can be shown only on these)
       EXISTS (SELECT 1 FROM follows fb WHERE fb.follower_email = p.user_email AND fb.following_email = $1) AS author_follows_me,
       COALESCE(uis.score, 0) AS interest_score,
       (f.following_email IS NOT NULL) AS author_followed,
@@ -1607,6 +1608,7 @@ app.get('/api/posts/:id', async (req, res) => {
     if (!(await visibility.guardPost(req, res, id))) return;
     const query = `
       SELECT p.*, u.first_name, u.last_name, u.profile_pic,
+      EXISTS (SELECT 1 FROM creator_applications ca WHERE ca.user_email = COALESCE(op.user_email, p.user_email) AND ca.status = 'approved' AND ca.earn_suspended = FALSE) AS author_earns,
       (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) as likes_count,
       (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comments_count,
       (SELECT COUNT(*) FROM posts sp WHERE sp.shared_post_id = p.id) as shares_count,
@@ -3825,8 +3827,8 @@ async function adLeftovers() {                    // ads whose days are over: th
 setTimeout(() => { adLeftovers(); setInterval(adLeftovers, 10 * 60 * 1000); }, 60 * 1000);
 
 // ⚙️ how ads are shown — the Admin changes these at any time (Admin › 📢 Ads › ⚙️), no new app needed
-const AD_CFG = { firstAfter: 6, every: 50, reelFirst: 6, reelEvery: 10, reelGapMin: 5, storyEvery: 4, sameMax: 3, gapMin: 180, totalPerDay: 20, cpmFeed: AD_CPM.feed, cpmVideo: AD_CPM.video, minBudget: AD_MIN_BUDGET_USD };
-const AD_CFG_LIMITS = { firstAfter: [1, 200], every: [3, 500], reelFirst: [2, 100], reelEvery: [3, 200], reelGapMin: [0, 120], storyEvery: [2, 50], sameMax: [1, 50], gapMin: [0, 2880], totalPerDay: [1, 500], cpmFeed: [0.01, 100], cpmVideo: [0.01, 100], minBudget: [0.5, 1000] };
+const AD_CFG = { firstAfter: 6, every: 50, reelFirst: 6, reelEvery: 10, reelGapMin: 5, reelEarnersOnly: 0, storyEvery: 4, sameMax: 3, gapMin: 180, totalPerDay: 20, cpmFeed: AD_CPM.feed, cpmVideo: AD_CPM.video, minBudget: AD_MIN_BUDGET_USD };
+const AD_CFG_LIMITS = { firstAfter: [1, 200], every: [3, 500], reelFirst: [2, 100], reelEvery: [3, 200], reelGapMin: [0, 120], reelEarnersOnly: [0, 1], storyEvery: [2, 50], sameMax: [1, 50], gapMin: [0, 2880], totalPerDay: [1, 500], cpmFeed: [0.01, 100], cpmVideo: [0.01, 100], minBudget: [0.5, 1000] };
 function applyAdCfg(v) {
   if (v && v.gapMin === undefined && v.gapHours !== undefined) v = Object.assign({}, v, { gapMin: Math.round(Number(v.gapHours) * 60) });   // saved before: hours → minutes
   for (const [k, [lo, hi]] of Object.entries(AD_CFG_LIMITS)) { const n = Number(v && v[k]); if (Number.isFinite(n) && n >= lo && n <= hi) AD_CFG[k] = ['cpmFeed', 'cpmVideo', 'minBudget'].includes(k) ? Number(n.toFixed(2)) : Math.round(n); }
@@ -3953,7 +3955,7 @@ app.get('/api/sponsored-ads', async (req, res) => {
     ok.forEach((x) => { x.fresh = !ever.has(x.ad.id); x.ad.seen = !x.fresh; });
     ok.sort((x, y) => (Number(y.fresh) - Number(x.fresh)) || ((y.match + y.rnd * 4) - (x.match + x.rnd * 4)));     // never seen first, then the best match
     const left = Math.max(0, AD_CFG.totalPerDay - total);
-    res.json({ success: true, ads: ok.slice(0, Math.min(20, left)).map((x) => x.ad), firstAfter: AD_CFG.firstAfter, every: AD_CFG.every, reelFirst: AD_CFG.reelFirst, reelEvery: AD_CFG.reelEvery, reelGapMin: AD_CFG.reelGapMin, storyEvery: AD_CFG.storyEvery, adGapMin: AD_CFG.gapMin });
+    res.json({ success: true, ads: ok.slice(0, Math.min(20, left)).map((x) => x.ad), firstAfter: AD_CFG.firstAfter, every: AD_CFG.every, reelFirst: AD_CFG.reelFirst, reelEvery: AD_CFG.reelEvery, reelGapMin: AD_CFG.reelGapMin, reelEarnersOnly: AD_CFG.reelEarnersOnly, storyEvery: AD_CFG.storyEvery, adGapMin: AD_CFG.gapMin });
   } catch (err) { console.error('[ads] serve:', err.message); res.json({ success: true, ads: [] }); }
 });
 
