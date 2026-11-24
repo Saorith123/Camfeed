@@ -1981,7 +1981,7 @@
       ['reelGapMin', AT('🎬 វីដេអូ៖ យ៉ាងតិចប៉ុន្មាននាទី រវាងពាណិជ្ជកម្មពីរ', '🎬 Videos: at least how many minutes between two ads'), AT('ឧ. 5 = ទោះអូសលឿនក៏ដោយ ពាណិជ្ជកម្មមិនលោតញឹកជាង 5 នាទីម្ដង។', 'e.g. 5 = even when scrolling fast, not more than one ad every 5 minutes.')],
       ['storyEvery', AT('📖 ស្តូរី៖ ពាណិជ្ជកម្មម្ដងក្នុងរៀងរាល់ប៉ុន្មានមនុស្ស', '📖 Stories: one ad every how many people'), AT('ឧ. 4', 'e.g. 4')],
       ['sameMax', AT('ពាណិជ្ជកម្មមួយដដែល៖ មនុស្សម្នាក់ឃើញច្រើនបំផុតប៉ុន្មានដងក្នុងមួយថ្ងៃ', 'One same ad: the most times one person sees it in a day'), AT('រួមទាំងការឃើញលើកដំបូង។ ឧ. 3។', 'Including the first time. e.g. 3.')],
-      ['gapHours', AT('ពាណិជ្ជកម្មមួយដដែល៖ ត្រូវរង់ចាំប៉ុន្មានម៉ោង ទើបឃើញម្ដងទៀត', 'One same ad: hours to wait before the same person sees it again'), AT('ឧ. 3 = ឃើញម៉ោង 8 ព្រឹក → ម្ដងទៀតមិនមុនម៉ោង 11 ព្រឹក។', 'e.g. 3 = seen at 8 am → again not before 11 am.')],
+      ['gapMin', AT('ពាណិជ្ជកម្មមួយដដែល៖ ត្រូវរង់ចាំប៉ុន្មាននាទី ទើបឃើញម្ដងទៀត', 'One same ad: minutes to wait before the same person sees it again'), AT('ឧ. 180 = 3 ម៉ោង · 60 = 1 ម៉ោង · ពេលសាកល្បង ដាក់ 2 ឬ 5 នាទី។', 'e.g. 180 = 3 hours · 60 = 1 hour · for testing put 2 or 5 minutes.')],
       ['totalPerDay', AT('ពាណិជ្ជកម្មសរុប៖ មនុស្សម្នាក់ឃើញច្រើនបំផុតប៉ុន្មានក្នុងមួយថ្ងៃ', 'All ads together: the most one person sees in a day'), AT('ទោះមានអ្នកផ្សាយច្រើនប៉ុណ្ណាក៏ដោយ។ ឧ. 20។', 'However many advertisers there are. e.g. 20.')],
       ['cpmFeed', AT('តម្លៃ (ដុល្លារ) ក្នុង 1,000 ដងបង្ហាញ នៅទំព័រដើម', 'Price (USD) per 1,000 views in the home feed'), AT('ឧ. 0.50', 'e.g. 0.50')],
       ['cpmVideo', AT('តម្លៃ (ដុល្លារ) ក្នុង 1,000 ដងបង្ហាញ មុនវីដេអូ', 'Price (USD) per 1,000 views before videos'), AT('ឧ. 0.80', 'e.g. 0.80')],
@@ -1996,7 +1996,7 @@
       var inputs = {};
       ROWS.forEach(function (r) {
         var lim = (d.limits || {})[r[0]] || [0, 1000];
-        var inp = el('input', { class: 'at-in', type: 'number', step: ['cpmFeed', 'cpmVideo', 'minBudget', 'gapHours'].indexOf(r[0]) >= 0 ? '0.01' : '1', min: String(lim[0]), max: String(lim[1]), value: String(d.settings[r[0]]), style: 'max-width:140px' });
+        var inp = el('input', { class: 'at-in', type: 'number', step: ['cpmFeed', 'cpmVideo', 'minBudget'].indexOf(r[0]) >= 0 ? '0.01' : '1', min: String(lim[0]), max: String(lim[1]), value: String(d.settings[r[0]]), style: 'max-width:140px' });
         inputs[r[0]] = inp;
         box.appendChild(el('div', { style: 'padding:10px 0;border-bottom:1px solid #eef0f2' }, [
           el('div', { style: 'font-weight:700;font-size:14.5px;margin-bottom:3px', text: r[1] }),

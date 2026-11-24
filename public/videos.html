@@ -1156,13 +1156,13 @@
         }
 
         // ---- Sponsored video ad before a reel (every 5th reel, with a Skip button after a few seconds) ----
-        let preAds = [], reelsSinceAd = 0, reelAdsShown = 0, lastPrerollAt = 0, reelCfg = { first: 6, every: 10, gapMin: 5 }, prerollOpen = false, prerollTimer = null, prerollCurrentId = null, prerollResume = null;
+        let preAds = [], reelsSinceAd = 0, reelAdsShown = 0, lastPrerollAt = 0, reelCfg = { first: 6, every: 10, gapMin: 5, adGapMin: 180 }, adShownAt = {}, prerollOpen = false, prerollTimer = null, prerollCurrentId = null, prerollResume = null;
         (async function loadPrerollAds() {
             try {
                 const d = await (await fetch('/api/sponsored-ads')).json();
                 if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => (Array.isArray(a.places) && a.places.length ? a.places.includes('reels') : (a.placement === 'video_preroll' || a.placement === 'both')) && a.media_url);   // ☑️ Reels chosen
                 if (d.success) { const n = (v, lo, hi, def) => { v = Number(v); return Number.isFinite(v) && v >= lo && v <= hi ? v : def; };
-                    reelCfg = { first: n(d.reelFirst, 2, 100, 6), every: n(d.reelEvery, 3, 200, 10), gapMin: n(d.reelGapMin, 0, 120, 5) }; }   // ⚙️ set by the Admin
+                    reelCfg = { first: n(d.reelFirst, 2, 100, 6), every: n(d.reelEvery, 3, 200, 10), gapMin: n(d.reelGapMin, 0, 120, 5), adGapMin: n(d.adGapMin, 0, 2880, 180) }; }   // ⚙️ set by the Admin
             } catch (e) {}
             setTimeout(loadPrerollAds, 180000);
         })();
@@ -1188,8 +1188,11 @@
             if (prerollOpen || !preAds.length) return false;
             if (++reelsSinceAd < (reelAdsShown ? reelCfg.every : reelCfg.first)) return false;   // the first ad after N videos, then every M
             if (lastPrerollAt && Date.now() - lastPrerollAt < reelCfg.gapMin * 60000) return false;   // never two ads closer than X minutes
+            const free = preAds.filter((a) => !adShownAt[a.id] || Date.now() - adShownAt[a.id] >= reelCfg.adGapMin * 60000);   // the same ad again only after X minutes
+            if (!free.length) return false;
             reelsSinceAd = 0; reelAdsShown++; lastPrerollAt = Date.now();
-            const ad = preAds[Math.floor(Math.random() * preAds.length)];
+            const ad = free[Math.floor(Math.random() * free.length)];
+            adShownAt[ad.id] = Date.now();
             const ov = document.getElementById('prerollAdOverlay'); if (!ov) return false;
             prerollOpen = true; prerollCurrentId = ad.id; prerollResume = reelVideo;
             try { reelVideo.pause(); } catch (e) {}
