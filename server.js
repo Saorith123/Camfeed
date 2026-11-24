@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 191;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 194;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -3854,6 +3854,10 @@ app.post('/api/admin/ads/settings', async (req, res) => {
     res.json({ success: true, settings: AD_CFG, limits: AD_CFG_LIMITS });
   } catch (err) { console.error('[ads] settings save:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
+// the ad's button: these need a link (install → Play Store / App Store, directions → Google Maps …); "call_now" rings a phone number
+const AD_CTAS = ['learn_more', 'message', 'shop', 'call', 'none', 'install', 'download', 'signup', 'book', 'order', 'offer', 'call_now', 'menu', 'directions'];
+const AD_LINK_CTAS = ['install', 'download', 'signup', 'book', 'order', 'offer', 'menu', 'directions'];
+const adTel = (v) => { let d = String(v || '').replace(/[\s\-().]/g, ''); if (/^\+\d{8,15}$/.test(d)) return 'tel:' + d; if (/^0\d{7,9}$/.test(d)) return 'tel:+855' + d.slice(1); if (/^855\d{8,9}$/.test(d)) return 'tel:+' + d; return ''; };
 const adLink = (v) => { const s = String(v || '').trim(); return /^https?:\/\/[^\s<>"'`]{4,480}$/i.test(s) ? s : ''; };   // only web links: never javascript:
 const adInterests = (v) => (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => String(x).trim()).filter((x) => AD_INTERESTS.includes(x)).slice(0, 6);
 // 📍 where the ad shows (☑️ any of: feed, reels, story) and 📱 on which phones (☑️ any of: android, ios, web). Empty = everywhere.
@@ -4089,11 +4093,11 @@ app.post('/api/ads/request', async (req, res) => {
     const placement = places.length ? placementOf(places) : (AD_PLACEMENTS.includes(b.placement) ? b.placement : 'feed_banner');
     const cc = country.ccOf(b.country) || 'KH';
     const objective = AD_OBJECTIVES.includes(b.objective) ? b.objective : 'traffic';
-    const target = b.target_url ? adLink(b.target_url) : '';
+    let target = b.target_url ? adLink(b.target_url) : '';
     const budget = Math.round(adNum(b.budget_usd, 0) * 100), days = clampInt(b.days, 7, 1, 30);
     if (budget < AD_MIN_BUDGET_USD * 100 || budget > 100000 * 100) return res.status(400).json({ success: false, error: 'The smallest budget is $' + AD_MIN_BUDGET_USD + '.' });
     if (b.target_url && !target) return res.status(400).json({ success: false, error: 'The link must start with http:// or https://' });
-    if (objective === 'traffic' && !target && !b.post_id) return res.status(400).json({ success: false, error: 'For "more visits" please add the link people should open.' });
+    if (objective === 'traffic' && !target && !b.post_id && !(b.cta === 'call_now' && adTel(b.phone))) return res.status(400).json({ success: false, error: 'For "more visits" please add the link people should open.' });
     let items = b.post_id ? [] : adItems(b.items);
     if (!b.post_id && !items.length && b.media_url) items = adItems([{ url: b.media_url }]);
     if (!b.post_id && !items.length) return res.status(400).json({ success: false, error: 'Please add at least one picture or video.' });
@@ -4111,7 +4115,12 @@ app.post('/api/ads/request', async (req, res) => {
     if (adPlaceVideo(placement) && !postId && !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(media || '') && placement === 'video_preroll') { /* a picture is shown for a few seconds: allowed */ }
     const open = await pool.query("SELECT COUNT(*)::int AS n FROM ad_requests WHERE user_email = $1 AND status IN ('pending', 'quoted', 'payment_sent')", [email]);
     if (open.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for an answer.' });
-    const cta = objective === 'products' || objective === 'messages' ? 'message' : (['learn_more', 'message', 'shop', 'call', 'none'].includes(b.cta) ? b.cta : 'learn_more');
+    const cta = objective === 'products' || objective === 'messages' ? 'message' : (AD_CTAS.includes(b.cta) ? b.cta : 'learn_more');
+    if (cta === 'call_now') {                                // 📞 "Call now": the button rings this number
+      const tel = adTel(b.phone);
+      if (!tel) return res.status(400).json({ success: false, code: 'phone', error: 'Please write the phone number for the "Call now" button.' });
+      target = tel;
+    } else if (AD_LINK_CTAS.includes(cta) && !target) return res.status(400).json({ success: false, code: 'link', error: 'Please add the link this button opens.' });
     const wallet = await adCreditOf(email);
     if (adWallet.walletOn() && wallet < budget) return res.status(402).json({ success: false, code: 'need_topup', balance: wallet, need: budget - wallet, error: 'Please add money to your ad wallet first.' });   // 💳 pay first (like Facebook)
     const useCredit = Math.min(wallet, budget);          // 💳 my wallet / credit pays first

@@ -39,6 +39,10 @@ const DEFAULTS = {
   watchHistoryDays: 90,
   feed: { reshowDays: 7, oldMax: 3, mix: { friends: 25, follow: 20, trending: 20, interest: 15, fresh: 10, discover: 10, freshHours: 24, trendMin: 3 } },
   people: { randomPct: 15 },   // "people you may know": this share of the list is chosen by chance (to meet new people)
+  // 📣 a message shown to everyone when the app opens (e.g. "we are testing ads today"); every: once | day | open
+  notice: { on: false, id: 0, title_km: '', text_km: '', title_en: '', text_en: '', every: 'once', web: true },
+  // ⬆️ a newer app: latestBuild = "please update" (can wait), minBuild = must update (older ones can not be used)
+  update: { latestBuild: 0, minBuild: 0, androidUrl: '', iosUrl: '', note_km: '', note_en: '' },
   files: { maxMB: 50, perDay: 50, blocked: ['apk', 'xapk', 'apks', 'exe', 'msi', 'bat', 'cmd', 'com', 'scr', 'vbs', 'ps1', 'jar', 'dll', 'sh'] },
 };
 
@@ -93,6 +97,24 @@ function clean(raw) {
     if (f.perDay !== undefined) o.files.perDay = num(f.perDay, 1, 1000, 50);
     if (Array.isArray(f.blocked)) o.files.blocked = [...new Set(f.blocked.map((x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)).filter(Boolean))].slice(0, 60);
   }
+  const txt = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f<>]/g, '').trim().slice(0, n);
+  const url = (v) => { const u = String(v || '').trim(); return /^https:\/\/[^\s<>"'`]{4,300}$/.test(u) ? u : ''; };
+  if (r.notice && typeof r.notice === 'object') {
+    const n = r.notice; o.notice = {};
+    if (n.on !== undefined) o.notice.on = !!n.on;
+    if (n.id !== undefined) o.notice.id = num(n.id, 0, 9e15, 0);
+    for (const k of ['title_km', 'title_en']) if (n[k] !== undefined) o.notice[k] = txt(n[k], 80);
+    for (const k of ['text_km', 'text_en']) if (n[k] !== undefined) o.notice[k] = txt(n[k], 800);
+    if (n.every !== undefined) o.notice.every = ['once', 'day', 'open'].includes(n.every) ? n.every : 'once';
+    if (n.web !== undefined) o.notice.web = !!n.web;
+  }
+  if (r.update && typeof r.update === 'object') {
+    const u = r.update; o.update = {};
+    if (u.latestBuild !== undefined) o.update.latestBuild = num(u.latestBuild, 0, 1000000, 0);
+    if (u.minBuild !== undefined) o.update.minBuild = num(u.minBuild, 0, 1000000, 0);
+    for (const k of ['androidUrl', 'iosUrl']) if (u[k] !== undefined) o.update[k] = url(u[k]);
+    for (const k of ['note_km', 'note_en']) if (u[k] !== undefined) o.update[k] = txt(u[k], 400);
+  }
   if (r.party && typeof r.party === 'object') {
     const p = r.party; o.party = {};
     if (p.metMinutes !== undefined) o.party.metMinutes = num(p.metMinutes, 1, 600, 10);
@@ -111,6 +133,8 @@ function merge(saved) {
   if (s.files) Object.assign(c.files, s.files);
   if (s.feed) { const m = Object.assign({}, c.feed.mix, s.feed.mix || {}); Object.assign(c.feed, s.feed); c.feed.mix = m; }
   if (s.people) Object.assign(c.people, s.people);
+  if (s.notice) Object.assign(c.notice, s.notice);
+  if (s.update) Object.assign(c.update, s.update);
   for (const k of ['chatTtlHours', 'giftCounts', 'storySoundSeconds', 'watchHistoryDays']) if (s[k] !== undefined) c[k] = s[k];
   return c;
 }
@@ -137,7 +161,10 @@ function install({ app, pool: p, adminGate, audit }) {
         if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change the app settings.' });
         if (b.action === 'reset') await pool.query("DELETE FROM creator_settings WHERE key = 'app:config'");
         else {
-          const saved = { ...(await savedRaw()), ...clean(b.config) };
+          const nc = clean(b.config), old = await savedRaw();
+          if (nc.notice) nc.notice = Object.assign({}, clean({ notice: old.notice || {} }).notice, nc.notice, { id: Date.now() });   // 📣 saved again = shown again to everyone
+          if (nc.update) nc.update = Object.assign({}, clean({ update: old.update || {} }).update, nc.update);
+          const saved = { ...old, ...nc };
           await pool.query("INSERT INTO creator_settings (key, value) VALUES ('app:config', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [JSON.stringify(saved)]);
         }
         await load();

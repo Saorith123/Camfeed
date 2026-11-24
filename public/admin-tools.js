@@ -485,12 +485,71 @@
     draw();
   }
 
+  // 📣 a message for everyone when the app opens + ⬆️ "a new version: please update" (opens Play Store / App Store)
+  function noticeCard(p) {
+    var box = el('div', { class: 'at-card', style: 'margin:0 0 14px' }); p.appendChild(box);
+    function inp(v, ph, ml) { return el('input', { class: 'at-in', value: v == null ? '' : String(v), placeholder: ph || '', maxlength: String(ml || 300), style: 'width:100%' }); }
+    function area(v, ph) { var t = el('textarea', { class: 'at-in', rows: '3', maxlength: '800', placeholder: ph || '', style: 'width:100%' }); t.value = v || ''; return t; }
+    function lbl(t) { return el('div', { style: 'font-weight:700;font-size:13.5px;margin:10px 0 4px', text: t }); }
+    function draw() {
+      adm('/api/admin/app-config', {}).then(function (d) {
+        box.textContent = '';
+        if (!d || !d.success) { box.appendChild(el('div', { text: (d && d.error) || AT('មិនបាន', 'Failed') })); return; }
+        var n = d.config.notice || {}, u = d.config.update || {}, sup = !!d.isSuperAdmin;
+        // 📣 notice
+        box.appendChild(el('div', { class: 'at-h', text: AT('📣 សារជូនដំណឹងពេលបើកកម្មវិធី', '📣 Message when the app opens') }));
+        box.appendChild(el('div', { style: 'font-size:13px;color:#555;line-height:1.6', text: AT('ឧ. «យើងកំពុងសាកល្បងពាណិជ្ជកម្មថ្ងៃនេះ»។ រាល់ពេលចុចរក្សាទុក អ្នកប្រើនឹងឃើញសារនេះម្ដងទៀត។', 'e.g. "We are testing ads today". Each time you save, people see it again.') }));
+        var on = el('input', { type: 'checkbox' }); on.checked = !!n.on;
+        var web = el('input', { type: 'checkbox' }); web.checked = n.web !== false;
+        var every = el('select', { class: 'at-in', style: 'max-width:260px' }, [
+          el('option', { value: 'once', text: AT('បង្ហាញម្ដងគត់', 'Show once') }), el('option', { value: 'day', text: AT('ម្ដងក្នុងមួយថ្ងៃ', 'Once a day') }), el('option', { value: 'open', text: AT('រាល់ពេលបើកកម្មវិធី', 'Every time the app opens') })]);
+        every.value = n.every || 'once';
+        var tk = inp(n.title_km, 'ឧ. 🛠️ កំពុងសាកល្បង', 80), xk = area(n.text_km, 'ឧ. ថ្ងៃនេះ CamFeed កំពុងសាកល្បងពាណិជ្ជកម្ម។ អ្នកអាចឃើញពាណិជ្ជកម្មច្រើនជាងធម្មតា។ អរគុណ!');
+        var te = inp(n.title_en, 'e.g. 🛠️ Testing', 80), xe = area(n.text_en, 'e.g. Today CamFeed is testing ads. You may see more ads than usual. Thank you!');
+        box.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin-top:8px;font-weight:700' }, [on, AT(' បើកសារនេះ', ' Turn this message on')]));
+        box.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin-top:6px' }, [web, AT(' បង្ហាញលើវេបសាយដែរ', ' Show on the website too')]));
+        box.appendChild(lbl(AT('ញឹកញាប់', 'How often'))); box.appendChild(every);
+        box.appendChild(lbl(AT('ចំណងជើង (ខ្មែរ)', 'Title (Khmer)'))); box.appendChild(tk);
+        box.appendChild(lbl(AT('សារ (ខ្មែរ)', 'Message (Khmer)'))); box.appendChild(xk);
+        box.appendChild(lbl(AT('ចំណងជើង (អង់គ្លេស)', 'Title (English)'))); box.appendChild(te);
+        box.appendChild(lbl(AT('សារ (អង់គ្លេស)', 'Message (English)'))); box.appendChild(xe);
+        var m1 = el('div', { style: 'font-size:13px;margin-top:6px' });
+        if (sup) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:10px', text: AT('💾 រក្សាទុក ហើយបង្ហាញ', '💾 Save and show'), onclick: function () {
+          if (on.checked && !xk.value.trim() && !xe.value.trim()) { m1.textContent = AT('❌ សូមសរសេរសារ', '❌ Please write the message'); return; }
+          adm('/api/admin/app-config', { action: 'save', config: { notice: { on: on.checked, web: web.checked, every: every.value, title_km: tk.value, text_km: xk.value, title_en: te.value, text_en: xe.value } } }).then(function (x) { m1.textContent = x && x.success ? '✅ ' + AT('បានរក្សាទុក', 'Saved') : '❌ ' + ((x && x.error) || 'Failed'); });
+        } }));
+        box.appendChild(m1);
+        // ⬆️ update
+        box.appendChild(el('div', { class: 'at-h', style: 'margin-top:18px', text: AT('⬆️ ប្រាប់ឲ្យ Update កម្មវិធី', '⬆️ Ask people to update the app') }));
+        box.appendChild(el('div', { style: 'font-size:13px;color:#555;line-height:1.6', text: AT('កម្មវិធីដែល BUILD តូចជាង «BUILD ថ្មីបំផុត» ឃើញសារ «មាន Update ថ្មី» (អាចចុច ពេលក្រោយ)។ តូចជាង «BUILD តិចបំផុត» ត្រូវតែ Update ទើបប្រើបាន។ 0 = បិទ។ ចុច Update → Play Store / App Store (មុនមាន Play Store ដាក់ https://camfeedkh.com/apk.html)។', 'Apps with a BUILD lower than "Latest BUILD" see "A new update" (they can choose Later). Lower than "Lowest BUILD" must update to go on. 0 = off. Update opens Play Store / App Store (before Play Store, put https://camfeedkh.com/apk.html).') }));
+        var lb = el('input', { class: 'at-in', type: 'number', min: '0', value: String(u.latestBuild || 0), style: 'max-width:140px' });
+        var mb = el('input', { class: 'at-in', type: 'number', min: '0', value: String(u.minBuild || 0), style: 'max-width:140px' });
+        var au = inp(u.androidUrl, 'https://play.google.com/store/apps/details?id=com.camfeed.camfeed'), iu = inp(u.iosUrl, 'https://apps.apple.com/app/…');
+        var nk = area(u.note_km, 'ឧ. កែពាណិជ្ជកម្ម និងវីដេអូឲ្យលឿនជាងមុន'), ne = area(u.note_en, 'e.g. Faster videos and better ads');
+        box.appendChild(el('div', { class: 'at-row', style: 'gap:10px;flex-wrap:wrap;align-items:flex-end' }, [
+          el('div', {}, [lbl(AT('BUILD ថ្មីបំផុត', 'Latest BUILD')), lb]), el('div', {}, [lbl(AT('BUILD តិចបំផុត (ត្រូវតែ Update)', 'Lowest BUILD (must update)')), mb])]));
+        box.appendChild(lbl('Android (Play Store / apk.html)')); box.appendChild(au);
+        box.appendChild(lbl('iPhone (App Store)')); box.appendChild(iu);
+        box.appendChild(lbl(AT('អ្វីថ្មី (ខ្មែរ)', 'What is new (Khmer)'))); box.appendChild(nk);
+        box.appendChild(lbl(AT('អ្វីថ្មី (អង់គ្លេស)', 'What is new (English)'))); box.appendChild(ne);
+        var m2 = el('div', { style: 'font-size:13px;margin-top:6px' });
+        if (sup) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:10px', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () {
+          if (Number(mb.value) > Number(lb.value)) { m2.textContent = AT('❌ BUILD តិចបំផុត មិនអាចធំជាង BUILD ថ្មីបំផុតទេ', '❌ Lowest BUILD can not be bigger than Latest BUILD'); return; }
+          adm('/api/admin/app-config', { action: 'save', config: { update: { latestBuild: Number(lb.value) || 0, minBuild: Number(mb.value) || 0, androidUrl: au.value.trim(), iosUrl: iu.value.trim(), note_km: nk.value, note_en: ne.value } } }).then(function (x) { m2.textContent = x && x.success ? '✅ ' + AT('បានរក្សាទុក', 'Saved') : '❌ ' + ((x && x.error) || 'Failed'); });
+        } }));
+        box.appendChild(m2);
+      });
+    }
+    draw();
+  }
+
   function loadSystem() {
     var p = document.getElementById('panel-system'); p.textContent = ''; p.appendChild(empty('Checking…'));
     adm('/api/admin/system').then(function (d) {
       p.textContent = ''; if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Check again', onclick: loadSystem }), el('span', { style: 'color:#65676b;font-size:13px', text: 'Only yes / no is shown here. Secret values are never displayed.' })]));
       apkCard(p);
+      noticeCard(p);
       var c = d.checks;
       // 📊 count every table: used when the database moves (compare the old site and the new site)
       var dbBox = el('div', { style: 'margin:8px 0 14px' }); p.appendChild(dbBox);

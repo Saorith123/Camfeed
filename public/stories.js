@@ -146,18 +146,18 @@
     m.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
     stage.appendChild(m); view.appendChild(stage);
     var head = el('div', 'st-head'); var im = el('img'); im.src = safe(ad.advertiser_pic) || DEFAULT_PIC; im.onerror = function () { this.onerror = null; this.src = DEFAULT_PIC; }; head.appendChild(im);
-    var nm = el('div'); nm.appendChild(el('b', '', ad.advertiser_name || '')); nm.appendChild(el('small', '', lang === 'en' ? 'Sponsored' : 'ផ្សាយពាណិជ្ជកម្ម')); head.appendChild(nm); head.appendChild(el('div', 'sp'));
+    var nm = el('div'); nm.appendChild(el('b', '', ad.advertiser_name || '')); var spn = el('small', '', lang === 'en' ? 'Sponsored' : 'ផ្សាយពាណិជ្ជកម្ម'); spn.style.cssText = 'color:#4ade80;font-weight:700'; nm.appendChild(spn); head.appendChild(nm); head.appendChild(el('div', 'sp'));
     var x = el('button', 'st-x', '×'); x.onclick = function () { finish('close'); }; head.appendChild(x); view.appendChild(head);
     var foot = el('div', 'st-foot');
     if (ad.caption) { var c = el('div', '', ad.caption); c.style.cssText = 'margin-bottom:10px;white-space:pre-wrap;max-height:5.5em;overflow:hidden'; foot.appendChild(c); }
     var row = el('div'); row.style.cssText = 'display:flex;gap:10px';
-    var hasLink = ad.cta !== 'none' && (/^https?:\/\//i.test(ad.target_url || '') || (ad.cta === 'message' && ad.owner_email));
+    var hasLink = ad.cta !== 'none' && ((window.cfAdTargetOk ? window.cfAdTargetOk(ad.target_url || '') : /^https?:\/\//i.test(ad.target_url || '')) || (ad.cta === 'message' && ad.owner_email));
     if (hasLink) {
-      var b = el('button', '', ad.cta === 'message' ? (lang === 'en' ? '💬 Message' : '💬 ផ្ញើសារ') : ad.cta === 'shop' ? (lang === 'en' ? 'Shop now' : 'ទិញឥឡូវ') : ad.cta === 'call' ? (lang === 'en' ? 'Contact' : 'ទាក់ទង') : (lang === 'en' ? 'See more' : 'មើលបន្ថែម'));
+      var b = el('button', '', ad.cta === 'message' ? (lang === 'en' ? '💬 Message' : '💬 ផ្ញើសារ') : (window.cfCtaLabel ? window.cfCtaLabel(ad.cta) : (lang === 'en' ? 'See more' : 'មើលបន្ថែម')));
       b.style.cssText = 'flex:1;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:700;background:#1877f2;color:#fff;cursor:pointer';
       b.onclick = function () {
         if (ad.cta === 'message' && ad.owner_email) { adEv(ad.id, 'message'); location.href = 'messages.html?chat=' + encodeURIComponent(ad.owner_email); return; }
-        adEv(ad.id, 'click'); window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+        adEv(ad.id, 'click'); if (window.cfAdOpen) window.cfAdOpen(ad.target_url); else window.open(ad.target_url, '_blank', 'noopener,noreferrer');
       };
       row.appendChild(b);
     }

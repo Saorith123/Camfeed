@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
-    <script src="i18n-dict.js"></script><script src="i18n.js"></script>
+    <script src="i18n-dict.js"></script><script src="i18n.js"></script><script src="ad-cta.js?v=192"></script>
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#1877f2">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -402,7 +402,7 @@
         .send-comment-btn { padding: 9px 16px; background: #1877f2; color: #fff; border: none; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; white-space: nowrap; }
 
         /* Sponsored video ad (before a reel) */
-        .sponsored-badge { font-size: 11px; background: #e7f3ff; color: #1877f2; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
+        .sponsored-badge { font-size: 11px; background: #16a34a; color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 800; }
         .preroll-ad-overlay { position: fixed; inset: 0; background: #000; z-index: 5000; display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; }
         .preroll-ad-overlay.active { display: flex; }
         .preroll-media { flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
@@ -1192,7 +1192,7 @@
             if (!ad) return;
             if (ad.cta === 'message' && ad.owner_email) { adEv(ad.id, 'message'); goPage('messages.html?chat=' + encodeURIComponent(ad.owner_email)); return; }
             adEv(ad.id, 'click');
-            if (/^https?:\/\//i.test(ad.target_url || '')) window.open(ad.target_url, '_blank', 'noopener,noreferrer');
+            window.cfAdOpen(ad.target_url || '');   // a web link, or 📞 "Call now"
         }
         function maybeShowReelPreroll(reelVideo) {
             if (prerollOpen || !preAds.length) return false;
@@ -1208,14 +1208,14 @@
             try { reelVideo.pause(); } catch (e) {}
             document.querySelectorAll('video').forEach((v) => { if (v.id !== 'prerollVideo') try { v.pause(); } catch (e) {} });   // no two sounds
             const isVid = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
-            const hasLink = (/^https?:\/\//i.test(ad.target_url || '') || (ad.cta === 'message' && !!ad.owner_email)) && ad.cta !== 'none';
+            const hasLink = (window.cfAdTargetOk(ad.target_url || '') || (ad.cta === 'message' && !!ad.owner_email)) && ad.cta !== 'none';
             const media = document.getElementById('prerollMedia');
             media.innerHTML = isVid
                 ? `<video id="prerollVideo" src="${esc(ad.media_url)}" playsinline autoplay ${globalMuted ? 'muted' : ''} style="max-width:100%; max-height:100%; width:100%; height:100%; object-fit:contain; background:#000;"></video>`
                 : `<img src="${esc(ad.media_url)}" alt="" style="max-width:100%; max-height:100%; object-fit:contain;">`;
             document.getElementById('prerollAdvertiser').textContent = ad.advertiser_name;
             document.getElementById('prerollCaption').textContent = ad.caption || '';
-            const cta = document.getElementById('prerollCta'); cta.style.display = hasLink ? 'inline-block' : 'none'; cta.textContent = ad.cta === 'message' ? '💬 ផ្ញើសារ (Message)' : ad.cta === 'shop' ? 'ទិញឥឡូវ (Shop)' : ad.cta === 'call' ? 'ទាក់ទង (Contact)' : 'មើលបន្ថែម (Learn more)';
+            const cta = document.getElementById('prerollCta'); cta.style.display = hasLink ? 'inline-block' : 'none'; cta.textContent = ad.cta === 'message' ? '💬 ' + window.cfCtaLabel('message') : window.cfCtaLabel(ad.cta);
             ov.classList.add('active');
             fetch('/api/sponsored-ads/' + encodeURIComponent(ad.id) + '/impression', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placement: 'video' }) }).catch(() => {});
             const skipBtn = document.getElementById('prerollSkip');
