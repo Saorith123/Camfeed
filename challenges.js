@@ -25,6 +25,11 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
         await pool.query(`CREATE TABLE IF NOT EXISTS challenge_rewards (id SERIAL PRIMARY KEY, challenge_id INTEGER NOT NULL, user_email TEXT NOT NULL, kind VARCHAR(4) NOT NULL,
           level INTEGER NOT NULL, value BIGINT NOT NULL DEFAULT 0, reward JSONB NOT NULL, status VARCHAR(10) NOT NULL DEFAULT 'pending', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           decided_by TEXT, decided_at TIMESTAMPTZ, UNIQUE (challenge_id, user_email, kind, level))`);
+        // ✉️ a challenge only for the people CamFeed invites (seen by them only, or seen by all but joined by them only)
+        await pool.query("ALTER TABLE challenges ADD COLUMN IF NOT EXISTS invite_only BOOLEAN NOT NULL DEFAULT FALSE");
+        await pool.query("ALTER TABLE challenges ADD COLUMN IF NOT EXISTS invite_view VARCHAR(8) NOT NULL DEFAULT 'invited'");
+        await pool.query(`CREATE TABLE IF NOT EXISTS challenge_invites (challenge_id INTEGER NOT NULL, user_email TEXT NOT NULL, invited_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (challenge_id, user_email))`);
         // ⏱️ minutes in Party Rooms for everybody (an hour per row): on a seat / listening, only while somebody else is in the room too
         await pool.query(`CREATE TABLE IF NOT EXISTS party_minutes (user_email TEXT NOT NULL, hour TIMESTAMPTZ NOT NULL, seat INTEGER NOT NULL DEFAULT 0, listen INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (user_email, hour))`);
@@ -209,7 +214,11 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
   setTimeout(() => { sweep(); setInterval(sweep, 10 * 60 * 1000); }, 100 * 1000);
 
   // can this person take part? (level / account age)
+  const invitedTo = async (id, e) => (await pool.query('SELECT 1 FROM challenge_invites WHERE challenge_id = $1 AND user_email = LOWER($2)', [id, e])).rows.length > 0;
+  // who may see it: not invite-only, or seen by all, or invited
+  const SEE = `(NOT c.invite_only OR c.invite_view = 'all' OR EXISTS (SELECT 1 FROM challenge_invites i WHERE i.challenge_id = c.id AND i.user_email = LOWER($2)))`;
   async function canJoin(ch, e) {
+    if (ch.invite_only && !(await invitedTo(ch.id, e))) return 'invite';
     if (ch.min_level > 0 && badgesOf) { const b = (await badgesOf([e]).catch(() => new Map())).get(e) || {}; if ((b.level || 1) < ch.min_level) return 'level'; }
     if (ch.min_days > 0) {
       const u = (await pool.query('SELECT created_at FROM users WHERE LOWER(email) = $1', [e])).rows[0];
@@ -250,6 +259,7 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     return {
       id: ch.id, icon: ch.icon, title_km: ch.title_km, title_en: ch.title_en, body_km: ch.body_km, body_en: ch.body_en, area: ch.area, metric: ch.metric,
       starts_at: ch.starts_at, ends_at: ch.ends_at, status: ch.status, join_mode: ch.join_mode, max_people: ch.max_people, people, joined, min_level: ch.min_level, min_days: ch.min_days,
+      invite_only: !!ch.invite_only, invite_view: ch.invite_view || 'invited', invited: ch.invite_only ? await invitedTo(ch.id, e) : true,
       tiers: stepOut, multi: steps.some((st) => !st.old),
       ranks: ranks.map((r) => ({ from: Number(r.from), to: Number(r.to || r.from), reward: r.reward, text: rewardText(r.reward || {}) })),
       mine, place, top,
@@ -260,8 +270,8 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     try {
       await ensure();
       const area = String(req.query.area || 'party') === 'monetize' ? 'monetize' : 'party';
-      const list = (await pool.query(`SELECT * FROM challenges WHERE (area = $1 OR area = 'both') AND status <> 'draft' AND status <> 'paused'
-        AND (status = 'live' OR finished_at > NOW() - INTERVAL '7 days') ORDER BY (status = 'live') DESC, sort, ends_at LIMIT 30`, [area])).rows;
+      const list = (await pool.query(`SELECT c.* FROM challenges c WHERE (c.area = $1 OR c.area = 'both') AND c.status <> 'draft' AND c.status <> 'paused'
+        AND (c.status = 'live' OR c.finished_at > NOW() - INTERVAL '7 days') AND ${SEE} ORDER BY (c.status = 'live') DESC, c.sort, c.ends_at LIMIT 30`, [area, e])).rows;
       const out = [];
       for (const ch of list) out.push(await view(ch, e, false));
       res.json({ success: true, challenges: out, now: new Date().toISOString() });
@@ -271,7 +281,7 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
     const e = me(req, res); if (!e) return;
     try {
       await ensure();
-      const ch = (await pool.query("SELECT * FROM challenges WHERE id = $1 AND status <> 'draft'", [parseInt(req.params.id, 10) || 0])).rows[0];
+      const ch = (await pool.query(`SELECT c.* FROM challenges c WHERE c.id = $1 AND c.status <> 'draft' AND ${SEE}`, [parseInt(req.params.id, 10) || 0, e])).rows[0];
       if (!ch) return res.status(404).json({ success: false, error: 'Not found.' });
       res.json({ success: true, challenge: await view(ch, e, true), now: new Date().toISOString() });
     } catch (err) { console.error('[challenges] one:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -325,7 +335,9 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
       }).filter(Boolean),
       ranks: (Array.isArray(b.ranks) ? b.ranks : []).filter((r) => parseInt(r.from, 10) >= 1).slice(0, 20).map((r) => ({ from: parseInt(r.from, 10), to: Math.max(parseInt(r.from, 10), parseInt(r.to, 10) || parseInt(r.from, 10)), reward: rw(r.reward) })),
       status: ['draft', 'live', 'paused'].includes(b.status) ? b.status : 'live', sort: parseInt(b.sort, 10) || 0,
+      invite_only: b.invite_only === true, invite_view: b.invite_view === 'all' ? 'all' : 'invited',
     };
+    if (out.invite_only) out.join_mode = 'join';            // ✉️ invited people press "Join" (counted from then)
     if (!out.title_km) return 'Write the Khmer title.';
     if (!out.metric) { const first = out.tiers.find((t) => t.conds); if (first) out.metric = first.conds[0].metric; }
     if (!out.metric) return 'Choose what is counted.';
@@ -370,14 +382,14 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
         const loss = await lossCheck(c);
         if (loss) return res.status(400).json({ success: false, error: loss });
         const id = parseInt((b.challenge || {}).id, 10) || 0;
-        const vals = [c.title_km, c.title_en, c.body_km, c.body_en, c.icon, c.area, c.metric, c.starts_at, c.ends_at, c.join_mode, c.max_people, c.min_level, c.min_days, JSON.stringify(c.tiers), JSON.stringify(c.ranks), c.status, c.sort];
+        const vals = [c.title_km, c.title_en, c.body_km, c.body_en, c.icon, c.area, c.metric, c.starts_at, c.ends_at, c.join_mode, c.max_people, c.min_level, c.min_days, JSON.stringify(c.tiers), JSON.stringify(c.ranks), c.status, c.sort, c.invite_only, c.invite_view];
         if (id) await pool.query(`UPDATE challenges SET title_km = $1, title_en = $2, body_km = $3, body_en = $4, icon = $5, area = $6, metric = $7, starts_at = $8, ends_at = $9, join_mode = $10,
-          max_people = $11, min_level = $12, min_days = $13, tiers = $14, ranks = $15, status = CASE WHEN status = 'ended' THEN status ELSE $16 END, sort = $17 WHERE id = $18`, [...vals, id]);
+          max_people = $11, min_level = $12, min_days = $13, tiers = $14, ranks = $15, status = CASE WHEN status = 'ended' THEN status ELSE $16 END, sort = $17, invite_only = $18, invite_view = $19 WHERE id = $20`, [...vals, id]);
         else {
-          const r = await pool.query(`INSERT INTO challenges (title_km, title_en, body_km, body_en, icon, area, metric, starts_at, ends_at, join_mode, max_people, min_level, min_days, tiers, ranks, status, sort, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`, [...vals, a.adminEmail]);
+          const r = await pool.query(`INSERT INTO challenges (title_km, title_en, body_km, body_en, icon, area, metric, starts_at, ends_at, join_mode, max_people, min_level, min_days, tiers, ranks, status, sort, invite_only, invite_view, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`, [...vals, a.adminEmail]);
           // tell people a new challenge is open (only when it is live)
-          if (c.status === 'live' && b.notify === true) pool.query(`INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read)
+          if (c.status === 'live' && b.notify === true && !(c.invite_only && c.invite_view !== 'all')) pool.query(`INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read)
             SELECT email, 'system', NULL, 'admin_notice', $1, FALSE FROM users WHERE COALESCE(is_banned, FALSE) = FALSE AND last_active > NOW() - INTERVAL '30 days' LIMIT 20000`,
             ['🎯 Challenge ថ្មី៖ ' + c.icon + ' ' + c.title_km + ' — ចូលរួមដើម្បីទទួលរង្វាន់!']).catch(() => {});
           b.challenge.id = r.rows[0].id;
@@ -398,6 +410,36 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
         if (!r) return res.status(409).json({ success: false, error: 'Already decided.' });
         if (pay) { await give(r, a.adminEmail); await sendNotice(a.adminEmail, r.user_email, '🎯 រង្វាន់ Challenge ' + rewardText(r.reward) + ' បានចូលកាបូបរបស់អ្នកហើយ។ អរគុណ!').catch(() => {}); }
         audit(a.adminEmail, 'challenge-reward-' + (pay ? 'paid' : 'cancelled'), r.user_email, rewardText(r.reward));
+      } else if (act === 'invites') {                            // ✉️ who is invited to one challenge
+        const rows = (await pool.query(`SELECT i.user_email, i.created_at, u.first_name, u.last_name, u.profile_pic,
+          EXISTS (SELECT 1 FROM challenge_joins j WHERE j.challenge_id = i.challenge_id AND j.user_email = i.user_email) AS joined
+          FROM challenge_invites i LEFT JOIN users u ON LOWER(u.email) = i.user_email WHERE i.challenge_id = $1 ORDER BY i.created_at DESC LIMIT 2000`, [parseInt(b.id, 10) || 0])).rows;
+        return res.json({ success: true, invites: rows });
+      } else if (act === 'invite' || act === 'uninvite') {        // ✉️ add / remove a person (from the challenge, or from Users › Manage)
+        if (!superOnly()) return;
+        const id = parseInt(b.id, 10) || 0, who = String(b.targetEmail || '').trim().toLowerCase();
+        const ch = (await pool.query('SELECT id, title_km, icon, invite_only, status, ends_at FROM challenges WHERE id = $1', [id])).rows[0];
+        if (!ch) return res.status(404).json({ success: false, error: 'Not found.' });
+        if (act === 'uninvite') {
+          await pool.query('DELETE FROM challenge_invites WHERE challenge_id = $1 AND user_email = $2', [id, who]);
+          await pool.query('DELETE FROM challenge_joins WHERE challenge_id = $1 AND user_email = $2', [id, who]);
+          audit(a.adminEmail, 'challenge-uninvite', who, String(id));
+          return res.json({ success: true });
+        }
+        if (!ch.invite_only) return res.status(400).json({ success: false, error: 'This challenge is open to everybody (not invite-only).' });
+        if (new Date(ch.ends_at) <= new Date()) return res.status(400).json({ success: false, error: 'This challenge has ended.' });
+        const u = (await pool.query('SELECT email FROM users WHERE LOWER(email) = $1', [who])).rows[0];
+        if (!u) return res.status(404).json({ success: false, error: 'No such account.' });
+        const r = await pool.query('INSERT INTO challenge_invites (challenge_id, user_email, invited_by) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [id, who, a.adminEmail]);
+        if (r.rowCount) sendNotice('CamFeed', u.email, '🏆 CamFeed អញ្ជើញអ្នកចូលរួម Challenge ' + (ch.icon || '🎯') + ' «' + ch.title_km + '» — ចុច «ចូលរួម» ដើម្បីចាប់ផ្ដើម!').catch(() => {});
+        audit(a.adminEmail, 'challenge-invite', who, String(id));
+        return res.json({ success: true, already: !r.rowCount });
+      } else if (act === 'invitable') {                          // Users › Manage: the invite-only challenges still running (and if this person is in)
+        const who = String(b.targetEmail || '').trim().toLowerCase();
+        const rows = (await pool.query(`SELECT c.id, c.icon, c.title_km, c.title_en, c.ends_at, c.invite_view,
+          EXISTS (SELECT 1 FROM challenge_invites i WHERE i.challenge_id = c.id AND i.user_email = $1) AS invited
+          FROM challenges c WHERE c.invite_only AND c.status IN ('live', 'paused', 'draft') AND c.ends_at > NOW() ORDER BY c.ends_at LIMIT 50`, [who])).rows;
+        return res.json({ success: true, challenges: rows });
       } else if (act === 'people') {                             // one challenge: everybody's numbers
         const ch = (await pool.query('SELECT * FROM challenges WHERE id = $1', [parseInt(b.id, 10) || 0])).rows[0];
         if (!ch) return res.status(404).json({ success: false, error: 'Not found.' });

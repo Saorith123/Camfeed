@@ -2457,6 +2457,12 @@
             const h = vid.videoHeight;
             if (w > 0 && h > 0) {
                 wrap.style.aspectRatio = `${w} / ${h}`;
+                // 📐 an ad video without a saved shape: tell CamFeed once, so the next people get the right box at once (no jump)
+                const pid = String(vid.dataset.postId || '');
+                if (/^ad\d+$/.test(pid) && !(window.CF_AD_SHAPE || {})[pid]) {
+                    (window.CF_AD_SHAPE = window.CF_AD_SHAPE || {})[pid] = 1;
+                    fetch('/api/ads/' + pid.slice(2) + '/aspect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aspect: w + ' / ' + h }) }).catch(() => {});
+                }
             }
             updateFeedVideoClock(uid);
         }
@@ -3886,7 +3892,7 @@
             const canAct = (hasLink || isMsg) && ad.cta !== 'none';
             // ▶️ a video ad uses the same player as feed videos: plays by itself in the middle of the screen, 🔊 button, stops when scrolled away
             const mediaHtml = isVideo
-                ? buildInlineVideoTag(ad.media_url, 'ad' + Number(ad.id), 'post-media autoplay-video', '', false)
+                ? ((ad.media_aspect ? ((window.CF_AD_SHAPE = window.CF_AD_SHAPE || {})['ad' + Number(ad.id)] = 1) : 0), buildInlineVideoTag(ad.media_url, 'ad' + Number(ad.id), 'post-media autoplay-video', /^\d{1,5} \/ \d{1,5}$/.test(ad.media_aspect || '') ? ad.media_aspect : '', false))
                 : `<img src="${esc(ad.media_url)}" style="width:100%; height:auto; max-height:85vh; object-fit:contain; background:#f0f2f5; display:block; ${canAct ? 'cursor:pointer;' : ''}" ${canAct ? `onclick="${clickFn}"` : ''} alt="">`;
             const label = window.cfCtaLabel(ad.cta);
             return `

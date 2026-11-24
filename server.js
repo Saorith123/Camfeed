@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 205;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 207;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -373,6 +373,7 @@ pool.connect(async (err, client, release) => {
       ADD COLUMN IF NOT EXISTS objective VARCHAR(16) NOT NULL DEFAULT 'traffic', ADD COLUMN IF NOT EXISTS post_id INTEGER, ADD COLUMN IF NOT EXISTS interests TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS country VARCHAR(60) NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS budget_cents INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS cta VARCHAR(16) NOT NULL DEFAULT 'learn_more'`);
     await pool.query('ALTER TABLE ad_requests ALTER COLUMN media_url DROP NOT NULL');
+    await pool.query("ALTER TABLE sponsored_ads ADD COLUMN IF NOT EXISTS media_aspect VARCHAR(30) NOT NULL DEFAULT ''");   // 📐 the video's shape: the box has it from the start (no jump)
     for (const t of ['ad_requests', 'sponsored_ads']) {      // 🛍️ products, 🏷️ keywords, 📍 provinces, age, gender
       await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS items TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS kw_ids TEXT NOT NULL DEFAULT '',
         ADD COLUMN IF NOT EXISTS provinces TEXT NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS age_min INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS age_max INTEGER NOT NULL DEFAULT 0,
@@ -3976,7 +3977,7 @@ app.get('/api/sponsored-ads', async (req, res) => {
     const myInterests = me ? (await pool.query('SELECT category FROM user_interest_scores WHERE user_email = $1 AND score > 0 ORDER BY score DESC LIMIT 5', [me])).rows.map((r) => r.category) : [];
     const myKw = me ? await interests.userTop(me, 60) : new Map();
     const who = whoOf(u);
-    const r = await pool.query(`SELECT a.id, a.advertiser_name, a.placement, a.objective, a.cta, COALESCE(NULLIF(a.caption, ''), p.content, '') AS caption, a.target_url, COALESCE(a.media_url, p.media_url) AS media_url, a.skip_seconds, a.post_id, a.owner_email, a.interests, a.country,
+    const r = await pool.query(`SELECT a.id, a.advertiser_name, a.placement, a.objective, a.cta, COALESCE(NULLIF(a.caption, ''), p.content, '') AS caption, a.target_url, COALESCE(a.media_url, p.media_url) AS media_url, COALESCE(NULLIF(a.media_aspect, ''), p.media_aspect, '') AS media_aspect, COALESCE(p.thumb_url, '') AS thumb_url, a.skip_seconds, a.post_id, a.owner_email, a.interests, a.country,
         a.items, a.kw_ids, a.provinces, a.age_min, a.age_max, a.gender, a.adult, a.places, a.devices, ou.first_name AS o_first, ou.last_name AS o_last, ou.profile_pic AS o_pic
       FROM sponsored_ads a LEFT JOIN posts p ON p.id = a.post_id LEFT JOIN ad_daily d ON d.ad_id = a.id AND d.day = CURRENT_DATE LEFT JOIN users ou ON ou.email = a.owner_email
       WHERE a.status = 'active' AND (a.ends_at IS NULL OR a.ends_at > NOW()) AND COALESCE(a.owner_email, '') <> $1
@@ -3997,7 +3998,7 @@ app.get('/api/sponsored-ads', async (req, res) => {
       if (wanted.length && myInterests.length && !catMatch && !kwScore) continue;   // we only leave an ad out when we KNOW the person is not interested
       const owner = a.owner_email ? ((a.o_first || '') + ' ' + (a.o_last || '')).trim() : '';
       out.push({ ad: { id: a.id, advertiser_name: owner || a.advertiser_name, advertiser_pic: a.owner_email ? (a.o_pic || '') : '', placement: a.placement, places: placesOfAd(a), objective: a.objective, cta: a.cta,
-        caption: String(a.caption || '').slice(0, 500), target_url: a.target_url || '', media_url: a.media_url || '', skip_seconds: a.skip_seconds, post_id: a.post_id || null, owner_email: a.owner_email || null, items: adItems(a.items) },
+        caption: String(a.caption || '').slice(0, 500), target_url: a.target_url || '', media_url: a.media_url || '', media_aspect: a.media_aspect || '', thumb_url: a.thumb_url || '', skip_seconds: a.skip_seconds, post_id: a.post_id || null, owner_email: a.owner_email || null, items: adItems(a.items) },
         match: Math.min(kwScore, 50) + catMatch * 3, rnd: Math.random() });
     }
     // the limits for one person: the same ad N times a day, at least H hours apart, all ads together T a day; ads never seen come first
@@ -4143,6 +4144,19 @@ app.get('/api/ads/my-posts', async (req, res) => {                          // p
     const r = await pool.query("SELECT id, content, media_type, media_url, created_at FROM posts WHERE user_email = $1 AND COALESCE(privacy, 'public') = 'public' AND shared_post_id IS NULL ORDER BY id DESC LIMIT 30", [req.authEmail]);
     res.json({ success: true, posts: r.rows.map((p) => ({ id: p.id, content: String(p.content || '').slice(0, 140), media_type: p.media_type, media_url: p.media_url, created_at: p.created_at })) });
   } catch (err) { res.json({ success: true, posts: [] }); }
+});
+
+// 📐 the first phone that plays an ad video tells its shape (width / height) once; after that every box has the right shape from the start
+app.post('/api/ads/:id/aspect', async (req, res) => {
+  try {
+    const m = /^(\d{2,5}) \/ (\d{2,5})$/.exec(String((req.body && req.body.aspect) || ''));
+    const id = parseInt(req.params.id, 10) || 0;
+    if (!req.authEmail || !m || !id) return res.json({ success: false });
+    const r = Number(m[1]) / Number(m[2]);
+    if (!(r >= 0.3 && r <= 3.5)) return res.json({ success: false });
+    await pool.query("UPDATE sponsored_ads SET media_aspect = $2 WHERE id = $1 AND COALESCE(media_aspect, '') = '' AND post_id IS NULL", [id, m[1] + ' / ' + m[2]]);
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false }); }
 });
 
 app.post('/api/ads/request', async (req, res) => {

@@ -345,6 +345,18 @@
         if (!confirm(AT('អញ្ជើញ ', 'Invite ') + nm(u) + AT(' ឲ្យមានសញ្ញា ✔? (គាត់ចុច «ទទួល» ហើយបាន ✔ ភ្លាម មិនចាំបាច់លក្ខខណ្ឌ)', ' to get the ✔? (they press "Accept" and get it at once, no conditions)'))) return;
         adm('/api/admin/verify', { action: 'invite', targetEmail: u.email }).then(function (r) { msg(out, r.success, r.success ? (r.already ? AT('ℹ️ បានអញ្ជើញរួចហើយ កំពុងរង់ចាំគាត់ចុចទទួល', 'ℹ️ Already invited, waiting for them to accept') : AT('✅ បានផ្ញើការអញ្ជើញទៅ ', '✅ Invitation sent to ') + nm(u)) : '❌ ' + (r.error || 'Failed')); });
       }, sup && !self && !(u.verified && !u.verified_paused));
+      act(AT('🏆 អញ្ជើញចូល Challenge', '🏆 Invite to a challenge'), 'btn-sm', function () {   // the invite-only challenges still running
+        adm('/api/admin/challenges', { action: 'invitable', targetEmail: u.email }).then(function (r) {
+          if (!r.success) return msg(out, false, '❌ ' + (r.error || 'Failed'));
+          if (!r.challenges.length) return msg(out, false, AT('មិនមាន Challenge «អញ្ជើញប៉ុណ្ណោះ» ទេ។ សូមបង្កើតមួយក្នុង 🎯 Challenges (ធីក ✉️)។', 'No invite-only challenge. Make one in 🎯 Challenges (tick ✉️).'));
+          var pick = el('div', { style: 'margin-top:8px;border:1px solid #e4e6eb;border-radius:10px;padding:8px' });
+          r.challenges.forEach(function (c) {
+            pick.appendChild(el('div', { class: 'at-row', style: 'gap:8px;align-items:center;margin:4px 0' }, [el('span', { style: 'flex:1', text: c.icon + ' ' + c.title_km + (c.invited ? AT(' · ✅ បានអញ្ជើញ', ' · ✅ invited') : '') }),
+              c.invited ? el('span') : el('button', { class: 'btn-sm btn-blue', text: AT('✉️ អញ្ជើញ', '✉️ Invite'), onclick: function () { adm('/api/admin/challenges', { action: 'invite', id: c.id, targetEmail: u.email }).then(function (x) { msg(out, x.success, x.success ? AT('✅ បានអញ្ជើញ ', '✅ Invited ') + nm(u) + ' → ' + c.title_km : '❌ ' + (x.error || 'Failed')); pick.remove(); }); } })]));
+          });
+          out.parentNode.insertBefore(pick, out);
+        });
+      }, sup && !self);
       act('💵 Wallet bonus', 'btn-gray', function () {
         var a = prompt('Amount in $ to add to the wallet of ' + nm(u) + ' (negative = take back):', '5'); if (a === null || a === '') return; var why = prompt('Reason (the creator sees it):', 'Bonus'); if (!why) return;
         adm('/api/admin/wallet/credit', { targetEmail: u.email, amount: a, note: why, kind: 'bonus' }).then(function (r) { msg(out, r.success, r.success ? '✅ New balance: ' + money(r.balance) : '❌ ' + (r.error || 'Failed')); });
@@ -1457,6 +1469,15 @@
       f.appendChild(row('Shown in', [area], 'បង្ហាញនៅ'));
       f.appendChild(row('Start → end', [st, el('span', { text: '→' }), en], 'ចាប់ផ្ដើម ដល់ បញ្ចប់'));
       f.appendChild(row('Who takes part', [jm, pair('places', 'ចំនួនកន្លែង', mp)], 'អ្នកណាចូលរួម'));
+      // ✉️ only the people CamFeed invites (they press "Join"); who can see it
+      var io = el('input', { type: 'checkbox' }); io.checked = !!c.invite_only;
+      var iv = sel({ invited: '🔒 Only the invited people see it · មើលឃើញតែអ្នកត្រូវបានអញ្ជើញ', all: '👀 Everybody sees it, only the invited join · គ្រប់គ្នាមើលឃើញ តែចូលរួមបានតែអ្នកត្រូវបានអញ្ជើញ' }, c.invite_view || 'invited');
+      var ivRow = row('Who can see it', [iv], 'អ្នកណាមើលឃើញ');
+      var fitIo = function () { ivRow.style.display = io.checked ? '' : 'none'; if (io.checked) { jm.value = 'join'; jm.disabled = true; } else jm.disabled = false; };
+      io.addEventListener('change', fitIo);
+      f.appendChild(row('Invite only', [el('label', { style: 'display:flex;gap:6px;align-items:center' }, [io, el('span', { text: '✉️ Only for the people CamFeed invites · សម្រាប់តែអ្នកដែល CamFeed អញ្ជើញ' })])], 'អញ្ជើញប៉ុណ្ណោះ'));
+      f.appendChild(ivRow); fitIo();
+      if (c.id) f.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin:0 0 6px', text: 'Invite people with "✉️ Invited" in the list below, or in Users › Manage › 🏆. · អញ្ជើញមនុស្សតាមប៊ូតុង «✉️ Invited» ក្នុងបញ្ជីខាងក្រោម ឬ អ្នកប្រើ › Manage › 🏆។' }));
       f.appendChild(row('Needs (0 = none)', [pair('level Lv ≥', 'កម្រិតយ៉ាងហោចណាស់', ml), pair('account age (days) ≥', 'អាយុគណនី (ថ្ងៃ) យ៉ាងហោចណាស់', md)], 'លក្ខខណ្ឌ (0 = គ្មាន)'));
       f.appendChild(head('🪜 Steps — do the conditions → get the rewards (everybody who does them)', 'ជំហាន៖ ធ្វើតាមលក្ខខណ្ឌ ទទួលបានរង្វាន់ (គ្រប់គ្នាដែលធ្វើបាន)')); f.appendChild(tiersBox);
       f.appendChild(el('button', { class: 'btn-sm', text: '+ Step · បន្ថែមជំហាន', onclick: function () { addTier(); } }));
@@ -1472,13 +1493,50 @@
       f.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:8px' }, [
         saveBtn = el('button', { class: 'btn-sm btn-blue', text: c.id ? '💾 Save' : '✅ Create', onclick: function () {
           var data = { id: c.id, icon: icon.value, title_km: tk.value, title_en: te.value, body_km: bk.value, body_en: be.value, area: area.value, metric: metric.value,
-            starts_at: new Date(st.value).toISOString(), ends_at: new Date(en.value).toISOString(), join_mode: jm.value, max_people: mp.value, min_level: ml.value, min_days: md.value, status: stt.value, sort: so.value,
+            starts_at: new Date(st.value).toISOString(), ends_at: new Date(en.value).toISOString(), join_mode: io.checked ? 'join' : jm.value, max_people: mp.value, min_level: ml.value, min_days: md.value, status: stt.value, sort: so.value,
+            invite_only: io.checked, invite_view: iv.value,
             tiers: tiers.map(function (t) { return t.read(); }).filter(function (t) { return t.conds.length; }), ranks: ranks.map(function (r) { return { from: Number(r.fr.value), to: Number(r.to.value), reward: r.rw.read() }; }) };
           if (!st.value || !en.value) return alert('Choose the start and end time.');
           call({ action: 'save', challenge: data, notify: notify.checked });
         } }),
         el('button', { class: 'btn-sm btn-gray', text: 'Cancel', onclick: function () { f.remove(); } })]));
       return f;
+    }
+    // ✉️ who is invited to one challenge: search a person and add, or remove
+    function chInvites(c, pb, su) {
+      pb.textContent = '';
+      var wrap = el('div', { style: 'border:2px solid #1877f2;border-radius:14px;padding:12px;margin:12px 0' }); pb.appendChild(wrap);
+      wrap.appendChild(el('div', { style: 'font-weight:800', text: '✉️ ' + c.icon + ' ' + c.title_km + AT(' — អ្នកត្រូវបានអញ្ជើញ', ' — invited people') }));
+      var out = el('div', { style: 'margin:6px 0;font-size:13px' }); wrap.appendChild(out);
+      if (su) {
+        var q = el('input', { class: 'at-in', placeholder: AT('ស្វែងរកឈ្មោះ អ៊ីមែល ឬលេខទូរស័ព្ទ…', 'Search name, email or phone…'), style: 'max-width:300px;display:inline-block' });
+        var found = el('div');
+        var go = function () {
+          adm('/api/admin/users/search', { query: q.value, role: '', status: '', offset: 0, limit: 10 }).then(function (d) {
+            found.textContent = ''; if (!d.success) return;
+            (d.users || []).forEach(function (u) {
+              found.appendChild(el('div', { class: 'at-row', style: 'gap:8px;align-items:center;margin-top:6px' }, [el('span', { style: 'flex:1', text: nm(u) + ' · ' + (u.email || '') }),
+                el('button', { class: 'btn-sm btn-blue', text: AT('✉️ អញ្ជើញ', '✉️ Invite'), onclick: function () { adm('/api/admin/challenges', { action: 'invite', id: c.id, targetEmail: u.email }).then(function (r) { msg(out, r.success, r.success ? (r.already ? AT('ℹ️ បានអញ្ជើញរួចហើយ', 'ℹ️ Already invited') : AT('✅ បានអញ្ជើញ ', '✅ Invited ') + nm(u)) : '❌ ' + (r.error || 'Failed')); list(); }); } })]));
+            });
+          });
+        };
+        q.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+        wrap.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px' }, [q, el('button', { class: 'btn-sm', text: AT('🔍 ស្វែងរក', '🔍 Search'), onclick: go })]));
+        wrap.appendChild(found);
+      }
+      var lb = el('div', { style: 'margin-top:10px' }); wrap.appendChild(lb);
+      function list() {
+        adm('/api/admin/challenges', { action: 'invites', id: c.id }).then(function (r) {
+          lb.textContent = ''; if (!r.success) return;
+          lb.appendChild(el('div', { style: 'font-weight:700;margin-bottom:4px', text: AT('បានអញ្ជើញ៖ ', 'Invited: ') + r.invites.length + ' · ' + AT('បានចូលរួម៖ ', 'Joined: ') + r.invites.filter(function (x) { return x.joined; }).length }));
+          r.invites.forEach(function (x) {
+            lb.appendChild(el('div', { class: 'at-row', style: 'gap:8px;align-items:center;margin-top:4px' }, [el('span', { style: 'flex:1', text: (x.joined ? '✅ ' : '⏳ ') + nm(x) + ' · ' + x.user_email }),
+              su ? el('button', { class: 'btn-sm btn-gray', text: AT('ដកចេញ', 'Remove'), onclick: function () { if (confirm(AT('ដក ', 'Remove ') + nm(x) + '?')) adm('/api/admin/challenges', { action: 'uninvite', id: c.id, targetEmail: x.user_email }).then(list); } }) : el('span')]));
+          });
+        });
+      }
+      list();
+      pb.scrollIntoView({ behavior: 'smooth' });
     }
     function draw(d) {
       box.textContent = ''; frames = d.frames || []; COIN_MONEY = d.coinMoney || null; DAILY_OK = d.daily || [];
@@ -1490,7 +1548,7 @@
       var peopleBox = el('div');
       box.appendChild(table(['', 'Challenge', 'Counts', 'When', 'Who', 'Joined', 'Rewards', 'Status', ''], (d.challenges || []).map(function (c) {
         return el('tr', {}, [el('td', { text: c.icon }), el('td', { text: c.title_km + (c.title_en ? ' · ' + c.title_en : '') + ' (' + c.area + ')' }), el('td', { text: (Array.isArray(c.tiers) && c.tiers.some(function (t) { return Array.isArray(t.conds); })) ? c.tiers.map(function (t, i) { return (i + 1) + ') ' + (t.conds || []).map(function (q) { return (CH_METRIC[q.metric] || q.metric) + ' ' + (q.mode === 'daily' ? q.per_day + '/day × ' + q.need : q.need); }).join(t.any ? ' OR ' : ' + '); }).join(' · ') : (CH_METRIC[c.metric] || c.metric) }),
-          el('td', { text: new Date(c.starts_at).toLocaleString() + ' → ' + new Date(c.ends_at).toLocaleString() }), el('td', { text: c.join_mode === 'join' ? 'Join' + (c.max_people ? ' (max ' + c.max_people + ')' : '') : 'Everybody' }),
+          el('td', { text: new Date(c.starts_at).toLocaleString() + ' → ' + new Date(c.ends_at).toLocaleString() }), el('td', { text: (c.invite_only ? (c.invite_view === 'all' ? '✉️ Invited (all see) · ' : '✉️ Invited (hidden) · ') : '') + (c.join_mode === 'join' ? 'Join' + (c.max_people ? ' (max ' + c.max_people + ')' : '') : 'Everybody') }),
           el('td', { text: c.join_mode === 'join' ? String(c.joined) : '—' }), el('td', { text: String(c.rewards) }), el('td', { text: c.status }),
           el('td', {}, [
             el('button', { class: 'btn-sm', text: '👥 People', onclick: function () { adm('/api/admin/challenges', { action: 'people', id: c.id }).then(function (r) {
@@ -1498,6 +1556,7 @@
               peopleBox.appendChild(el('div', { style: 'font-weight:800;margin:12px 0 4px', text: '👥 ' + c.title_km + ' — numbers now' }));
               peopleBox.appendChild(table(['#', 'Person', 'Number'], r.people.map(function (p) { return el('tr', {}, [el('td', { text: String(p.place) }), el('td', { text: nm(p) + ' · ' + p.user_email }), el('td', { text: String(p.value) })]); })));
               peopleBox.scrollIntoView({ behavior: 'smooth' }); }); } }),
+            c.invite_only ? el('button', { class: 'btn-sm', text: '✉️ Invited', onclick: function () { chInvites(c, peopleBox, su); } }) : '',
             su ? el('button', { class: 'btn-sm', text: '✏️ Edit', onclick: function () { formBox.textContent = ''; formBox.appendChild(form(c)); formBox.scrollIntoView({ behavior: 'smooth' }); } }) : '',
             su && c.status === 'live' ? el('button', { class: 'btn-sm', text: '⏸ Pause', onclick: function () { call({ action: 'status', id: c.id, status: 'paused' }); } }) : '',
             su && (c.status === 'paused' || c.status === 'draft') ? el('button', { class: 'btn-sm btn-blue', text: '▶ Live', onclick: function () { call({ action: 'status', id: c.id, status: 'live' }); } }) : '',
