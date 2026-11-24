@@ -72,10 +72,17 @@ const dailyHit = () => { dailyAllowed(); dayCount++; };
 
 // mode 'signup': the e-mail must NOT be registered yet     -> proof purpose "signup"
 // mode 'reset' : the e-mail must belong to an account      -> proof purpose "reset" (bound to the current password)
+// the account that logs in with this e-mail (a changed login in users.login_id wins; the old address then stops working)
+async function accountOfEmail(pool, email) {
+  const r = await pool.query('SELECT email, password FROM users WHERE login_id = $1 UNION ALL SELECT email, password FROM users WHERE LOWER(email) = $1 AND login_id IS NULL LIMIT 1', [email]);
+  return r.rows[0] || null;
+}
+
 function createCodeFlow({ pool, auth, mailer, mode }) {
   const isReset = mode === 'reset';
-  const TABLE = isReset ? 'password_resets' : 'email_verifications';
-  const PURPOSE = isReset ? 'reset' : 'signup';
+  const isChange = mode === 'change';              // a signed-in person moves their login to a new Gmail (Settings)
+  const TABLE = isReset ? 'password_resets' : (isChange ? 'email_changes' : 'email_verifications');
+  const PURPOSE = isReset ? 'reset' : (isChange ? 'change' : 'signup');
   const makeEmail = isReset ? buildResetEmail : buildEmail;
   const LOG = isReset ? '[reset]' : '[signup]';
   const salt = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
@@ -97,6 +104,8 @@ function createCodeFlow({ pool, auth, mailer, mode }) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
     if (!isReset) await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS login_id TEXT');
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_login_id_uq ON users (login_id) WHERE login_id IS NOT NULL');
   }
 
   const isRequired = () => mailer.isConfigured();
@@ -119,12 +128,14 @@ function createCodeFlow({ pool, auth, mailer, mode }) {
       if (ipSendLimiter.isLimited(req.ip)) {
         return fail(res, 429, 'Too many requests from this network. Please try again later.', 'សំណើច្រើនពេកពីបណ្តាញនេះ។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
       }
-      const exists = await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 LIMIT 1', [email]);
+      const exists = isReset ? { rows: (await accountOfEmail(pool, email)) ? [1] : [] }
+        : await pool.query('SELECT 1 FROM users WHERE LOWER(email) = $1 OR login_id = $1 LIMIT 1', [email]);
       if (isReset) {
         if (exists.rows.length === 0) {
           return fail(res, 404, 'No account was found with this email.', 'រកមិនឃើញគណនីដែលប្រើអ៊ីមែលនេះទេ។');
         }
       } else if (exists.rows.length > 0) {
+        if (isChange) return fail(res, 409, 'This Gmail is already used by an account.', 'Gmail នេះកំពុងប្រើដោយគណនីមួយរួចហើយ។');
         return fail(res, 409, 'This email is already registered. Please log in.', 'អ៊ីមែលនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
       }
 
@@ -135,7 +146,7 @@ function createCodeFlow({ pool, auth, mailer, mode }) {
       // "Resend" skips the CAPTCHA only for an address that already passed it in the last 30 minutes
       const isResend = !!(body.resend && prev && now - prevCreated < RESEND_WINDOW_MS);
 
-      if (!isResend) {
+      if (!isResend && !req.cfSkipHuman) {                 // signed-in Settings flows have no CAPTCHA
         const human = await auth.verifyTurnstile(body.turnstileToken, req.ip);
         if (!human.ok) {
           return human.unavailable
@@ -223,9 +234,9 @@ function createCodeFlow({ pool, auth, mailer, mode }) {
       const proof = { sub: email, purpose: PURPOSE };
       if (isReset) {
         // bind the proof to the CURRENT password: it stops working the moment the password changes (single use)
-        const u = await pool.query('SELECT password FROM users WHERE LOWER(email) = $1 LIMIT 1', [email]);
-        if (u.rows.length === 0) return fail(res, 404, 'No account was found with this email.', 'រកមិនឃើញគណនីដែលប្រើអ៊ីមែលនេះទេ។');
-        proof.pv = auth.fingerprint(u.rows[0].password);
+        const u = await accountOfEmail(pool, email);
+        if (!u) return fail(res, 404, 'No account was found with this email.', 'រកមិនឃើញគណនីដែលប្រើអ៊ីមែលនេះទេ។');
+        proof.pv = auth.fingerprint(u.password);
       }
       res.json({ success: true, verificationRequired: true, emailToken: auth.signToken(proof, SIGNUP_TOKEN_TTL_SECONDS) });
     } catch (err) {
@@ -245,5 +256,6 @@ function createCodeFlow({ pool, auth, mailer, mode }) {
 
 const createSignupVerification = (deps) => createCodeFlow(Object.assign({}, deps, { mode: 'signup' }));
 const createPasswordReset = (deps) => createCodeFlow(Object.assign({}, deps, { mode: 'reset' }));
+const createEmailChange = (deps) => createCodeFlow(Object.assign({}, deps, { mode: 'change' }));
 
-module.exports = { createSignupVerification, createPasswordReset, normalizeEmail, maskEmail, buildEmail, buildResetEmail, EMAIL_RE };
+module.exports = { createSignupVerification, createPasswordReset, createEmailChange, accountOfEmail, normalizeEmail, maskEmail, buildEmail, buildResetEmail, EMAIL_RE };

@@ -52,12 +52,31 @@ function phoneIdentities(e164) {
   list.push(digits, '+' + digits);
   return list;
 }
-// -> the stored login of that account, or null
+// 🔁 users.login_id: set when a person CHANGED their login phone / Gmail in Settings. Then ONLY that value logs in
+// (the old number / e-mail stays the account's inner key, so posts, chats and friends do not move).
+let loginColReady = null;
+function ensureLoginCol(pool) {
+  if (!loginColReady) loginColReady = pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS login_id TEXT')
+    .then(() => pool.query('CREATE UNIQUE INDEX IF NOT EXISTS users_login_id_uq ON users (login_id) WHERE login_id IS NOT NULL'))
+    .catch((e) => { loginColReady = null; throw e; });
+  return loginColReady;
+}
+
+// -> the stored key of the account that logs in with this number, or null
 async function findAccountEmail(pool, e164) {
+  await ensureLoginCol(pool);
+  const moved = await pool.query('SELECT email FROM users WHERE login_id = $1 LIMIT 1', [e164]);
+  if (moved.rows[0]) return moved.rows[0].email;
   const ids = phoneIdentities(e164);
-  const r = await pool.query('SELECT email FROM users WHERE LOWER(email) = ANY($1::text[])', [ids]);
+  const r = await pool.query('SELECT email FROM users WHERE LOWER(email) = ANY($1::text[]) AND login_id IS NULL', [ids]);
   for (const id of ids) { const hit = r.rows.find((x) => String(x.email).toLowerCase() === id); if (hit) return hit.email; }
   return null;
+}
+// is this number in use anywhere (as a login, or as the inner key of an account)? A new account / a change to it is then refused.
+async function phoneTaken(pool, e164) {
+  await ensureLoginCol(pool);
+  const r = await pool.query('SELECT 1 FROM users WHERE login_id = $1 OR LOWER(email) = ANY($2::text[]) LIMIT 1', [e164, phoneIdentities(e164)]);
+  return r.rows.length > 0;
 }
 
 const phoneEmail = (e164) => `ph${String(e164).replace(/\D/g, '')}@${SYNTHETIC_DOMAIN}`;
@@ -78,11 +97,14 @@ const dailyHit = () => { dailyAllowed(); dayCount++; };
 
 function createPhoneVerification({ pool, auth, gateway, mode, tgBot }) {
   const isReset = mode === 'reset';
-  const PURPOSE = isReset ? 'reset-phone' : 'signup-phone';
+  const isChange = mode === 'change';                 // a signed-in person moves their login to this number (Settings)
+  const PURPOSE = isReset ? 'reset-phone' : (isChange ? 'change-phone' : 'signup-phone');
+  const inUse = async (phone) => (isReset ? !!(await findAccountEmail(pool, phone)) : await phoneTaken(pool, phone));
   const sendLimiter = auth.makeLimiter(parseInt(process.env.VERIFY_SEND_MAX_PER_HOUR_PER_IP || '10', 10), 60 * 60 * 1000);
   const verifyLimiter = auth.makeLimiter(30, 60 * 60 * 1000);
 
   async function ensureSchema() {
+    await ensureLoginCol(pool);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS phone_verifications (
         phone VARCHAR(20) PRIMARY KEY,
@@ -105,15 +127,15 @@ function createPhoneVerification({ pool, auth, gateway, mode, tgBot }) {
       if (!phone) return fail(res, 400, 'Please enter a valid phone number. Choose your country, or start the number with + and your country code (for example +66 81 234 5678).', 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។ សូមជ្រើសរើសប្រទេសរបស់អ្នក ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។');
       if (sendLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many requests from this network. Please try again later.', 'សំណើច្រើនពេកពីបណ្តាញនេះ។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
 
-      const foundEmail = await findAccountEmail(pool, phone);
-      if (isReset && !foundEmail) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
-      if (!isReset && foundEmail) return fail(res, 409, 'This phone number is already registered. Please log in.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
+      const used = await inUse(phone);
+      if (isReset && !used) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
+      if (!isReset && used) return fail(res, 409, 'This phone number is already registered. Please log in.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
 
       const now = Date.now();
       const prev = (await pool.query('SELECT * FROM phone_verifications WHERE phone = $1', [phone])).rows[0];
       const prevCreated = prev ? new Date(prev.created_at).getTime() : 0;
       const isResend = !!(body.resend && prev && now - prevCreated < RESEND_WINDOW_MS);
-      if (!isResend) {
+      if (!isResend && !req.cfSkipHuman) {
         const human = await auth.verifyTurnstile(body.turnstileToken, req.ip);
         if (!human.ok) {
           return human.unavailable
@@ -238,10 +260,10 @@ function createPhoneVerification({ pool, auth, gateway, mode, tgBot }) {
       const phone = normalizePhone(body.phone, body.country);
       if (!phone) return fail(res, 400, 'Please enter a valid phone number. Choose your country, or start the number with + and your country code (for example +66 81 234 5678).', 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។ សូមជ្រើសរើសប្រទេសរបស់អ្នក ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។');
       if (sendLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many requests from this network. Please try again later.', 'សំណើច្រើនពេកពីបណ្តាញនេះ។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
-      const foundEmail = await findAccountEmail(pool, phone);
-      if (isReset && !foundEmail) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
-      if (!isReset && foundEmail) return fail(res, 409, 'This phone number is already registered. Please log in.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
-      const human = await auth.verifyTurnstile(body.turnstileToken, req.ip);
+      const used = await inUse(phone);
+      if (isReset && !used) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
+      if (!isReset && used) return fail(res, 409, 'This phone number is already registered.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។');
+      const human = req.cfSkipHuman ? { ok: true } : await auth.verifyTurnstile(body.turnstileToken, req.ip);   // signed-in Settings flows: no CAPTCHA
       if (!human.ok) {
         return human.unavailable
           ? fail(res, 503, 'Verification service is unavailable. Please try again.', 'សេវាផ្ទៀងផ្ទាត់មិនអាចប្រើបានទេ។ សូមព្យាយាមម្តងទៀត។')
@@ -285,4 +307,4 @@ function createPhoneVerification({ pool, auth, gateway, mode, tgBot }) {
   return { sendCode, verifyCode, tgStart, tgStatus, checkToken, ensureSchema };
 }
 
-module.exports = { createPhoneVerification, normalizePhone, phoneEmail, phoneIdentities, findAccountEmail, maskPhone, SYNTHETIC_DOMAIN, DIAL };
+module.exports = { createPhoneVerification, normalizePhone, phoneEmail, phoneIdentities, findAccountEmail, phoneTaken, ensureLoginCol, maskPhone, SYNTHETIC_DOMAIN, DIAL };

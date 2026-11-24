@@ -120,12 +120,23 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 
 <section class="view" id="v-contact"><div class="card"><h2 data-i18n="ct_t">លេខទូរស័ព្ទ ឬ Gmail</h2><p class="desc" data-i18n="acc_contact_d">ព័ត៌មានដែលអ្នកប្រើដើម្បីចូលគណនី។</p>
 <div class="row"><span class="r-ic">✉️</span><div class="r-main"><div class="r-title" id="contactLabel">…</div><div class="r-sub" id="contactValue">…</div></div></div>
-<div class="note warn" style="margin-top:14px" data-i18n="ct_soon">ការប្តូរលេខទូរស័ព្ទ ឬ Gmail ដោយប្រើលេខកូដផ្ទៀងផ្ទាត់ទៅលេខ ឬអ៊ីមែលថ្មី នឹងមកដល់ឆាប់ៗ។ ក្នុងពេលនេះ បើអ្នកត្រូវការប្តូរ សូមទាក់ទងផ្នែកជំនួយ។</div>
-<a class="btn outline" href="mailto:support@camfeedkh.com?subject=Change%20my%20login%20phone%20or%20email" data-i18n="ct_contact">ទាក់ទងផ្នែកជំនួយ</a></div></section>
+<div id="ctTgNote" class="note warn hidden" style="margin-top:14px"></div>
+<button type="button" class="btn outline" id="ctChangeBtn" style="margin-top:14px">ប្តូរ</button>
+<div id="ctForm" class="hidden" style="margin-top:16px">
+<div class="seg" id="ctSeg"><button type="button" data-k="email" class="on">Gmail</button><button type="button" data-k="phone" id="ctSegPhone">លេខទូរស័ព្ទ</button></div>
+<div class="field-gap"><label class="field" for="ctNew" id="ctNewL"></label><input type="text" id="ctNew" autocomplete="off" maxlength="254"></div>
+<div class="field-gap"><label class="field" for="ctPw" id="ctPwL"></label><div class="pw-wrap"><input type="password" id="ctPw" autocomplete="current-password"><button type="button" class="pw-eye" data-eye="ctPw" aria-label="Show">👁</button></div></div>
+<div id="ctCodeBox" class="hidden field-gap"><label class="field" for="ctCode" id="ctCodeL"></label><input type="text" id="ctCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>
+<div id="ctMsg" class="strength-label" style="margin-bottom:8px"></div>
+<button type="button" class="btn" id="ctGo"></button> <button type="button" class="btn secondary" id="ctCancel"></button>
+</div></div></section>
 
 <section class="view" id="v-password">
 <div class="card" id="passwordCard"><h2 data-i18n="sec_pw_t">ប្តូរពាក្យសម្ងាត់</h2><p class="desc" data-i18n="sec_pw_d">ប្រើពាក្យសម្ងាត់វែង និងមិនធ្លាប់ប្រើនៅកន្លែងផ្សេង។</p>
-<div class="field-gap"><label class="field" for="curPw" data-i18n="sec_cur">ពាក្យសម្ងាត់បច្ចុប្បន្ន</label><div class="pw-wrap"><input type="password" id="curPw" autocomplete="current-password"><button type="button" class="pw-eye" data-eye="curPw" aria-label="Show">👁</button></div></div>
+<div class="field-gap" id="curPwGroup"><label class="field" for="curPw" data-i18n="sec_cur">ពាក្យសម្ងាត់បច្ចុប្បន្ន</label><div class="pw-wrap"><input type="password" id="curPw" autocomplete="current-password"><button type="button" class="pw-eye" data-eye="curPw" aria-label="Show">👁</button></div>
+<div style="margin-top:6px"><a href="#" id="pfLink" style="font-size:13.5px;font-weight:700"></a></div></div>
+<div id="pfBox" class="note hidden"><div id="pfMsg" style="white-space:pre-line"></div>
+<div id="pfCodeWrap" class="hidden" style="margin-top:10px"><input type="text" id="pfCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="margin-bottom:8px"><button type="button" class="btn small" id="pfVerify"></button></div></div>
 <div class="field-gap"><label class="field" for="newPw" data-i18n="sec_new">ពាក្យសម្ងាត់ថ្មី</label><div class="pw-wrap"><input type="password" id="newPw" autocomplete="new-password"><button type="button" class="pw-eye" data-eye="newPw" aria-label="Show">👁</button></div><div class="strength"><i id="strengthBar"></i></div><div class="strength-label" id="strengthLabel"></div></div>
 <div class="field-gap"><label class="field" for="newPw2" data-i18n="sec_new2">បញ្ជាក់ពាក្យសម្ងាត់ថ្មី</label><div class="pw-wrap"><input type="password" id="newPw2" autocomplete="new-password"><button type="button" class="pw-eye" data-eye="newPw2" aria-label="Show">👁</button></div></div>
 <button type="button" class="btn" id="savePwBtn" data-i18n="sec_update">ប្តូរពាក្យសម្ងាត់</button></div>
@@ -415,7 +426,7 @@ document.querySelectorAll('[data-eye]').forEach((b)=>b.addEventListener('click',
 function strengthOf(pw){let s=0;if(pw.length>=6)s++;if(pw.length>=10)s++;if(/[a-z]/.test(pw)&&/[A-Z]/.test(pw))s++;if(/\d/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;return pw?Math.max(1,Math.min(4,s-(pw.length<6?1:0))):0;}
 function updateStrength(){const lv=strengthOf($('newPw').value),bar=$('strengthBar');bar.style.width=(lv*25)+'%';bar.style.background=['#8a8d91','#e41e3f','#f0a30a','#7cb518','#1f9d46'][lv];$('strengthLabel').textContent=lv?t(['','s_weak','s_ok','s_good','s_strong'][lv]):'';}
 $('newPw').addEventListener('input',updateStrength);
-$('savePwBtn').addEventListener('click',async()=>{const cur=$('curPw').value,nw=$('newPw').value,nw2=$('newPw2').value;
+$('savePwBtn').addEventListener('click',async()=>{if(window.CFPF&&CFPF.token)return CFPF.save();const cur=$('curPw').value,nw=$('newPw').value,nw2=$('newPw2').value;
 if(!cur)return toast(t('pw_need_cur'),'err');if(nw.length<6)return toast(t('pw_short'),'err');if(nw!==nw2)return toast(t('pw_mismatch'),'err');if(nw===cur)return toast(t('pw_same'),'err');
 $('savePwBtn').disabled=true;const r=await api('/api/settings/password',jsonOpts('PUT',{currentPassword:cur,newPassword:nw}));$('savePwBtn').disabled=false;
 if(r.ok){['curPw','newPw','newPw2'].forEach((i)=>{$(i).value='';});updateStrength();toast(t('pw_ok'),'ok');sessions=null;}else toast(/incorrect/i.test(msgOf(r))?t('pw_bad_cur'):msgOf(r),'err');});
@@ -492,6 +503,81 @@ if(r.ok&&r.data.user){const u=r.data.user;me=Object.assign({},me,u);if(u.contact
 PRIVACY.forEach((p)=>{privacy[p.key]=u[p.key]==='private'?'private':'public';});privacyReady=true;
 $('firstName').value=me.first_name||'';$('lastName').value=me.last_name||'';$('saveNameBtn').disabled=true;fillDetails(u);try{fillListPrivacy(u);}catch(e){}renderContact();renderPrivacy();}
 else if(r.status===0){toast(t('err_net'),'err');}else{PRIVACY.forEach((p)=>{privacy[p.key]='public';});privacyReady=true;renderPrivacy();}})();
+/* 🔁 change the phone / Gmail I log in with + "Forgot current password?" (Settings). Uses $, api, jsonOpts, toast, msgOf, me, lang from above. */
+{
+const L={km:{change:'ប្តូរ',newEmail:'Gmail ថ្មី',newPhone:'លេខទូរស័ព្ទថ្មី (ឧ. 012 345 678 ឬ +66 81 234 5678)',pw:'ពាក្យសម្ងាត់បច្ចុប្បន្ន (ដើម្បីបញ្ជាក់)',code:'លេខកូដ 6 ខ្ទង់ ដែលបានផ្ញើទៅ Gmail ថ្មី',next:'បន្ត',verify:'បញ្ជាក់',cancel:'បោះបង់',phone:'លេខទូរស័ព្ទ',
+  needNew:'សូមបញ្ចូល Gmail ឬលេខទូរស័ព្ទថ្មី',needPw:'សូមបញ្ចូលពាក្យសម្ងាត់បច្ចុប្បន្ន',sent:(m)=>'បានផ្ញើលេខកូដទៅ '+m+' ។ សូមពិនិត្យ Gmail (រួមទាំង Spam)។',done:'បានប្តូររួចរាល់ ✅ លើកក្រោយ សូមចូលគណនីដោយ ',
+  tg:'គណនីនេះចូលតាម Telegram ដូច្នេះមិនអាចប្តូរនៅទីនេះបានទេ។',noPhone:'ការប្តូរទៅលេខទូរស័ព្ទមិនទាន់អាចប្រើបានទេ។',
+  forgot:'ភ្លេចពាក្យសម្ងាត់បច្ចុប្បន្ន?',pfMail:(m)=>'បានផ្ញើលេខកូដ 6 ខ្ទង់ទៅ '+m+' ។ សូមវាយលេខកូដខាងក្រោម។',pfOk:'✅ បានបញ្ជាក់។ សូមវាយពាក្យសម្ងាត់ថ្មីខាងក្រោម។',pfSending:'កំពុងផ្ញើ…',
+  tgT:'បញ្ជាក់លេខទូរស័ព្ទតាម Telegram',tgD:(p)=>'លេខ '+p+'\n\n1. ចុចប៊ូតុងខាងក្រោម ដើម្បីបើក Telegram\n2. ក្នុង Telegram ចុច "📱 ចែករំលែកលេខទូរស័ព្ទ"\n3. ត្រឡប់មកទីនេះវិញ',tgOpen:'📱 បើក Telegram',tgWait:'⏳ កំពុងរង់ចាំការបញ្ជាក់ពី Telegram…',expired:'សំណើនេះផុតកំណត់ហើយ។ សូមសាកម្ដងទៀត។'},
+ en:{change:'Change',newEmail:'New Gmail',newPhone:'New phone number (e.g. 012 345 678 or +66 81 234 5678)',pw:'Current password (to confirm)',code:'The 6-digit code sent to the new Gmail',next:'Continue',verify:'Confirm',cancel:'Cancel',phone:'Phone number',
+  needNew:'Please enter the new Gmail or phone number',needPw:'Please enter your current password',sent:(m)=>'A code was sent to '+m+'. Please check Gmail (and Spam).',done:'Changed ✅ Next time, log in with ',
+  tg:'This account signs in with Telegram, so it can not be changed here.',noPhone:'Changing to a phone number is not available yet.',
+  forgot:'Forgot current password?',pfMail:(m)=>'A 6-digit code was sent to '+m+'. Type it below.',pfOk:'✅ Confirmed. Type your new password below.',pfSending:'Sending…',
+  tgT:'Confirm your number in Telegram',tgD:(p)=>'Number '+p+'\n\n1. Tap the button below to open Telegram\n2. In Telegram, tap "📱 Share my phone number"\n3. Come back here',tgOpen:'📱 Open Telegram',tgWait:'⏳ Waiting for Telegram…',expired:'This request has expired. Please try again.'}};
+const W=()=>L[lang==='en'?'en':'km'];
+const em=(r)=>(lang!=='en'&&r.data&&r.data.errorKm)?r.data.errorKm:msgOf(r);
+
+// ---- the Telegram bot panel (shared) ----
+let poll=null;function closeTg(){clearInterval(poll);poll=null;const o=document.getElementById('cfTgOv');if(o)o.remove();document.removeEventListener('visibilitychange',vis);}let vis=function(){};
+function tgPanel(data,statusPath,onDone,onFail){const w=W();closeTg();
+  const ov=el('div','backdrop');ov.id='cfTgOv';const d=el('div','dialog');d.style.textAlign='center';
+  const h=el('h3','',w.tgT);const p=el('p','',w.tgD(data.maskedPhone||''));p.style.whiteSpace='pre-line';p.style.textAlign='left';
+  const a=el('a','btn block',w.tgOpen);a.href=data.link;a.target='_blank';a.rel='noopener';a.style.background='#229ED9';a.style.marginBottom='12px';
+  const st=el('div','strength-label',w.tgWait);st.style.marginBottom='12px';const c=el('button','btn secondary',w.cancel);c.type='button';c.onclick=closeTg;
+  d.append(h,p,a,st,c);ov.appendChild(d);document.body.appendChild(ov);
+  let busy=false;const check=async()=>{if(busy)return;busy=true;try{const r=await api(statusPath,jsonOpts('POST',{token:data.token}));
+    if(r.ok&&r.data.done&&r.data.phoneToken){closeTg();onDone(r.data.phoneToken);return;}
+    if(!r.ok&&r.status!==0&&r.status!==429){closeTg();onFail(r.status===410?w.expired:em(r));}}finally{busy=false;}};
+  poll=setInterval(check,2500);vis=function(){if(!document.hidden)check();};document.addEventListener('visibilitychange',vis);setTimeout(closeTg,((data.expiresInSec||600)+30)*1000);}
+
+// ---- change the login phone / Gmail ----
+let kind='email',stage='form',emailToken='';
+function ctTexts(){const w=W();$('ctChangeBtn').textContent=w.change;$('ctSegPhone').textContent=w.phone;$('ctNewL').textContent=kind==='email'?w.newEmail:w.newPhone;$('ctNew').placeholder=kind==='email'?'name@gmail.com':'012 345 678';
+  $('ctPwL').textContent=w.pw;$('ctCodeL').textContent=w.code;$('ctGo').textContent=stage==='code'?w.verify:w.next;$('ctCancel').textContent=w.cancel;$('pfLink').textContent=w.forgot;$('pfVerify').textContent=w.verify;
+  const tg=me&&me.login_kind==='telegram';$('ctTgNote').textContent=w.tg;$('ctTgNote').classList.toggle('hidden',!tg);$('ctChangeBtn').classList.toggle('hidden',!!tg||!$('ctForm').classList.contains('hidden'));
+  const pf=document.getElementById('pfLink');if(pf)pf.parentNode.classList.toggle('hidden',!!tg);}
+function resetCt(){stage='form';emailToken='';$('ctCodeBox').classList.add('hidden');$('ctCode').value='';$('ctMsg').textContent='';$('ctNew').disabled=false;ctTexts();}
+$('ctChangeBtn').onclick=()=>{$('ctForm').classList.remove('hidden');resetCt();$('ctNew').focus();};
+$('ctCancel').onclick=()=>{$('ctForm').classList.add('hidden');$('ctPw').value='';$('ctNew').value='';resetCt();};
+$('ctSeg').querySelectorAll('button').forEach((b)=>b.onclick=()=>{kind=b.dataset.k;$('ctSeg').querySelectorAll('button').forEach((x)=>x.classList.toggle('on',x===b));$('ctNew').value='';resetCt();});
+async function apply(token,value){const w=W();const r=await api('/api/settings/login/apply',jsonOpts('POST',{password:$('ctPw').value,kind,value,token}));
+  if(!r.ok){$('ctMsg').textContent=em(r);return;}
+  me.contact_mail=r.data.contact;me.login_kind=kind;try{renderContact();}catch(e){}
+  toast(w.done+r.data.contact,'ok');$('ctForm').classList.add('hidden');$('ctPw').value='';$('ctNew').value='';resetCt();}
+$('ctGo').onclick=async()=>{const w=W();const v=$('ctNew').value.trim(),pw=$('ctPw').value;$('ctMsg').textContent='';
+  if(stage==='code'){const code=$('ctCode').value.replace(/[០-៩]/g,(c)=>String(c.charCodeAt(0)-0x17E0)).replace(/\s/g,'');
+    $('ctGo').disabled=true;const r=await api('/api/settings/login/email-verify',jsonOpts('POST',{newEmail:v,code}));$('ctGo').disabled=false;
+    if(!r.ok||!r.data.emailToken){$('ctMsg').textContent=em(r);return;}$('ctGo').disabled=true;await apply(r.data.emailToken,v);$('ctGo').disabled=false;return;}
+  if(!v)return void($('ctMsg').textContent=w.needNew);if(!pw)return void($('ctMsg').textContent=w.needPw);
+  $('ctGo').disabled=true;
+  try{if(kind==='email'){const r=await api('/api/settings/login/email-send',jsonOpts('POST',{password:pw,newEmail:v}));
+      if(!r.ok)return void($('ctMsg').textContent=em(r));
+      stage='code';$('ctNew').disabled=true;$('ctCodeBox').classList.remove('hidden');$('ctMsg').textContent=w.sent(r.data.maskedEmail||v);ctTexts();$('ctCode').focus();}
+    else{const r=await api('/api/settings/login/phone-start',jsonOpts('POST',{password:pw,phone:v}));
+      if(!r.ok||!r.data.link)return void($('ctMsg').textContent=r.ok?w.noPhone:em(r));
+      tgPanel(r.data,'/api/settings/login/phone-status',(tok)=>apply(tok,''),(m)=>{$('ctMsg').textContent=m;});}}
+  finally{$('ctGo').disabled=false;}};
+
+// ---- Forgot current password? (prove the login, then a new password without the old one) ----
+window.CFPF={token:'',async save(){const w=W();const nw=$('newPw').value,nw2=$('newPw2').value;
+  if(nw.length<6)return toast(t('pw_short'),'err');if(nw!==nw2)return toast(t('pw_mismatch'),'err');
+  $('savePwBtn').disabled=true;const r=await api('/api/settings/pw-forgot/apply',jsonOpts('POST',{token:CFPF.token,newPassword:nw}));$('savePwBtn').disabled=false;
+  if(r.ok){CFPF.token='';['curPw','newPw','newPw2'].forEach((i)=>{$(i).value='';});updateStrength();$('curPwGroup').classList.remove('hidden');$('pfBox').classList.add('hidden');toast(t('pw_ok'),'ok');sessions=null;}
+  else toast(em(r),'err');}};
+function pfProven(tok){CFPF.token=tok;$('curPwGroup').classList.add('hidden');$('pfCodeWrap').classList.add('hidden');$('pfBox').classList.remove('hidden');$('pfMsg').textContent=W().pfOk;$('newPw').focus();}
+$('pfLink').onclick=async(e)=>{e.preventDefault();const w=W();$('pfBox').classList.remove('hidden');$('pfCodeWrap').classList.add('hidden');$('pfMsg').textContent=w.pfSending;
+  const r=await api('/api/settings/pw-forgot/start',jsonOpts('POST',{}));
+  if(!r.ok){$('pfMsg').textContent=em(r);return;}
+  if(r.data.link){$('pfMsg').textContent='';tgPanel(r.data,'/api/settings/pw-forgot/status',pfProven,(m)=>{$('pfMsg').textContent=m;});return;}
+  $('pfMsg').textContent=w.pfMail(r.data.maskedEmail||'');$('pfCodeWrap').classList.remove('hidden');$('pfCode').value='';$('pfCode').focus();};
+$('pfVerify').onclick=async()=>{const code=$('pfCode').value.replace(/[០-៩]/g,(c)=>String(c.charCodeAt(0)-0x17E0)).replace(/\s/g,'');
+  $('pfVerify').disabled=true;const r=await api('/api/settings/pw-forgot/verify',jsonOpts('POST',{code}));$('pfVerify').disabled=false;
+  if(r.ok&&r.data.emailToken)pfProven(r.data.emailToken);else $('pfMsg').textContent=em(r);};
+
+ctTexts();document.querySelectorAll('.lang-switch button').forEach((b)=>b.addEventListener('click',()=>setTimeout(ctTexts,0)));
+const wait=setInterval(()=>{if(me&&me.login_kind!==undefined){clearInterval(wait);ctTexts();}},400);setTimeout(()=>clearInterval(wait),20000);
+}
 })();
 </script>
 </body>

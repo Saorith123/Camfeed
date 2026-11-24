@@ -127,7 +127,7 @@ function stripSecrets(v, depth) {
   if (Array.isArray(v)) return v.map(x => stripSecrets(x, depth + 1));
   const out = {};
   for (const k of Object.keys(v)) {
-    if (k === 'password' || k === 'password_hash') continue;
+    if (k === 'password' || k === 'password_hash' || k === 'login_id') continue;   // login_id = a changed login phone / Gmail: only the owner sees it, as contact_mail
     out[k] = stripSecrets(v[k], depth + 1);
   }
   return out;

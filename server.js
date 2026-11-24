@@ -18,17 +18,17 @@ const formFields = (req, res, next) => formFieldsRaw(req, res, (err) => (err ? n
 const createVideoRouter = require('./videoRecommendationRoutes');
 const auth = require('./auth');
 const mailer = require('./mailer');
-const { createSignupVerification, createPasswordReset, EMAIL_RE } = require('./signup-verification');
+const { createSignupVerification, createPasswordReset, createEmailChange, accountOfEmail, EMAIL_RE } = require('./signup-verification');
 const { createTelegramLogin, isTelegramAddress } = require('./telegram-login');
 const gateway = require('./telegram-gateway');
 const { createPublicIds } = require('./public-ids');
-const { createPhoneVerification, normalizePhone, phoneEmail, findAccountEmail, phoneIdentities: phoneIdentitiesOf } = require('./phone-verification');
+const { createPhoneVerification, normalizePhone, phoneEmail, findAccountEmail, phoneTaken, ensureLoginCol, maskPhone, phoneIdentities: phoneIdentitiesOf } = require('./phone-verification');
 
 const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 209;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 210;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -319,6 +319,7 @@ pool.connect(async (err, client, release) => {
     await passwordReset.ensureSchema();
     await tgLogin.ensureSchema();
     await phoneSignup.ensureSchema();
+    await emailChange.ensureSchema();
     await publicIds.ensureSchema();
     await security.neutralizeExistingData(pool);   // older names / posts / comments / chats: make < > harmless
     await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_epoch INTEGER DEFAULT 0');      // "log out of all devices"
@@ -485,10 +486,36 @@ const tgLogin = createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }
 const tgVerify = require('./tg-verify')({ app, pool, baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com' }); // 📱 free: "Share my phone number" in CamFeed's bot
 const phoneSignup = createPhoneVerification({ pool, auth, gateway, mode: 'signup', tgBot: tgVerify }); // phone number + code inside Telegram
 const phoneReset = createPhoneVerification({ pool, auth, gateway, mode: 'reset', tgBot: tgVerify });
+const phoneChange = createPhoneVerification({ pool, auth, gateway, mode: 'change', tgBot: tgVerify });   // Settings › change the login number
+const emailChange = createEmailChange({ pool, auth, mailer });                                           // Settings › change the login Gmail
 console.log('[phone] verify bot (TG_VERIFY_BOT_TOKEN): ' + (tgVerify.on() ? 'FOUND - phone numbers are checked by the bot (free)' : 'NOT SET'));
 console.log('[phone] Telegram Gateway key: ' + (gateway.isConfigured() ? 'FOUND - phone sign-up is ON' : 'NOT FOUND (set TELEGRAM_GATEWAY_TOKEN in Render) - the Phone tab shows "coming soon"'));
 // what a person may see as THEIR OWN contact detail (the hidden phone/Telegram identity is shown as the phone number)
-const ownContact = (u) => (isTelegramAddress(u.email) ? (u.phone || '') : u.email);
+// the phone / Gmail this account logs in with: a changed login (login_id) first, then the number hidden in a phone account's key
+const loginOf = (u) => {
+  if (u.login_id) return String(u.login_id);
+  const m = /^ph(\d{8,15})@telegram\.camfeedkh\.com$/i.exec(String(u.email || ''));
+  if (m) return '+' + m[1];
+  return isTelegramAddress(u.email) ? '' : String(u.email || '');
+};
+const ownContact = (u) => loginOf(u) || (isTelegramAddress(u.email) ? (u.phone || '') : '');
+// login: the account that logs in with what was typed (Gmail, phone number, or an old-style login)
+async function findLoginUser(typed) {
+  const raw = String(typed || '').trim();
+  if (!raw) return null;
+  await ensureLoginCol(pool).catch(() => {});
+  const low = raw.toLowerCase();
+  const e164 = raw.includes('@') ? null : normalizePhone(raw);
+  let r = await pool.query('SELECT * FROM users WHERE login_id = $1 LIMIT 1', [e164 || low]);
+  if (r.rows[0]) return r.rows[0];
+  r = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1 AND login_id IS NULL LIMIT 1', [low]);
+  if (r.rows[0]) return r.rows[0];
+  if (e164) {
+    const found = await findAccountEmail(pool, e164);
+    if (found) { r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [found]); return r.rows[0] || null; }
+  }
+  return null;
+}
 const isTelegramOnlyAccount = (email) => /^tg\d+@telegram\.camfeedkh\.com$/i.test(String(email || '')); // made with Continue with Telegram: no password
 
 // Global Real-Time Presence Tracker
@@ -662,6 +689,7 @@ app.post('/api/password/reset', async (req, res) => {
     const proofOk = phoneRaw ? (!!e164 && phoneReset.checkToken(e164, token)) : passwordReset.checkEmailToken(email, token);
     if (!proofOk) return needVerify();
     if (phoneRaw) email = (await findAccountEmail(pool, e164)) || '';
+    else { const acc = await accountOfEmail(pool, email.toLowerCase()); email = acc ? acc.email : ''; }   // a Gmail login changed in Settings finds its account
     const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
     const user = r.rows[0];
     if (!user) return res.status(404).json({ success: false, error: 'No account was found with this email.', errorKm: 'រកមិនឃើញគណនីដែលប្រើអ៊ីមែលនេះទេ។' });
@@ -726,6 +754,11 @@ app.post('/api/register', async (req, res) => {
     if (typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
     }
+    {
+      await ensureLoginCol(pool).catch(() => {});
+      const taken = await pool.query('SELECT 1 FROM users WHERE login_id = $1 LIMIT 1', [viaPhone ? phoneE164 : email.toLowerCase()]);
+      if (taken.rows.length) return res.status(409).json({ success: false, error: viaPhone ? 'This phone number is already registered.' : 'This email is already registered.' });
+    }
     const birth = normalizeBirthdate(birthdate);
     if (birth === undefined) {
       return res.status(400).json({ success: false, error: 'Invalid date of birth.' });
@@ -769,13 +802,7 @@ app.post('/api/login', async (req, res) => {
     if (auth.isRateLimited(limitKey)) {
       return res.status(429).json({ success: false, message: 'Too many failed attempts. Please wait 15 minutes and try again.' });
     }
-    let result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [email]);
-    if (!result.rows[0] && !email.includes('@')) {
-      const e164 = normalizePhone(email);                     // typed a phone number: find the account (made with the phone tab, or an old one that used the number as its login)
-      const found = e164 ? await findAccountEmail(pool, e164) : null;
-      if (found) result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [found]);
-    }
-    const user = result.rows[0];
+    const user = await findLoginUser(email);                 // Gmail, phone number (phone tab or old style), or a login changed in Settings
     let check = { ok: false, needsRehash: false };
     if (user) check = await auth.verifyPassword(password, user.password);
     else await auth.dummyVerify();
@@ -2144,7 +2171,9 @@ app.get('/api/user-profile', async (req, res) => {
       u.is_friend = u.is_following && u.is_followed_by;
       // "email" is turned into the public id on the way out, so the contact e-mail travels in its own field, only when allowed
       const isSelf = String(viewerEmail || '').toLowerCase() === String(email || '').toLowerCase();
-      u.contact_mail = isTelegramAddress(u.email) ? '' : ((isSelf || u.email_privacy === 'public') ? u.email : '');
+      u.contact_mail = isSelf ? ownContact(u) : (isTelegramAddress(u.email) ? '' : (u.email_privacy === 'public' ? (u.login_id && u.login_id.includes('@') ? u.login_id : u.email) : ''));
+      if (isSelf) u.login_kind = u.login_id ? (u.login_id.includes('@') ? 'email' : 'phone') : (/^ph\d/i.test(u.email) ? 'phone' : (isTelegramOnlyAccount(u.email) ? 'telegram' : 'email'));
+      delete u.login_id;
 
       if (viewerEmail !== email) {
         if (u.location_privacy === 'private') u.location = '';
@@ -2969,6 +2998,113 @@ app.put('/api/settings/password', async (req, res) => {
   }
 });
 
+// ---- 🔁 Settings › change the phone / Gmail I log in with, and "Forgot current password?" (no CAPTCHA: the person is signed in) ----
+const pwCheckLimiter = auth.makeLimiter(10, 15 * 60 * 1000);
+const kmErr = (res, status, en, km, extra) => res.status(status).json(Object.assign({ success: false, error: en, errorKm: km, message: en }, extra || {}));
+async function meWithPassword(req, res) {      // the signed-in account + its current password checked
+  const r = await pool.query('SELECT * FROM users WHERE email = $1', [req.authEmail]);
+  const u = r.rows[0];
+  if (!u) { kmErr(res, 404, 'Account not found.', 'រកមិនឃើញគណនី។'); return null; }
+  if (isTelegramOnlyAccount(u.email)) { kmErr(res, 400, 'This account signs in with Telegram.', 'គណនីនេះចូលតាម Telegram។'); return null; }
+  const key = 'pwchk|' + u.email;
+  if (pwCheckLimiter.isLimited(key)) { kmErr(res, 429, 'Too many tries. Please wait 15 minutes.', 'ព្យាយាមច្រើនពេក។ សូមរង់ចាំ 15 នាទី។'); return null; }
+  const ok = (await auth.verifyPassword(String((req.body && req.body.password) || ''), u.password)).ok;
+  if (!ok) { pwCheckLimiter.hit(key); kmErr(res, 400, 'Current password is incorrect.', 'ពាក្យសម្ងាត់បច្ចុប្បន្នមិនត្រឹមត្រូវទេ។'); return null; }
+  return u;
+}
+const trusted = (req, body) => { req.body = body; req.cfSkipHuman = true; return req; };
+
+// new Gmail: 1) password + new Gmail -> a 6-digit code to the new Gmail  2) the code -> proof  3) apply
+app.post('/api/settings/login/email-send', async (req, res) => {
+  try {
+    const u = await meWithPassword(req, res); if (!u) return;
+    const newEmail = String((req.body && req.body.newEmail) || '').trim().toLowerCase();
+    if (newEmail === loginOf(u).toLowerCase()) return kmErr(res, 400, 'This is already your login.', 'នេះជា Gmail ដែលអ្នកកំពុងប្រើរួចហើយ។');
+    return emailChange.sendCode(trusted(req, { email: newEmail, resend: !!(req.body && req.body.resend) }), res);
+  } catch (e) { console.error('[login-change] email-send:', e.message); kmErr(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'); }
+});
+app.post('/api/settings/login/email-verify', (req, res) => emailChange.verifyCode(trusted(req, { email: String((req.body && req.body.newEmail) || ''), code: String((req.body && req.body.code) || '') }), res));
+// new phone number: password + number -> the CamFeed Telegram bot ("Share my phone number") -> proof
+app.post('/api/settings/login/phone-start', async (req, res) => {
+  try {
+    const u = await meWithPassword(req, res); if (!u) return;
+    if (!PHONE_AUTH_ON) return kmErr(res, 503, 'Phone numbers are not available yet.', 'លេខទូរស័ព្ទមិនទាន់អាចប្រើបានទេ។');
+    return phoneChange.tgStart(trusted(req, { phone: req.body.phone, country: req.body.country, purpose: 'change' }), res);
+  } catch (e) { console.error('[login-change] phone-start:', e.message); kmErr(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'); }
+});
+app.post('/api/settings/login/phone-status', (req, res) => phoneChange.tgStatus(trusted(req, { token: req.body && req.body.token, purpose: 'change' }), res));
+// apply: the password once more + the proof of the new Gmail / number
+app.post('/api/settings/login/apply', async (req, res) => {
+  try {
+    const u = await meWithPassword(req, res); if (!u) return;
+    const kind = req.body && req.body.kind;
+    let value = '';
+    if (kind === 'email') {
+      value = String((req.body && req.body.value) || '').trim().toLowerCase();
+      if (!emailChange.checkEmailToken(value, req.body.token)) return kmErr(res, 403, 'Please confirm the new Gmail first.', 'សូមបញ្ជាក់ Gmail ថ្មីជាមុនសិន។');
+      if ((await pool.query('SELECT 1 FROM users WHERE (LOWER(email) = $1 OR login_id = $1) AND email <> $2 LIMIT 1', [value, u.email])).rows.length) return kmErr(res, 409, 'This Gmail is already used by another account.', 'Gmail នេះកំពុងប្រើដោយគណនីផ្សេង។');
+    } else if (kind === 'phone') {
+      const p = auth.verifyToken(req.body && req.body.token);
+      value = p && p.purpose === 'change-phone' ? String(p.sub || '') : '';
+      if (!/^\+\d{9,15}$/.test(value)) return kmErr(res, 403, 'Please confirm the new phone number first.', 'សូមបញ្ជាក់លេខទូរស័ព្ទថ្មីជាមុនសិន។');
+      const ids = phoneIdentitiesOf(value);
+      if ((await pool.query('SELECT 1 FROM users WHERE (login_id = $1 OR LOWER(email) = ANY($2::text[])) AND email <> $3 LIMIT 1', [value, ids, u.email])).rows.length) return kmErr(res, 409, 'This phone number is already used by another account.', 'លេខទូរស័ព្ទនេះកំពុងប្រើដោយគណនីផ្សេង។');
+    } else return kmErr(res, 400, 'Choose a phone number or a Gmail.', 'សូមជ្រើសលេខទូរស័ព្ទ ឬ Gmail។');
+    // back to the account's own key (e.g. the number it was made with): no login_id needed
+    const ownKey = kind === 'email' ? u.email.toLowerCase() === value : phoneIdentitiesOf(value).includes(u.email.toLowerCase());
+    try {
+      await pool.query('UPDATE users SET login_id = $1 WHERE email = $2', [ownKey ? null : value, u.email]);
+    } catch (e) {
+      if (e && e.code === '23505') return kmErr(res, 409, 'This is already used by another account.', 'វាកំពុងប្រើដោយគណនីផ្សេង។');
+      throw e;
+    }
+    if (kind === 'email') pool.query('UPDATE users SET email_verified = TRUE WHERE email = $1', [u.email]).catch(() => {});
+    console.log('[login-change]', u.email, '->', kind);
+    res.json({ success: true, contact: kind === 'email' ? value : value, kind, message: 'Your login was changed.', messageKm: 'បានប្តូររួចរាល់។ លើកក្រោយ សូមចូលគណនីដោយ ' + value + '។' });
+  } catch (e) { console.error('[login-change] apply:', e.message); kmErr(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'); }
+});
+
+// "Forgot current password?" inside Settings: prove the login (Gmail code / Telegram bot) -> set a new password
+async function myLogin(req) {
+  const u = (await pool.query('SELECT * FROM users WHERE email = $1', [req.authEmail])).rows[0];
+  if (!u) return { u: null };
+  const login = loginOf(u);
+  return { u, login, kind: !login ? 'telegram' : (login.includes('@') ? 'email' : 'phone') };
+}
+app.post('/api/settings/pw-forgot/start', async (req, res) => {
+  try {
+    const { u, login, kind } = await myLogin(req);
+    if (!u || kind === 'telegram' || isTelegramOnlyAccount(u.email)) return kmErr(res, 400, 'This account signs in with Telegram.', 'គណនីនេះចូលតាម Telegram។');
+    if (kind === 'email') return passwordReset.sendCode(trusted(req, { email: login, resend: !!(req.body && req.body.resend) }), res);
+    if (!PHONE_AUTH_ON) return kmErr(res, 503, 'Phone numbers are not available yet. Please contact support.', 'លេខទូរស័ព្ទមិនទាន់អាចប្រើបានទេ។ សូមទាក់ទងផ្នែកជំនួយ។');
+    return phoneReset.tgStart(trusted(req, { phone: login, purpose: 'reset' }), res);
+  } catch (e) { console.error('[pw-forgot] start:', e.message); kmErr(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'); }
+});
+app.post('/api/settings/pw-forgot/verify', async (req, res) => {          // Gmail: the 6-digit code
+  const { u, login, kind } = await myLogin(req).catch(() => ({}));
+  if (!u || kind !== 'email') return kmErr(res, 400, 'Not available for this account.', 'មិនអាចប្រើសម្រាប់គណនីនេះទេ។');
+  return passwordReset.verifyCode(trusted(req, { email: login, code: String((req.body && req.body.code) || '') }), res);
+});
+app.post('/api/settings/pw-forgot/status', (req, res) => phoneReset.tgStatus(trusted(req, { token: req.body && req.body.token, purpose: 'reset' }), res));   // phone: the bot
+app.post('/api/settings/pw-forgot/apply', async (req, res) => {
+  try {
+    const { u, login, kind } = await myLogin(req);
+    const newPassword = String((req.body && req.body.newPassword) || '');
+    if (!u || kind === 'telegram') return kmErr(res, 400, 'Not available for this account.', 'មិនអាចប្រើសម្រាប់គណនីនេះទេ។');
+    if (newPassword.length < MIN_PASSWORD_LENGTH) return kmErr(res, 400, `New password must be at least ${MIN_PASSWORD_LENGTH} characters.`, `ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងតិច ${MIN_PASSWORD_LENGTH} តួអក្សរ។`);
+    const p = auth.verifyToken(req.body && req.body.token);
+    const okProof = !!p && p.pv === auth.fingerprint(u.password) && (kind === 'email'
+      ? p.purpose === 'reset' && String(p.sub).toLowerCase() === login.toLowerCase()
+      : p.purpose === 'reset-phone' && String(p.sub) === login);
+    if (!okProof) return kmErr(res, 403, 'Please confirm it is you first.', 'សូមបញ្ជាក់ថាជាអ្នកជាមុនសិន។');
+    const newHash = await auth.hashPassword(newPassword);
+    await pool.query('UPDATE users SET password = $1 WHERE email = $2', [newHash, u.email]);
+    authCore.invalidate(u.email);                       // every other logged-in device must log in again
+    u.password = newHash;
+    res.json({ success: true, message: 'Password updated successfully!', messageKm: 'បានប្តូរពាក្យសម្ងាត់ហើយ។', token: authCore.issueToken(u) });
+  } catch (e) { console.error('[pw-forgot] apply:', e.message); kmErr(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។'); }
+});
+
 app.delete('/api/settings/account', async (req, res) => {
   const email = req.authEmail;
   const password = String((req.body && req.body.password) || '');
@@ -3447,7 +3583,7 @@ app.post('/api/admin/create-user', async (req, res) => {
     if (String(b.kind) === 'phone') {
       phoneE164 = normalizePhone(b.phone, country);
       if (!phoneE164) return res.status(400).json({ success: false, error: 'That phone number is not valid. For a number outside Cambodia choose its country or start with + and the country code.' });
-      if (await findAccountEmail(pool, phoneE164)) return res.status(409).json({ success: false, error: 'This phone number already has an account.' });
+      if (await phoneTaken(pool, phoneE164)) return res.status(409).json({ success: false, error: 'This phone number already has an account.' });
       email = phoneEmail(phoneE164); login = phoneE164;
     } else {
       email = String(b.loginEmail || '').trim();
