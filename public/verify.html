@@ -36,6 +36,20 @@
         .status .big { font-size: 36px; }
         .code { display: inline-block; font-size: 22px; font-weight: 800; letter-spacing: 1px; background: #fff; border: 2px solid #1877f2; color: #1877f2; border-radius: 10px; padding: 2px 12px; margin: 6px 0; }
         .steps { margin: 6px 0 0 18px; font-size: 13.5px; line-height: 1.7; color: #374151; }
+        .pf { border: 1px solid #e4e6eb; border-radius: 12px; padding: 12px; margin-top: 10px; }
+        .pf b.t { font-size: 14.5px; } .pf .st { font-size: 13px; margin-top: 4px; }
+        .note { background: #fff8e6; color: #7a4b00; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.6; margin-top: 8px; white-space: pre-wrap; }
+        .btn2 { background: #fff; color: #1877f2; border: 2px solid #1877f2; }
+        .shots { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .shot { flex: 1; min-width: 130px; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; text-align: center; font-size: 13px; color: #374151; background: #f8fafc; cursor: pointer; font: inherit; }
+        .shot img { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 6px; }
+        .shot.done { border-style: solid; border-color: #16a34a; }
+        #cam { position: fixed; inset: 0; background: #000; z-index: 9000; display: none; flex-direction: column; }
+        #cam video { flex: 1; width: 100%; object-fit: contain; background: #000; }
+        #cam .bar { display: flex; gap: 10px; padding: 14px; justify-content: center; align-items: center; background: #000; }
+        #cam .snap { width: 70px; height: 70px; border-radius: 50%; border: 5px solid #fff; background: #1877f2; cursor: pointer; }
+        #cam .x { background: #333; color: #fff; border: none; border-radius: 12px; padding: 12px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+        #cam .hint { color: #fff; text-align: center; padding: 10px 14px; font-size: 14px; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -51,7 +65,8 @@
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     const num = (n) => Number(n || 0).toLocaleString('en-US');
-    const msg = (id, ok, t) => { const m = $(id); m.className = 'msg ' + (ok ? 'ok' : 'bad'); m.textContent = t; };
+    const msg = (id, ok, t) => { const m = $(id); if (!m) return; m.className = 'msg ' + (ok ? 'ok' : 'bad'); m.textContent = t; };
+    const alertMsg = (id, t) => setTimeout(() => msg(id, false, t), 50);
     const api = async (url, body) => { const r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); return r.json().catch(() => ({ success: false })); };
     $('navTitle').textContent = T('✔ គណនីផ្លូវការ', '✔ Official account');
 
@@ -68,9 +83,104 @@
         phone: () => T('បានផ្ទៀងផ្ទាត់លេខទូរស័ព្ទ', 'Phone number confirmed'),
         pic: () => T('មានរូបប្រូហ្វាល និងឈ្មោះពិត', 'Has a profile picture and a real name'),
         posts: (c) => T('បង្ហោះយ៉ាងតិច ' + c.need + ' ដងក្នុង 30 ថ្ងៃចុងក្រោយ (អ្នក៖ ' + num(c.have) + ')', 'At least ' + c.need + ' posts in the last 30 days (you: ' + num(c.have) + ')'),
-        followers: (c) => T('អ្នកតាមដានយ៉ាងតិច ' + num(c.need) + ' នាក់ (អ្នក៖ ' + num(c.have) + ') — មិនចាំបាច់ បើបញ្ជាក់តាមផ្លូវផ្សេង', 'At least ' + num(c.need) + ' followers (you: ' + num(c.have) + ') — not needed when proven another way'),
+        followers: (c) => T('អ្នកតាមដានយ៉ាងតិច ' + num(c.need) + ' នាក់ (អ្នក៖ ' + num(c.have) + ')' + (c.soft ? ' — មិនចាំបាច់ បើបញ្ជាក់តាមផ្លូវផ្សេង' : ''), 'At least ' + num(c.need) + ' followers (you: ' + num(c.have) + ')' + (c.soft ? ' — not needed when proven another way' : '')),
+        rename: (c) => T('មិនបានប្ដូរឈ្មោះក្នុង ' + c.need + ' ថ្ងៃចុងក្រោយ', 'No name change in the last ' + c.need + ' days'),
+        tick: () => T('មានសញ្ញា ✔ រួចហើយ', 'Already has the ✔'),
+        idproof: () => T('បញ្ជាក់អត្តសញ្ញាណ (ID + Selfie) ឬបង់ថ្លៃប្រចាំខែ — មើលខាងក្រោម', 'ID + selfie confirmed, or the monthly fee paid — see below'),
+        bank: () => T('បញ្ជាក់ឈ្មោះតាមគណនីធនាគារ — មើលខាងក្រោម', 'Bank account name confirmed — see below'),
     };
-    const st = { path: '', type: 'personal', cat: '', d: null, code: '' };
+    const PST = { pending: () => '⏳ ' + T('CamFeed កំពុងពិនិត្យ', 'CamFeed is checking'), approved: (p) => '✅ ' + T('បានបញ្ជាក់', 'Confirmed') + (p.expires_at ? ' · ' + T('ដល់ថ្ងៃ ', 'until ') + String(p.expires_at).slice(0, 10) : ''),
+        rejected: (p) => '❌ ' + T('មិនត្រូវ', 'Not accepted') + (p.note ? ' — ' + p.note : '') + ' · ' + T('សូមសាកម្ដងទៀត', 'please try again') };
+    const st = { path: '', type: 'personal', cat: '', d: null, code: '', shots: { id: '', selfie: '' }, way: { pay: '', bank: '' }, rc: { pay: '', bank: '' } };
+
+    // ---------- 📸 the camera (no picking a picture from the phone): ID with the back camera, selfie with the front one ----------
+    let camStream = null;
+    function camClose() { try { camStream && camStream.getTracks().forEach(t => t.stop()); } catch (e) {} camStream = null; const c = $('cam'); if (c) c.remove(); }
+    async function upload(blob, name) {
+        const u = await (await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: name, content_type: 'image/jpeg' }) })).json();
+        if (!u.uploadUrl) throw new Error('x');
+        const put = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: blob });
+        if (!put.ok) throw new Error('x');
+        return u.publicUrl;
+    }
+    function camOpen(which, done) {
+        const front = which === 'selfie';
+        const hint = front ? T('ដាក់មុខរបស់អ្នកឲ្យនៅកណ្ដាល ហើយចុចប៊ូតុងខៀវ', 'Put your face in the middle and press the blue button')
+            : T('ដាក់អត្តសញ្ញាណប័ណ្ណឲ្យឃើញរូប និងឈ្មោះច្បាស់ ហើយចុចប៊ូតុងខៀវ', 'Show the photo and the name on the ID card clearly and press the blue button');
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+            // an old phone without live camera on the web: the phone's own camera opens (capture), still not the gallery
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', front ? 'user' : 'environment');
+            inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) done(f); }; inp.click(); return;
+        }
+        const box = document.createElement('div'); box.id = 'cam'; box.style.display = 'flex';
+        box.innerHTML = `<div class="hint"></div><video playsinline autoplay muted></video><div class="bar"><button class="x" type="button" data-x>✖ ${T('បិទ', 'Close')}</button><button class="snap" type="button" aria-label="📸"></button></div>`;
+        box.querySelector('.hint').textContent = hint;
+        document.body.appendChild(box);
+        const v = box.querySelector('video');
+        if (front) v.style.transform = 'scaleX(-1)';
+        box.querySelector('[data-x]').onclick = camClose;
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: front ? 'user' : { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false })
+            .then(s => { camStream = s; v.srcObject = s; })
+            .catch(() => { box.querySelector('.hint').textContent = T('មិនអាចបើកកាមេរ៉ាបានទេ។ សូមអនុញ្ញាតឲ្យ CamFeed ប្រើកាមេរ៉ា (ការកំណត់របស់ទូរស័ព្ទ) ហើយសាកម្ដងទៀត។', 'Could not open the camera. Please allow CamFeed to use the camera (phone settings) and try again.'); });
+        box.querySelector('.snap').onclick = () => {
+            if (!v.videoWidth) return;
+            const k = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+            const c = document.createElement('canvas'); c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+            c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+            c.toBlob(b => { camClose(); if (b) done(b); }, 'image/jpeg', 0.85);
+        };
+    }
+
+    function proofCard(d) {
+        const pc = d.proofCfg; if (!pc) return '';
+        const P = {}; (d.proofs || []).forEach(p => { P[p.kind] = p; });
+        const stat = (k) => P[k] ? `<div class="st">${esc(PST[P[k].status] ? PST[P[k].status](P[k]) : P[k].status)}</div>` : '';
+        const can = (k) => !P[k] || P[k].status === 'rejected' || (k === 'pay' && P[k].status === 'approved' && P[k].expires_at && new Date(P[k].expires_at) - Date.now() < 5 * 86400000);
+        const ways = (k) => {
+            const w = [];
+            if (pc.qr) w.push(['qr', '📷 ' + T('ស្កេន QR', 'Scan the QR')]);
+            if (pc.link) w.push(['link', '📱 ' + T('បើកកម្មវិធី ABA', 'Open the ABA app')]);
+            if (!w.length) return `<div class="note">${T('ការបង់តាម ABA មិនទាន់បើកទេ។ សូមរង់ចាំបន្តិច។', 'Paying by ABA is not open yet. Please wait a little.')}</div>`;
+            const cur = st.way[k] || (w.length === 1 ? w[0][0] : '');
+            return `<div style="display:flex;gap:8px;margin-top:8px;">${w.map(x => `<button type="button" class="opt ${cur === x[0] ? 'on' : ''}" data-way="${k}:${x[0]}" style="justify-content:center;margin:0;"><b>${x[1]}</b></button>`).join('')}</div>
+                ${cur === 'qr' ? `<img src="${esc(pc.qr)}" alt="KHQR" style="width:100%;max-width:240px;margin:10px auto 0;display:block;border-radius:12px;">` : ''}
+                ${cur === 'link' ? `<a class="btn" href="${esc(pc.link)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;">📱 ${T('បើក ABA', 'Open ABA')}</a>` : ''}
+                ${cur ? `<label>${T('រូបវិក្កយបត្រ (Screenshot ពី ABA)', 'Picture of the receipt (screenshot from ABA)')}</label><input type="file" accept="image/*" data-rc="${k}"><div class="muted" id="rcMsg_${k}">${st.rc[k] ? '✅ ' + T('អាប់ឡូតរួចរាល់', 'Uploaded') : ''}</div>
+                <button class="btn" type="button" data-send="${k}">${T('ផ្ញើ', 'Send')}</button><div class="msg" id="pfMsg_${k}"></div>` : ''}`;
+        };
+        let h = `<div class="card"><h2>🪪 ${T('ការបញ្ជាក់', 'Proof')}</h2>`;
+        if (d.proofOn && d.proofOn.idproof) {
+            const idNote = T(pc.id_note_km, pc.id_note_en) || '';
+            h += `<div class="pf"><b class="t">🪪 ${T('អត្តសញ្ញាណប័ណ្ណ + Selfie', 'ID card + selfie')}</b>${stat('id')}
+                ${can('id') ? `<div class="muted" style="margin-top:4px;">${T('ថតដោយកាមេរ៉ាផ្ទាល់ (មិនអាចជ្រើសរូបពីទូរស័ព្ទ)។ មានតែ CamFeed ប៉ុណ្ណោះដែលមើលឃើញ ហើយរូបនឹងត្រូវលុបចោល ក្រោយពិនិត្យរួច។', 'Taken with the camera (no picking a picture from the phone). Only CamFeed sees them, and they are deleted after the check.')}</div>
+                ${idNote ? `<div class="note">ℹ️ ${esc(idNote)}</div>` : ''}
+                <div class="shots"><button type="button" class="shot ${st.shots.id ? 'done' : ''}" data-shot="id">${st.shots.id ? `<img src="${esc(st.shots.id)}" alt="">` : '<div style="font-size:30px">🪪</div>'}${T('ថតអត្តសញ្ញាណប័ណ្ណ', 'Take the ID card')}</button>
+                <button type="button" class="shot ${st.shots.selfie ? 'done' : ''}" data-shot="selfie">${st.shots.selfie ? `<img src="${esc(st.shots.selfie)}" alt="">` : '<div style="font-size:30px">🤳</div>'}${T('ថត Selfie', 'Take a selfie')}</button></div>
+                <button class="btn" type="button" id="sendId" ${st.shots.id && st.shots.selfie ? '' : 'disabled'}>${T('ផ្ញើទៅ CamFeed', 'Send to CamFeed')}</button><div class="msg" id="pfMsg_id"></div>` : ''}</div>`;
+            h += `<div class="pf"><b class="t">💳 ${T('ឬ បង់ថ្លៃសេវាប្រចាំខែ', 'Or pay the monthly fee')} · $${(pc.monthCents / 100).toFixed(2)}</b>${stat('pay')}
+                ${can('pay') ? `<div class="muted" style="margin-top:4px;">${T('ជំនួសឲ្យ ID + Selfie។ មានសុពលភាព 30 ថ្ងៃ។ ការបង់ពីគណនីធនាគារឈ្មោះរបស់អ្នក ក៏បញ្ជាក់ឈ្មោះធនាគារដែរ។', 'Instead of the ID + selfie. Good for 30 days. Paying from a bank account in your name also confirms the bank name.')}</div>${ways('pay')}` : ''}</div>`;
+        }
+        if (d.proofOn && d.proofOn.bank) {
+            h += `<div class="pf"><b class="t">🏦 ${T('បញ្ជាក់ឈ្មោះតាមគណនីធនាគារ', 'Confirm the name with your bank account')}</b>${stat('bank')}
+                ${can('bank') ? `<div class="muted" style="margin-top:4px;">${T('ផ្ទេរ $' + (pc.bankCents / 100).toFixed(2) + ' (' + pc.bankCents + ' សេន) ពីគណនីធនាគារឈ្មោះរបស់អ្នក។ ឈ្មោះលើវិក្កយបត្រ ត្រូវដូចឈ្មោះរបស់អ្នកក្នុង CamFeed។', 'Send $' + (pc.bankCents / 100).toFixed(2) + ' (' + pc.bankCents + ' cents) from a bank account in your name. The name on the receipt must be the same as your CamFeed name.')}</div>
+                <div class="note">ℹ️ ${esc(T(pc.note_km, pc.note_en))}</div>${ways('bank')}` : ''}</div>`;
+        }
+        return h + `</div>`;
+    }
+
+    function nameCard(d) {
+        if (d.accountType === 'business' || !d.nameChecks) return '';
+        const q = d.nameRequest;
+        const sts = q ? (q.status === 'pending' ? '⏳ ' + T('CamFeed កំពុងពិនិត្យសំណើឈ្មោះ «', 'CamFeed is checking the name "') + esc(q.name) + T('»', '"')
+            : q.status === 'approved' ? '✅ ' + T('ឈ្មោះ «', 'The name "') + esc(q.name) + T('» បានអនុម័ត', '" was approved')
+            : '❌ ' + T('ឈ្មោះ «', 'The name "') + esc(q.name) + T('» មិនទាន់អនុម័ត', '" was not approved') + (q.note ? ' — ' + esc(q.note) : '')) : '';
+        const list = d.nameChecks.map(c => `<div class="chk"><span>${c.ok ? '✅' : '❌'}</span><span>${esc((CHECK[c.k] || (() => c.k))(c))}</span></div>`).join('');
+        return `<div class="card"><h2>🏷️ ${T('ឈ្មោះមួយពាក្យ (គណនីផ្ទាល់ខ្លួន)', 'One-word name (personal account)')}</h2>
+            <div class="muted">${T('គណនីផ្ទាល់ខ្លួន អាចស្នើប្រើឈ្មោះតែមួយពាក្យបាន ពេលលក្ខខណ្ឌខាងក្រោមគ្រប់។ CamFeed ពិនិត្យ ហើយអនុម័ត។', 'A personal account can ask for a one-word name when the conditions below are met. CamFeed checks and approves it.')}</div>
+            ${sts ? `<div class="pf">${sts}</div>` : ''}
+            <div style="margin-top:8px;">${list || `<div class="muted">${T('គ្មានលក្ខខណ្ឌ', 'No conditions')}</div>`}</div>
+            ${d.nameCanAsk && !(q && q.status === 'pending') ? `<a class="btn" href="settings.html" style="display:block;text-align:center;text-decoration:none;">${T('ស្នើឈ្មោះ៖ ការកំណត់ › ប្ដូរឈ្មោះ (វាយតែនាមខ្លួន)', 'Ask: Settings › Change name (type only the first name)')}</a>` : ''}</div>`;
+    }
 
     function draw() {
         const d = st.d, r = d.request;
@@ -99,15 +209,66 @@
                 <div id="catBox" style="display:${st.type === 'business' ? '' : 'none'}"><label>${T('ប្រភេទ', 'Kind')}</label><select id="fCat"><option value="">—</option>${Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${st.cat === k ? 'selected' : ''}>${esc(T(v[0], v[1]))}</option>`).join('')}</select></div>
                 <button class="btn" id="saveType" type="button">${T('រក្សាទុក', 'Save')}</button><div class="msg" id="typeMsg"></div>
             </div>
+            ${d.invite ? `<div class="card" style="border:2px solid #1877f2;"><h2>✔ ${T('CamFeed អញ្ជើញអ្នក', 'CamFeed invites you')}</h2>
+                <div class="muted">${T('CamFeed អញ្ជើញគណនីរបស់អ្នកឲ្យមានសញ្ញា ✔ គណនីផ្លូវការ។ ចុច «ទទួល» ហើយសញ្ញា ✔ នឹងបង្ហាញក្បែរឈ្មោះរបស់អ្នកភ្លាម។', 'CamFeed invites your account to get the ✔ official mark. Press "Accept" and the ✔ shows next to your name at once.')}</div>
+                <button class="btn" type="button" id="invYes">✔ ${T('ទទួល', 'Accept')}</button>
+                <button class="btn btn2" type="button" id="invNo">${T('មិនទទួល', 'No, thanks')}</button><div class="msg" id="invMsg"></div></div>` : ''}
             <div class="card"><h2>✔ ${T('គណនីផ្លូវការ', 'Official account')}</h2>${status}</div>
             ${canAsk ? `<div class="card"><h2>${T('លក្ខខណ្ឌ', 'Conditions')}</h2>${checks}
                 ${d.canApply ? '' : `<div class="msg bad" style="display:block;">${T('លក្ខខណ្ឌខ្លះមិនទាន់គ្រប់។ សូមព្យាយាមម្ដងទៀតពេលគ្រប់។', 'Some conditions are not met yet. Please try again when they are.')}</div>`}</div>
             ${d.canApply ? `<div class="card"><h2>${T('បញ្ជាក់ថាជាអ្នកពិតប្រាកដ', 'Prove it is really you')}</h2>
-                <div class="muted">${T('CamFeed មិនសុំអត្តសញ្ញាណប័ណ្ណទេ។ ជ្រើសផ្លូវមួយ៖', 'CamFeed never asks for an ID card. Choose one way:')}</div>
+                <div class="muted">${d.proofOn && d.proofOn.idproof ? T('ជ្រើសផ្លូវមួយ៖', 'Choose one way:') : T('CamFeed មិនសុំអត្តសញ្ញាណប័ណ្ណទេ។ ជ្រើសផ្លូវមួយ៖', 'CamFeed never asks for an ID card. Choose one way:')}</div>
                 ${PATHS.map(p => `<button type="button" class="opt ${st.path === p.id ? 'on' : ''}" data-path="${p.id}"><span class="ic">${p.ic}</span><div><b>${esc(p.t)}</b><span>${esc(p.d)}</span></div></button>`).join('')}
                 ${pathBox}
                 ${st.path ? `<label>${T('ពាក្យបន្ថែម (មិនបង្ខំ)', 'Anything to add (optional)')}</label><textarea id="fNote" rows="3" maxlength="600"></textarea>
-                <button class="btn" id="send" type="button">${T('ផ្ញើពាក្យសុំ', 'Send the request')}</button>` : ''}<div class="msg" id="sendMsg"></div></div>` : ''}` : ''}`;
+                <button class="btn" id="send" type="button">${T('ផ្ញើពាក្យសុំ', 'Send the request')}</button>` : ''}<div class="msg" id="sendMsg"></div></div>` : ''}` : ''}
+            ${proofCard(d)}
+            ${nameCard(d)}`;
+
+        // ✔ an invitation from CamFeed
+        const inv = async (yes) => {
+            ['invYes', 'invNo'].forEach(id => { if ($(id)) $(id).disabled = true; });
+            const x = await api('/api/verify/invite-reply', { accept: yes });
+            if (x.success) { await load(); window.scrollTo(0, 0); return; }
+            msg('invMsg', false, T('មិនបានសម្រេច។ សូមសាកម្ដងទៀត។', 'Could not save. Please try again.'));
+            ['invYes', 'invNo'].forEach(id => { if ($(id)) $(id).disabled = false; });
+        };
+        $('invYes') && $('invYes').addEventListener('click', () => inv(true));
+        $('invNo') && $('invNo').addEventListener('click', () => { if (confirm(T('មិនទទួលការអញ្ជើញ ✔ មែនទេ?', 'Say no to the ✔ invitation?'))) inv(false); });
+        // 📸 ID + selfie with the camera
+        document.querySelectorAll('[data-shot]').forEach(b => b.addEventListener('click', () => {
+            const k = b.dataset.shot;
+            camOpen(k, async (blob) => {
+                b.innerHTML = '⏳ ' + T('កំពុងអាប់ឡូត…', 'Uploading…');
+                try { st.shots[k] = await upload(blob, k + '.jpg'); } catch (e) { st.shots[k] = ''; alertMsg('pfMsg_id', T('អាប់ឡូតមិនបាន។ សូមសាកម្ដងទៀត។', 'Upload failed. Please try again.')); }
+                draw();
+            });
+        }));
+        $('sendId') && $('sendId').addEventListener('click', async () => {
+            const btn = $('sendId'); btn.disabled = true;
+            const x = await api('/api/verify/proof', { kind: 'id', id_url: st.shots.id, selfie_url: st.shots.selfie });
+            if (x.success) { st.shots = { id: '', selfie: '' }; await load(); return; }
+            msg('pfMsg_id', false, x.code === 'open' ? T('កំពុងត្រូវបានពិនិត្យរួចហើយ។', 'Already being checked.') : T('ផ្ញើមិនបាន។ សូមថតទាំងពីរម្ដងទៀត។', 'Could not send. Please take both photos again.'));
+            btn.disabled = false;
+        });
+        // 💳 🏦 pay / small transfer: 📷 QR or 📱 ABA link, then the receipt
+        document.querySelectorAll('[data-way]').forEach(b => b.addEventListener('click', () => { const [k, w] = b.dataset.way.split(':'); st.way[k] = w; draw(); }));
+        document.querySelectorAll('[data-rc]').forEach(inp => inp.addEventListener('change', async () => {
+            const k = inp.dataset.rc, f = inp.files && inp.files[0]; st.rc[k] = ''; if (!f) return;
+            const m = $('rcMsg_' + k);
+            if (!/^image\//.test(f.type || '')) { m.textContent = '❌ ' + T('សូមដាក់រូបភាព', 'Please choose a picture'); return; }
+            m.textContent = T('កំពុងអាប់ឡូត…', 'Uploading…');
+            try { st.rc[k] = await upload(f, 'receipt.jpg'); m.textContent = '✅ ' + T('អាប់ឡូតរួចរាល់', 'Uploaded'); } catch (e) { m.textContent = '❌ ' + T('អាប់ឡូតមិនបាន។ សូមសាកម្ដងទៀត។', 'Upload failed. Please try again.'); }
+        }));
+        document.querySelectorAll('[data-send]').forEach(b => b.addEventListener('click', async () => {
+            const k = b.dataset.send;
+            if (!st.rc[k]) { msg('pfMsg_' + k, false, T('សូមដាក់រូបវិក្កយបត្រជាមុនសិន។', 'Please add the picture of the receipt first.')); return; }
+            b.disabled = true;
+            const x = await api('/api/verify/proof', { kind: k, receipt: st.rc[k] });
+            if (x.success) { st.rc[k] = ''; await load(); return; }
+            msg('pfMsg_' + k, false, x.code === 'open' ? T('កំពុងត្រូវបានពិនិត្យរួចហើយ។', 'Already being checked.') : T('ផ្ញើមិនបាន។', 'Could not send.'));
+            b.disabled = false;
+        }));
 
         document.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => { st.type = b.dataset.type; draw(); }));
         document.querySelectorAll('[data-path]').forEach(b => b.addEventListener('click', async () => {

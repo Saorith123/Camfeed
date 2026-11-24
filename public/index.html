@@ -1117,8 +1117,9 @@
         }
 
         function proceedToStep2() {
-            const firstName = document.getElementById('firstName').value.trim();
-            const lastName = document.getElementById('lastName').value.trim();
+            // 🇰🇭 the surname is typed first and shown first: it goes into first_name, the given name into last_name
+            const firstName = document.getElementById('lastName').value.trim();
+            const lastName = document.getElementById('firstName').value.trim();
             const email = document.getElementById('regEmail').value.trim();
             const password = document.getElementById('regPassword').value;
             
@@ -1233,8 +1234,8 @@
             try {
                 // Re-read latest values from Step 1 inputs in case user went back and edited them
                 const latestUserData = {
-                    firstName: document.getElementById('firstName').value.trim(),
-                    lastName: document.getElementById('lastName').value.trim(),
+                    firstName: document.getElementById('lastName').value.trim(),     // 🇰🇭 surname first
+                    lastName: document.getElementById('firstName').value.trim(),
                     email: document.getElementById('regEmail').value.trim(),
                     password: document.getElementById('regPassword').value,
                     birthdate: `${document.getElementById('dobDay').value}-${document.getElementById('dobMonth').value}-${document.getElementById('dobYear').value}`,

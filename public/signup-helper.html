@@ -248,7 +248,7 @@
     var pw = $('pw').value.trim(); if (pw && pw.length < 6) return bad('ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៦ តួ');
     var btn = $('go'); btn.disabled = true; btn.textContent = 'កំពុងបង្កើត…';
     fetch('/api/admin/create-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      adminEmail: user.email, adminKey: pin(), kind: kind, phone: phone, loginEmail: email, firstName: first, lastName: last, gender: gender, country: 'Cambodia',
+      adminEmail: user.email, adminKey: pin(), kind: kind, phone: phone, loginEmail: email, firstName: last, lastName: first, gender: gender, country: 'Cambodia',
       birthdate: d + '-' + m + '-' + y, password: pw }) })
       .then(function (r) { return r.json(); })
       .then(function (x) {

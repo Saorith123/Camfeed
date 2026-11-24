@@ -96,7 +96,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
       if (q && q.data && q.message) {
         const linked = (await pool.query('SELECT linked_by FROM tg_pay_chats WHERE chat_id = $1 AND user_id = $2', [q.message.chat.id, q.from.id])).rows[0];
         if (!linked) { await api('answerCallbackQuery', { callback_query_id: q.id, text: 'Not allowed.', show_alert: true }); return; }
-        const m = /^(ad|coin|wd|aw|ae):(ok|no):(\d{1,9})$/.exec(String(q.data));
+        const m = /^(ad|coin|wd|aw|ae|vp|nr):(ok|no):(\d{1,9})$/.exec(String(q.data));
         if (!m) { await api('answerCallbackQuery', { callback_query_id: q.id }); return; }
         const tgName = [q.from.first_name, q.from.last_name].filter(Boolean).join(' ') || String(q.from.id);
         const who = linked.linked_by || 'telegram';                            // the admin who linked this Telegram decides
@@ -105,7 +105,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, onDecide }) {
         try { out = await onDecide(m[1], parseInt(m[3], 10), m[2] === 'ok', who); } catch (e) { out = { ok: false, text: e.message }; }
         await api('answerCallbackQuery', { callback_query_id: q.id, text: (out && out.text) || 'Done', show_alert: !(out && out.ok) });
         if (out && out.ok) {
-          const mark = m[1] === 'ae' ? (m[2] === 'ok' ? '\n\n✅ ទុកដដែល · ' : '\n\n⛔ បានផ្អាក · ') : m[1] === 'wd' ? (m[2] === 'ok' ? '\n\n✅ បានផ្ទេរ · ' : '\n\n❌ បដិសេធ · ') : (m[2] === 'ok' ? '\n\n✅ បានទទួល · ' : '\n\n❌ មិនទាន់ទទួល · ');
+          const mark = (m[1] === 'vp' || m[1] === 'nr') ? (m[2] === 'ok' ? '\n\n✅ បានអនុម័ត · ' : '\n\n❌ បានបដិសេធ · ') : m[1] === 'ae' ? (m[2] === 'ok' ? '\n\n✅ ទុកដដែល · ' : '\n\n⛔ បានផ្អាក · ') : m[1] === 'wd' ? (m[2] === 'ok' ? '\n\n✅ បានផ្ទេរ · ' : '\n\n❌ បដិសេធ · ') : (m[2] === 'ok' ? '\n\n✅ បានទទួល · ' : '\n\n❌ មិនទាន់ទទួល · ');
           if (q.message.photo) await api('editMessageCaption', { chat_id: q.message.chat.id, message_id: q.message.message_id, caption: (String(q.message.caption || '') + mark + tgName + '\n' + (out.text || '')).slice(0, 1024) });
           else await api('editMessageText', { chat_id: q.message.chat.id, message_id: q.message.message_id, text: String(q.message.text || '') + mark + tgName + '\n' + (out.text || '') });
         }

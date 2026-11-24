@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 198;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 205;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2681,7 +2681,9 @@ const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGat
 const country = require('./country')({ pool });
 const adWallet = require('./ad-wallet')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   tgNotify: (lines) => tgPay.notify(lines), tgAsk: (k, id, lines, labels) => tgPay.ask(k, id, lines, labels), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), creditEnsure: () => adCreditEnsure(), balanceOf: (e) => adCreditOf(e), safeUrl: (u) => security.safeUrl(u), reservedOf: (e) => adReservedOf(e) });   // 💳 the ad wallet (ABA PayWay)
-const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
+const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'),
+  tgAsk: (k, id, l, lb, ph) => tgPay.ask(k, id, l, lb, ph), safeUrl: (u) => security.safeUrl(u),
+  deleteMedia: (u) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(u) : Promise.resolve()), payInfo: async () => { await Promise.resolve(adWallet.ensure && adWallet.ensure()).catch(() => {}); return adWallet.payInfo ? adWallet.payInfo() : {}; } });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
@@ -2897,7 +2899,7 @@ app.put('/api/settings/name', async (req, res) => {
     }
     {
       const bad = await verify.checkName(email, firstName, lastName);    // ✔ / 🏪 rules: one word only for a business account, reserved names, official names
-      if (bad) {
+      if (bad && bad !== 'NEED_REQUEST') {
         const KM = { 'This name can not be used.': 'ឈ្មោះនេះមិនអាចប្រើបានទេ។', 'This is the name of an official account. Please choose another name.': 'នេះជាឈ្មោះរបស់គណនីផ្លូវការ។ សូមជ្រើសឈ្មោះផ្សេង។' };
         return res.status(400).json({ success: false, message: km ? (KM[bad] || 'សូមវាយនាមខ្លួន និងនាមត្រកូល។ (ឈ្មោះមួយពាក្យ បានតែគណនីអាជីវកម្ម)') : bad });
       }
@@ -2907,6 +2909,12 @@ app.put('/api/settings/name', async (req, res) => {
     // the owner of the account must type the password (a phone left unlocked can not rename the account)
     const check = row ? await auth.verifyPassword(password, row.password) : { ok: false };
     if (!check.ok) return res.status(400).json({ success: false, code: 'bad_password', message: km ? 'ពាក្យសម្ងាត់មិនត្រឹមត្រូវ។' : 'The password is incorrect.' });
+    if (await verify.checkName(email, firstName, lastName) === 'NEED_REQUEST') {   // 👤 a one-word name for a personal account: sent to CamFeed to approve
+      const r = await verify.nameRequest(email, firstName);
+      if (r.ok) return res.json({ success: true, requested: true, message: km ? 'បានផ្ញើសំណើឈ្មោះ «' + firstName + '» ទៅ CamFeed ហើយ។ ឈ្មោះនឹងប្ដូរ ពេល CamFeed អនុម័ត។' : 'Your request for the name "' + firstName + '" was sent to CamFeed. The name changes once CamFeed approves it.' });
+      const EN = { conds: 'You do not meet the conditions for a one-word name yet. See Settings › ✔ Official account.', open: 'Your name request is already being checked by CamFeed.', bad: 'One word only.' };
+      return res.status(400).json({ success: false, code: 'name_' + r.code, missing: r.missing || [], message: km ? r.error : (EN[r.code] || r.error) });
+    }
     const days = ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS);
     const last = row && row.name_changed_at;
     if (last && days > 0) {
@@ -3630,6 +3638,7 @@ app.post('/api/admin/users/update', async (req, res) => {
     if (!sets.length) return res.status(400).json({ success: false, error: 'Nothing to change.' });
     vals.push(u.email);
     await pool.query(`UPDATE users SET ${sets.join(', ')} WHERE email = $${vals.length}`, vals);
+    if (changed.includes('first_name') || changed.includes('last_name')) await pool.query('UPDATE users SET name_ok = TRUE WHERE email = $1', [u.email]).catch(() => {});   // 🇰🇭 an Admin put this name right: the 🔁 swap leaves it alone
     authCore.invalidate(u.email);
     audit(a.adminEmail, 'edit-profile', u.email, changed.join(', '));
     res.json({ success: true, changed });
@@ -3807,6 +3816,7 @@ async function adCreditEnsure() {
   await pool.query('ALTER TABLE ad_requests ADD COLUMN IF NOT EXISTS credit_cents INTEGER NOT NULL DEFAULT 0').catch(() => {});
   // 💳 'live' = the money stays in the wallet (kept for the ad) and is taken only as people really see the ad; 'pre' = the old way (all at once, the rest back at the end)
   await pool.query("ALTER TABLE ad_requests ADD COLUMN IF NOT EXISTS billing VARCHAR(8) NOT NULL DEFAULT 'pre'").catch(() => {});
+  await pool.query('ALTER TABLE ad_requests ADD COLUMN IF NOT EXISTS ad_name VARCHAR(60), ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});   // 🏷️ the advertiser's own name for the ad · 🗑️ removed from their list
   await pool.query("ALTER TABLE sponsored_ads ADD COLUMN IF NOT EXISTS billing VARCHAR(8) NOT NULL DEFAULT 'pre', ADD COLUMN IF NOT EXISTS billed_cents NUMERIC(14,4) NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS paused_by VARCHAR(8)").catch(() => {});
 }
 async function adBalanceRaw(email) { await adCreditEnsure(); return Number((await pool.query('SELECT COALESCE(SUM(cents), 0) AS c FROM ad_credit WHERE user_email = $1', [email])).rows[0].c) || 0; }
@@ -3837,6 +3847,9 @@ async function adSettle(onlyId) {
       if (!day.rowCount) await pool.query("INSERT INTO ad_credit (user_email, cents, kind, ref_id, note) VALUES ($1, $2, 'spend', $3, $4)", [a.owner_email, -delta, a.id, 'ad #' + a.id]);
     }
     if (onlyId) return;
+    // paid already but left at "waiting for payment" (e.g. the AI failed before): go on now
+    const stuck = (await pool.query("SELECT id FROM ad_requests WHERE status = 'quoted' AND (billing = 'live' OR (price_cents = 0 AND credit_cents > 0)) AND updated_at < NOW() - INTERVAL '2 minutes' ORDER BY id LIMIT 10")).rows;
+    for (const x of stuck) await adStartPaid(x.id).catch((e) => console.error('[ads] start paid:', e.message));
     // over (days ended or the budget used): nothing more is kept for it
     const done = (await pool.query(`UPDATE sponsored_ads SET status = 'ended', credited = TRUE WHERE billing = 'live' AND credited = FALSE AND owner_email IS NOT NULL
       AND (status = 'completed' OR (ends_at IS NOT NULL AND ends_at < NOW())) AND spent_cents <= billed_cents + 0.0001 RETURNING id, owner_email, budget_cents, spent_cents`)).rows;
@@ -4185,15 +4198,12 @@ app.post('/api/ads/request', async (req, res) => {
         places.join(','), devices.length === AD_DEVICES.length ? '' : devices.join(',')]);
     const reqId = r.rows[0].id;
     if (live) await pool.query("UPDATE ad_requests SET billing = 'live' WHERE id = $1", [reqId]);
+    const adName = String(b.ad_name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
+    if (adName) await pool.query('UPDATE ad_requests SET ad_name = $2 WHERE id = $1', [reqId, adName]);
     if (useCredit > 0) await pool.query("INSERT INTO ad_credit (user_email, cents, kind, ref_id, note) VALUES ($1, $2, 'used', $3, $4)", [email, -useCredit, reqId, 'A' + reqId]);
     // 🤖 the AI looks at it now. Paid all with credit: it starts at once when the AI sees no problem; otherwise the owner decides in Telegram
-    adRules.check(reqId).then(async () => {
-      if (!live && budget - useCredit > 0) return;
-      const q = (await pool.query("UPDATE ad_requests SET status = 'payment_sent', pay_ref = 'credit', updated_at = NOW() WHERE id = $1 AND status = 'quoted' RETURNING *", [reqId])).rows[0];
-      if (!q) return;
-      if (/មិនឃើញបញ្ហា/.test(q.ai_note || '')) await activateAdRequest(reqId, 'CamFeed');
-      else askOwnerAboutAd(q);
-    }).catch(() => {});
+    // (the AI may be busy / fail: the ad still goes on — then the owner decides in Telegram; it never stays at "waiting for payment")
+    adRules.check(reqId).catch((e) => console.error('[ads] AI check:', e && e.message)).then(() => (live || budget - useCredit <= 0) ? adStartPaid(reqId) : null).catch(() => {});
     res.status(201).json({ success: true, id: reqId, code: 'A' + reqId, credit: useCredit, price: live ? 0 : budget - useCredit });
   } catch (err) { console.error('[ads] request:', err.message); res.status(500).json({ success: false, error: 'Could not send the request.' }); }
 });
@@ -4201,8 +4211,8 @@ app.get('/api/ads/my', async (req, res) => {
   try {
     if (!req.authEmail) return res.status(401).json({ success: false, error: 'Please log in.' });
     const r = await pool.query(`SELECT q.id, q.business_name, q.placement, q.places, q.devices, q.objective, q.caption, q.days, q.status, q.budget_cents, q.price_cents, q.credit_cents, q.admin_note, q.pay_ref, q.post_id, q.ad_id, q.created_at, q.items, q.media_url,
-      a.status AS ad_status, a.impressions, a.clicks, a.spent_cents, a.ends_at, a.paused_by, a.credited, q.billing, q.cta, q.target_url
-      FROM ad_requests q LEFT JOIN sponsored_ads a ON a.id = q.ad_id WHERE q.user_email = $1 ORDER BY q.id DESC LIMIT 30`, [req.authEmail]);
+      a.status AS ad_status, a.impressions, a.clicks, a.spent_cents, a.ends_at, a.paused_by, a.credited, q.billing, q.cta, q.target_url, q.ad_name
+      FROM ad_requests q LEFT JOIN sponsored_ads a ON a.id = q.ad_id WHERE q.user_email = $1 AND q.hidden = FALSE ORDER BY q.id DESC LIMIT 30`, [req.authEmail]);
     res.json({ success: true, requests: r.rows, credit: await adCreditOf(req.authEmail), available: await adAvailableOf(req.authEmail), reserved: Math.ceil(await adReservedOf(req.authEmail)) });
   } catch (err) { res.json({ success: true, requests: [] }); }
 });
@@ -4214,6 +4224,21 @@ app.get('/api/ads/my/:id/report', async (req, res) => {
     if (!q || !q.ad_id) return res.status(404).json({ success: false, error: 'No report yet.' });
     res.json({ success: true, report: await adReport(q.ad_id) });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not load the report.' }); }
+});
+// 🔁 "run it again": everything the advertiser chose for one of their ads, to fill the new-ad form (they check it and send it as a NEW ad)
+app.get('/api/ads/my/:id/copy', async (req, res) => {
+  try {
+    const me = req.authEmail, id = parseInt(req.params.id, 10);
+    if (!me || !Number.isInteger(id)) return res.status(400).json({ success: false });
+    await adCreditEnsure();
+    const q = (await pool.query('SELECT * FROM ad_requests WHERE id = $1 AND user_email = $2', [id, me])).rows[0];
+    if (!q) return res.status(404).json({ success: false });
+    const list = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+    res.json({ success: true, ad: {
+      objective: q.objective, places: list(q.places), devices: list(q.devices), country: q.country || 'KH', caption: q.post_id ? '' : (q.caption || ''), cta: q.cta || 'learn_more',
+      target_url: q.target_url || '', budget: Number(q.budget_cents) / 100, days: q.days, items: adItems(q.items), keywords: interests.wordsOf(q.kw_ids).map((k) => k.word),
+      provinces: list(q.provinces), age_min: q.age_min || 0, age_max: q.age_max || 0, gender: q.gender || '', post_id: q.post_id || null, ad_name: q.ad_name || '' } });
+  } catch (err) { console.error('[ads] copy:', err.message); res.status(500).json({ success: false }); }
 });
 // ⏸️ ▶️ ⏹️ ✏️ the advertiser's own ad: pause, go on, stop (the money not used stays / comes back), change the words, button, budget, days
 app.post('/api/ads/my/:id/action', async (req, res) => {
@@ -4253,7 +4278,19 @@ app.post('/api/ads/my/:id/action', async (req, res) => {
       audit(me, 'ad_owner_stop', id, 'spent ' + (Number(st.rows[0].spent_cents) / 100).toFixed(2));
       return res.json({ success: true, left: Math.max(0, left) });
     }
+    if (act === 'remove') {                              // 🗑️ off my list (only an ad that is over, stopped, cancelled or not approved; the numbers stay for CamFeed)
+      const done = over || ['cancelled', 'rejected'].includes(q.status) || (ad && ad.credited);
+      if (!done) return res.status(409).json({ success: false, code: 'running', error: 'Please stop the ad first.' });
+      await pool.query('UPDATE ad_requests SET hidden = TRUE WHERE id = $1', [id]);
+      return res.json({ success: true });
+    }
+    if (act === 'rename') {                              // 🏷️ my own name for the ad (any time)
+      const nm = String(b.ad_name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
+      await pool.query('UPDATE ad_requests SET ad_name = $2 WHERE id = $1', [id, nm || null]);
+      return res.json({ success: true });
+    }
     if (act === 'edit') {
+      if (b.ad_name !== undefined) { const nm = String(b.ad_name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60); await pool.query('UPDATE ad_requests SET ad_name = $2 WHERE id = $1', [id, nm || null]); }
       if (over) return res.status(409).json({ success: false, code: 'state', error: 'This ad is over.' });
       if (!['pending', 'quoted', 'payment_sent', 'live'].includes(q.status)) return res.status(409).json({ success: false, code: 'state', error: 'It can not be changed now.' });
       const sets = {}, notes = [];
@@ -4278,7 +4315,7 @@ app.post('/api/ads/my/:id/action', async (req, res) => {
       }
       if (b.add_days !== undefined) addDays = clampInt(b.add_days, 0, 0, 30);
       const cols = Object.keys(sets);
-      if (!cols.length && budget === null && !addDays) return res.status(400).json({ success: false, error: 'Nothing to change.' });
+      if (!cols.length && budget === null && !addDays) return res.json({ success: true });   // only the name (or nothing) changed
       if (cols.length) await pool.query('UPDATE ad_requests SET ' + cols.map((c, i) => c + ' = $' + (i + 2)).join(', ') + ', updated_at = NOW() WHERE id = $1', [id, ...cols.map((c) => sets[c])]);
       if (budget !== null) await pool.query('UPDATE ad_requests SET budget_cents = $2, updated_at = NOW() WHERE id = $1', [id, budget]);
       if (addDays) await pool.query('UPDATE ad_requests SET days = days + $2::int, updated_at = NOW() WHERE id = $1', [id, addDays]);
@@ -4306,10 +4343,17 @@ app.post('/api/ads/my/:id/paid', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
 });
 // 💰 to the owner's Telegram: the ad and the money to check, with ✅ / ❌
+// paid already (wallet / credit): no payment step — the AI found no problem → it starts at once; otherwise the owner looks in Telegram
+async function adStartPaid(reqId) {
+  const q = (await pool.query("UPDATE ad_requests SET status = 'payment_sent', pay_ref = 'credit', updated_at = NOW() WHERE id = $1 AND status = 'quoted' AND (billing = 'live' OR price_cents = 0) RETURNING *", [reqId])).rows[0];
+  if (!q) return;
+  if (/មិនឃើញបញ្ហា/.test(q.ai_note || '')) await activateAdRequest(reqId, 'CamFeed');
+  else askOwnerAboutAd(q);
+}
 function askOwnerAboutAd(q) {
     const id = q.id, base = (process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com').replace(/\/+$/, '');
     const credit = Number(q.credit_cents || 0);
-    return tgPay.ask('ad', id, ['💰 ពាណិជ្ជកម្ម A' + id + ' · $' + (Number(q.price_cents || 0) / 100).toFixed(2) + (credit > 0 ? ' (+ ឥណទាន $' + (credit / 100).toFixed(2) + ')' : ''), '👤 ' + q.business_name, '📅 ' + q.days + ' ថ្ងៃ · ' + q.objective + ' · ' + (q.places || q.placement) + (q.devices ? ' · 📱 ' + q.devices : '') + (q.country ? ' · 🌏 ' + q.country : ''),
+    return tgPay.ask('ad', id, ['💰 ពាណិជ្ជកម្ម A' + id + (q.ad_name ? ' «' + q.ad_name + '»' : '') + ' · $' + (Number(q.price_cents || 0) / 100).toFixed(2) + (credit > 0 ? ' (+ ឥណទាន $' + (credit / 100).toFixed(2) + ')' : ''), '👤 ' + q.business_name, '📅 ' + q.days + ' ថ្ងៃ · ' + q.objective + ' · ' + (q.places || q.placement) + (q.devices ? ' · 📱 ' + q.devices : '') + (q.country ? ' · 🌏 ' + q.country : ''),
       q.caption ? '📝 ' + String(q.caption).slice(0, 300) : '', q.post_id ? '🚀 ' + base + '/p/' + q.post_id : (q.media_url ? '🖼️ ' + q.media_url : ''), adItems(q.items).length ? '🖼️ ' + adItems(q.items).length + ' រូប/វីដេអូ' : '', adItems(q.items).some((x) => x.name) ? '🛍️ ' + adItems(q.items).filter((x) => x.name).map((x) => x.name + (x.price ? ' ' + x.price : '')).join(' · ').slice(0, 300) : '',
       q.pay_ref && q.pay_ref !== 'A' + id ? '🧾 ' + q.pay_ref : '', q.ai_note || '', q.adult ? '🔞 បង្ហាញតែអ្នកអាយុ 18+' : '', '',
       Number(q.price_cents || 0) > 0 ? 'ពិនិត្យក្នុង ABA ថាបានទទួល $' + (Number(q.price_cents || 0) / 100).toFixed(2) + ' (ចំណាំ៖ A' + id + ')' : '💳 បង់ដោយឥណទានទាំងស្រុង៖ គ្រាន់តែពិនិត្យខ្លឹមសារពាណិជ្ជកម្ម'].filter((x) => x !== '')).catch(() => {});
@@ -4446,7 +4490,9 @@ async function onPaymentDecision(kind, id, ok, by) {
     const r = await decideWithdrawal(id, ok ? 'paid' : 'rejected', ok ? '' : 'CamFeed មិនអាចផ្ទេរបានទេ។ សូមពិនិត្យឈ្មោះ និងលេខគណនី ហើយស្នើម្ដងទៀត', by || 'telegram', '', false);
     return { ok: r.ok, text: r.ok ? (ok ? '💵 W' + id + ' បានបង់ — បានប្រាប់ម្ចាស់ហើយ' : '❌ W' + id + ' បដិសេធ — លុយត្រឡប់ចូលកាបូបវិញ') : r.error };
   }
-  if (kind === 'aw') return adWallet.decideManual(id, ok, by || 'telegram');   // 💳 "I have paid" into the ad wallet
+  if (kind === 'aw') return adWallet.decideManual(id, ok, by || 'telegram');
+  if (kind === 'vp') return verify.decideProof(id, ok, by || 'telegram');   // 🪪 🏦 💳 a ✔ proof
+  if (kind === 'nr') return verify.decideName(id, ok, by || 'telegram');    // 🏷️ a one-word name   // 💳 "I have paid" into the ad wallet
   if (kind === 'coin') return coins.decideTopup(id, ok, ok ? '' : 'CamFeed មិនទាន់ឃើញប្រាក់ចូលគណនីទេ', by);
   if (kind === 'ae') {                                    // ✏️ an advertiser changed a running ad: ✅ keep / ⛔ stop it
     if (ok) return { ok: true, text: '✅ ទុកដដែល' };

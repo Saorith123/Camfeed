@@ -307,7 +307,7 @@
       var out = el('div', { id: 'atMsg', style: 'display:none' }); card.appendChild(out);
       if (!can) card.appendChild(el('div', { style: 'margin-top:12px;padding:10px;border-radius:8px;background:#fff4e5;color:#b45309;font-size:13.5px', text: 'This is an admin account. Only a Super Admin can change it.' }));
       card.appendChild(el('div', { class: 'at-h', text: 'Profile' }));
-      var f = el('div', { class: 'at-grid' }, [field('First name', 'ufFirst', u.first_name), field('Last name', 'ufLast', u.last_name), field('Country', 'ufCountry', u.country), field('Location', 'ufLocation', pf.location), field('Work', 'ufWork', pf.work), field('Relationship', 'ufRel', pf.relationship_status), field('Profile phone', 'ufPhone', pf.phone),
+      var f = el('div', { class: 'at-grid' }, [field(AT('នាមត្រកូល', 'Surname'), 'ufFirst', u.first_name), field(AT('នាមខ្លួន', 'Given name'), 'ufLast', u.last_name), field('Country', 'ufCountry', u.country), field('Location', 'ufLocation', pf.location), field('Work', 'ufWork', pf.work), field('Relationship', 'ufRel', pf.relationship_status), field('Profile phone', 'ufPhone', pf.phone),
         field('Date of birth', 'ufBirth', /^\d{4}-\d{2}-\d{2}/.test(String(pf.birthdate || '')) ? String(pf.birthdate).slice(0, 10) : '', 'date')]);
       var gsel = el('select', { class: 'at-in', id: 'ufGender' }, ['Male', 'Female', 'Other'].map(function (g) { return el('option', { value: g, text: g }); })); gsel.value = pf.gender === 'Female' || pf.gender === 'Other' ? pf.gender : 'Male';
       f.appendChild(el('div', {}, [el('div', { class: 'at-lbl', text: 'Gender' }), gsel])); card.appendChild(f);
@@ -341,6 +341,10 @@
         if (!confirm('Invite ' + nm(u) + ' to earn money (no need to meet the requirements)?')) return;
         adm('/api/admin/monetization-action', { targetEmail: u.email, status: 'invite', note: 'Invited by CamFeed' }).then(function (r) { msg(out, r.success, r.success ? (r.status === 'invited' ? '✅ Invitation sent to ' + nm(u) + ' (waiting for them to accept)' : '✅ ' + nm(u) + ' can earn now') : '❌ ' + (r.error || 'Failed')); });
       }, !self);
+      act(AT('✔ អញ្ជើញឲ្យមានសញ្ញាខៀវ', '✔ Invite to Blue Verify'), 'btn-sm', function () {   // they press "Accept" and get the ✔ (no conditions)
+        if (!confirm(AT('អញ្ជើញ ', 'Invite ') + nm(u) + AT(' ឲ្យមានសញ្ញា ✔? (គាត់ចុច «ទទួល» ហើយបាន ✔ ភ្លាម មិនចាំបាច់លក្ខខណ្ឌ)', ' to get the ✔? (they press "Accept" and get it at once, no conditions)'))) return;
+        adm('/api/admin/verify', { action: 'invite', targetEmail: u.email }).then(function (r) { msg(out, r.success, r.success ? (r.already ? AT('ℹ️ បានអញ្ជើញរួចហើយ កំពុងរង់ចាំគាត់ចុចទទួល', 'ℹ️ Already invited, waiting for them to accept') : AT('✅ បានផ្ញើការអញ្ជើញទៅ ', '✅ Invitation sent to ') + nm(u)) : '❌ ' + (r.error || 'Failed')); });
+      }, sup && !self && !(u.verified && !u.verified_paused));
       act('💵 Wallet bonus', 'btn-gray', function () {
         var a = prompt('Amount in $ to add to the wallet of ' + nm(u) + ' (negative = take back):', '5'); if (a === null || a === '') return; var why = prompt('Reason (the creator sees it):', 'Bonus'); if (!why) return;
         adm('/api/admin/wallet/credit', { targetEmail: u.email, amount: a, note: why, kind: 'bonus' }).then(function (r) { msg(out, r.success, r.success ? '✅ New balance: ' + money(r.balance) : '❌ ' + (r.error || 'Failed')); });
@@ -822,13 +826,15 @@
     var PATH = { business: AT('🏪 ហាង ឬក្រុមហ៊ុន — ពិនិត្យលេខចុះបញ្ជីលើគេហទំព័រក្រសួងពាណិជ្ជកម្ម', '🏪 Shop or company — check the registration number on the Ministry of Commerce website'),
       official: AT('🏛️ បុគ្គល ឬស្ថាប័នល្បី — បើកតំណ ហើយមើលថាមានលេខកូដ', '🏛️ Well-known person or organisation — open the link and look for the code'),
       creator: AT('🎬 អ្នកបង្កើតមាតិកាធំ — មើលអ្នកតាមដាន ឬបើកតំណឆានែល ហើយមើលលេខកូដ', '🎬 Big content creator — look at the followers, or open the channel link and look for the code') };
-    var CK = { days: AT('ថ្ងៃប្រើ', 'Days on CamFeed'), clean: AT('មិនដែលបំពាន', 'Never broke rules'), phone: AT('លេខទូរស័ព្ទ', 'Phone'), pic: AT('រូប និងឈ្មោះ', 'Picture and name'), posts: AT('បង្ហោះ 30 ថ្ងៃ', 'Posts in 30 days'), followers: AT('អ្នកតាមដាន', 'Followers') };
+    var CK = { days: AT('ថ្ងៃប្រើ', 'Days on CamFeed'), clean: AT('មិនដែលបំពាន', 'Never broke rules'), phone: AT('លេខទូរស័ព្ទ', 'Phone'), pic: AT('រូប និងឈ្មោះ', 'Picture and name'), posts: AT('បង្ហោះ 30 ថ្ងៃ', 'Posts in 30 days'), followers: AT('អ្នកតាមដាន', 'Followers'), rename: AT('មិនបានប្ដូរឈ្មោះ', 'No name change'), tick: AT('មាន ✔', 'Has ✔'), idproof: AT('🪪 ID ឬថ្លៃខែ', '🪪 ID or monthly fee'), bank: AT('🏦 ឈ្មោះធនាគារ', '🏦 Bank name') };
     var state = { status: 'pending' };
     function call(x) { return adm('/api/admin/verify', x); }
     var top = el('div', { class: 'at-card' }); body.appendChild(top);
     var list = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(list);
     var paused = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(paused);
     var have = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(have);
+    var proofsBox = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.insertBefore(proofsBox, paused);
+    var namesBox = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.insertBefore(namesBox, paused);
     var rules = el('div', { class: 'at-card', style: 'margin-top:14px' }); body.appendChild(rules);
     function who(x) { return ((x.first_name || '') + ' ' + (x.last_name || '')).trim(); }
     function linkEl(u) { return /^https?:\/\//i.test(u || '') ? el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: u, style: 'word-break:break-all' }) : el('span', { text: '—' }); }
@@ -838,8 +844,8 @@
         var sup = d.isSuperAdmin;
         top.textContent = '';
         top.appendChild(el('div', { class: 'at-h', text: AT('✔ គណនីផ្លូវការ', '✔ Official accounts') }));
-        top.appendChild(el('div', { style: 'color:#65676b;font-size:13.5px;line-height:1.6', text: AT('សញ្ញា ✔ = គណនីនេះជាគណនីផ្លូវការ មិនមែនក្លែងបន្លំ។ ផ្ដល់តែគណនីដែលមានលក្ខខណ្ឌគ្រប់ និងបញ្ជាក់បានច្បាស់។ មិនលក់។ មានតែ Super Admin អាចផ្ដល់ ឬដក។ CamFeed មិនសុំអត្តសញ្ញាណប័ណ្ណទេ។',
-          'The ✔ means this is the official account, not a fake. Give it only when every condition is met and the proof is clear. Never sold. Only the Super Admin can give or take it. CamFeed never asks for ID cards.') }));
+        top.appendChild(el('div', { style: 'color:#65676b;font-size:13.5px;line-height:1.6', text: AT('សញ្ញា ✔ = គណនីនេះជាគណនីផ្លូវការ មិនមែនក្លែងបន្លំ។ ផ្ដល់តែគណនីដែលមានលក្ខខណ្ឌគ្រប់ និងបញ្ជាក់បានច្បាស់។ មិនលក់។ មានតែ Super Admin អាចផ្ដល់ ឬដក។ រូបអត្តសញ្ញាណប័ណ្ណ (បើបើក) មានតែ Super Admin មើលបាន ហើយលុបចោលក្រោយពិនិត្យ។',
+          'The ✔ means this is the official account, not a fake. Give it only when every condition is met and the proof is clear. Never sold. Only the Super Admin can give or take it. ID photos (when turned on) are seen only by the Super Admin and deleted after the check.') }));
         var tabs = el('div', { class: 'at-row', style: 'gap:8px;margin-top:10px;flex-wrap:wrap' });
         [['pending', AT('⏳ កំពុងរង់ចាំ', '⏳ Waiting')], ['approved', AT('✅ បានអនុម័ត', '✅ Approved')], ['rejected', AT('✖ មិនអនុម័ត', '✖ Not approved')]].forEach(function (t) {
           tabs.appendChild(el('button', { class: 'btn-sm' + (state.status === t[0] ? '' : ' btn-gray'), text: t[1], onclick: function () { state.status = t[0]; load(); } }));
@@ -894,18 +900,133 @@
           ]));
         });
 
+        // 🪪 🏦 💳 proofs waiting (ID + selfie: only the Super Admin sees the photos; they are deleted after the answer)
+        proofsBox.textContent = '';
+        var pf = d.proofs || [], KIND = { id: AT('🪪 ID + Selfie', '🪪 ID + selfie'), pay: AT('💳 ថ្លៃប្រចាំខែ', '💳 Monthly fee'), bank: AT('🏦 បញ្ជាក់ឈ្មោះធនាគារ', '🏦 Bank name check') };
+        proofsBox.appendChild(el('div', { class: 'at-h', text: AT('🪪 ភស្តុតាងកំពុងរង់ចាំ', '🪪 Proofs waiting') + ' (' + pf.length + ')' }));
+        if (!pf.length) proofsBox.appendChild(el('div', { style: 'color:#65676b', text: AT('មិនមាន', 'None') }));
+        pf.forEach(function (p) {
+          var box = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-top:10px' });
+          box.appendChild(el('div', { style: 'font-weight:800;font-size:15px', text: 'P' + p.id + ' · ' + (KIND[p.kind] || p.kind) + (p.amount_cents ? ' · $' + (p.amount_cents / 100).toFixed(2) : '') }));
+          box.appendChild(el('div', { style: 'margin-top:4px' }, [el('b', { text: AT('ឈ្មោះក្នុង CamFeed៖ ', 'Name on CamFeed: ') }), el('span', { text: who(p), style: 'font-weight:800;color:#1877f2' })]));
+          var pics = el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px;flex-wrap:wrap' });
+          [[p.id_url, AT('អត្តសញ្ញាណប័ណ្ណ', 'ID card')], [p.selfie_url, 'Selfie'], [p.receipt_url, AT('វិក្កយបត្រ', 'Receipt')]].forEach(function (x) {
+            if (!/^https:\/\//.test(x[0] || '')) return;
+            var a = el('a', { href: x[0], target: '_blank', rel: 'noopener noreferrer', style: 'display:block;text-align:center;font-size:12px;color:#65676b' });
+            a.appendChild(el('img', { src: x[0], alt: x[1], style: 'width:150px;height:150px;object-fit:cover;border-radius:10px;border:1px solid #e4e6eb;display:block' }));
+            a.appendChild(el('span', { text: x[1] }));
+            pics.appendChild(a);
+          });
+          box.appendChild(pics);
+          if (p.kind === 'id' && !sup) box.appendChild(el('div', { style: 'margin-top:6px;color:#b45309', text: AT('🔒 មានតែ Super Admin ទេដែលមើលរូប ID បាន។', '🔒 Only the Super Admin can see the ID photos.') }));
+          if (p.ref) box.appendChild(el('div', { style: 'margin-top:4px', text: '🧾 ' + p.ref }));
+          box.appendChild(el('div', { style: 'margin-top:6px;font-size:13px;color:#374151', text: p.kind === 'id' ? AT('ឈ្មោះលើអត្តសញ្ញាណប័ណ្ណ ត្រូវដូចឈ្មោះខាងលើ ហើយមុខត្រូវដូច Selfie។', 'The name on the ID must be the same as above, and the face the same as the selfie.') : AT('ឈ្មោះគណនីលើវិក្កយបត្រ ត្រូវដូចឈ្មោះខាងលើ ហើយប្រាក់ចូលពិតមែន។', 'The account name on the receipt must be the same as above, and the money really came in.') }));
+          if (p.kind !== 'id' || sup) {
+            var nt = el('input', { class: 'at-in', placeholder: AT('មូលហេតុ (ពេលបដិសេធ)', 'Reason (when refused)'), style: 'margin-top:8px' });
+            box.appendChild(nt);
+            box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px' }, [
+              el('button', { class: 'btn-sm', text: AT('✅ អនុម័ត', '✅ Approve'), onclick: function () { call({ action: 'proof', id: p.id, ok: true, note: nt.value }).then(load); } }),
+              el('button', { class: 'btn-sm btn-gray', text: AT('❌ បដិសេធ', '❌ Refuse'), onclick: function () { call({ action: 'proof', id: p.id, ok: false, note: nt.value }).then(load); } })
+            ]));
+          }
+          proofsBox.appendChild(box);
+        });
+
+        // 🏷️ one-word names waiting
+        namesBox.textContent = '';
+        var nm = d.names || [];
+        namesBox.appendChild(el('div', { class: 'at-h', text: AT('🏷️ សំណើឈ្មោះមួយពាក្យ', '🏷️ One-word name requests') + ' (' + nm.length + ')' }));
+        if (!nm.length) namesBox.appendChild(el('div', { style: 'color:#65676b', text: AT('មិនមាន', 'None') }));
+        nm.forEach(function (n) {
+          var nt = el('input', { class: 'at-in', placeholder: AT('មូលហេតុ (ពេលបដិសេធ)', 'Reason (when refused)'), style: 'margin-top:8px' });
+          namesBox.appendChild(el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-top:10px' }, [
+            el('div', { style: 'font-weight:800', text: 'N' + n.id + ' · ' + who(n) + '  →  ' + n.name }), nt,
+            el('div', { class: 'at-row', style: 'gap:8px;margin-top:8px' }, [
+              el('button', { class: 'btn-sm', text: AT('✅ អនុម័ត', '✅ Approve'), onclick: function () { call({ action: 'name', id: n.id, ok: true, note: nt.value }).then(load); } }),
+              el('button', { class: 'btn-sm btn-gray', text: AT('❌ បដិសេធ', '❌ Refuse'), onclick: function () { call({ action: 'name', id: n.id, ok: false, note: nt.value }).then(load); } })
+            ])
+          ]));
+        });
+
+        // ☑️ the conditions: tick / untick and the number, one column for ✔ and one for a one-word name
         rules.textContent = '';
         rules.appendChild(el('div', { class: 'at-h', text: AT('⚙️ លក្ខខណ្ឌ', '⚙️ Conditions') }));
-        var c = d.cfg || {}, ins = {};
-        [['minDays', AT('ប្រើ CamFeed យ៉ាងតិច (ថ្ងៃ)', 'Used CamFeed at least (days)')], ['minFollowers', AT('អ្នកតាមដានយ៉ាងតិច (សម្រាប់អ្នកបង្កើតមាតិកាដែលគ្មានឆានែលផ្សេង)', 'Followers at least (for creators without another channel)')],
-         ['minPosts30', AT('ការបង្ហោះយ៉ាងតិចក្នុង 30 ថ្ងៃ', 'Posts at least in the last 30 days')], ['years', AT('ពិនិត្យឡើងវិញរៀងរាល់ (ឆ្នាំ)', 'Check again every (years)')]].forEach(function (f) {
-          ins[f[0]] = el('input', { class: 'at-in', type: 'number', min: '0', value: c[f[0]] });
-          rules.appendChild(el('label', { style: 'display:block;margin-top:8px;font-size:13px;font-weight:700', text: f[1] }));
-          rules.appendChild(ins[f[0]]);
+        rules.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: AT('ធីក ☑ = លក្ខខណ្ឌនេះត្រូវការ។ ដាក់លេខ 0 = មិនកំណត់ចំនួន។', 'Tick ☑ = this condition is needed. A number 0 = no minimum.') }));
+        var CN = [['days', AT('ប្រើ CamFeed យ៉ាងតិច (ថ្ងៃ)', 'Used CamFeed at least (days)')], ['followers', AT('អ្នកតាមដានយ៉ាងតិច', 'Followers at least')], ['posts', AT('ការបង្ហោះក្នុង 30 ថ្ងៃ យ៉ាងតិច', 'Posts in 30 days at least')],
+          ['phone', AT('បញ្ជាក់លេខទូរស័ព្ទ', 'Phone confirmed')], ['pic', AT('មានរូបប្រូហ្វាល', 'Has a profile picture')], ['clean', AT('មិនដែលបំពានច្បាប់', 'Never broke the rules')],
+          ['rename', AT('មិនបានប្ដូរឈ្មោះក្នុង (ថ្ងៃ)', 'No name change in (days)')], ['tick', AT('មាន ✔ រួចហើយ', 'Already has the ✔')], ['idproof', AT('🪪 ID + Selfie (កាមេរ៉ា) ឬ 💳 ថ្លៃប្រចាំខែ', '🪪 ID + selfie (camera) or 💳 monthly fee')], ['bank', AT('🏦 បញ្ជាក់ឈ្មោះតាមគណនីធនាគារ (ផ្ទេរប្រាក់តិចតួច)', '🏦 Bank account name (a small transfer)')]];
+        var cd = d.conds || {}, cb = {};
+        var grid = el('div', { style: 'display:grid;grid-template-columns:minmax(150px,1.6fr) 1fr 1fr;gap:6px 10px;align-items:center;font-size:13.5px' });
+        grid.appendChild(el('b', { text: '' })); grid.appendChild(el('b', { text: AT('✔ គណនីផ្លូវការ', '✔ Official') })); grid.appendChild(el('b', { text: AT('🏷️ ឈ្មោះមួយពាក្យ', '🏷️ One-word name') }));
+        CN.forEach(function (r) {
+          grid.appendChild(el('span', { text: r[1] }));
+          ['tick', 'name'].forEach(function (pp) {
+            var v = (cd[pp] || {})[r[0]] || {}; cb[pp] = cb[pp] || {};
+            var cell = el('div', { class: 'at-row', style: 'gap:6px;align-items:center' });
+            if (pp === 'tick' && r[0] === 'tick') { grid.appendChild(el('span', { text: '—', style: 'color:#9ca3af' })); return; }
+            var c1 = el('input', { type: 'checkbox' }); c1.checked = !!v.on; cell.appendChild(c1);
+            var n1 = null;
+            if (v.n !== undefined) { n1 = el('input', { class: 'at-in', type: 'number', min: '0', value: v.n, style: 'width:90px;margin:0' }); cell.appendChild(n1); }
+            cb[pp][r[0]] = { c: c1, n: n1 };
+            grid.appendChild(cell);
+          });
         });
+        rules.appendChild(grid);
+        // 💳 🏦 the amounts and the notes people read
+        var pc = d.proofCfg || {}, pin = {};
+        [['monthCents', AT('💳 ថ្លៃប្រចាំខែ (សេន · 100 = $1)', '💳 Monthly fee (cents · 100 = $1)'), 'number'], ['bankCents', AT('🏦 ចំនួនផ្ទេរ ដើម្បីបញ្ជាក់ឈ្មោះ (សេន · ឧ. 2 ឬ 3)', '🏦 Transfer to check the name (cents · e.g. 2 or 3)'), 'number'],
+         ['note_km', AT('🏦 ពន្យល់ការផ្ទេរ (ខ្មែរ)', '🏦 About the transfer (Khmer)'), 'area'], ['note_en', AT('🏦 ពន្យល់ការផ្ទេរ (អង់គ្លេស)', '🏦 About the transfer (English)'), 'area'],
+         ['id_note_km', AT('🪪 អ្វីដែល CamFeed ត្រូវការមើលលើអត្តសញ្ញាណប័ណ្ណ (ខ្មែរ) — ឧ. មើលតែរូប និងឈ្មោះ អាចបិទលេខបាន', '🪪 What CamFeed needs to see on the ID (Khmer) — e.g. only photo and name, the number may be covered'), 'area'],
+         ['id_note_en', AT('🪪 អ្វីដែល CamFeed ត្រូវការមើលលើអត្តសញ្ញាណប័ណ្ណ (អង់គ្លេស)', '🪪 What CamFeed needs to see on the ID (English)'), 'area']].forEach(function (f) {
+          rules.appendChild(el('label', { style: 'display:block;margin-top:10px;font-size:13px;font-weight:700', text: f[1] }));
+          pin[f[0]] = f[2] === 'area' ? el('textarea', { class: 'at-in', rows: '2', style: 'width:100%' }) : el('input', { class: 'at-in', type: 'number', min: '0' });
+          pin[f[0]].value = pc[f[0]] !== undefined ? pc[f[0]] : '';
+          rules.appendChild(pin[f[0]]);
+        });
+        var yr = el('input', { class: 'at-in', type: 'number', min: '0', value: (d.cfg || {}).years });
+        rules.appendChild(el('label', { style: 'display:block;margin-top:10px;font-size:13px;font-weight:700', text: AT('ពិនិត្យ ✔ ឡើងវិញរៀងរាល់ (ឆ្នាំ)', 'Check the ✔ again every (years)') }));
+        rules.appendChild(yr);
         if (sup) rules.appendChild(el('button', { class: 'btn-sm', style: 'margin-top:10px', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () {
-          var x = { action: 'settings' }; Object.keys(ins).forEach(function (k) { x[k] = Number(ins[k].value); }); call(x).then(load);
+          var out = { tick: {}, name: {} };
+          ['tick', 'name'].forEach(function (pp) { Object.keys(cb[pp] || {}).forEach(function (k) { var x = cb[pp][k]; out[pp][k] = { on: x.c.checked }; if (x.n) out[pp][k].n = Number(x.n.value) || 0; }); });
+          var proof = {}; Object.keys(pin).forEach(function (k) { proof[k] = /Cents$/.test(k) ? Number(pin[k].value) || 0 : pin[k].value; });
+          call({ action: 'conds', conds: out, proof: proof }).then(function () {
+            var x = { action: 'settings', years: Number(yr.value) }; Object.assign(x, { minDays: out.tick.days.n, minFollowers: out.tick.followers.n, minPosts30: out.tick.posts.n });
+            return call(x);
+          }).then(function () { load(); });
         } }));
+        else rules.appendChild(el('div', { style: 'margin-top:8px;color:#b45309', text: AT('មានតែ Super Admin ទេដែលអាចប្ដូរ។', 'Only the Super Admin can change this.') }));
+        // 🇰🇭 old names: surname first (preview, then swap; ↩️ undo)
+        if (sup) {
+          var no = el('div', { style: 'border-top:1px solid #e4e6eb;margin-top:16px;padding-top:12px' }); rules.appendChild(no);
+          var drawNo = function () {
+            call({ action: 'nameorder', step: 'preview' }).then(function (x) {
+              no.textContent = '';
+              no.appendChild(el('div', { class: 'at-h', text: AT('🔁 លំដាប់ឈ្មោះចាស់ (នាមត្រកូលមុន)', '🔁 Old names: surname first') }));
+              no.appendChild(el('div', { style: 'color:#65676b;font-size:13px;line-height:1.6', text: AT('គណនីដែលបង្កើតមុនការកែនេះ បង្ហាញនាមខ្លួនមុននាមត្រកូល។ ចុចប្ដូរ ដើម្បីដាក់នាមត្រកូលមុន។ ឈ្មោះមួយពាក្យមិនប៉ះពាល់ទេ។', 'Accounts made before this fix show the given name first. Swap puts the surname first. One-word names are not touched.') }));
+              if (!x.success) { no.appendChild(el('div', { text: x.error || 'Failed' })); return; }
+              no.appendChild(el('div', { style: 'margin-top:6px;font-weight:700', text: AT('រង់ចាំប្ដូរ៖ ', 'To swap: ') + x.waiting + ' · ' + AT('បានប្ដូររួច៖ ', 'Swapped: ') + x.swapped }));
+              if (x.waiting) no.appendChild(el('div', { style: 'margin-top:6px;color:#b45309;font-size:13px', text: AT('⚠️ ដកធីក ☐ ឈ្មោះដែលត្រឹមត្រូវរួចហើយ (ឧ. ឈ្មោះដែលអ្នកបានកែដោយដៃ) — តែឈ្មោះដែលធីក ☑ ប៉ុណ្ណោះត្រូវប្ដូរ។', '⚠️ Untick ☐ names that are already right (e.g. fixed by hand) — only ticked ☑ names are swapped.') }));
+              var boxes = [];
+              var listBox = el('div', { style: 'max-height:360px;overflow:auto;margin-top:6px;border:1px solid #e4e6eb;border-radius:10px;padding:6px 10px' });
+              (x.sample || []).forEach(function (r) {
+                var cb = el('input', { type: 'checkbox' }); cb.checked = true; cb.dataset.email = r.email; boxes.push(cb);
+                var lb = el('label', { style: 'display:flex;gap:8px;align-items:center;font-size:13.5px;padding:3px 0;cursor:pointer' }, [cb, el('span', { text: (r.first_name + ' ' + r.last_name) + '  →  ' + (r.last_name + ' ' + r.first_name) })]);
+                listBox.appendChild(lb);
+              });
+              if (x.sample && x.sample.length) no.appendChild(listBox);
+              var row = el('div', { class: 'at-row', style: 'gap:8px;margin-top:10px;flex-wrap:wrap' });
+              if (x.waiting) row.appendChild(el('button', { class: 'btn-sm', text: AT('🔁 ប្ដូរឈ្មោះដែលធីក', '🔁 Swap the ticked names'), onclick: function () {
+                var em = boxes.filter(function (c) { return c.checked; }).map(function (c) { return c.dataset.email; });
+                if (!em.length) return;
+                if (confirm(AT('ប្ដូរលំដាប់ឈ្មោះ ', 'Swap the order of ') + em.length + AT(' គណនី?', ' names?'))) call({ action: 'nameorder', step: 'swap', emails: em }).then(drawNo);
+              } }));
+              if (x.swapped) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('↩️ ត្រឡប់វិញ (', '↩️ Undo (') + x.swapped + ')', onclick: function () { if (confirm(AT('ត្រឡប់លំដាប់ឈ្មោះវិញ?', 'Put the names back?'))) call({ action: 'nameorder', step: 'undo' }).then(drawNo); } }));
+              no.appendChild(row);
+            });
+          };
+          drawNo();
+        }
       });
     }
     load();

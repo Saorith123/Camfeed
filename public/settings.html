@@ -92,10 +92,10 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 
 
 <section class="view" id="v-details">
-<div class="card"><h2 data-i18n="acc_name_t">ឈ្មោះរបស់អ្នក</h2><p class="desc" data-i18n="acc_name_d">ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។</p>
+<div class="card"><h2 data-i18n="acc_name_t">ឈ្មោះរបស់អ្នក</h2><p class="desc" data-i18n="acc_name_d">ឈ្មោះនេះបង្ហាញលើការបង្ហោះ និងប្រវត្តិរូបរបស់អ្នក។</p>
 <div class="note warn" data-i18n="acc_name_note">ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។</div>
-<div class="grid2 field-gap"><div><label class="field" for="lastName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="lastName" maxlength="60" autocomplete="family-name"></div>
-<div><label class="field" for="firstName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="firstName" maxlength="60" autocomplete="given-name"></div></div>
+<div class="grid2 field-gap"><div><label class="field" for="firstName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="firstName" maxlength="60" autocomplete="family-name"></div>
+<div><label class="field" for="lastName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="lastName" maxlength="60" autocomplete="given-name"></div></div>
 <div class="field-gap"><label class="field" for="namePassword" data-i18n="acc_name_pw">ពាក្យសម្ងាត់ (ដើម្បីបញ្ជាក់)</label><input type="password" id="namePassword" maxlength="128" autocomplete="current-password"></div>
 <button type="button" class="btn" id="saveNameBtn" data-i18n="save" disabled>រក្សាទុក</button></div>
 <div class="card"><h2 data-i18n="acc_contact_t">លេខសម្គាល់ និងតំណ</h2><p class="desc" data-i18n="acc_contact_d2">ចែករំលែកតំណរបស់អ្នកឱ្យមិត្តរកអ្នក។</p>
@@ -148,9 +148,9 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 <section class="view" id="v-activitylist"><div class="card"><div class="seg" id="activitySeg"></div><div id="activityList"><div class="skeleton" data-i18n="loading">កំពុងផ្ទុក…</div></div><button type="button" class="btn secondary block hidden" id="activityMore" style="margin-top:12px" data-i18n="more">មើលបន្ថែម</button></div></section>
 
 <section class="view" id="v-data">
-<div class="card"><h2 data-i18n="dt_t">ទាញយកទិន្នន័យរបស់ខ្ញុំ</h2><p class="desc" data-i18n="dt_d">ទទួលបានឯកសារមួយដែលមានប្រវត្តិរូប ប្រកាស មតិ សារ និងការតាមដានរបស់អ្នក។ មិនមានពាក្យសម្ងាត់ក្នុងនោះទេ។</p><button type="button" class="btn" id="exportBtn" data-i18n="dt_btn">⬇ ទាញយក (JSON)</button></div>
+<div class="card"><h2 data-i18n="dt_t">ទាញយកទិន្នន័យរបស់ខ្ញុំ</h2><p class="desc" data-i18n="dt_d">ទទួលបានឯកសារមួយដែលមានប្រវត្តិរូប ការបង្ហោះ មតិ សារ និងការតាមដានរបស់អ្នក។ មិនមានពាក្យសម្ងាត់ក្នុងនោះទេ។</p><button type="button" class="btn" id="exportBtn" data-i18n="dt_btn">⬇ ទាញយក (JSON)</button></div>
 <div class="card danger"><h2 data-i18n="del_t">លុបគណនី</h2><p class="desc" data-i18n="del_d">សកម្មភាពនេះអចិន្ត្រៃយ៍ ហើយមិនអាចស្តារវិញបានទេ។</p>
-<div class="note red" data-i18n="del_what">នឹងត្រូវលុប៖ ប្រវត្តិរូប ប្រកាស វីដេអូ រូបភាព មតិ ប្រតិកម្ម អ្នកតាមដាន ការជូនដំណឹង និងសារឆាតទាំងអស់។</div>
+<div class="note red" data-i18n="del_what">នឹងត្រូវលុប៖ ប្រវត្តិរូប ការបង្ហោះ វីដេអូ រូបភាព មតិ ប្រតិកម្ម អ្នកតាមដាន ការជូនដំណឹង និងសារឆាតទាំងអស់។</div>
 <div class="field-gap"><label class="field" for="delPw" id="delLabel" data-i18n="del_pw">បញ្ចូលពាក្យសម្ងាត់ដើម្បីបញ្ជាក់</label><div class="pw-wrap"><input type="password" id="delPw" autocomplete="current-password"><button type="button" class="pw-eye" data-eye="delPw" aria-label="Show">👁</button></div></div>
 <label class="check"><input type="checkbox" id="delSure"><span data-i18n="del_sure">ខ្ញុំយល់ថាការលុបនេះអចិន្ត្រៃយ៍</span></label>
 <button type="button" class="btn danger" id="deleteBtn" data-i18n="del_btn">លុបគណនីរបស់ខ្ញុំជារៀងរហូត</button></div></section>
@@ -176,15 +176,15 @@ save:'រក្សាទុក',copy:'ចម្លង',copied:'បានចម�
 qr_t:'QR code របស់ខ្ញុំ និងស្កេន',qr_s:'ឱ្យមិត្តស្កេនដើម្បីតាមដាន និងជជែក ឬស្កេនរបស់គេ',dark_t:'Dark mode',dark_s:'ប្តូរទៅពណ៌ងងឹត ទូទាំង website',active_t:'ស្ថានភាពអនឡាញ (Active status)',active_s:'បង្ហាញនៅពេលអ្នកអនឡាញ។ បើបិទ អ្នកក៏មិនឃើញស្ថានភាពអ្នកដទៃដែរ',
 nav_login:'ការចូល និងសុវត្ថិភាព',nav_login_s:'ឈ្មោះ លេខទូរស័ព្ទ ពាក្យសម្ងាត់ ឧបករណ៍ដែលបានចូល',nav_privacy:'ឯកជនភាព',nav_privacy_s:'អ្នកណាអាចឃើញព័ត៌មានរបស់អ្នក',
 nav_notifications:'ការជូនដំណឹងដែលអ្នកចង់បាន',nav_notifications_s:'ប្រតិកម្ម អ្នកតាមដានថ្មី ការចែករំលែក',nav_blocking:'ការហាមឃាត់',nav_blocking_s:'បញ្ជីអ្នកដែលអ្នកបានហាមឃាត់',
-nav_activity:'សកម្មភាពរបស់អ្នក',nav_activity_s:'ប្រតិកម្ម ការចែករំលែក មតិ ប្រកាស',nav_data:'ទិន្នន័យរបស់ខ្ញុំ',nav_data_s:'ទាញយក ឬលុបគណនី',
+nav_activity:'សកម្មភាពរបស់អ្នក',nav_activity_s:'ប្រតិកម្ម ការចែករំលែក មតិ ការបង្ហោះ',nav_data:'ទិន្នន័យរបស់ខ្ញុំ',nav_data_s:'ទាញយក ឬលុបគណនី',
 lg_details:'ព័ត៌មានផ្ទាល់ខ្លួន',lg_details_s:'លេខសម្គាល់ តំណប្រវត្តិរូប ថ្ងៃកំណើត និងផ្សេងៗ',lg_name:'ឈ្មោះ',lg_name_s:'អាចប្តូរបានម្តងរៀងរាល់ 15 ថ្ងៃ',lg_contact:'លេខទូរស័ព្ទ ឬ Gmail',
 lg_pw:'ប្តូរពាក្យសម្ងាត់',lg_pw_s:'ប្រើពាក្យសម្ងាត់ខ្លាំង',lg_2fa:'ការផ្ទៀងផ្ទាត់ពីរជំហាន',lg_2fa_s:'Two-factor authentication',lg_devices:'កន្លែងដែលអ្នកបានចូលគណនី',lg_devices_s:'សកម្មភាពចូល ឧបករណ៍ និងទីតាំង',
-ac_reactions:'ប្រតិកម្ម',ac_reactions_s:'ប្រកាស និងមតិដែលអ្នកបានចុចចូលចិត្ត',ac_shares:'ការចែករំលែក',ac_shares_s:'ប្រកាសដែលអ្នកបានចែករំលែក',ac_comments:'មតិ និងការឆ្លើយតប',ac_comments_s:'មតិដែលអ្នកបានសរសេរ',ac_posts:'ប្រកាស និងការផ្ទុកឡើង',ac_posts_s:'ប្រកាស រូបភាព និងវីដេអូរបស់អ្នក',
+ac_reactions:'ប្រតិកម្ម',ac_reactions_s:'ការបង្ហោះ និងមតិដែលអ្នកបានចុចចូលចិត្ត',ac_shares:'ការចែករំលែក',ac_shares_s:'ការបង្ហោះដែលអ្នកបានចែករំលែក',ac_comments:'មតិ និងការឆ្លើយតប',ac_comments_s:'មតិដែលអ្នកបានសរសេរ',ac_posts:'ការបង្ហោះ និងការផ្ទុកឡើង',ac_posts_s:'ការបង្ហោះ រូបភាព និងវីដេអូរបស់អ្នក',
 hp_help:'មជ្ឈមណ្ឌលជំនួយ',hp_help_s:'សំណួរញឹកញាប់ និងរបៀបប្រើ',hp_support:'ទាក់ទងផ្នែកជំនួយ',hp_report:'រាយការណ៍បញ្ហា',hp_report_s:'ប្រាប់យើងពីអ្វីដែលមិនដំណើរការ',hp_community:'ស្តង់ដារសហគមន៍',hp_community_s:'ច្បាប់សម្រាប់ប្រើ CamFeed ដោយសុវត្ថិភាព',
 hp_privacy:'គោលការណ៍ឯកជនភាព',hp_terms:'លក្ខខណ្ឌប្រើប្រាស់',hp_delete:'របៀបលុបគណនី និងទិន្នន័យ',hp_install:'ដំឡើងកម្មវិធី',hp_about:'អំពី CamFeed',
 v_home:'ការកំណត់',v_login:'ការចូល និងសុវត្ថិភាព',v_details:'ព័ត៌មានផ្ទាល់ខ្លួន',v_name:'ឈ្មោះ',v_contact:'លេខទូរស័ព្ទ ឬ Gmail',v_password:'ប្តូរពាក្យសម្ងាត់',v_twofa:'ការផ្ទៀងផ្ទាត់ពីរជំហាន',v_devices:'កន្លែងដែលអ្នកបានចូល',
 v_privacy:'ឯកជនភាព',v_notifications:'ការជូនដំណឹង',v_blocking:'ការហាមឃាត់',v_activity:'សកម្មភាពរបស់អ្នក',v_data:'ទិន្នន័យរបស់ខ្ញុំ',v_install:'ដំឡើងកម្មវិធី',v_about:'អំពី CamFeed',
-acc_name_t:'ឈ្មោះរបស់អ្នក',acc_name_d:'ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។',acc_name_note:'ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។',acc_first:'នាមខ្លួន',acc_last:'នាមត្រកូល',
+acc_name_t:'ឈ្មោះរបស់អ្នក',acc_name_d:'ឈ្មោះនេះបង្ហាញលើការបង្ហោះ និងប្រវត្តិរូបរបស់អ្នក។',acc_name_note:'ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។',acc_first:'នាមខ្លួន',acc_last:'នាមត្រកូល',
 acc_contact_t:'លេខសម្គាល់ និងតំណ',acc_contact_d:'ព័ត៌មានដែលអ្នកប្រើដើម្បីចូលគណនី។',acc_contact_d2:'ចែករំលែកតំណរបស់អ្នកឱ្យមិត្តរកអ្នក។',acc_email:'អ៊ីមែល',acc_phone:'លេខទូរស័ព្ទ',acc_id:'លេខសម្គាល់របស់អ្នក',acc_link:'តំណប្រវត្តិរូបរបស់អ្នក',acc_link_d:'ចែករំលែកឱ្យមិត្តរកអ្នក',
 acc_more_t:'រូបភាព និងការណែនាំខ្លួន',acc_more_d:'ប្តូររូបប្រវត្តិរូប រូបគម្រប និងការណែនាំខ្លួន',
 det_t:'ព័ត៌មានផ្ទាល់ខ្លួន',det_d:'ជ្រើសរើសអ្នកណាអាចឃើញពីផ្នែក «ឯកជនភាព»។',det_location:'ទីតាំង',det_work:'ការងារ',det_birth:'ថ្ងៃកំណើត',det_gender:'ភេទ',det_rel:'ស្ថានភាពទំនាក់ទំនង',det_phone:'លេខទូរស័ព្ទបង្ហាញលើប្រវត្តិរូប',
@@ -201,11 +201,11 @@ bl_t:'អ្នកដែលបានហាមឃាត់',bl_d:'អ្នកដ
 bl_conf_t:'ឈប់ហាមឃាត់អ្នកនេះ?',bl_conf_b:(n)=>`${n} នឹងអាចឃើញអ្នក និងផ្ញើសារមកអ្នកវិញ (ការតាមដានមិនត្រូវបានស្តារឡើងវិញទេ)។`,bl_fail:'មិនអាចផ្ទុកបានទេ',
 sec_pw_t:'ប្តូរពាក្យសម្ងាត់',sec_pw_d:'ប្រើពាក្យសម្ងាត់វែង និងមិនធ្លាប់ប្រើនៅកន្លែងផ្សេង។',sec_cur:'ពាក្យសម្ងាត់បច្ចុប្បន្ន',sec_new:'ពាក្យសម្ងាត់ថ្មី',sec_new2:'បញ្ជាក់ពាក្យសម្ងាត់ថ្មី',sec_update:'ប្តូរពាក្យសម្ងាត់',sec_nopw_t:'គណនីរបស់អ្នកចូលដោយ Telegram',sec_nopw_d:'គណនីនេះមិនមានពាក្យសម្ងាត់ទេ ដូច្នេះមិនចាំបាច់ប្តូរទេ។',
 pw_short:'ពាក្យសម្ងាត់ថ្មីត្រូវមានយ៉ាងតិច 6 តួ',pw_mismatch:'ពាក្យសម្ងាត់ថ្មីទាំងពីរមិនដូចគ្នាទេ',pw_need_cur:'សូមបញ្ចូលពាក្យសម្ងាត់បច្ចុប្បន្ន',pw_same:'ពាក្យសម្ងាត់ថ្មីត្រូវខុសពីពាក្យសម្ងាត់ចាស់',pw_ok:'បានប្តូរពាក្យសម្ងាត់ហើយ',pw_bad_cur:'ពាក្យសម្ងាត់បច្ចុប្បន្នមិនត្រឹមត្រូវទេ',s_weak:'ខ្សោយ',s_ok:'មធ្យម',s_good:'ល្អ',s_strong:'ខ្លាំង',
-nt_t:'ការជូនដំណឹងដែលអ្នកចង់បាន',nt_d:'ជ្រើសរើសប្រភេទដែលអ្នកចង់ឃើញក្នុងកណ្តឹងជូនដំណឹង។',nt_reactions:'ប្រតិកម្ម',nt_reactions_d:'នរណាម្នាក់ចុចចូលចិត្តប្រកាស ឬមតិរបស់អ្នក',nt_comments:'មតិ និងការឆ្លើយតប',nt_comments_d:'នរណាម្នាក់បញ្ចេញមតិ ឬឆ្លើយតបមតិរបស់អ្នក',
-nt_follows:'អ្នកតាមដានថ្មី',nt_follows_d:'នរណាម្នាក់ចាប់ផ្តើមតាមដានអ្នក',nt_shares:'ការចែករំលែក',nt_shares_d:'នរណាម្នាក់ចែករំលែកប្រកាសរបស់អ្នក',
-act_empty:'មិនទាន់មានសកម្មភាពទេ',act_react:(a)=>`អ្នកបានប្រតិកម្មចំពោះប្រកាសរបស់ ${a}`,act_comment:(a)=>`អ្នកបានបញ្ចេញមតិលើប្រកាសរបស់ ${a}`,act_reply:(a)=>`អ្នកបានឆ្លើយតបលើប្រកាសរបស់ ${a}`,act_share:(a)=>`អ្នកបានចែករំលែកប្រកាសរបស់ ${a}`,act_post:'អ្នកបានបង្ហោះ',act_media:'ប្រកាសមានមេឌៀ',act_private:'ឯកជន',act_fail:'មិនអាចផ្ទុកបានទេ',
-dt_t:'ទាញយកទិន្នន័យរបស់ខ្ញុំ',dt_d:'ទទួលបានឯកសារមួយដែលមានប្រវត្តិរូប ប្រកាស មតិ សារ និងការតាមដានរបស់អ្នក។ មិនមានពាក្យសម្ងាត់ក្នុងនោះទេ។',dt_btn:'⬇ ទាញយក (JSON)',dt_wait:'កំពុងរៀបចំ…',dt_done:'បានទាញយកហើយ',dt_fail:'មិនអាចទាញយកបានទេ',
-del_t:'លុបគណនី',del_d:'សកម្មភាពនេះអចិន្ត្រៃយ៍ ហើយមិនអាចស្តារវិញបានទេ។',del_what:'នឹងត្រូវលុប៖ ប្រវត្តិរូប ប្រកាស វីដេអូ រូបភាព មតិ ប្រតិកម្ម អ្នកតាមដាន ការជូនដំណឹង និងសារឆាតទាំងអស់។',
+nt_t:'ការជូនដំណឹងដែលអ្នកចង់បាន',nt_d:'ជ្រើសរើសប្រភេទដែលអ្នកចង់ឃើញក្នុងកណ្តឹងជូនដំណឹង។',nt_reactions:'ប្រតិកម្ម',nt_reactions_d:'នរណាម្នាក់ចុចចូលចិត្តការបង្ហោះ ឬមតិរបស់អ្នក',nt_comments:'មតិ និងការឆ្លើយតប',nt_comments_d:'នរណាម្នាក់បញ្ចេញមតិ ឬឆ្លើយតបមតិរបស់អ្នក',
+nt_follows:'អ្នកតាមដានថ្មី',nt_follows_d:'នរណាម្នាក់ចាប់ផ្តើមតាមដានអ្នក',nt_shares:'ការចែករំលែក',nt_shares_d:'នរណាម្នាក់ចែករំលែកការបង្ហោះរបស់អ្នក',
+act_empty:'មិនទាន់មានសកម្មភាពទេ',act_react:(a)=>`អ្នកបានប្រតិកម្មចំពោះការបង្ហោះរបស់ ${a}`,act_comment:(a)=>`អ្នកបានបញ្ចេញមតិលើការបង្ហោះរបស់ ${a}`,act_reply:(a)=>`អ្នកបានឆ្លើយតបលើការបង្ហោះរបស់ ${a}`,act_share:(a)=>`អ្នកបានចែករំលែកការបង្ហោះរបស់ ${a}`,act_post:'អ្នកបានបង្ហោះ',act_media:'ការបង្ហោះមានមេឌៀ',act_private:'ឯកជន',act_fail:'មិនអាចផ្ទុកបានទេ',
+dt_t:'ទាញយកទិន្នន័យរបស់ខ្ញុំ',dt_d:'ទទួលបានឯកសារមួយដែលមានប្រវត្តិរូប ការបង្ហោះ មតិ សារ និងការតាមដានរបស់អ្នក។ មិនមានពាក្យសម្ងាត់ក្នុងនោះទេ។',dt_btn:'⬇ ទាញយក (JSON)',dt_wait:'កំពុងរៀបចំ…',dt_done:'បានទាញយកហើយ',dt_fail:'មិនអាចទាញយកបានទេ',
+del_t:'លុបគណនី',del_d:'សកម្មភាពនេះអចិន្ត្រៃយ៍ ហើយមិនអាចស្តារវិញបានទេ។',del_what:'នឹងត្រូវលុប៖ ប្រវត្តិរូប ការបង្ហោះ វីដេអូ រូបភាព មតិ ប្រតិកម្ម អ្នកតាមដាន ការជូនដំណឹង និងសារឆាតទាំងអស់។',
 del_pw:'បញ្ចូលពាក្យសម្ងាត់ដើម្បីបញ្ជាក់',del_type:'វាយពាក្យ DELETE ដើម្បីបញ្ជាក់',del_sure:'ខ្ញុំយល់ថាការលុបនេះអចិន្ត្រៃយ៍',del_btn:'លុបគណនីរបស់ខ្ញុំជារៀងរហូត',del_need_pw:'សូមបញ្ចូលពាក្យសម្ងាត់របស់អ្នក',del_need_word:'សូមវាយពាក្យ DELETE',del_need_check:'សូមធីកប្រអប់ថាអ្នកយល់',
 del_conf_t:'លុបគណនីជារៀងរហូត?',del_conf_b:'ទិន្នន័យទាំងអស់របស់អ្នកនឹងត្រូវលុប ហើយមិនអាចស្តារវិញបានទេ។',del_conf_ok:'លុបជារៀងរហូត',del_done:'គណនីរបស់អ្នកត្រូវបានលុបហើយ',
 app_t:'កម្មវិធី CamFeed',app_d:'ដំឡើង CamFeed លើអេក្រង់ដើមដើម្បីបើកបានលឿន។',app_install:'📲 ដំឡើងកម្មវិធី',app_installed:'✓ បានដំឡើងរួចហើយ',app_ios:'ក្នុង Safari ចុចប៊ូតុង «ចែករំលែក» (Share) រួចជ្រើស «បន្ថែមទៅអេក្រង់ដើម» (Add to Home Screen)',app_other:'ក្នុងម៉ឺនុយរបស់ browser សូមជ្រើស «ដំឡើងកម្មវិធី» ឬ «បន្ថែមទៅអេក្រង់ដើម»។',about_line:'បណ្តាញសង្គមសម្រាប់ជនជាតិខ្មែរ',
@@ -351,11 +351,13 @@ $('copyIdBtn').addEventListener('click',()=>copyText(String(me.email)));
 $('copyLinkBtn').addEventListener('click',()=>copyText(location.origin+'/profile.html?email='+encodeURIComponent(me.email)));
 const nameChanged=()=>$('firstName').value.trim()!==(me.first_name||'')||$('lastName').value.trim()!==(me.last_name||'');
 ['firstName','lastName'].forEach((id)=>$(id).addEventListener('input',()=>{$('saveNameBtn').disabled=!nameChanged();}));
-$('saveNameBtn').addEventListener('click',async()=>{const firstName=$('firstName').value.trim(),lastName=$('lastName').value.trim();
-if(!firstName||!lastName)return toast(t('name_need'),'err');const password=$('namePassword').value;if(!password)return toast(t('name_pw_need'),'err');$('saveNameBtn').disabled=true;
+$('saveNameBtn').addEventListener('click',async()=>{let firstName=$('firstName').value.trim(),lastName=$('lastName').value.trim();
+if(!firstName&&lastName){firstName=lastName;lastName='';}   // 🏪 one word (a business / page account): the server checks it is allowed
+if(!firstName)return toast(t('name_need'),'err');const password=$('namePassword').value;if(!password)return toast(t('name_pw_need'),'err');$('saveNameBtn').disabled=true;
 const r=await api('/api/settings/name',jsonOpts('PUT',{firstName,lastName,password,lang}));
 if(r.ok&&r.data.user){me.first_name=r.data.user.first_name;me.last_name=r.data.user.last_name;currentUser.first_name=me.first_name;currentUser.last_name=me.last_name;
 try{localStorage.setItem('camfeed_user',JSON.stringify(currentUser));}catch(e){}renderContact();toast(t('name_saved'),'ok');}
+else if(r.ok&&r.data.requested){toast(r.data.message,'ok');$('saveNameBtn').disabled=!nameChanged();}   // 🏷️ a one-word name: sent to CamFeed to approve
 else{toast(msgOf(r),'err');$('saveNameBtn').disabled=!nameChanged();}
 $('namePassword').value='';});
 api('/api/app-settings').then((r)=>{const d=r&&r.data;if(d&&d.success&&Number.isFinite(Number(d.nameDays))){NAME_DAYS=Number(d.nameDays);try{applyLang();}catch(e){}}}).catch(()=>{});

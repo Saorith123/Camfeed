@@ -167,6 +167,7 @@
                     <div class="chips" id="modeChips"></div>
                     <div id="boxProducts"></div>
                     <div id="boxPost" style="display:none;"><p class="muted" style="margin-top:8px;">${T('ជ្រើសការបង្ហោះសាធារណៈមួយរបស់អ្នក។ មនុស្សនៅតែអាចចូលចិត្ត បញ្ចេញមតិ និងចែករំលែកបានដូចធម្មតា។', 'Choose one of your public posts. People can still like, comment and share as usual.')}</p><div class="posts" id="postList"></div></div>
+                    <label>${T('🏷️ ឈ្មោះពាណិជ្ជកម្ម (ស្រេចចិត្ត — មានតែអ្នកឃើញ)', '🏷️ Ad name (optional — only you see it)')}</label><input id="fAdName" maxlength="60" placeholder="${T('ឧ. ប្រូម៉ូសិនចូលឆ្នាំ', 'e.g. New Year promo')}">
                     <div id="boxCaption"><label>${T('ពាក្យពណ៌នា', 'Text')}</label><textarea id="fCaption" rows="3" maxlength="500" placeholder="${T('ឧ. បញ្ចុះតម្លៃ 50% ថ្ងៃនេះ!', 'e.g. 50% off today!')}"></textarea></div>
                     <div id="boxLink"><label>${T('តំណភ្ជាប់ពេលចុច', 'Link to open')}</label><input id="fTarget" placeholder="https://t.me/yourshop"></div>
                     <div id="boxCta"><label>${T('ប៊ូតុង', 'Button')}</label><select id="fCta">${CTAS.map(c => `<option value="${c[0]}">${esc(c[1])}</option>`).join('')}</select></div>
@@ -421,7 +422,7 @@
             const prod = st.goal === 'products';
             const body = { objective: st.goal, places: [...st.places], devices: [...st.devices], country: st.cc, budget_usd: $('fBudget').value, days: $('fDays').value, caption: $('fCaption').value,
                 target_url: (st.goal === 'traffic' || LINK_CTAS.includes(ctaNow())) ? $('fTarget').value : '', cta: (prod || st.goal === 'messages') ? 'message' : $('fCta').value, phone: $('fPhone').value,
-                keywords: st.kws, provinces: [...st.provs], age_min: st.amin, age_max: st.amax, gender: st.gender };
+                keywords: st.kws, provinces: [...st.provs], age_min: st.amin, age_max: st.amax, gender: st.gender, ad_name: $('fAdName').value.trim() };
             if (st.mode === 'post') { body.post_id = st.postId; body.caption = ''; body.target_url = ''; }
             else body.items = st.items.map(i => ({ url: i.url, type: i.type, name: prod ? i.name : '', price: prod ? i.price : '' }));
             if (st.mode === 'new' && !st.items.length) { setMsg('fMsg', false, T('សូមបន្ថែមរូបភាព ឬវីដេអូយ៉ាងហោចណាស់មួយ។', 'Please add at least one picture or video.')); btn.disabled = false; return; }
@@ -604,9 +605,11 @@
                     let shown = r.ad_status === 'completed' ? 'completed' : (r.ad_status && r.status === 'live' && r.ends_at && new Date(r.ends_at) < new Date() ? 'ended' : r.status);
                     if (r.status === 'live' && r.ad_status === 'paused' && !over) shown = 'paused';
                     if (r.status === 'live' && r.ad_status === 'ended' && r.credited) shown = 'ended';
-                    if (r.billing === 'live' && (r.status === 'payment_sent' || r.status === 'starting')) shown = 'checking';
+                    const paidAlready = r.billing === 'live' || (Number(r.price_cents) === 0 && Number(r.credit_cents) > 0);   // 💳 from the wallet: no payment step
+                    if (paidAlready && ['quoted', 'payment_sent', 'starting'].includes(r.status)) shown = 'checking';
                     let extra = '';
-                    if (r.status === 'quoted') extra = (r.admin_note ? `<div class="muted" style="margin-top:6px;color:#b42318;">${esc(r.admin_note)}</div>` : '') + payBox(r, 'l');
+                    if (paidAlready && ['quoted', 'payment_sent', 'starting'].includes(r.status)) extra = `<div class="muted" style="margin-top:6px;">${T('🤖 កំពុងពិនិត្យខ្លឹមសារ។ ពេលរួច ពាណិជ្ជកម្មចាប់ផ្ដើមដោយខ្លួនឯង។ មិនចាំបាច់បង់ប្រាក់ទៀតទេ — លុយនៅក្នុងកាបូបរួចហើយ។', '🤖 Checking the content. It starts by itself when done. No payment needed — the money is in your wallet.')}</div>`;
+                    else if (r.status === 'quoted') extra = (r.admin_note ? `<div class="muted" style="margin-top:6px;color:#b42318;">${esc(r.admin_note)}</div>` : '') + payBox(r, 'l');
                     else if (r.billing === 'live' && (r.status === 'payment_sent' || r.status === 'starting')) extra = `<div class="muted" style="margin-top:6px;">${T('🤖 កំពុងពិនិត្យខ្លឹមសារ។ ពេលរួច ពាណិជ្ជកម្មចាប់ផ្ដើមដោយខ្លួនឯង។ លុយកាត់តាមការបង្ហាញពិតប៉ុណ្ណោះ។', '🤖 Checking the content. It starts by itself when done. Money is only taken as people see it.')}</div>`;
                     else if (r.status === 'payment_sent' || r.status === 'starting') extra = `<div class="muted" style="margin-top:6px;">${T('CamFeed កំពុងពិនិត្យការបង់ប្រាក់ ' + money(r.price_cents) + ' (ចំណាំ A' + Number(r.id) + ')។ ទំព័រនេះនឹងប្ដូរដោយខ្លួនឯង។', 'CamFeed is checking your payment of ' + money(r.price_cents) + ' (note A' + Number(r.id) + '). This page updates by itself.')}</div>`;
                     else if (r.status === 'rejected' && r.admin_note) extra = `<div class="muted" style="margin-top:6px;">${esc(r.admin_note)}</div>`;
@@ -625,11 +628,13 @@
                     if ((r.ad_id && !over) || pre) can.push(`<button class="btn gray small" style="color:#b42318;" onclick="adAct(${Number(r.id)}, 'stop')">⏹️ ${pre && !r.ad_id ? T('បោះបង់', 'Cancel') : T('បញ្ឈប់', 'Stop')}</button>`);
                     if (can.length) extra += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">${can.join('')}</div>`;
                     const goal = (GOALS.find(g => g.id === r.objective) || {}).t || '', place = (r.places ? String(r.places).split(',') : (OLD_PLACE[r.placement] || [])).map(x => (PLACES.find(p => p.id === x) || {}).t || '').filter(Boolean).join(' + ');
-                    return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b>A${Number(r.id)}</b><span class="pill ${esc(shown)}">${STATUS[shown] || esc(shown)}</span></div>
+                    const done = over || ['cancelled', 'rejected'].includes(r.status) || r.credited;
+                    extra += `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">${!((r.ad_id && !over) || pre) ? `<button class="btn gray small" onclick="adRename(${Number(r.id)})">🏷️ ${T('ដាក់ឈ្មោះ', 'Name')}</button>` : ''}${done ? `<button class="btn small" onclick="adCopy(${Number(r.id)})">🔁 ${T('ផ្សាយម្ដងទៀត', 'Run again')}</button>` : ''}${done ? `<button class="btn gray small" style="color:#b42318;" onclick="adRemove(${Number(r.id)})">🗑️ ${T('លុបចេញពីបញ្ជី', 'Remove from list')}</button>` : ''}</div>`;
+                    return `<div class="req"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center;"><b class="notranslate" translate="no">${r.ad_name ? esc(r.ad_name) + ` <span class="muted" style="font-weight:600;">· A${Number(r.id)}</span>` : 'A' + Number(r.id)}</b><span class="pill ${esc(shown)}">${STATUS[shown] || esc(shown)}</span></div>
                         <div class="muted">${esc(goal)} · ${esc(place)} · ${T(Number(r.days) + ' ថ្ងៃ', Number(r.days) + (Number(r.days) === 1 ? ' day' : ' days'))} · ${T('ថវិកា', 'budget')} ${money(r.budget_cents)}</div>${r.caption ? `<div class="notranslate" translate="no" style="font-size:13.5px;margin-top:4px;">${esc(String(r.caption).slice(0, 120))}</div>` : ''}${extra}</div>`;
                 };
                 box.innerHTML = (W.payway ? walletCard() : (credit > 0 ? `<div class="pay" style="border-style:solid">💳 ${T('ឥណទានពាណិជ្ជកម្មរបស់អ្នក៖', 'Your ad credit:')} <b>${money(credit)}</b><div class="muted">${T('នឹងកាត់ចេញពីប្រាក់ត្រូវបង់ ពេលអ្នកផ្សាយលើកក្រោយ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'It is taken off the price of your next ad. It can only be used for ads.')}</div></div>` : '')) + mine.map(reqHtml).join('');
-                if (mine.some(r => r.status === 'payment_sent' || r.status === 'starting')) pollTimer = setTimeout(loadMine, 15000);
+                if (mine.some(r => r.status === 'payment_sent' || r.status === 'starting' || (r.status === 'quoted' && (r.billing === 'live' || Number(r.price_cents) === 0)))) pollTimer = setTimeout(loadMine, 15000);
             } catch (e) { box.textContent = T('ផ្ទុកមិនបាន', 'Could not load'); }
         }
         // ⏸️ pause / ▶️ go on / ⏹️ stop
@@ -642,12 +647,53 @@
             await loadWallet(); loadMine();
         }
         window.adAct = adAct;
+        async function adRemove(id) {
+            if (!confirm(T('លុបពាណិជ្ជកម្មនេះចេញពីបញ្ជីរបស់អ្នក?', 'Remove this ad from your list?'))) return;
+            const d = await (await fetch('/api/ads/my/' + id + '/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'remove' }) })).json().catch(() => ({}));
+            if (!d.success) alert(d.code === 'running' ? T('សូមបញ្ឈប់ពាណិជ្ជកម្មនេះសិន', 'Please stop the ad first') : (d.error || T('មិនបាន', 'Failed')));
+            loadMine();
+        }
+        window.adRemove = adRemove;
+        // 🔁 the same ad again: the new-ad form is filled with everything this ad had (check it, change what you want, then send)
+        async function adCopy(id) {
+            let d = null;
+            try { d = await (await fetch('/api/ads/my/' + id + '/copy')).json(); } catch (e) {}
+            if (!d || !d.success) { alert(T('មិនបាន', 'Failed')); return; }
+            const a = d.ad;
+            st.goal = GOALS.some(g => g.id === a.objective) ? a.objective : st.goal;
+            st.mode = a.post_id ? 'post' : 'new'; st.postId = a.post_id ? Number(a.post_id) : null;
+            if (a.places.length) st.places = new Set(a.places);
+            st.devices = new Set(a.devices.length ? a.devices : ['android', 'ios', 'web']);
+            st.cc = a.country || 'KH'; st.provs = new Set(a.provinces); st.gender = a.gender || ''; st.amin = a.age_min || 0; st.amax = a.age_max || 0;
+            st.kws = (a.keywords || []).slice(0, 12);
+            st.items = (a.items || []).map(x => ({ url: x.url, type: x.type === 'video' ? 'video' : 'image', name: x.name || '', price: x.price || '' }));
+            $('fCaption').value = a.caption || ''; $('fAdName').value = a.ad_name ? a.ad_name + T(' (ម្ដងទៀត)', ' (again)') : '';
+            if ($('fBudget')) $('fBudget').value = a.budget; if ($('fDays')) $('fDays').value = a.days;
+            if ($('fAmin')) $('fAmin').value = String(st.amin); if ($('fAmax')) $('fAmax').value = String(st.amax);
+            if ($('fCta')) $('fCta').value = a.cta || 'learn_more';
+            $('fTarget').value = /^https?:/.test(a.target_url) ? a.target_url : '';
+            $('fPhone').value = /^tel:/.test(a.target_url) ? a.target_url.replace(/^tel:\+855/, '0').replace(/^tel:/, '') : '';
+            showTab('new');
+            try { drawGoals(); syncGoal(); drawPlaces(); drawWho(); drawKw(); drawProducts(); drawPreview(); } catch (e) {}
+            if (st.mode === 'post') { st.posts = []; loadPosts(); }
+            estimate(); window.scrollTo({ top: 0, behavior: 'smooth' });
+            setMsg('fMsg', true, T('🔁 បានចម្លងការកំណត់ពីពាណិជ្ជកម្មចាស់។ ពិនិត្យ ហើយចុចផ្ញើ។', '🔁 The settings of the old ad are copied. Check them, then send.'));
+        }
+        window.adCopy = adCopy;
+        async function adRename(id) {
+            const r = mine.find(x => Number(x.id) === Number(id)); if (!r) return;
+            const v = prompt(T('ឈ្មោះពាណិជ្ជកម្ម', 'Ad name'), r.ad_name || ''); if (v === null) return;
+            await fetch('/api/ads/my/' + id + '/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'rename', ad_name: v.trim() }) }).catch(() => {});
+            loadMine();
+        }
+        window.adRename = adRename;
         // ✏️ change the words, the button, the budget, more days (a running ad: CamFeed is told about new words / links)
         function adEdit(id) {
             const r = mine.find(x => Number(x.id) === Number(id)); if (!r) return;
             const fixedCta = r.objective === 'products' || r.objective === 'messages';
             const live = r.billing === 'live';
             openModal('✏️ ' + T('កែពាណិជ្ជកម្ម A', 'Edit ad A') + Number(id), `
+                <label>${T('🏷️ ឈ្មោះពាណិជ្ជកម្ម', '🏷️ Ad name')}</label><input id="eName" maxlength="60" value="${esc(r.ad_name || '')}">
                 ${r.post_id ? '' : `<label>${T('ពាក្យពណ៌នា', 'Text')}</label><textarea id="eCap" rows="3" maxlength="500">${esc(r.caption || '')}</textarea>`}
                 ${fixedCta ? '' : `<label>${T('ប៊ូតុង', 'Button')}</label><select id="eCta">${CTAS.map(c => `<option value="${c[0]}" ${c[0] === (r.cta || 'learn_more') ? 'selected' : ''}>${esc(c[1])}</option>`).join('')}</select>
                     <div id="eLinkBox"><label>${T('តំណភ្ជាប់ពេលចុច', 'Link to open')}</label><input id="eLink" value="${esc(/^https?:/.test(r.target_url || '') ? r.target_url : '')}" placeholder="https://…"></div>
@@ -661,6 +707,7 @@
             if ($('eCta')) { $('eCta').addEventListener('change', sync); sync(); }
             $('eSave').addEventListener('click', async () => {
                 const body = { action: 'edit', add_days: Number($('eDays').value) };
+                if ($('eName').value.trim() !== (r.ad_name || '')) body.ad_name = $('eName').value.trim();
                 if ($('eCap') && $('eCap').value !== (r.caption || '')) body.caption = $('eCap').value;
                 if ($('eCta')) {
                     const c = $('eCta').value, link = $('eLink').value.trim(), ph = $('ePhone').value.trim();

@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   var lastRefresh = 0, hiddenAt = 0, pill = null, checking = false;
-  var TXT = { km: '↑ ប្រកាសថ្មី', en: '↑ New posts' };
+  var TXT = { km: '↑ ការបង្ហោះថ្មី', en: '↑ New posts' };
   function lang() { try { return localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km'; } catch (e) { return 'km'; } }
   function me() { try { return JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) { return null; } }
   function atTop() { return (window.pageYOffset || document.documentElement.scrollTop || 0) < 250; }

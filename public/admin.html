@@ -302,7 +302,7 @@
             const body = {
                 adminEmail: currentUser.email, adminKey: savedAdminKey, kind,
                 phone: document.getElementById('acPhone').value.trim(), loginEmail: document.getElementById('acEmail').value.trim(),
-                firstName: document.getElementById('acFirst').value.trim(), lastName: document.getElementById('acLast').value.trim(),
+                firstName: document.getElementById('acLast').value.trim(), lastName: document.getElementById('acFirst').value.trim(),   // 🇰🇭 surname first
                 gender: document.getElementById('acGender').value, country: document.getElementById('acCountry').value,
                 birthdate: b ? `${b.slice(8, 10)}-${b.slice(5, 7)}-${b.slice(0, 4)}` : '', password: document.getElementById('acPassword').value
             };
@@ -553,7 +553,7 @@
             if (data.success) unlockAdmin();
         }
     </script>
-    <script src="admin-km.js?v=198"></script>
-    <script src="admin-tools.js?v=198"></script>
+    <script src="admin-km.js?v=205"></script>
+    <script src="admin-tools.js?v=205"></script>
 </body>
 </html>

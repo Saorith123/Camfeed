@@ -275,5 +275,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, tgA
     } catch (e) { console.error('[ad-wallet] admin:', e.message); res.status(500).json({ success: false, error: e.message }); }
   });
 
-  return { on, walletOn, manualOn, ensure, decideManual };
+  // 📷 / 📱 CamFeed's ABA QR and link, also for ✔ checks (monthly fee, bank name check)
+  const payInfo = () => ({ qr: safeUrl(txt.abaQr) || '', link: okLink(txt.abaLink) ? txt.abaLink : '' });
+  return { on, walletOn, manualOn, ensure, decideManual, payInfo };
 };
