@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1877f2">
+<title>CamFeed - Android</title>
+<link rel="icon" type="image/png" href="logo-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700;900&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f0f2f5;color:#1c1e21;font-family:'Battambang',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,'Noto Color Emoji',sans-serif;line-height:1.6;min-height:100vh;padding:16px 16px 40px}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;justify-content:flex-end}
+.lang{background:#fff;border:1px solid #e4e6eb;border-radius:16px;padding:6px 12px;font-weight:700;cursor:pointer;font-family:inherit}
+.card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.hero{text-align:center}
+.hero img{width:84px;height:84px;border-radius:20px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.hero h1{font-size:22px;margin-top:10px}
+.muted{color:#65676b;font-size:14px}
+.ver{display:inline-block;margin-top:8px;background:#e7f0fd;color:#1450a8;font-weight:700;border-radius:20px;padding:4px 12px;font-size:14px}
+.btn{display:block;width:100%;text-align:center;text-decoration:none;border:none;border-radius:14px;padding:16px;font-size:18px;font-weight:900;color:#fff;background:#1877f2;margin-top:16px;cursor:pointer;font-family:inherit}
+.btn:active{opacity:.85}
+.note{white-space:pre-wrap;background:#f7f8fa;border-radius:10px;padding:12px;font-size:14.5px;margin-top:12px;text-align:left}
+h2{font-size:17px;margin-bottom:8px}
+ol{padding-left:22px;font-size:15px}
+ol li{margin:6px 0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f2f5;font-size:14.5px}
+.row:last-child{border-bottom:none}
+.row a{color:#1877f2;font-weight:700;text-decoration:none;white-space:nowrap}
+.warn{background:#fff7e6;color:#8a5a00;border-radius:10px;padding:10px 12px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><button class="lang" id="langBtn" type="button"></button></div>
+  <div class="card hero" id="hero"><div class="muted" id="loading"></div></div>
+  <div class="card" id="steps"></div>
+  <div class="card" id="olderBox" style="display:none"><h2 id="tOlder"></h2><div id="older"></div></div>
+</div>
+<script>
+(function () {
+'use strict';
+var T = {
+  km: { lang: 'English', loading: 'កំពុងផ្ទុក…', title: 'CamFeed សម្រាប់ Android', dl: '⬇️ ទាញយក CamFeed', size: 'ទំហំ', date: 'ថ្ងៃ', news: '🆕 អ្វីថ្មី',
+    none: 'មិនទាន់មានកម្មវិធីសម្រាប់ទាញយកនៅឡើយទេ។ សូមត្រឡប់មកវិញពេលក្រោយ។', off: 'ទំព័រនេះបិទជាបណ្ដោះអាសន្ន។', err: 'ផ្ទុកមិនបាន។ សូមពិនិត្យអ៊ីនធឺណិត ហើយសាកម្ដងទៀត។',
+    how: '📲 របៀបដំឡើង', s1: 'ចុចប៊ូតុង «ទាញយក CamFeed» ខាងលើ ហើយរង់ចាំឲ្យទាញយកចប់។', s2: 'បើកឯកសារដែលទាញយក (នៅក្នុង Downloads ឬការជូនដំណឹង)។',
+    s3: 'បើទូរស័ព្ទសួរ «អនុញ្ញាតពីប្រភពនេះ» សូមចុច Settings ហើយបើក «Allow from this source» រួចត្រឡប់មកវិញ។', s4: 'ចុច Install (ដំឡើង)។ បើមានកំណែចាស់រួចហើយ វានឹងធ្វើបច្ចុប្បន្នភាពដោយមិនបាត់ទិន្នន័យ។',
+    s5: 'បើ Google Play Protect បង្ហាញការព្រមាន សូមចុច «Install anyway» (កម្មវិធីនេះមកពី CamFeed ផ្ទាល់)។',
+    ios: '🍎 iPhone មិនទាន់មានទេ — ឯកសារនេះសម្រាប់តែទូរស័ព្ទ Android ប៉ុណ្ណោះ។ អ្នកអាចប្រើ CamFeed លើ camfeedkh.com បាន។',
+    safe: '🔒 សូមទាញយក CamFeed តែពីទំព័រនេះ (camfeedkh.com) ប៉ុណ្ណោះ។ កុំដំឡើងឯកសារ CamFeed ដែលគេផ្ញើតាម Telegram ឬកន្លែងផ្សេង។',
+    older: '🗂️ កំណែមុនៗ', get: 'ទាញយក' },
+  en: { lang: 'ខ្មែរ', loading: 'Loading…', title: 'CamFeed for Android', dl: '⬇️ Download CamFeed', size: 'Size', date: 'Date', news: '🆕 What is new',
+    none: 'There is no app to download yet. Please come back later.', off: 'This page is closed for now.', err: 'Could not load. Please check the internet and try again.',
+    how: '📲 How to install', s1: 'Tap "Download CamFeed" above and wait until it finishes.', s2: 'Open the downloaded file (in Downloads or the notification).',
+    s3: 'If the phone asks to allow this source, tap Settings, turn on "Allow from this source", then go back.', s4: 'Tap Install. If an older version is installed, it is updated and nothing is lost.',
+    s5: 'If Google Play Protect shows a warning, tap "Install anyway" (this app comes from CamFeed itself).',
+    ios: '🍎 Not for iPhone yet — this file is only for Android phones. You can use CamFeed at camfeedkh.com.',
+    safe: '🔒 Download CamFeed only from this page (camfeedkh.com). Do not install CamFeed files sent on Telegram or anywhere else.',
+    older: '🗂️ Older versions', get: 'Download' }
+};
+var lang = 'km'; try { if (localStorage.getItem('camfeed_lang') === 'en') lang = 'en'; } catch (e) {}
+var t = function (k) { return T[lang][k] || T.km[k] || k; };
+var $ = function (id) { return document.getElementById(id); };
+var data = null, failed = false;
+function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function goodUrl(u) { return typeof u === 'string' && /^https:\/\/[A-Za-z0-9.-]+\/apk\/[A-Za-z0-9._-]+\.apk$/.test(u); }
+function when(d) { try { return new Date(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'km-KH'); } catch (e) { return ''; } }
+function draw() {
+  $('langBtn').textContent = t('lang');
+  var h = $('hero'); h.textContent = '';
+  var img = mk('img'); img.src = 'logo-icon.png'; img.alt = 'CamFeed'; h.appendChild(img);
+  h.appendChild(mk('h1', '', t('title')));
+  if (failed) h.appendChild(mk('div', 'muted', t('err')));
+  else if (!data) h.appendChild(mk('div', 'muted', t('loading')));
+  else if (!data.on) h.appendChild(mk('div', 'muted', t('off')));
+  else if (!data.latest || !goodUrl(data.latest.url)) h.appendChild(mk('div', 'muted', t('none')));
+  else {
+    var L = data.latest;
+    h.appendChild(mk('div', 'ver', (L.version ? 'v' + L.version + ' · ' : '') + (L.build ? 'BUILD ' + L.build : '')));
+    var info = [L.sizeMb ? t('size') + ' ' + L.sizeMb + ' MB' : '', L.at ? t('date') + ' ' + when(L.at) : ''].filter(Boolean).join(' · ');
+    if (info) h.appendChild(mk('div', 'muted', info));
+    var a = mk('a', 'btn', t('dl')); a.href = L.url; a.rel = 'noopener'; h.appendChild(a);
+    if (L.note) { var n = mk('div', 'note'); n.appendChild(mk('b', '', t('news'))); n.appendChild(document.createTextNode('\n' + L.note)); h.appendChild(n); }
+  }
+  var s = $('steps'); s.textContent = '';
+  s.appendChild(mk('h2', '', t('how')));
+  var ol = mk('ol'); ['s1', 's2', 's3', 's4', 's5'].forEach(function (k) { ol.appendChild(mk('li', '', t(k))); }); s.appendChild(ol);
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) { var w = mk('div', 'warn', t('ios')); w.style.marginTop = '10px'; s.appendChild(w); }
+  var sf = mk('div', 'warn', t('safe')); sf.style.marginTop = '10px'; s.appendChild(sf);
+  var old = (data && data.on && data.older || []).filter(function (x) { return goodUrl(x.url); });
+  $('olderBox').style.display = old.length ? '' : 'none'; $('tOlder').textContent = t('older');
+  var ob = $('older'); ob.textContent = '';
+  old.forEach(function (x) {
+    var r = mk('div', 'row'); r.appendChild(mk('span', '', (x.version ? 'v' + x.version + ' · ' : '') + (x.build ? 'BUILD ' + x.build : '') + (x.at ? ' · ' + when(x.at) : '')));
+    var a = mk('a', '', '⬇️ ' + t('get')); a.href = x.url; a.rel = 'noopener'; r.appendChild(a); ob.appendChild(r);
+  });
+}
+$('langBtn').onclick = function () { lang = lang === 'en' ? 'km' : 'en'; try { localStorage.setItem('camfeed_lang', lang); } catch (e) {} draw(); };
+draw();
+fetch('/api/apk', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) { if (d && d.success) data = d; else failed = true; draw(); })
+  .catch(function () { failed = true; draw(); });
+})();
+</script>
+</body>
+</html>

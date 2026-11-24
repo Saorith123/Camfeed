@@ -483,17 +483,28 @@
         function openManualTopup(start, after) {
             openModal('💳 ' + T('បញ្ចូលលុយ', 'Add money'), `<div class="muted">${T('១. ជ្រើសចំនួន (ដុល្លារ)', '1. Choose the amount (USD)')}</div>
                 <div class="chips" id="topChips"></div><input id="topAmt" type="number" min="${W.min}" max="${W.max}" step="0.5" value="${start}" style="margin-top:8px;">
-                <div class="muted" style="margin-top:12px;">${T('២. ស្កេន QR ឬបើក ABA ហើយបង់ចំនួនដដែល', '2. Scan the QR or open ABA and pay the same amount')}</div>
-                <div id="topAba">
-                ${W.abaQr ? `<img src="${esc(W.abaQr)}" alt="ABA QR" style="width:100%;max-width:260px;margin:8px auto;display:block;border-radius:12px;">` : ''}
-                ${W.abaLink ? `<a class="btn" href="${esc(W.abaLink)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin-top:6px;">📱 ${T('បើក ABA ដើម្បីបង់', 'Open ABA to pay')}</a>` : ''}
-                </div>
+                <div class="muted" style="margin-top:12px;">${T('២. ជ្រើសវិធីបង់ប្រាក់ (មួយណាក៏បាន)', '2. Choose how to pay (either one)')}</div>
+                <div id="topAba"><div class="chips" id="payWays"></div><div id="payShow" style="margin-top:8px;"></div></div>
                 <div class="muted" style="margin-top:12px;">${T('៣. ថតអេក្រង់វិក្កយបត្រ ហើយដាក់នៅទីនេះ', '3. Take a screenshot of the receipt and put it here')}</div>
                 <input id="topFile" type="file" accept="image/*" style="margin-top:6px;"><div class="muted" id="topUp"></div>
                 <input id="topRef" maxlength="80" style="margin-top:6px;" placeholder="${T('លេខប្រតិបត្តិការ (បើមាន)', 'Transaction number (if you have it)')}">
                 <button class="btn" type="button" id="topGo" style="width:100%;margin-top:12px;background:#176f35;">✅ ${T('ខ្ញុំបានបង់ហើយ', 'I have paid')}</button>
                 <div class="msg" id="topMsg"></div><div id="topQr"></div>`);
             const chips = $('topChips'); [...new Set([start, 5, 10, 20, 50].filter(v => v >= W.min && v <= W.max))].forEach(v => chips.appendChild(chip('$' + v, Number($('topAmt').value) === v, () => { $('topAmt').value = v; chips.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.textContent === '$' + v)); })));
+            // two separate ways: 📷 scan the QR  /  📱 open the ABA app (only the chosen one is shown)
+            const ways = [];
+            if (W.abaQr) ways.push(['qr', '📷 ' + T('ស្កេន QR', 'Scan the QR')]);
+            if (W.abaLink) ways.push(['link', '📱 ' + T('បើកកម្មវិធី ABA', 'Open the ABA app')]);
+            function showWay(k) {
+                $('payWays').querySelectorAll('.chip').forEach((c, i) => c.classList.toggle('on', ways[i][0] === k));
+                $('payShow').innerHTML = k === 'qr'
+                    ? `<div class="muted">${T('ស្កេន QR នេះ ពីកម្មវិធីធនាគារណាក៏បាន ហើយបង់ចំនួនខាងលើ', 'Scan this QR from any bank app and pay the amount above')}</div>
+                       <img src="${esc(W.abaQr)}" alt="KHQR" style="width:100%;max-width:260px;margin:8px auto;display:block;border-radius:12px;">`
+                    : `<div class="muted">${T('ចុចប៊ូតុងខាងក្រោម ដើម្បីបើក ABA ហើយបង់ចំនួនខាងលើ', 'Tap the button below to open ABA and pay the amount above')}</div>
+                       <a class="btn" href="${esc(W.abaLink)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">📱 ${T('បើក ABA ដើម្បីបង់', 'Open ABA to pay')}</a>`;
+            }
+            ways.forEach(w => $('payWays').appendChild(chip(w[1], false, () => showWay(w[0]))));
+            if (ways.length === 1) { $('payWays').style.display = 'none'; showWay(ways[0][0]); }
             let receipt = '', upBusy = false;
             $('topFile').addEventListener('change', async (ev) => {
                 const f = ev.target.files && ev.target.files[0]; receipt = ''; if (!f) return;

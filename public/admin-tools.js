@@ -419,11 +419,77 @@
     telegramLogin: ['Telegram login', 'Off by decision (ENABLE_TELEGRAM_LOGIN).'], turnstile: ['Human check (Cloudflare Turnstile)', 'Set TURNSTILE_SECRET_KEY to stop bots on sign-up and login.'], mediaStorage: ['Photo / video storage (R2)', 'Needs R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.'],
     aiCategories: ['AI post categories (Gemini)', 'Without it every post is "General", so the feed can not learn what people like.'], supportTelegram: ['Support Telegram link', 'Set SUPPORT_TELEGRAM so people can message you from the sign-up page.'],
     googlePlay: ['Coins by Google Play (app)', 'Set GOOGLE_PLAY_SERVICE_ACCOUNT (the JSON key of a service account added in Play Console › Users and permissions). Products: cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20.'], payway: ['Ad wallet by ABA PayWay', 'Set PAYWAY_MERCHANT_ID, PAYWAY_API_KEY and PAYWAY_API_URL.'] };
+  // 📲 the Android app file for testers and family (camfeedkh.com/apk.html) — only the Super Admin uploads
+  function apkCard(p) {
+    var box = el('div', { class: 'at-card', style: 'margin:10px 0 14px' }); p.appendChild(box);
+    function draw() {
+      adm('/api/admin/apk', { action: 'list' }).then(function (d) {
+        box.textContent = '';
+        box.appendChild(el('div', { class: 'at-h', text: AT('📲 កម្មវិធី Android (APK) សម្រាប់ទាញយក', '📲 Android app (APK) to download') }));
+        if (!d || !d.success) { box.appendChild(el('div', { text: (d && d.error) || AT('មិនបាន', 'Failed') })); return; }
+        var link = location.origin + '/apk.html';
+        box.appendChild(el('div', { style: 'font-size:13.5px;color:#444;line-height:1.7' }, [
+          AT('ទំព័រទាញយក៖ ', 'Download page: '), el('a', { href: link, target: '_blank', rel: 'noopener', text: link }),
+          el('button', { class: 'btn-sm btn-gray', style: 'margin-left:8px', text: AT('📋 ចម្លង link', '📋 Copy link'), onclick: function () { try { navigator.clipboard.writeText(link); this.textContent = '✅'; } catch (e) {} } }),
+          el('span', { style: 'margin-left:8px', text: d.on ? AT('· ✅ បើក', '· ✅ open') : AT('· ⛔ បិទ', '· ⛔ closed') }),
+          d.isSuperAdmin ? el('button', { class: 'btn-sm btn-gray', style: 'margin-left:8px', text: d.on ? AT('⛔ បិទទំព័រ', '⛔ Close the page') : AT('✅ បើកទំព័រ', '✅ Open the page'), onclick: function () { adm('/api/admin/apk', { action: 'settings', on: !d.on }).then(draw); } }) : null
+        ]));
+        if (d.isSuperAdmin) {
+          var file = el('input', { type: 'file', accept: '.apk,application/vnd.android.package-archive', style: 'font-size:13px' });
+          var ver = el('input', { class: 'at-in', placeholder: AT('កំណែ ឧ. 1.0.5', 'Version e.g. 1.0.5'), maxlength: '30', style: 'max-width:150px' });
+          var bld = el('input', { class: 'at-in', type: 'number', min: '1', placeholder: 'BUILD', style: 'max-width:110px' });
+          var note = el('textarea', { class: 'at-in', rows: '3', maxlength: '1000', placeholder: AT('អ្វីថ្មី / អ្វីដែលត្រូវសាក (អ្នកទាញយកនឹងឃើញ)', 'What is new / what to test (people will see it)'), style: 'width:100%' });
+          var msg = el('div', { style: 'font-size:13px;color:#65676b;margin-top:6px' });
+          file.addEventListener('change', function () {
+            var f = file.files && file.files[0]; if (!f) return;
+            var m = /(\d{2,6})/.exec(f.name || ''); if (m && !bld.value) bld.value = m[1];
+          });
+          var go = el('button', { class: 'btn-sm btn-blue', text: AT('⬆️ អាប់ឡូត ហើយដាក់ឲ្យទាញយក', '⬆️ Upload and publish'), onclick: function () {
+            var f = file.files && file.files[0];
+            if (!f || !/\.apk$/i.test(f.name || '')) { msg.textContent = AT('❌ សូមជ្រើសឯកសារ .apk', '❌ Please choose an .apk file'); return; }
+            go.disabled = true; msg.textContent = AT('កំពុងអាប់ឡូត… (កុំបិទទំព័រ)', 'Uploading… (do not close the page)');
+            adm('/api/admin/apk', { action: 'upload-url', build: bld.value }).then(function (u) {
+              if (!u || !u.success) throw new Error((u && u.error) || 'Upload not allowed');
+              return new Promise(function (ok, no) {
+                var x = new XMLHttpRequest(); x.open('PUT', u.uploadUrl); x.setRequestHeader('Content-Type', 'application/vnd.android.package-archive');
+                x.upload.onprogress = function (e) { if (e.lengthComputable) msg.textContent = AT('កំពុងអាប់ឡូត… ', 'Uploading… ') + Math.round(e.loaded * 100 / e.total) + '%'; };
+                x.onload = function () { x.status >= 200 && x.status < 300 ? ok(u.publicUrl) : no(new Error('Upload failed (' + x.status + ')')); };
+                x.onerror = function () { no(new Error('Upload failed (network)')); };
+                x.send(f);
+              });
+            }).then(function (url) {
+              return adm('/api/admin/apk', { action: 'save', url: url, version: ver.value, build: bld.value, note: note.value, size: f.size });
+            }).then(function (r) {
+              go.disabled = false;
+              if (!r || !r.success) { msg.textContent = '❌ ' + ((r && r.error) || 'Failed'); return; }
+              draw();
+            }).catch(function (e) { go.disabled = false; msg.textContent = '❌ ' + e.message; });
+          } });
+          box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center' }, [file, ver, bld]));
+          box.appendChild(note);
+          box.appendChild(el('div', { style: 'margin-top:6px' }, [go])); box.appendChild(msg);
+        }
+        box.appendChild(el('div', { style: 'font-weight:800;margin-top:12px', text: AT('កំណែដែលបានអាប់ឡូត (ថ្មីបំផុតនៅលើគេ = អ្វីដែលគេទាញយក)', 'Uploaded versions (newest on top = what people download)') }));
+        if (!d.list.length) box.appendChild(el('div', { style: 'font-size:13px;color:#65676b', text: AT('មិនទាន់មានទេ', 'None yet') }));
+        d.list.forEach(function (x, i) {
+          var row = el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;font-size:13.5px;border-bottom:1px solid #f0f2f5;padding-bottom:6px' }, [
+            el('span', { style: 'flex:1;min-width:200px', text: (i === 0 ? '⭐ ' : '') + (x.version ? 'v' + x.version + ' · ' : '') + (x.build ? 'BUILD ' + x.build : '') + (x.sizeMb ? ' · ' + x.sizeMb + ' MB' : '') + ' · ' + new Date(x.at).toLocaleString() }),
+            el('a', { href: x.url, target: '_blank', rel: 'noopener', text: '⬇️' })
+          ]);
+          if (d.isSuperAdmin) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('🗑️ ដកចេញ', '🗑️ Remove'), onclick: function () { if (confirm(AT('ដកកំណែនេះចេញពីទំព័រទាញយក?', 'Remove this version from the download page?'))) adm('/api/admin/apk', { action: 'remove', id: x.id }).then(draw); } }));
+          box.appendChild(row);
+        });
+      });
+    }
+    draw();
+  }
+
   function loadSystem() {
     var p = document.getElementById('panel-system'); p.textContent = ''; p.appendChild(empty('Checking…'));
     adm('/api/admin/system').then(function (d) {
       p.textContent = ''; if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Check again', onclick: loadSystem }), el('span', { style: 'color:#65676b;font-size:13px', text: 'Only yes / no is shown here. Secret values are never displayed.' })]));
+      apkCard(p);
       var c = d.checks;
       // 📊 count every table: used when the database moves (compare the old site and the new site)
       var dbBox = el('div', { style: 'margin:8px 0 14px' }); p.appendChild(dbBox);
@@ -1780,7 +1846,7 @@
         if (d.lastError) box.appendChild(el('div', { style: 'font-size:12.5px;color:#b42318;margin-top:6px', text: AT('⚠️ បញ្ហាចុងក្រោយ៖ ', '⚠️ Last problem: ') + d.lastError }));
         // 📲 the simple way: CamFeed's own ABA link + ✅ in Telegram
         var lk = el('input', { class: 'at-in', type: 'url', value: d.abaLink || '', placeholder: 'https://link.payway.com.kh/…', style: 'flex:1;min-width:220px' });
-        box.appendChild(el('div', { style: 'font-weight:800;margin-top:12px', text: AT('📲 បង់តាម link ABA (ពិនិត្យដោយដៃក្នុង Telegram)', '📲 Pay by ABA link (checked by hand in Telegram)') }));
+        box.appendChild(el('div', { style: 'font-weight:800;margin-top:12px', text: AT('📲 បង់តាម QR / link ABA (ពាណិជ្ជកម្ម និងទិញកាក់ · ពិនិត្យក្នុង Telegram)', '📲 Pay by ABA QR / link (ads and coins · checked in Telegram)') }));
         box.appendChild(el('div', { style: 'font-size:13px;color:#555;line-height:1.6', text: d.manual
           ? AT('✅ កំពុងប្រើ៖ អ្នកផ្សាយស្កេន QR ឬបើក link ហើយបង់ រួចដាក់រូបវិក្កយបត្រ។ Telegram ផ្ញើរូបវិក្កយបត្រ ✅ / ❌ មកអ្នក។ ដក link និងរូប QR ចេញ ដើម្បីប្រើ QR PayWay វិញ។', '✅ In use: advertisers scan the QR or open the link, pay, and add the receipt photo. Telegram sends you the receipt with ✅ / ❌. Remove the link and the QR picture to use the PayWay QR again.')
           : AT('ដាក់ link ABA និង/ឬ រូប QR ABA របស់អ្នក ដើម្បីឲ្យអ្នកផ្សាយបង់តាមវា (ប្រើជំនួស QR PayWay)។', 'Put your ABA link and/or ABA QR picture so advertisers pay by it (used instead of the PayWay QR).') }));
