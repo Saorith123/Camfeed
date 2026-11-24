@@ -47,6 +47,7 @@
       if (n.nodeType === 3) { var p = n.parentNode; if (p && SKIP[p.nodeName]) return; if (p && p.closest && p.closest('[data-raw], .notranslate')) return; var x = tr(n.nodeValue); if (x !== null && x !== n.nodeValue) n.nodeValue = x; return; }
       if (n.nodeType !== 1 || SKIP[n.nodeName]) return;
       ['placeholder', 'title'].forEach(function (a) { var v = n.getAttribute && n.getAttribute(a); if (v) { var x = tr(v); if (x !== null) n.setAttribute(a, x); } });
+      if (n.nodeName === 'OPTION' && !n.hasAttribute('value')) n.setAttribute('value', n.textContent);   // keep the English value: only the shown text becomes Khmer
       if (n.nodeName === 'INPUT' && (n.type === 'button' || n.type === 'submit') && n.value) { var y = tr(n.value); if (y !== null) n.value = y; }
       for (var c = n.firstChild; c; c = c.nextSibling) walk(c);
     }
@@ -1975,6 +1976,10 @@
     var ROWS = [
       ['firstAfter', AT('ពាណិជ្ជកម្មដំបូង៖ បង្ហាញក្រោយការបង្ហោះទីប៉ុន្មាន', 'First ad: shown after how many posts'), AT('ឧ. 6 = អ្នកប្រើអូសមើលការបង្ហោះ 6 ហើយទើបឃើញពាណិជ្ជកម្មដំបូង។', 'e.g. 6 = people scroll past 6 posts, then see the first ad.')],
       ['every', AT('ពាណិជ្ជកម្មបន្ទាប់ៗ៖ ម្ដងក្នុងរៀងរាល់ប៉ុន្មានការបង្ហោះ', 'Next ads: once every how many posts'), AT('ឧ. 50 = ក្រោយពាណិជ្ជកម្មដំបូង ពាណិជ្ជកម្មបន្ទាប់លេចឡើងរៀងរាល់ 50 ការបង្ហោះ។ លេខធំ = ពាណិជ្ជកម្មតិច។', 'e.g. 50 = after the first ad, the next one comes every 50 posts. Bigger number = fewer ads.')],
+      ['reelFirst', AT('🎬 វីដេអូ៖ ពាណិជ្ជកម្មដំបូង បង្ហាញក្រោយវីដេអូទីប៉ុន្មាន', '🎬 Videos: first ad after how many videos'), AT('ឧ. 6 = មើលវីដេអូ 6 ហើយទើបឃើញពាណិជ្ជកម្មដំបូង។', 'e.g. 6 = watch 6 videos, then the first ad.')],
+      ['reelEvery', AT('🎬 វីដេអូ៖ ពាណិជ្ជកម្មបន្ទាប់ៗ ម្ដងក្នុងរៀងរាល់ប៉ុន្មានវីដេអូ', '🎬 Videos: next ads once every how many videos'), AT('ឧ. 10', 'e.g. 10')],
+      ['reelGapMin', AT('🎬 វីដេអូ៖ យ៉ាងតិចប៉ុន្មាននាទី រវាងពាណិជ្ជកម្មពីរ', '🎬 Videos: at least how many minutes between two ads'), AT('ឧ. 5 = ទោះអូសលឿនក៏ដោយ ពាណិជ្ជកម្មមិនលោតញឹកជាង 5 នាទីម្ដង។', 'e.g. 5 = even when scrolling fast, not more than one ad every 5 minutes.')],
+      ['storyEvery', AT('📖 ស្តូរី៖ ពាណិជ្ជកម្មម្ដងក្នុងរៀងរាល់ប៉ុន្មានមនុស្ស', '📖 Stories: one ad every how many people'), AT('ឧ. 4', 'e.g. 4')],
       ['sameMax', AT('ពាណិជ្ជកម្មមួយដដែល៖ មនុស្សម្នាក់ឃើញច្រើនបំផុតប៉ុន្មានដងក្នុងមួយថ្ងៃ', 'One same ad: the most times one person sees it in a day'), AT('រួមទាំងការឃើញលើកដំបូង។ ឧ. 3។', 'Including the first time. e.g. 3.')],
       ['gapHours', AT('ពាណិជ្ជកម្មមួយដដែល៖ ត្រូវរង់ចាំប៉ុន្មានម៉ោង ទើបឃើញម្ដងទៀត', 'One same ad: hours to wait before the same person sees it again'), AT('ឧ. 3 = ឃើញម៉ោង 8 ព្រឹក → ម្ដងទៀតមិនមុនម៉ោង 11 ព្រឹក។', 'e.g. 3 = seen at 8 am → again not before 11 am.')],
       ['totalPerDay', AT('ពាណិជ្ជកម្មសរុប៖ មនុស្សម្នាក់ឃើញច្រើនបំផុតប៉ុន្មានក្នុងមួយថ្ងៃ', 'All ads together: the most one person sees in a day'), AT('ទោះមានអ្នកផ្សាយច្រើនប៉ុណ្ណាក៏ដោយ។ ឧ. 20។', 'However many advertisers there are. e.g. 20.')],

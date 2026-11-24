@@ -94,8 +94,8 @@ input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(4
 <section class="view" id="v-details">
 <div class="card"><h2 data-i18n="acc_name_t">ឈ្មោះរបស់អ្នក</h2><p class="desc" data-i18n="acc_name_d">ឈ្មោះនេះបង្ហាញលើប្រកាស និងប្រវត្តិរូបរបស់អ្នក។</p>
 <div class="note warn" data-i18n="acc_name_note">ក្រោយប្តូរឈ្មោះ អ្នកមិនអាចប្តូរម្តងទៀតបានក្នុងរយៈពេល 15 ថ្ងៃទេ។</div>
-<div class="grid2 field-gap"><div><label class="field" for="firstName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="firstName" maxlength="60" autocomplete="given-name"></div>
-<div><label class="field" for="lastName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="lastName" maxlength="60" autocomplete="family-name"></div></div>
+<div class="grid2 field-gap"><div><label class="field" for="lastName" data-i18n="acc_last">នាមត្រកូល</label><input type="text" id="lastName" maxlength="60" autocomplete="family-name"></div>
+<div><label class="field" for="firstName" data-i18n="acc_first">នាមខ្លួន</label><input type="text" id="firstName" maxlength="60" autocomplete="given-name"></div></div>
 <div class="field-gap"><label class="field" for="namePassword" data-i18n="acc_name_pw">ពាក្យសម្ងាត់ (ដើម្បីបញ្ជាក់)</label><input type="password" id="namePassword" maxlength="128" autocomplete="current-password"></div>
 <button type="button" class="btn" id="saveNameBtn" data-i18n="save" disabled>រក្សាទុក</button></div>
 <div class="card"><h2 data-i18n="acc_contact_t">លេខសម្គាល់ និងតំណ</h2><p class="desc" data-i18n="acc_contact_d2">ចែករំលែកតំណរបស់អ្នកឱ្យមិត្តរកអ្នក។</p>
@@ -194,7 +194,7 @@ tf_t:'ការផ្ទៀងផ្ទាត់ពីរជំហាន (Two-fa
 dv_t:'កន្លែងដែលអ្នកបានចូលគណនី',dv_d:'ឧបករណ៍ដែលកំពុងចូល ឬបានចូលថ្មីៗ។ បើមិនស្គាល់ សូមចាកចេញ ហើយប្តូរពាក្យសម្ងាត់។',dv_others:'ចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់',dv_this:'ឧបករណ៍នេះ',dv_logout:'ចាកចេញ',dv_empty:'មិនមានឧបករណ៍ផ្សេងទេ',dv_unknown:'មិនស្គាល់ទីតាំង',
 dv_conf_t:'ចាកចេញពីឧបករណ៍នេះ?',dv_conf_b:(n)=>`${n} នឹងត្រូវចូលគណនីម្តងទៀត។`,dv_done:'បានចាកចេញពីឧបករណ៍ហើយ',dv_others_t:'ចាកចេញពីឧបករណ៍ផ្សេងទាំងអស់?',dv_others_b:'ឧបករណ៍នេះនៅតែចូលបាន ឧបករណ៍ផ្សេងទាំងអស់នឹងត្រូវចូលគណនីម្តងទៀត។',dv_others_ok:'ចាកចេញទាំងអស់',dv_others_done:'បានចាកចេញពីឧបករណ៍ផ្សេងហើយ',dv_old:'ការចូលពីមុន (ចូលម្តងទៀតដើម្បីឃើញព័ត៌មានលម្អិត)',
 now:'ឥឡូវនេះ',ago_min:(n)=>`${n} នាទីមុន`,ago_hour:(n)=>`${n} ម៉ោងមុន`,ago_day:(n)=>`${n} ថ្ងៃមុន`,
-name_saved:'បានរក្សាទុកឈ្មោះថ្មីហើយ',name_need:'សូមបញ្ចូលទាំងនាមខ្លួន និងនាមត្រកូល',acc_name_pw:'ពាក្យសម្ងាត់ (ដើម្បីបញ្ជាក់)',name_pw_need:'សូមវាយពាក្យសម្ងាត់ ដើម្បីបញ្ជាក់ថាជាអ្នក',name_wait:(n)=>`អ្នកអាចប្តូរឈ្មោះម្តងទៀតក្នុង ${n} ថ្ងៃ`,
+name_saved:'បានរក្សាទុកឈ្មោះថ្មីហើយ',name_need:'សូមបញ្ចូលទាំងនាមត្រកូល និងនាមខ្លួន',acc_name_pw:'ពាក្យសម្ងាត់ (ដើម្បីបញ្ជាក់)',name_pw_need:'សូមវាយពាក្យសម្ងាត់ ដើម្បីបញ្ជាក់ថាជាអ្នក',name_wait:(n)=>`អ្នកអាចប្តូរឈ្មោះម្តងទៀតក្នុង ${n} ថ្ងៃ`,
 pr_t:'អ្នកណាអាចឃើញព័ត៌មានរបស់អ្នក',pr_d:'បើបើក អ្នកដទៃអាចឃើញក្នុងប្រវត្តិរូបរបស់អ្នក។ បើបិទ មានតែអ្នកប៉ុណ្ណោះឃើញ។',pr_email:'អាសយដ្ឋានអ៊ីមែល',pr_phone:'លេខទូរស័ព្ទ',pr_location:'ទីតាំង',pr_birthdate:'ថ្ងៃកំណើត',pr_relationship:'ស្ថានភាពទំនាក់ទំនង',pr_gender:'ភេទ',pr_work:'ការងារ',
 pr_on:'អ្នកដទៃអាចឃើញ',pr_off:'មានតែអ្នកឃើញ',pr_saved:'បានរក្សាទុក',pr_fail:'មិនអាចរក្សាទុកបានទេ សូមព្យាយាមម្តងទៀត',
 bl_t:'អ្នកដែលបានហាមឃាត់',bl_d:'អ្នកដែលអ្នកបានហាមឃាត់ មិនអាចឃើញអ្នក ឬផ្ញើសារមកអ្នកបានទេ។',bl_note:'ពេលអ្នកហាមឃាត់នរណាម្នាក់ ការតាមដានរវាងអ្នកទាំងពីរត្រូវបានដកចេញដោយស្វ័យប្រវត្តិ ទោះធ្លាប់តាមដានគ្នាក៏ដោយ។',bl_empty:'អ្នកមិនបានហាមឃាត់នរណាទេ',bl_unblock:'ឈប់ហាមឃាត់',bl_done:'បានឈប់ហាមឃាត់ហើយ',

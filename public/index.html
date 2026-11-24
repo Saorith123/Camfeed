@@ -109,6 +109,7 @@
 
     <script>
         // after login go back to the shared post (/p/123) if the person came from one; only this exact shape is allowed (no open redirect)
+        try { const L = new URLSearchParams(location.search).get('lang'); if (L === 'km' || L === 'en') localStorage.setItem('camfeed_lang', L); } catch (e) {}   // 🌐 the app tells the language
         const NEXT_URL = (function () { try { const n = new URLSearchParams(location.search).get('next') || ''; return (/^\/p\/\d{1,10}$/.test(n) || n === '/signup-helper.html') ? n : 'feed.html'; } catch (e) { return 'feed.html'; } })();
         const existingUser = localStorage.getItem('camfeed_user');
         if (existingUser) {
@@ -164,8 +165,8 @@
             
             <form onsubmit="event.preventDefault(); startEmailVerification();">
                 <div class="row">
-                    <input type="text" id="firstName" placeholder="First name" required>
                     <input type="text" id="lastName" placeholder="Surname" required>
+                    <input type="text" id="firstName" placeholder="First name" required>
                 </div>
                 <div class="id-tabs">
                     <button type="button" class="id-tab active" id="tabEmail" onclick="setIdentityMode('email')">📧 <span id="tabEmailText">Gmail / Email</span></button>

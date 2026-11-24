@@ -1156,11 +1156,13 @@
         }
 
         // ---- Sponsored video ad before a reel (every 5th reel, with a Skip button after a few seconds) ----
-        let preAds = [], reelsSinceAd = 0, prerollOpen = false, prerollTimer = null, prerollCurrentId = null, prerollResume = null;
+        let preAds = [], reelsSinceAd = 0, reelAdsShown = 0, lastPrerollAt = 0, reelCfg = { first: 6, every: 10, gapMin: 5 }, prerollOpen = false, prerollTimer = null, prerollCurrentId = null, prerollResume = null;
         (async function loadPrerollAds() {
             try {
                 const d = await (await fetch('/api/sponsored-ads')).json();
                 if (d.success && Array.isArray(d.ads)) preAds = d.ads.filter(a => (Array.isArray(a.places) && a.places.length ? a.places.includes('reels') : (a.placement === 'video_preroll' || a.placement === 'both')) && a.media_url);   // ☑️ Reels chosen
+                if (d.success) { const n = (v, lo, hi, def) => { v = Number(v); return Number.isFinite(v) && v >= lo && v <= hi ? v : def; };
+                    reelCfg = { first: n(d.reelFirst, 2, 100, 6), every: n(d.reelEvery, 3, 200, 10), gapMin: n(d.reelGapMin, 0, 120, 5) }; }   // ⚙️ set by the Admin
             } catch (e) {}
             setTimeout(loadPrerollAds, 180000);
         })();
@@ -1184,12 +1186,14 @@
         }
         function maybeShowReelPreroll(reelVideo) {
             if (prerollOpen || !preAds.length) return false;
-            if (++reelsSinceAd < 5) return false;
-            reelsSinceAd = 0;
+            if (++reelsSinceAd < (reelAdsShown ? reelCfg.every : reelCfg.first)) return false;   // the first ad after N videos, then every M
+            if (lastPrerollAt && Date.now() - lastPrerollAt < reelCfg.gapMin * 60000) return false;   // never two ads closer than X minutes
+            reelsSinceAd = 0; reelAdsShown++; lastPrerollAt = Date.now();
             const ad = preAds[Math.floor(Math.random() * preAds.length)];
             const ov = document.getElementById('prerollAdOverlay'); if (!ov) return false;
             prerollOpen = true; prerollCurrentId = ad.id; prerollResume = reelVideo;
             try { reelVideo.pause(); } catch (e) {}
+            document.querySelectorAll('video').forEach((v) => { if (v.id !== 'prerollVideo') try { v.pause(); } catch (e) {} });   // no two sounds
             const isVid = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(ad.media_url || '');
             const hasLink = (/^https?:\/\//i.test(ad.target_url || '') || (ad.cta === 'message' && !!ad.owner_email)) && ad.cta !== 'none';
             const media = document.getElementById('prerollMedia');
