@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 178;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 181;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2666,7 +2666,7 @@ const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGat
   onDecide: (...a) => onPaymentDecision(...a) });   // 💰 the owner's ✅ / ❌ on Telegram
 const country = require('./country')({ pool });
 const adWallet = require('./ad-wallet')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
-  tgNotify: (lines) => tgPay.notify(lines), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), creditEnsure: () => adCreditEnsure(), balanceOf: (e) => adCreditOf(e) });   // 💳 the ad wallet (ABA PayWay)
+  tgNotify: (lines) => tgPay.notify(lines), tgAsk: (k, id, lines, labels) => tgPay.ask(k, id, lines, labels), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), creditEnsure: () => adCreditEnsure(), balanceOf: (e) => adCreditOf(e), safeUrl: (u) => security.safeUrl(u) });   // 💳 the ad wallet (ABA PayWay)
 const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice') });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
@@ -2691,8 +2691,8 @@ const coins = require('./coins')({ app, pool, publicIds, adminGate: (req, res) =
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), walletCents: (e) => walletCents(e), starShare: (e) => stars.starShare(e), starsOf: (e) => stars.starsOf(e),
   onTopup: (id, t) => pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = LOWER($1)', [t.email]).then((r) => {
     const n = r.rows[0] ? ((r.rows[0].first_name || '') + ' ' + (r.rows[0].last_name || '')).trim() : '';
-    return tgPay.ask('coin', id, ['🪙 ទិញកាក់ C' + id + ' · $' + Number(t.usd).toFixed(2) + ' → ' + t.coins + ' កាក់', '👤 ' + (n || '—'), '🏦 ' + t.method + (t.ref ? ' · 🧾 ' + t.ref : ''), t.receipt ? '🖼️ ' + t.receipt : '']
-      .filter(Boolean));
+    return tgPay.ask('coin', id, ['🪙 ទិញកាក់ C' + id + ' · $' + Number(t.usd).toFixed(2) + ' → ' + t.coins + ' កាក់', '👤 ' + (n || '—'), '🏦 ' + t.method + (t.ref ? ' · 🧾 ' + t.ref : ''), t.receipt && !security.safeUrl(t.receipt) ? '🖼️ ' + t.receipt : '']
+      .filter(Boolean), undefined, security.safeUrl(t.receipt || '') || undefined);
   }).catch(() => {}) });   // 🪙 coins + 🎁 gifts   // 🎉 Party Room (voice rooms, LiveKit)
 const challenges = require('./challenges')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), xpNowOf: (e) => coins.xpNowOf(e), badgesOf: (e) => coins.badgesOf(e),
@@ -4099,7 +4099,7 @@ app.post('/api/ads/request', async (req, res) => {
     if (open.rows[0].n >= 3) return res.status(429).json({ success: false, error: 'You already have 3 requests waiting. Please wait for an answer.' });
     const cta = objective === 'products' || objective === 'messages' ? 'message' : (['learn_more', 'message', 'shop', 'call', 'none'].includes(b.cta) ? b.cta : 'learn_more');
     const wallet = await adCreditOf(email);
-    if (adWallet.on() && wallet < budget) return res.status(402).json({ success: false, code: 'need_topup', balance: wallet, need: budget - wallet, error: 'Please add money to your ad wallet first.' });   // 💳 pay first (like Facebook)
+    if (adWallet.walletOn() && wallet < budget) return res.status(402).json({ success: false, code: 'need_topup', balance: wallet, need: budget - wallet, error: 'Please add money to your ad wallet first.' });   // 💳 pay first (like Facebook)
     const useCredit = Math.min(wallet, budget);          // 💳 my wallet / credit pays first
     // the price is the budget: it goes straight to "please pay" (CamFeed checks the money and the ad together, with one ✅)
     const r = await pool.query(`INSERT INTO ad_requests (user_email, business_name, contact, placement, caption, target_url, media_url, days, budget_note, objective, post_id, interests, country, budget_cents, cta,
@@ -4289,6 +4289,7 @@ async function onPaymentDecision(kind, id, ok, by) {
     const r = await decideWithdrawal(id, ok ? 'paid' : 'rejected', ok ? '' : 'CamFeed មិនអាចផ្ទេរបានទេ។ សូមពិនិត្យឈ្មោះ និងលេខគណនី ហើយស្នើម្ដងទៀត', by || 'telegram', '', false);
     return { ok: r.ok, text: r.ok ? (ok ? '💵 W' + id + ' បានបង់ — បានប្រាប់ម្ចាស់ហើយ' : '❌ W' + id + ' បដិសេធ — លុយត្រឡប់ចូលកាបូបវិញ') : r.error };
   }
+  if (kind === 'aw') return adWallet.decideManual(id, ok, by || 'telegram');   // 💳 "I have paid" into the ad wallet
   if (kind === 'coin') return coins.decideTopup(id, ok, ok ? '' : 'CamFeed មិនទាន់ឃើញប្រាក់ចូលគណនីទេ', by);
   if (kind !== 'ad') return { ok: false, text: 'Unknown.' };
   if (ok) { const r = await activateAdRequest(id, by); return { ok: r.ok, text: r.ok ? '📢 ពាណិជ្ជកម្ម A' + id + ' ចាប់ផ្ដើមហើយ' : r.error }; }

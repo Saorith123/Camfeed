@@ -1766,7 +1766,7 @@
   // 💳 the ad wallets: ABA PayWay on / off, the money each advertiser has, the top-ups, adding / taking money by hand (Super Admin)
   function adWalletCard(p) {
     var box = el('div', { class: 'at-card', style: 'margin-bottom:14px' }); p.appendChild(box);
-    var ST = { pending: AT('⏳ រង់ចាំ', '⏳ waiting'), paid: AT('✅ បានបង់', '✅ paid'), expired: AT('⌛ ផុតកំណត់', '⌛ ended'), failed: AT('❌ QR មិនបាន', '❌ QR failed') };
+    var ST = { pending: AT('⏳ រង់ចាំ', '⏳ waiting'), paid: AT('✅ បានបង់', '✅ paid'), expired: AT('⌛ ផុតកំណត់', '⌛ ended'), failed: AT('❌ QR មិនបាន', '❌ QR failed'), rejected: AT('❌ មិនទាន់ទទួល', '❌ not received') };
     function usd(c) { return '$' + (Number(c || 0) / 100).toFixed(2); }
     function draw() {
       adm('/api/admin/ad-wallet', { action: 'list' }).then(function (d) {
@@ -1778,6 +1778,48 @@
             : AT('✅ PayWay បើកហើយ (លុយពិត)។ អ្នកផ្សាយបញ្ចូលលុយតាម KHQR ហើយលុយចូលកាបូបដោយខ្លួនឯង បន្ទាប់ពី CamFeed សួរ PayWay ម្ដងទៀត។', '✅ PayWay is on (real money). Advertisers add money by KHQR; it goes in by itself after CamFeed asks PayWay again.'))
           : AT('PayWay មិនទាន់បើកទេ។ ដាក់ក្នុង Render › Environment៖ PAYWAY_MERCHANT_ID, PAYWAY_API_KEY, PAYWAY_API_URL (និង RSA ពីរ)។ ពេលបិទ ការបង់ប្រាក់ធ្វើតាមវិធីចាស់ (ពិនិត្យដោយដៃក្នុង Telegram)។', 'PayWay is not on yet. Put in Render › Environment: PAYWAY_MERCHANT_ID, PAYWAY_API_KEY, PAYWAY_API_URL (and the two RSA keys). While it is off, payments use the old way (checked by hand in Telegram).') }));
         if (d.lastError) box.appendChild(el('div', { style: 'font-size:12.5px;color:#b42318;margin-top:6px', text: AT('⚠️ បញ្ហាចុងក្រោយ៖ ', '⚠️ Last problem: ') + d.lastError }));
+        // 📲 the simple way: CamFeed's own ABA link + ✅ in Telegram
+        var lk = el('input', { class: 'at-in', type: 'url', value: d.abaLink || '', placeholder: 'https://link.payway.com.kh/…', style: 'flex:1;min-width:220px' });
+        box.appendChild(el('div', { style: 'font-weight:800;margin-top:12px', text: AT('📲 បង់តាម link ABA (ពិនិត្យដោយដៃក្នុង Telegram)', '📲 Pay by ABA link (checked by hand in Telegram)') }));
+        box.appendChild(el('div', { style: 'font-size:13px;color:#555;line-height:1.6', text: d.manual
+          ? AT('✅ កំពុងប្រើ៖ អ្នកផ្សាយស្កេន QR ឬបើក link ហើយបង់ រួចដាក់រូបវិក្កយបត្រ។ Telegram ផ្ញើរូបវិក្កយបត្រ ✅ / ❌ មកអ្នក។ ដក link និងរូប QR ចេញ ដើម្បីប្រើ QR PayWay វិញ។', '✅ In use: advertisers scan the QR or open the link, pay, and add the receipt photo. Telegram sends you the receipt with ✅ / ❌. Remove the link and the QR picture to use the PayWay QR again.')
+          : AT('ដាក់ link ABA និង/ឬ រូប QR ABA របស់អ្នក ដើម្បីឲ្យអ្នកផ្សាយបង់តាមវា (ប្រើជំនួស QR PayWay)។', 'Put your ABA link and/or ABA QR picture so advertisers pay by it (used instead of the PayWay QR).') }));
+        box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center' }, [lk,
+          d.isSuperAdmin ? el('button', { class: 'btn-sm', text: AT('💾 រក្សាទុក', '💾 Save'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'settings', abaLink: lk.value.trim() }).then(function (x) { if (!x.success) alert(x.error || 'Failed'); draw(); }); } }) : el('span')]));
+        // the picture of CamFeed's ABA QR (shown to advertisers to scan)
+        var qrRow = el('div', { class: 'at-row', style: 'gap:10px;margin-top:8px;flex-wrap:wrap;align-items:center' });
+        if (d.abaQr) qrRow.appendChild(el('img', { src: d.abaQr, alt: 'QR', style: 'width:110px;height:110px;object-fit:contain;border:1px solid #e4e6eb;border-radius:10px;background:#fff' }));
+        if (d.isSuperAdmin) {
+          var qf = el('input', { type: 'file', accept: 'image/*', style: 'font-size:13px' }), qm = el('span', { style: 'font-size:12.5px;color:#65676b' });
+          qf.addEventListener('change', function () {
+            var f = qf.files && qf.files[0]; if (!f) return; qm.textContent = AT('កំពុងអាប់ឡូត…', 'Uploading…');
+            fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name || 'aba-qr.jpg', content_type: f.type || 'image/jpeg' }) })
+              .then(function (r) { return r.json(); })
+              .then(function (u) {
+                if (!u.uploadUrl) throw new Error(u.error || 'Upload not allowed');
+                return fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'image/jpeg' }, body: f }).then(function (r) {
+                  if (!r.ok) throw new Error('Upload failed (' + r.status + ')');
+                  return adm('/api/admin/ad-wallet', { action: 'settings', abaQr: u.publicUrl });
+                });
+              }).then(function (x) { if (x && !x.success) alert(x.error || 'Failed'); draw(); })
+              .catch(function (e) { qm.textContent = '❌ ' + e.message; });
+          });
+          qrRow.appendChild(el('span', { style: 'font-size:13px;font-weight:700', text: AT('🖼️ រូប QR ABA របស់ CamFeed៖', '🖼️ CamFeed\'s ABA QR picture:') }));
+          qrRow.appendChild(qf); qrRow.appendChild(qm);
+          if (d.abaQr) qrRow.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('🗑️ ដករូប QR', '🗑️ Remove QR'), onclick: function () { if (confirm(AT('ដករូប QR មែនទេ?', 'Remove the QR picture?'))) adm('/api/admin/ad-wallet', { action: 'settings', abaQr: '' }).then(draw); } }));
+        }
+        box.appendChild(qrRow);
+        // 📋 for ABA support: the last requests / answers of PayWay (hash hidden, no keys)
+        if (d.isSuperAdmin) {
+          var lg = el('textarea', { class: 'at-in', rows: '8', readonly: 'readonly', style: 'width:100%;font-family:monospace;font-size:11.5px' });
+          lg.value = (d.talks && d.talks.length) ? JSON.stringify(d.talks, null, 2) : AT('មិនទាន់មានទេ។ សូមសាកបង្កើត QR PayWay ម្ដងសិន (លុប link និងរូប QR ចេញបណ្ដោះអាសន្ន) រួចចុចមើលម្ដងទៀត។', 'Nothing yet. Make one PayWay QR first (remove the link and QR picture for a moment), then look again.');
+          box.appendChild(el('details', { style: 'margin-top:12px' }, [
+            el('summary', { style: 'cursor:pointer;font-weight:800', text: AT('📋 កំណត់ត្រា PayWay (សម្រាប់ផ្ញើទៅ ABA)', '📋 PayWay log (to send to ABA)') }),
+            el('div', { style: 'font-size:12.5px;color:#555;margin:6px 0', text: AT('មិនមាន KEY ឬលេខសម្ងាត់ទេ (hash ត្រូវបានលាក់)។ អាចចម្លងផ្ញើទៅ ABA បាន។', 'No KEY or secret inside (the hash is hidden). Safe to copy and send to ABA.') }),
+            lg,
+            el('button', { class: 'btn-sm', text: AT('📋 ចម្លង', '📋 Copy'), onclick: function () { lg.select(); try { navigator.clipboard.writeText(lg.value); } catch (e) { document.execCommand('copy'); } } })
+          ]));
+        }
         // the rules
         var mn = el('input', { class: 'at-in', type: 'number', min: '1', value: d.cfg.minUsd, style: 'max-width:110px' }), mx = el('input', { class: 'at-in', type: 'number', min: '1', value: d.cfg.maxUsd, style: 'max-width:110px' });
         box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center' }, [
@@ -1803,7 +1845,15 @@
           var row = el('div', { class: 'at-row', style: 'gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;font-size:13.5px' }, [
             el('span', { style: 'flex:1;min-width:200px', text: 'W' + t.id + ' · ' + ((t.first_name || '') + ' ' + (t.last_name || '')).trim() + ' · ' + usd(t.cents) + ' · ' + (ST[t.status] || t.status) + ' · ' + (t.created_at ? new Date(t.created_at).toLocaleString() : '') })
           ]);
-          if (d.isSuperAdmin && (t.status === 'pending' || t.status === 'expired')) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('🔄 សួរ PayWay ម្ដងទៀត', '🔄 Ask PayWay again'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'recheck', id: t.id }).then(draw); } }));
+          if (t.method === 'manual') {
+            var rc = String(t.note || '').split(' · ').filter(function (x) { return /^https:\/\//.test(x); })[0], rf = String(t.note || '').split(' · ').filter(function (x) { return !/^https:\/\//.test(x); }).join(' · ');
+            row.firstChild.textContent += ' · 📲 ABA' + (rf ? ' · 🧾 ' + rf : '');
+            if (rc) row.appendChild(el('a', { href: rc, target: '_blank', rel: 'noopener noreferrer', text: AT('🖼️ វិក្កយបត្រ', '🖼️ Receipt'), style: 'font-size:13px' }));
+          }
+          if (d.isSuperAdmin && t.method === 'manual' && t.status === 'pending') {
+            row.appendChild(el('button', { class: 'btn-sm', text: AT('✅ បានទទួល', '✅ Received'), onclick: function () { if (confirm(AT('ឃើញលុយ ' + usd(t.cents) + ' ចូល ABA ហើយមែនទេ?', 'Did you see ' + usd(t.cents) + ' in ABA?'))) adm('/api/admin/ad-wallet', { action: 'decide', id: t.id, ok: true }).then(function (x) { if (!x.success) alert(x.error || 'Failed'); draw(); }); } }));
+            row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('❌ មិនទាន់ទទួល', '❌ Not received'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'decide', id: t.id, ok: false }).then(function (x) { if (!x.success) alert(x.error || 'Failed'); draw(); }); } }));
+          } else if (d.isSuperAdmin && t.method !== 'manual' && (t.status === 'pending' || t.status === 'expired')) row.appendChild(el('button', { class: 'btn-sm btn-gray', text: AT('🔄 សួរ PayWay ម្ដងទៀត', '🔄 Ask PayWay again'), onclick: function () { adm('/api/admin/ad-wallet', { action: 'recheck', id: t.id }).then(draw); } }));
           box.appendChild(row);
         });
       });

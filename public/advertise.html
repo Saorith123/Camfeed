@@ -432,6 +432,7 @@
                     <div><div class="muted">💳 ${T('កាបូបពាណិជ្ជកម្ម', 'Ad wallet')}</div><div class="amt">${money(W.balance)}</div></div>
                     <button class="btn small" type="button" onclick="openTopup()">➕ ${T('បញ្ចូលលុយ', 'Add money')}</button>
                 </div>
+                ${(W.waiting || []).map(x => `<div class="muted" style="color:#92580a;margin-top:6px;">⏳ W${Number(x.id)} · ${money(x.cents)} — ${T('CamFeed កំពុងពិនិត្យការបង់ប្រាក់', 'CamFeed is checking the payment')}</div>`).join('')}
                 ${W.sandbox ? `<div class="muted" style="color:#92580a;margin-top:6px;">🧪 ${T('កំពុងសាកល្បង (Sandbox) — មិនមែនលុយពិត', 'Testing (Sandbox) — not real money')}</div>` : ''}
                 <div class="muted" style="margin-top:6px;">${T('ពាណិជ្ជកម្មនីមួយៗ កាត់លុយពីកាបូបនេះភ្លាម។ លុយដែលមិនទាន់ប្រើ ត្រឡប់ចូលកាបូបវិញ។ ប្រើបានតែសម្រាប់ផ្សាយពាណិជ្ជកម្ម។', 'Each ad is paid from this wallet at once. Money not used comes back. It can only be used for ads.')}</div>
                 ${W.history && W.history.length ? `<details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:700;font-size:13.5px;">${T('ប្រវត្តិ', 'History')}</summary>
@@ -442,6 +443,7 @@
         function openTopup(needUsd, after) {
             if (!W.payway) { alert(T('ការបញ្ចូលលុយតាម ABA មិនទាន់រួចរាល់ទេ។', 'Adding money by ABA is not ready yet.')); return; }
             const start = Math.max(W.min, Math.ceil((needUsd || 0) * 100) / 100 || W.min);
+            if (W.manual) return openManualTopup(start, after);
             openModal('💳 ' + T('បញ្ចូលលុយ', 'Add money'), `<div class="muted">${T('ចំនួន (ដុល្លារ)', 'Amount (USD)')}</div>
                 <div class="chips" id="topChips"></div><input id="topAmt" type="number" min="${W.min}" max="${W.max}" step="0.5" value="${start}" style="margin-top:8px;">
                 <button class="btn" type="button" id="topGo" style="width:100%;margin-top:12px;">${T('បង្កើត QR សម្រាប់បង់', 'Make the QR to pay')}</button><div class="msg" id="topMsg"></div><div id="topQr"></div>`);
@@ -477,6 +479,71 @@
             });
         }
         window.openTopup = openTopup;
+        // 📲 the simple way: pay to CamFeed's ABA link → "I have paid" → CamFeed checks → the money goes in
+        function openManualTopup(start, after) {
+            openModal('💳 ' + T('បញ្ចូលលុយ', 'Add money'), `<div class="muted">${T('១. ជ្រើសចំនួន (ដុល្លារ)', '1. Choose the amount (USD)')}</div>
+                <div class="chips" id="topChips"></div><input id="topAmt" type="number" min="${W.min}" max="${W.max}" step="0.5" value="${start}" style="margin-top:8px;">
+                <div class="muted" style="margin-top:12px;">${T('២. ស្កេន QR ឬបើក ABA ហើយបង់ចំនួនដដែល', '2. Scan the QR or open ABA and pay the same amount')}</div>
+                <div id="topAba">
+                ${W.abaQr ? `<img src="${esc(W.abaQr)}" alt="ABA QR" style="width:100%;max-width:260px;margin:8px auto;display:block;border-radius:12px;">` : ''}
+                ${W.abaLink ? `<a class="btn" href="${esc(W.abaLink)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin-top:6px;">📱 ${T('បើក ABA ដើម្បីបង់', 'Open ABA to pay')}</a>` : ''}
+                </div>
+                <div class="muted" style="margin-top:12px;">${T('៣. ថតអេក្រង់វិក្កយបត្រ ហើយដាក់នៅទីនេះ', '3. Take a screenshot of the receipt and put it here')}</div>
+                <input id="topFile" type="file" accept="image/*" style="margin-top:6px;"><div class="muted" id="topUp"></div>
+                <input id="topRef" maxlength="80" style="margin-top:6px;" placeholder="${T('លេខប្រតិបត្តិការ (បើមាន)', 'Transaction number (if you have it)')}">
+                <button class="btn" type="button" id="topGo" style="width:100%;margin-top:12px;background:#176f35;">✅ ${T('ខ្ញុំបានបង់ហើយ', 'I have paid')}</button>
+                <div class="msg" id="topMsg"></div><div id="topQr"></div>`);
+            const chips = $('topChips'); [...new Set([start, 5, 10, 20, 50].filter(v => v >= W.min && v <= W.max))].forEach(v => chips.appendChild(chip('$' + v, Number($('topAmt').value) === v, () => { $('topAmt').value = v; chips.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.textContent === '$' + v)); })));
+            let receipt = '', upBusy = false;
+            $('topFile').addEventListener('change', async (ev) => {
+                const f = ev.target.files && ev.target.files[0]; receipt = ''; if (!f) return;
+                if (!/^image\//.test(f.type || '')) { $('topUp').textContent = T('❌ សូមដាក់រូបភាព', '❌ Please choose a picture'); return; }
+                upBusy = true; $('topUp').textContent = T('កំពុងអាប់ឡូត…', 'Uploading…');
+                try {
+                    const u = await (await fetch('/api/videos/upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_email: currentUser.email, file_name: f.name || 'receipt.jpg', content_type: f.type || 'image/jpeg' }) })).json();
+                    if (!u.uploadUrl) throw new Error('x');
+                    const put = await fetch(u.uploadUrl, { method: 'PUT', headers: { 'Content-Type': f.type || 'image/jpeg' }, body: f });
+                    if (!put.ok) throw new Error('x');
+                    receipt = u.publicUrl; $('topUp').textContent = T('✅ អាប់ឡូតរួចរាល់', '✅ Uploaded');
+                } catch (e) { $('topUp').textContent = T('❌ អាប់ឡូតមិនបាន។ សូមសាកម្ដងទៀត។', '❌ Upload failed. Please try again.'); }
+                upBusy = false;
+            });
+            $('topGo').addEventListener('click', async () => {
+                const btn = $('topGo'), amt = Number($('topAmt').value);
+                if (upBusy) { setMsg('topMsg', false, T('សូមរង់ចាំការអាប់ឡូតរូបបន្តិច…', 'Please wait for the picture to upload…')); return; }
+                if (!receipt && !$('topRef').value.trim()) { setMsg('topMsg', false, T('សូមដាក់រូបវិក្កយបត្រ', 'Please add the photo of the receipt')); return; }
+                if (!(amt >= W.min && amt <= W.max)) { setMsg('topMsg', false, T('ចំនួនត្រូវចាប់ពី $' + W.min + ' ដល់ $' + W.max, 'The amount must be from $' + W.min + ' to $' + W.max)); return; }
+                if (!confirm(T('តើអ្នកបានបង់ $' + amt.toFixed(2) + ' តាម ABA រួចហើយមែនទេ?', 'Have you already paid $' + amt.toFixed(2) + ' by ABA?'))) return;
+                btn.disabled = true;
+                try {
+                    const d = await (await fetch('/api/ad-wallet/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: amt, ref: $('topRef').value, receipt }) })).json();
+                    if (!d.success) { setMsg('topMsg', false, d.code === 'amount' ? T('ចំនួនត្រូវចាប់ពី $' + d.min + ' ដល់ $' + d.max, 'The amount must be from $' + d.min + ' to $' + d.max) : d.code === 'many' ? T('សូមរង់ចាំ CamFeed ពិនិត្យការបង់ប្រាក់មុនៗសិន។', 'Please wait until CamFeed checks the ones you sent.') : T('មិនបាន។ សូមសាកម្ដងទៀត។', 'Failed. Please try again.')); btn.disabled = false; return; }
+                    $('topMsg').className = 'msg';
+                    ['topChips', 'topAmt', 'topAba', 'topFile', 'topUp', 'topRef', 'topGo'].forEach(i => { if ($(i)) $(i).style.display = 'none'; });
+                    $('topQr').innerHTML = `<div style="text-align:center;margin-top:8px;"><div style="font-size:26px;font-weight:800;">$${Number(d.amount).toFixed(2)}</div>
+                        <div class="muted" id="topWait" style="margin-top:8px;">⏳ ${T('CamFeed កំពុងពិនិត្យការបង់ប្រាក់ (W' + Number(d.id) + ')។ ពេលឃើញលុយចូល វានឹងចូលកាបូបអ្នកភ្លាម ហើយអ្នកនឹងទទួលការជូនដំណឹង។ អ្នកអាចបិទទំព័រនេះបាន។', 'CamFeed is checking the payment (W' + Number(d.id) + '). When the money is seen it goes into your wallet at once and you get a notification. You can close this page.')}</div></div>`;
+                    loadWallet();
+                    clearInterval(topTimer);
+                    const until = Date.now() + 30 * 60 * 1000;
+                    topTimer = setInterval(async () => {
+                        if (!$('topWait') || Date.now() > until) { clearInterval(topTimer); return; }
+                        try {
+                            const x = await (await fetch('/api/ad-wallet/topup/' + Number(d.id))).json();
+                            if (x.success && x.status === 'paid') {
+                                clearInterval(topTimer);
+                                $('topQr').innerHTML = `<div class="msg ok" style="display:block;font-size:15px;text-align:center;">✅ ${T('បានបញ្ចូល $' + Number(d.amount).toFixed(2) + ' ហើយ!', 'Added $' + Number(d.amount).toFixed(2) + '!')}<br>${T('កាបូប៖ ', 'Wallet: ')}<b>${money(x.balance)}</b></div>`;
+                                await loadWallet(); loadMine(); estimate();
+                                if (after) setTimeout(() => { closeModal(); after(); }, 1200);
+                            } else if (x.success && x.status === 'rejected') {
+                                clearInterval(topTimer);
+                                $('topWait').textContent = T('❌ CamFeed មិនទាន់ឃើញប្រាក់ចូលទេ។ សូមពិនិត្យការផ្ទេរ ហើយសាកម្ដងទៀត។', '❌ CamFeed has not seen the money yet. Please check the transfer and try again.');
+                                loadWallet(); loadMine();
+                            }
+                        } catch (e) {}
+                    }, 5000);
+                } catch (e) { setMsg('topMsg', false, T('❌ បញ្ហាបណ្ដាញ', '❌ Network problem')); btn.disabled = false; }
+            });
+        }
         let mine = [];
         function payBox(r, where) {
             const code = 'A' + Number(r.id);

@@ -7,8 +7,14 @@
 'use strict';
 const crypto = require('crypto');
 
-module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sendNotice, creditEnsure, balanceOf }) {
+module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, tgAsk, sendNotice, creditEnsure, balanceOf, safeUrl }) {
   const cfg = { minUsd: 2, maxUsd: 1000 };
+  // 📲 the simple way (until PayWay is real): the advertiser pays to CamFeed's own ABA link, taps "I have paid",
+  // and the owner taps ✅ in Telegram after seeing the money in ABA. While a link is set, this way is used instead of the PayWay QR.
+  const txt = { abaLink: '', abaQr: '' };          // CamFeed's ABA link and/or a picture of CamFeed's ABA QR (uploaded in Admin)
+  const okLink = (l) => /^https:\/\/[^\s<>"']{4,200}$/.test(l);
+  const manualOn = () => okLink(txt.abaLink) || !!(txt.abaQr && safeUrl(txt.abaQr));
+  const walletOn = () => on() || manualOn();
   const env = () => ({ mid: String(process.env.PAYWAY_MERCHANT_ID || '').trim(), key: String(process.env.PAYWAY_API_KEY || '').trim(), url: String(process.env.PAYWAY_API_URL || '').trim() });
   const on = () => { const e = env(); return !!(e.mid && e.key && e.url); };
   const origin = () => { try { return new URL(env().url).origin; } catch (e) { return ''; } };
@@ -24,7 +30,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
         expires_at TIMESTAMPTZ, paid_at TIMESTAMPTZ, checked_at TIMESTAMPTZ)`);
       await pool.query('CREATE INDEX IF NOT EXISTS idx_ad_wallet_topups_user ON ad_wallet_topups (user_email, id DESC)');
       await pool.query('CREATE TABLE IF NOT EXISTS ad_wallet_cfg (k VARCHAR(20) PRIMARY KEY, v TEXT NOT NULL)');
-      (await pool.query('SELECT k, v FROM ad_wallet_cfg')).rows.forEach((x) => { const n = Number(x.v); if (x.k in cfg && n > 0) cfg[x.k] = n; });
+      (await pool.query('SELECT k, v FROM ad_wallet_cfg')).rows.forEach((x) => { if (x.k in txt) { txt[x.k] = String(x.v || ''); return; } const n = Number(x.v); if (x.k in cfg && n > 0) cfg[x.k] = n; });
     })().catch((e) => { ready = null; throw e; });
     return ready;
   }
@@ -34,13 +40,21 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
   const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
   const reqTime = () => new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);    // UTC YYYYMMDDHHmmss
 
+  // 📋 the last talks with PayWay (for ABA support): the hash is hidden, the keys are never in it
+  const talks = [];
+  function keep(path, body, http, d) {
+    const cut = (o) => JSON.parse(JSON.stringify(o || null, (k, v) => (k === 'hash' ? '***' : typeof v === 'string' && v.length > 300 ? v.slice(0, 80) + '…(' + v.length + ')' : v)));
+    talks.unshift({ at: new Date().toISOString(), url: origin() + path, request: cut(body), http, response: cut(d) });
+    talks.length = Math.min(talks.length, 10);
+  }
   async function payway(path, body) {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20000);
     try {
       const r = await fetch(origin() + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
       const d = await r.json().catch(() => null);
+      keep(path, body, r.status, d);
       return { http: r.status, d };
-    } finally { clearTimeout(t); }
+    } catch (e) { keep(path, body, 0, { error: e.message }); throw e; } finally { clearTimeout(t); }
   }
 
   // a KHQR with the exact amount (USD)
@@ -104,7 +118,8 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
       await ensure();
       const bal = await balanceOf(me);
       const h = (await pool.query(`SELECT cents, kind, ref_id, note, created_at FROM ad_credit WHERE user_email = $1 ORDER BY id DESC LIMIT 50`, [me])).rows;
-      res.json({ success: true, balance: bal, payway: on(), sandbox: on() && sandbox(), min: cfg.minUsd, max: cfg.maxUsd, history: h.map((x) => ({ cents: Number(x.cents), kind: x.kind, ref: x.ref_id, at: x.created_at })) });
+      const waiting = manualOn() ? (await pool.query("SELECT id, cents, created_at FROM ad_wallet_topups WHERE user_email = $1 AND method = 'manual' AND status = 'pending' ORDER BY id DESC LIMIT 5", [me])).rows : [];
+      res.json({ success: true, balance: bal, payway: walletOn(), manual: manualOn(), abaLink: manualOn() && okLink(txt.abaLink) ? txt.abaLink : '', abaQr: manualOn() ? (safeUrl(txt.abaQr) || '') : '', waiting: waiting.map((x) => ({ id: x.id, cents: Number(x.cents), at: x.created_at })), sandbox: !manualOn() && on() && sandbox(), min: cfg.minUsd, max: cfg.maxUsd, history: h.map((x) => ({ cents: Number(x.cents), kind: x.kind, ref: x.ref_id, at: x.created_at })) });
     } catch (e) { res.status(500).json({ success: false }); }
   });
 
@@ -145,6 +160,44 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
     } catch (e) { res.status(500).json({ success: false }); }
   });
 
+  // 📲 "I have paid" (the simple way): the owner is asked in Telegram, the money goes in only after ✅
+  app.post('/api/ad-wallet/manual', async (req, res) => {
+    try {
+      const me = req.authEmail; if (!me) return res.status(401).json({ success: false });
+      await ensure();
+      if (!manualOn()) return res.status(503).json({ success: false, code: 'off', error: 'This way of paying is not open.' });
+      const b = req.body || {}, usd = Math.round(Number(b.amount) * 100) / 100, ref = String(b.ref || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 80), receipt = safeUrl(String(b.receipt || '')) || '';
+      if (!ref && !receipt) return res.status(400).json({ success: false, code: 'receipt', error: 'Please add the photo of the receipt.' });
+      if (!(usd >= cfg.minUsd && usd <= cfg.maxUsd)) return res.status(400).json({ success: false, code: 'amount', min: cfg.minUsd, max: cfg.maxUsd, error: 'The amount must be from $' + cfg.minUsd + ' to $' + cfg.maxUsd + '.' });
+      const open = Number((await pool.query("SELECT COUNT(*)::int AS n FROM ad_wallet_topups WHERE user_email = $1 AND method = 'manual' AND status = 'pending'", [me])).rows[0].n);
+      if (open >= 3) return res.status(429).json({ success: false, code: 'many', error: 'Please wait until CamFeed checks the ones you sent.' });
+      const id = (await pool.query("INSERT INTO ad_wallet_topups (user_email, cents, method, note) VALUES ($1, $2, 'manual', $3) RETURNING id", [me, Math.round(usd * 100), [ref, receipt].filter(Boolean).join(' · ') || null])).rows[0].id;
+      const u = (await pool.query('SELECT first_name, last_name FROM users WHERE email = $1', [me])).rows[0] || {};
+      const sent = tgAsk ? await tgAsk('aw', id, ['💳 បញ្ចូលកាបូបពាណិជ្ជកម្ម W' + id + ' · $' + usd.toFixed(2), '👤 ' + (((u.first_name || '') + ' ' + (u.last_name || '')).trim() || '—'), ref ? '🧾 ' + ref : '', 'សូមមើលក្នុង ABA ថាលុយ $' + usd.toFixed(2) + ' ចូលពិតមែន ទើបចុច ✅'].filter(Boolean), ['✅ បានទទួល', '❌ មិនទាន់ទទួល'], receipt || undefined).catch(() => false) : false;
+      if (!sent) console.error('[ad-wallet] manual W' + id + ': Telegram not sent (check Admin › Telegram for payments)');
+      res.status(201).json({ success: true, id, code: 'W' + id, amount: usd });
+    } catch (e) { console.error('[ad-wallet] manual:', e.message); res.status(500).json({ success: false, error: 'Could not do it.' }); }
+  });
+
+  // ✅ / ❌ from Telegram (or Admin): the money goes in ONCE
+  async function decideManual(id, ok, by) {
+    await ensure();
+    if (ok) {
+      const r = await pool.query("UPDATE ad_wallet_topups SET status = 'paid', paid_at = NOW(), apv = $2 WHERE id = $1 AND method = 'manual' AND status = 'pending' RETURNING *", [id, String(by || '').slice(0, 120)]);
+      if (!r.rows.length) return { ok: false, text: 'Already decided.' };
+      const row = r.rows[0];
+      await pool.query("INSERT INTO ad_credit (user_email, cents, kind, ref_id, note) VALUES ($1, $2, 'topup', $3, $4)", [row.user_email, row.cents, row.id, 'W' + row.id + ' ABA']);
+      audit(by || 'telegram', 'ad_wallet_manual_ok', row.user_email, 'W' + row.id + ' $' + (row.cents / 100).toFixed(2));
+      sendNotice('CamFeed', row.user_email, '💳 បានបញ្ចូល $' + (row.cents / 100).toFixed(2) + ' ក្នុងកាបូបពាណិជ្ជកម្មរបស់អ្នកហើយ។ អរគុណ!').catch(() => {});
+      return { ok: true, text: '💳 W' + id + ' — លុយ $' + (row.cents / 100).toFixed(2) + ' ចូលកាបូបរួច' };
+    }
+    const r = await pool.query("UPDATE ad_wallet_topups SET status = 'rejected' WHERE id = $1 AND method = 'manual' AND status = 'pending' RETURNING *", [id]);
+    if (!r.rows.length) return { ok: false, text: 'Already decided.' };
+    audit(by || 'telegram', 'ad_wallet_manual_no', r.rows[0].user_email, 'W' + id);
+    sendNotice('CamFeed', r.rows[0].user_email, '💳 W' + id + '៖ CamFeed មិនទាន់ឃើញប្រាក់ $' + (r.rows[0].cents / 100).toFixed(2) + ' ចូលទេ។ សូមពិនិត្យការផ្ទេរ ហើយសាកម្ដងទៀត។').catch(() => {});
+    return { ok: true, text: 'បានប្រាប់អ្នកផ្សាយ' };
+  }
+
   // PayWay calls this when someone paid. We never trust it alone: PayWay is asked again before the money goes in.
   app.post('/api/payway/callback', async (req, res) => {
     res.json({ ok: true });
@@ -164,7 +217,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
       if (!on()) return; await ensure();
       const rows = (await pool.query("SELECT * FROM ad_wallet_topups WHERE status = 'pending' AND method = 'payway' AND created_at > NOW() - INTERVAL '40 minutes' AND (checked_at IS NULL OR checked_at < NOW() - INTERVAL '50 seconds') ORDER BY id LIMIT 20")).rows;
       for (const r of rows) await recheck(r);
-      await pool.query("UPDATE ad_wallet_topups SET status = 'expired' WHERE status = 'pending' AND created_at < NOW() - INTERVAL '40 minutes'");
+      await pool.query("UPDATE ad_wallet_topups SET status = 'expired' WHERE status = 'pending' AND method = 'payway' AND created_at < NOW() - INTERVAL '40 minutes'");
     } catch (e) {}
   }, 60 * 1000);
 
@@ -179,7 +232,7 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
           FROM ad_credit c LEFT JOIN users u ON u.email = c.user_email GROUP BY c.user_email, u.first_name, u.last_name HAVING SUM(c.cents) <> 0 ORDER BY MAX(c.created_at) DESC LIMIT 200`)).rows;
         const topups = (await pool.query(`SELECT t.id, t.user_email, t.cents, t.status, t.method, t.note, t.created_at, t.paid_at, u.first_name, u.last_name FROM ad_wallet_topups t
           LEFT JOIN users u ON u.email = t.user_email ORDER BY t.id DESC LIMIT 100`)).rows;
-        return res.json({ success: true, people: people.map((p) => Object.assign(p, { balance: Math.floor(Number(p.balance)) })), topups, cfg, payway: on(), sandbox: on() && sandbox(), lastError: lastErr, isSuperAdmin: !!a.isSuperAdmin });
+        return res.json({ success: true, people: people.map((p) => Object.assign(p, { balance: Math.floor(Number(p.balance)) })), topups, cfg, abaLink: txt.abaLink, abaQr: txt.abaQr, talks: a.isSuperAdmin ? talks : [], manual: manualOn(), payway: on(), sandbox: on() && sandbox(), lastError: lastErr, isSuperAdmin: !!a.isSuperAdmin });
       }
       if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only the Super Admin can change money.' });
       if (act === 'adjust') {                     // add (+) or take (−) money by hand, always with a reason
@@ -193,9 +246,23 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
       }
       if (act === 'settings') {
         for (const k of Object.keys(cfg)) if (b[k] !== undefined) { const n = Math.max(1, Math.min(100000, Math.round(Number(b[k]) || 0))); cfg[k] = n; await pool.query('INSERT INTO ad_wallet_cfg (k, v) VALUES ($1, $2) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v', [k, String(n)]); }
+        if (b.abaLink !== undefined) {
+          const l = String(b.abaLink || '').trim();
+          if (l && !okLink(l)) return res.status(400).json({ success: false, error: 'The link must start with https://' });
+          txt.abaLink = l; await pool.query('INSERT INTO ad_wallet_cfg (k, v) VALUES ($1, $2) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v', ['abaLink', l]);
+        }
+        if (b.abaQr !== undefined) {
+          const q = String(b.abaQr || '').trim();
+          if (q && !safeUrl(q)) return res.status(400).json({ success: false, error: 'Upload the QR picture here (CamFeed storage only).' });
+          txt.abaQr = q; await pool.query('INSERT INTO ad_wallet_cfg (k, v) VALUES ($1, $2) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v', ['abaQr', q]);
+        }
         if (cfg.minUsd > cfg.maxUsd) cfg.maxUsd = cfg.minUsd;
-        audit(a.adminEmail, 'ad_wallet_settings', '', JSON.stringify(cfg));
-        return res.json({ success: true, cfg });
+        audit(a.adminEmail, 'ad_wallet_settings', '', JSON.stringify(Object.assign({}, cfg, txt)));
+        return res.json({ success: true, cfg, abaLink: txt.abaLink, abaQr: txt.abaQr });
+      }
+      if (act === 'decide') {                     // ✅ / ❌ a "I have paid" by hand (same as Telegram)
+        const out = await decideManual(parseInt(b.id, 10), !!b.ok, a.adminEmail);
+        return res.status(out.ok ? 200 : 409).json({ success: out.ok, error: out.ok ? undefined : out.text });
       }
       if (act === 'recheck') {                    // ask PayWay again about one top-up
         const row = (await pool.query('SELECT * FROM ad_wallet_topups WHERE id = $1', [parseInt(b.id, 10)])).rows[0];
@@ -208,5 +275,5 @@ module.exports = function ({ app, pool, adminGate, audit, baseUrl, tgNotify, sen
     } catch (e) { console.error('[ad-wallet] admin:', e.message); res.status(500).json({ success: false, error: e.message }); }
   });
 
-  return { on, ensure };
+  return { on, walletOn, manualOn, ensure, decideManual };
 };
