@@ -2,6 +2,22 @@
 <html lang="en">
 <head>
     <script src="auth-client.js"></script>
+    <style id="adminGateHide">html{visibility:hidden}</style>
+    <script>
+    // 🛡️ only Admins see this page: anyone else goes back to CamFeed (nothing of the Admin page is shown)
+    (function () {
+        var u = null; try { u = JSON.parse(localStorage.getItem('camfeed_user') || 'null'); } catch (e) {}
+        if (!u) { location.replace('index.html'); return; }
+        var show = function () { var s = document.getElementById('adminGateHide'); if (s) s.remove(); };
+        fetch('/api/admin-gate', { cache: 'no-store' }).then(function (r) {
+            if (r.status === 401) { location.replace('index.html'); return null; }
+            return r.json();
+        }).then(function (d) {
+            if (!d) return;
+            if (d.success && d.admin === true) show(); else if (d.success) location.replace('feed.html'); else show();   // a server problem: the PIN still protects it
+        }).catch(show);
+    })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CamFeed - Admin Control Center</title>
@@ -537,7 +553,7 @@
             if (data.success) unlockAdmin();
         }
     </script>
-    <script src="admin-km.js?v=189"></script>
-    <script src="admin-tools.js?v=189"></script>
+    <script src="admin-km.js?v=191"></script>
+    <script src="admin-tools.js?v=191"></script>
 </body>
 </html>

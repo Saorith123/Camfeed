@@ -2495,6 +2495,7 @@
             document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) {} });
             let ov = document.getElementById('reelsOverlay');
             if (!ov) { ov = document.createElement('div'); ov.id = 'reelsOverlay'; document.body.appendChild(ov); }
+            try { const raw = window.CamPosts && window.CamPosts[postId]; if (raw) sessionStorage.setItem('cfReelFirst', JSON.stringify({ id: String(postId), post: raw, at: Date.now() })); } catch (e) {}   // ⚡ no waiting for the list
             ov.innerHTML = '<iframe allow="autoplay; fullscreen" src="videos.html?post=' + encodeURIComponent(postId) + '&embed=1' + (resumeAt ? '&t=' + resumeAt : '') + '"></iframe>';
             ov.classList.add('open');
             document.documentElement.style.overflow = 'hidden';
@@ -3071,6 +3072,7 @@
 
         function renderPosts(posts, containerId, append = false) {
             window.CamThumbs = window.CamThumbs || {}; (posts || []).forEach((q) => { if (q && q.thumb_url) window.CamThumbs[q.id] = q.thumb_url; });
+            window.CamPosts = window.CamPosts || {}; (posts || []).forEach((q) => { if (q && q.id) { window.CamPosts[q.id] = q; if (q.orig_id) window.CamPosts[q.orig_id] = q; } });   // ⚡ the Reels viewer starts with this post at once
             const container = document.getElementById(containerId);
             if (!container) return;
             if (!append) container.innerHTML = '';

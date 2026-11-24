@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 189;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 191;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -515,6 +515,18 @@ const { createCleanup, extractMediaUrls } = require('./cleanup');
 const cleanup = createCleanup({
   pool,
   deleteR2: (url) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(url) : Promise.resolve())
+});
+
+// 🛡️ admin.html asks first: "may this person see the Admin page at all?" (only yes / no; the PIN and every Admin request are still checked)
+app.get('/api/admin-gate', async (req, res) => {
+  try {
+    const me = String(req.authEmail || '').trim().toLowerCase();
+    res.setHeader('Cache-Control', 'no-store');
+    if (!me) return res.status(401).json({ success: false, admin: false });
+    if (SUPER_ADMIN_EMAILS.includes(me)) return res.json({ success: true, admin: true });
+    const u = (await pool.query('SELECT role, is_banned FROM users WHERE LOWER(email) = $1', [me])).rows[0];
+    res.json({ success: true, admin: !!(u && !u.is_banned && (u.role === 'admin' || u.role === 'super_admin')) });
+  } catch (e) { res.status(500).json({ success: false, admin: false }); }
 });
 
 const adminPinFailures = auth.makeLimiter(5, 15 * 60 * 1000);   // 5 wrong PINs per admin account per 15 minutes

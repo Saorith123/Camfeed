@@ -791,10 +791,20 @@
                 // opened from a profile: only that person's videos (newest first), page by page; no endless wrap-around
                 const scope = new URLSearchParams(window.location.search).get('profile');
                 if (scope && appendReels && window.__scopeDone) { isLoadingMoreReels = false; return; }
-                const res = scope
+                // ⚡ opened from the feed: the tapped video is shown AT ONCE (the feed gave its post), the rest of the list comes right after
+                let quick = null;
+                if (!appendReels && !scope && IN_FEED_FRAME) {
+                    try {
+                        const o = JSON.parse(sessionStorage.getItem('cfReelFirst') || 'null'); sessionStorage.removeItem('cfReelFirst');
+                        const want = new URLSearchParams(window.location.search).get('post');
+                        if (o && o.post && String(o.id) === String(want) && Date.now() - (o.at || 0) < 60000) quick = o.post;
+                    } catch (e) {}
+                }
+                const data = quick ? { success: true, posts: [quick] } : await (scope
                     ? await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&profileEmail=${encodeURIComponent(scope)}&type=videos&limit=10&offset=${window.__scopeOffset || 0}`)
-                    : await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos&limit=10&offset=0${excludeParam}`);
-                const data = await res.json();
+                    : await fetch(`/api/posts?email=${encodeURIComponent(currentUser.email)}&type=videos&limit=10&offset=0${excludeParam}`)).json();
+                if (quick) await new Promise((r) => setTimeout(r, 0));   // let the page finish setting itself up first
+                if (quick) setTimeout(function more() { if (isLoadingMoreReels) return setTimeout(more, 80); loadVideosFeed(true); }, 60);
                 if (scope && data && data.success && Array.isArray(data.posts)) { window.__scopeOffset = (window.__scopeOffset || 0) + data.posts.length; if (!data.hasMore || data.posts.length === 0) window.__scopeDone = true; }
 
                 let videoItems = [];
