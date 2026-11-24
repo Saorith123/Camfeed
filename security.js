@@ -167,7 +167,7 @@ function checkBody(body) {
 }
 
 function inputGuard(req, res, next) {
-  { const p0 = String(req.originalUrl || '').split('?')[0]; if (p0 === '/api/tg-pay/hook' || p0 === '/api/payway/callback') return next(); }   // 💰 Telegram's own message ("message" is an object there); tg-pay.js checks it
+  { const p0 = String(req.originalUrl || '').split('?')[0]; if (p0 === '/api/tg-pay/hook' || p0 === '/api/tg-verify/hook' || p0 === '/api/payway/callback') return next(); }   // 💰 Telegram's own message ("message" is an object there); tg-pay.js checks it
   try {
     const err = checkBody(req.body);
     if (err) return res.status(400).json({ success: false, error: err.tooLong ? 'This text is too long.' : 'Some of the information is not valid.', field: err.field });

@@ -76,7 +76,7 @@ let dayKey = '', dayCount = 0;
 const dailyAllowed = () => { const k = new Date().toISOString().slice(0, 10); if (k !== dayKey) { dayKey = k; dayCount = 0; } return dayCount < DAILY_LIMIT; };
 const dailyHit = () => { dailyAllowed(); dayCount++; };
 
-function createPhoneVerification({ pool, auth, gateway, mode }) {
+function createPhoneVerification({ pool, auth, gateway, mode, tgBot }) {
   const isReset = mode === 'reset';
   const PURPOSE = isReset ? 'reset-phone' : 'signup-phone';
   const sendLimiter = auth.makeLimiter(parseInt(process.env.VERIFY_SEND_MAX_PER_HOUR_PER_IP || '10', 10), 60 * 60 * 1000);
@@ -213,6 +213,68 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
     }
   }
 
+  // the signed proof that this phone was verified (for a reset it is tied to the current password, so it works once)
+  async function proofFor(phone, res) {
+    const proof = { sub: phone, purpose: PURPOSE };
+    if (isReset) {
+      const accountEmail = await findAccountEmail(pool, phone);
+      const u = accountEmail ? await pool.query('SELECT password FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1', [accountEmail]) : { rows: [] };
+      if (u.rows.length === 0) { fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។'); return null; }
+      proof.pv = auth.fingerprint(u.rows[0].password);
+    }
+    return auth.signToken(proof, PROOF_TTL_SECONDS);
+  }
+
+  // ---- 📱 the free way: CamFeed's own Telegram bot ("Share my phone number") ----
+  //   POST /api/phone/tg-start  { phone, country, purpose, turnstileToken }  -> { link (opens the bot), token }
+  //   POST /api/phone/tg-status { token, purpose }                           -> { done, phoneToken } once the bot got the same number
+  const tgOff = (res) => fail(res, 503, 'Phone verification is not available yet. Please use your Gmail.', 'ការផ្ទៀងផ្ទាត់ដោយលេខទូរស័ព្ទមិនទាន់អាចប្រើបានទេ។ សូមប្រើ Gmail របស់អ្នក។');
+  const statusLimiter = auth.makeLimiter(400, 60 * 60 * 1000);
+
+  async function tgStart(req, res) {
+    try {
+      if (!tgBot || !tgBot.on()) return tgOff(res);
+      const body = req.body || {};
+      const phone = normalizePhone(body.phone, body.country);
+      if (!phone) return fail(res, 400, 'Please enter a valid phone number. Choose your country, or start the number with + and your country code (for example +66 81 234 5678).', 'សូមបញ្ចូលលេខទូរស័ព្ទត្រឹមត្រូវ។ សូមជ្រើសរើសប្រទេសរបស់អ្នក ឬចាប់ផ្តើមដោយ + និងលេខកូដប្រទេស (ឧ. +66 81 234 5678)។');
+      if (sendLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many requests from this network. Please try again later.', 'សំណើច្រើនពេកពីបណ្តាញនេះ។ សូមព្យាយាមម្តងទៀតពេលក្រោយ។');
+      const foundEmail = await findAccountEmail(pool, phone);
+      if (isReset && !foundEmail) return fail(res, 404, 'No account was found with this phone number.', 'រកមិនឃើញគណនីដែលប្រើលេខទូរស័ព្ទនេះទេ។');
+      if (!isReset && foundEmail) return fail(res, 409, 'This phone number is already registered. Please log in.', 'លេខទូរស័ព្ទនេះបានចុះឈ្មោះរួចហើយ។ សូមចូលគណនី។');
+      const human = await auth.verifyTurnstile(body.turnstileToken, req.ip);
+      if (!human.ok) {
+        return human.unavailable
+          ? fail(res, 503, 'Verification service is unavailable. Please try again.', 'សេវាផ្ទៀងផ្ទាត់មិនអាចប្រើបានទេ។ សូមព្យាយាមម្តងទៀត។')
+          : fail(res, 400, 'Human verification failed. Please try again.', 'ការបញ្ជាក់ថាជាមនុស្សបរាជ័យ។ សូមព្យាយាមម្តងទៀត។');
+      }
+      const r = await tgBot.start(phone, PURPOSE, req.ip);
+      if (!r) return tgOff(res);
+      sendLimiter.hit(req.ip);
+      res.json({ success: true, link: r.link, token: r.token, expiresInSec: r.expiresInSec, maskedPhone: maskPhone(phone) });
+    } catch (err) {
+      console.error('[phone] tg-start error:', err.message);
+      fail(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។');
+    }
+  }
+
+  async function tgStatus(req, res) {
+    try {
+      if (!tgBot || !tgBot.on()) return tgOff(res);
+      if (statusLimiter.isLimited(req.ip)) return fail(res, 429, 'Too many requests. Please wait a moment.', 'សំណើច្រើនពេក។ សូមរង់ចាំបន្តិច។');
+      statusLimiter.hit(req.ip);
+      const s = await tgBot.status(String((req.body && req.body.token) || ''), PURPOSE);
+      if (s.status === 'wait') return res.json({ success: true, done: false });
+      if (s.status === 'mismatch') return fail(res, 400, 'The number of your Telegram is not the number you typed. Please type the number you use for Telegram.', 'លេខ Telegram របស់អ្នក មិនដូចលេខដែលអ្នកបានវាយទេ។ សូមវាយលេខដែលអ្នកប្រើជាមួយ Telegram។', { mismatch: true });
+      if (s.status !== 'ok') return fail(res, 410, 'This request has expired. Please try again.', 'សំណើនេះផុតកំណត់ហើយ។ សូមព្យាយាមម្តងទៀត។', { expired: true });
+      const phoneToken = await proofFor(s.phone, res);
+      if (!phoneToken) return;
+      res.json({ success: true, done: true, phone: s.phone, phoneToken });
+    } catch (err) {
+      console.error('[phone] tg-status error:', err.message);
+      fail(res, 500, 'Something went wrong. Please try again.', 'មានបញ្ហា។ សូមព្យាយាមម្តងទៀត។');
+    }
+  }
+
   // does this signed proof belong to THIS verified phone number and THIS purpose?
   function checkToken(phone, token) {
     const e164 = normalizePhone(phone);
@@ -220,7 +282,7 @@ function createPhoneVerification({ pool, auth, gateway, mode }) {
     return !!(e164 && p && p.purpose === PURPOSE && p.sub === e164);
   }
 
-  return { sendCode, verifyCode, checkToken, ensureSchema };
+  return { sendCode, verifyCode, tgStart, tgStatus, checkToken, ensureSchema };
 }
 
 module.exports = { createPhoneVerification, normalizePhone, phoneEmail, phoneIdentities, findAccountEmail, maskPhone, SYNTHETIC_DOMAIN, DIAL };

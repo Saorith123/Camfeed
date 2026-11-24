@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 207;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 209;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -66,7 +66,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -482,8 +482,10 @@ app.post('/api/csp-report', express.json({ type: ['application/json', 'applicati
 const signup = createSignupVerification({ pool, auth, mailer });
 const passwordReset = createPasswordReset({ pool, auth, mailer }); // "Forgot password?" by e-mail code
 const tgLogin = createTelegramLogin({ pool, auth, authCore, normalizeBirthdate }); // "Continue with Telegram"
-const phoneSignup = createPhoneVerification({ pool, auth, gateway, mode: 'signup' }); // phone number + code inside Telegram
-const phoneReset = createPhoneVerification({ pool, auth, gateway, mode: 'reset' });
+const tgVerify = require('./tg-verify')({ app, pool, baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com' }); // 📱 free: "Share my phone number" in CamFeed's bot
+const phoneSignup = createPhoneVerification({ pool, auth, gateway, mode: 'signup', tgBot: tgVerify }); // phone number + code inside Telegram
+const phoneReset = createPhoneVerification({ pool, auth, gateway, mode: 'reset', tgBot: tgVerify });
+console.log('[phone] verify bot (TG_VERIFY_BOT_TOKEN): ' + (tgVerify.on() ? 'FOUND - phone numbers are checked by the bot (free)' : 'NOT SET'));
 console.log('[phone] Telegram Gateway key: ' + (gateway.isConfigured() ? 'FOUND - phone sign-up is ON' : 'NOT FOUND (set TELEGRAM_GATEWAY_TOKEN in Render) - the Phone tab shows "coming soon"'));
 // what a person may see as THEIR OWN contact detail (the hidden phone/Telegram identity is shown as the phone number)
 const ownContact = (u) => (isTelegramAddress(u.email) ? (u.phone || '') : u.email);
@@ -628,15 +630,17 @@ function supportTelegramLink() {
   const m = /^(?:https?:\/\/)?(?:t\.me\/|telegram\.me\/)?@?([A-Za-z][A-Za-z0-9_]{4,31})$/.exec(v);
   return m ? 'https://t.me/' + m[1] : '';
 }
-app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: PHONE_AUTH_ON && gateway.isConfigured(), telegramContact: supportTelegramLink() }));
+app.get('/api/auth-options', (req, res) => res.json({ success: true, telegram: tgLogin.isConfigured(), phone: PHONE_AUTH_ON && (tgVerify.on() || gateway.isConfigured()), phoneVia: tgVerify.on() ? 'telegram' : 'code', telegramContact: supportTelegramLink() }));
 
 // Phone number + a code that arrives inside the person's Telegram (Telegram Gateway)
 const PHONE_AUTH_ON = process.env.PHONE_AUTH_ENABLED === '1';   // phone sign-up / reset is paused until this is set to 1 in Render
 const phonePaused = (req, res, next) => PHONE_AUTH_ON ? next() : res.status(503).json({ success: false, error: 'Phone number sign-up is coming soon. Please contact the admin on Telegram @Camfeed.' });
-app.use(['/api/phone/send-code', '/api/phone/verify-code'], phonePaused);
+app.use(['/api/phone/send-code', '/api/phone/verify-code', '/api/phone/tg-start', '/api/phone/tg-status'], phonePaused);
 const phoneFlow = (req) => (req.body && req.body.purpose === 'reset' ? phoneReset : phoneSignup);
 app.post('/api/phone/send-code', (req, res) => phoneFlow(req).sendCode(req, res));
 app.post('/api/phone/verify-code', (req, res) => phoneFlow(req).verifyCode(req, res));
+app.post('/api/phone/tg-start', (req, res) => phoneFlow(req).tgStart(req, res));     // 📱 the free way: CamFeed's Telegram bot
+app.post('/api/phone/tg-status', (req, res) => phoneFlow(req).tgStatus(req, res));
 
 app.post('/api/register/send-code', signup.sendCode);
 app.post('/api/register/verify-code', signup.verifyCode);

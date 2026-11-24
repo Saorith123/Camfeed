@@ -111,6 +111,9 @@
         // after login go back to the shared post (/p/123) if the person came from one; only this exact shape is allowed (no open redirect)
         try { const L = new URLSearchParams(location.search).get('lang'); if (L === 'km' || L === 'en') localStorage.setItem('camfeed_lang', L); } catch (e) {}   // 🌐 the app tells the language
         const NEXT_URL = (function () { try { const n = new URLSearchParams(location.search).get('next') || ''; return (/^\/p\/\d{1,10}$/.test(n) || n === '/signup-helper.html') ? n : 'feed.html'; } catch (e) { return 'feed.html'; } })();
+        // 📱 the app opens this page for "Create new account" / "Forgot password" while nobody is signed in to the app:
+        // a sign-in left over in the app's web view must not log an old account straight back in
+        try { if (/CamFeedApp/.test(navigator.userAgent) && new URLSearchParams(location.search).get('start')) { localStorage.removeItem('camfeed_token'); localStorage.removeItem('camfeed_user'); } } catch (e) {}
         const existingUser = localStorage.getItem('camfeed_user');
         if (existingUser) {
             window.location.href = NEXT_URL;
@@ -711,6 +714,13 @@
             const oldText = btn.innerText;
             btn.disabled = true; btn.innerText = t.sending;
             signupChannel = isPhone ? 'phone' : 'email';
+            if (isPhone && authOptions.phoneVia === 'telegram') {
+                try {
+                    await tgVerifyFlow({ phone: email, country: document.getElementById('country').value, purpose: 'signup', turnstileToken: getTurnstileToken(), msg,
+                        onDone: (proof) => { signupEmailToken = proof; signupVerifiedEmail = email.toLowerCase(); proceedToStep2(); } });
+                } finally { resetTurnstile(); btn.disabled = false; btn.innerText = oldText; }
+                return;
+            }
             try {
                 const res = await fetch(isPhone ? '/api/phone/send-code' : '/api/register/send-code', {
                     method: 'POST',
@@ -910,6 +920,18 @@
             const old = btn.innerText;
             btn.disabled = true; btn.innerText = t.sending;
             resetChannel = isPhone ? 'phone' : 'email';
+            if (isPhone && authOptions.phoneVia === 'telegram') {
+                try {
+                    await tgVerifyFlow({ phone: email, purpose: 'reset', turnstileToken: getResetTurnstileToken(), msg,
+                        onDone: (proof) => {
+                            resetEmailValue = email; resetEmailToken = proof;
+                            document.getElementById('resetNewPassword').value = '';
+                            document.getElementById('resetNewPassword2').value = '';
+                            setResetStage('password');
+                        } });
+                } finally { resetResetTurnstile(); btn.disabled = false; btn.innerText = old; }
+                return;
+            }
             try {
                 const res = await fetch(isPhone ? '/api/phone/send-code' : '/api/password/forgot', {
                     method: 'POST',
@@ -1052,12 +1074,60 @@
             box.appendChild(a);
         }
 
+        // ---- 📱 Phone check by CamFeed's Telegram bot: open the bot, tap "Share my phone number", come back ----
+        let tgPoll = null;
+        function closeTgPanel() { clearInterval(tgPoll); tgPoll = null; const o = document.getElementById('tgVerifyOverlay'); if (o) o.remove(); document.removeEventListener('visibilitychange', tgVisible); }
+        let tgVisible = function () {};
+        async function tgVerifyFlow(o) {   // o = { phone, country, purpose, turnstileToken, msg (element), onDone(phoneToken) }
+            const km = (localStorage.getItem('camfeed_lang') || 'km') === 'km';
+            const T = km ? { title: 'បញ្ជាក់លេខទូរស័ព្ទតាម Telegram', desc: (p) => 'លេខ ' + p + '\n\n1. ចុចប៊ូតុងខាងក្រោម ដើម្បីបើក Telegram\n2. ក្នុង Telegram ចុច "📱 ចែករំលែកលេខទូរស័ព្ទ"\n3. ត្រឡប់មកទីនេះវិញ', open: '📱 បើក Telegram', wait: '⏳ កំពុងរង់ចាំការបញ្ជាក់ពី Telegram…', cancel: 'បោះបង់', expired: 'សំណើនេះផុតកំណត់ហើយ។ សូមសាកម្ដងទៀត។', net: 'មានបញ្ហាបណ្ដាញ។ សូមសាកម្ដងទៀត។' }
+                           : { title: 'Confirm your number in Telegram', desc: (p) => 'Number ' + p + '\n\n1. Tap the button below to open Telegram\n2. In Telegram, tap "📱 Share my phone number"\n3. Come back here', open: '📱 Open Telegram', wait: '⏳ Waiting for Telegram…', cancel: 'Cancel', expired: 'This request has expired. Please try again.', net: 'Network problem. Please try again.' };
+            let data;
+            try {
+                const res = await fetch('/api/phone/tg-start', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone: o.phone, country: o.country, purpose: o.purpose, turnstileToken: o.turnstileToken }) });
+                data = await res.json();
+            } catch (e) { o.msg.innerText = T.net; return false; }
+            if (!data || !data.success || !data.link) { o.msg.innerText = serverMsg(data || {}, T.net); return false; }
+            closeTgPanel();
+            const ov = document.createElement('div');
+            ov.id = 'tgVerifyOverlay';
+            ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+            const card = document.createElement('div');
+            card.style.cssText = 'background:#fff;border-radius:14px;max-width:380px;width:100%;padding:22px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.25);';
+            const h = document.createElement('div'); h.style.cssText = 'font-size:19px;font-weight:bold;margin-bottom:10px;color:#1c1e21;'; h.innerText = T.title;
+            const d = document.createElement('div'); d.style.cssText = 'white-space:pre-line;text-align:left;font-size:15px;line-height:1.6;color:#444;margin-bottom:16px;'; d.innerText = T.desc(data.maskedPhone || o.phone);
+            const a = document.createElement('a'); a.href = data.link; a.target = '_blank'; a.rel = 'noopener'; a.innerText = T.open;
+            a.style.cssText = 'display:block;background:#229ED9;color:#fff;text-decoration:none;font-weight:bold;font-size:17px;padding:13px;border-radius:10px;margin-bottom:12px;';
+            const st = document.createElement('div'); st.style.cssText = 'font-size:14px;color:#65676b;min-height:20px;margin-bottom:12px;'; st.innerText = T.wait;
+            const c = document.createElement('button'); c.type = 'button'; c.innerText = T.cancel;
+            c.style.cssText = 'background:#e4e6eb;color:#1c1e21;border:none;border-radius:8px;padding:10px 18px;font-size:15px;cursor:pointer;';
+            c.onclick = closeTgPanel;
+            card.append(h, d, a, st, c); ov.appendChild(card); document.body.appendChild(ov);
+            let busy = false;
+            const check = async () => {
+                if (busy) return; busy = true;
+                try {
+                    const r = await fetch('/api/phone/tg-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: data.token, purpose: o.purpose }) });
+                    const j = await r.json();
+                    if (j.success && j.done && j.phoneToken) { closeTgPanel(); o.onDone(j.phoneToken); return; }
+                    if (!j.success) { closeTgPanel(); o.msg.style.color = 'red'; o.msg.innerText = serverMsg(j, T.expired); }
+                } catch (e) { /* try again on the next tick */ } finally { busy = false; }
+            };
+            tgPoll = setInterval(check, 2500);
+            tgVisible = function () { if (!document.hidden) check(); };   // back from Telegram: check at once
+            document.addEventListener('visibilitychange', tgVisible);
+            setTimeout(closeTgPanel, ((data.expiresInSec || 600) + 30) * 1000);
+            return true;
+        }
+
         // ---- Which options does the server offer? (phone numbers get their code inside Telegram once the server has the Gateway key) ----
         async function loadAuthOptions() {
             try {
                 const res = await fetch('/api/auth-options');
                 const data = await res.json();
                 authOptions.phone = !!(data && data.phone);   // phone sign-up is paused unless the server says otherwise
+                authOptions.phoneVia = (data && data.phoneVia) || 'code';   // 'telegram' = CamFeed's bot ("Share my phone number"), 'code' = 6-digit code
                 authOptions.telegramContact = 'https://t.me/Camfeed';
                 applyIdentityPlaceholders();
             } catch (e) { /* the form simply stays Gmail-only */ }
