@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 210;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 211;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2466,6 +2466,8 @@ app.get('/api/search-users', async (req, res) => {
           SELECT blocker_email FROM blocked_users WHERE blocked_email = $1
         )
         AND (first_name ILIKE $2 OR last_name ILIKE $2 OR LOWER(email) = ANY($3::text[])
+             OR ($5 <> '' AND (regexp_replace(COALESCE(first_name, '') || COALESCE(last_name, ''), '\\s+', '', 'g') ILIKE $5
+                               OR regexp_replace(COALESCE(last_name, '') || COALESCE(first_name, ''), '\\s+', '', 'g') ILIKE $5))
              OR ($4 <> '' AND COALESCE(phone_privacy, 'public') = 'public'
                  AND (regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = $4
                       OR (regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') LIKE '0%' AND '855' || substr(regexp_replace(COALESCE(phone, ''), '\\D', '', 'g'), 2) = $4))))
@@ -2483,7 +2485,10 @@ app.get('/api/search-users', async (req, res) => {
       if (digits.startsWith('855')) identities.push('0' + digits.slice(3));
     }
     await country.ensure().catch(() => {});
-    const result = await pool.query(query, [email, `%${likeSafe}%`, identities, e164 ? e164.slice(1) : '']);
+    // 👤 the whole name works too: "Sok Dara", "SokDara" or "Dara Sok" (spaces do not matter, either order)
+    const nameNoSpace = typed.replace(/\s+/g, '');
+    const nameLike = /\s/.test(typed) && nameNoSpace.length >= 2 ? `%${nameNoSpace.replace(/[\\%_]/g, '\\$&')}%` : '';
+    const result = await pool.query(query, [email, `%${likeSafe}%`, identities, e164 ? e164.slice(1) : '', nameLike]);
     { const rs = await restrictedWith(req.authEmail); if (rs.size) result.rows.forEach((r) => { if (rs.has(String(r.email).toLowerCase())) { r.is_online = false; r.last_active = null; } }); }
     res.json({ success: true, users: result.rows });
   } catch (err) {
