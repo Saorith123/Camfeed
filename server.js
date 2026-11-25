@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 212;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 213;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2104,7 +2104,7 @@ app.get('/api/notifications', async (req, res) => {
       LEFT JOIN posts p ON n.post_id = p.id
       WHERE n.recipient_email = $1 
         AND n.type <> ALL($2::text[])
-        AND (u.email IS NOT NULL OR n.type IN ('admin_notice', 'wallet_notice'))   -- 📣 notices sent as "CamFeed" (no person behind them) are shown too
+        AND (u.email IS NOT NULL OR n.type IN ('admin_notice', 'wallet_notice', 'verify_invite'))   -- 📣 notices sent as "CamFeed" (no person behind them) are shown too
       ORDER BY n.created_at DESC
       LIMIT 40
     `;
@@ -2721,7 +2721,7 @@ const tgPay = require('./tg-pay')({ app, pool, adminGate: (req, res) => adminGat
 const country = require('./country')({ pool });
 const adWallet = require('./ad-wallet')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), baseUrl: () => process.env.PUBLIC_BASE_URL || 'https://camfeedkh.com',
   tgNotify: (lines) => tgPay.notify(lines), tgAsk: (k, id, lines, labels) => tgPay.ask(k, id, lines, labels), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), creditEnsure: () => adCreditEnsure(), balanceOf: (e) => adCreditOf(e), safeUrl: (u) => security.safeUrl(u), reservedOf: (e) => adReservedOf(e) });   // 💳 the ad wallet (ABA PayWay)
-const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'),
+const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), sendNotice: (from, to, text, type) => sendAdminNotice(from, to, text, type || 'admin_notice'),
   tgAsk: (k, id, l, lb, ph) => tgPay.ask(k, id, l, lb, ph), safeUrl: (u) => security.safeUrl(u),
   deleteMedia: (u) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(u) : Promise.resolve()), payInfo: async () => { await Promise.resolve(adWallet.ensure && adWallet.ensure()).catch(() => {}); return adWallet.payInfo ? adWallet.payInfo() : {}; } });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
@@ -6029,7 +6029,8 @@ const noticeText = (kind, what, reason, note) => {
 };
 const mediaWord = (t) => (t === 'video' ? 'វីដេអូ' : t === 'image' ? 'រូបភាព' : 'ប្រកាស');
 async function sendAdminNotice(adminEmail, toEmail, text, type) {
-  await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, $3, $4, FALSE)", [toEmail, adminEmail, type === 'wallet_notice' ? 'wallet_notice' : 'admin_notice', text]);
+  const t = ['wallet_notice', 'verify_invite'].includes(type) ? type : 'admin_notice';   // ✔ verify_invite: the app shows it as a card with «Accept»
+  await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, $3, $4, FALSE)", [toEmail, adminEmail, t, text]);
 }
 
 app.delete('/api/admin/posts/:postId', async (req, res) => {

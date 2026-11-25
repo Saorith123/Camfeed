@@ -40,6 +40,18 @@
         .pf b.t { font-size: 14.5px; } .pf .st { font-size: 13px; margin-top: 4px; }
         .note { background: #fff8e6; color: #7a4b00; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.6; margin-top: 8px; white-space: pre-wrap; }
         .btn2 { background: #fff; color: #1877f2; border: 2px solid #1877f2; }
+        /* ✔ the invitation from CamFeed */
+        .inv { background: linear-gradient(160deg, #0b5ed7 0%, #1877f2 45%, #4aa3ff 100%); color: #fff; border-radius: 20px; padding: 26px 18px 18px; text-align: center; box-shadow: 0 8px 24px rgba(24,119,242,.35); position: relative; overflow: hidden; }
+        .inv::before { content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,.08); top: -90px; right: -70px; }
+        .inv-badge { width: 84px; height: 84px; margin: 0 auto 12px; border-radius: 50%; background: rgba(255,255,255,.18); border: 3px solid rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; animation: invPop .6s ease-out; }
+        @keyframes invPop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+        .inv-t { font-size: 20px; font-weight: 800; }
+        .inv-d { font-size: 14px; line-height: 1.7; opacity: .95; margin: 8px 4px 14px; }
+        .inv-name { display: inline-flex; align-items: center; gap: 6px; background: #fff; color: #050505; font-weight: 800; font-size: 15px; padding: 8px 16px; border-radius: 999px; }
+        .inv-yes { display: block; width: 100%; margin-top: 16px; background: #fff; color: #1877f2; border: none; padding: 13px; border-radius: 14px; font-size: 16px; font-weight: 800; cursor: pointer; font-family: inherit; }
+        .inv-no { display: block; width: 100%; margin-top: 8px; background: transparent; color: #fff; border: none; padding: 8px; font-size: 13.5px; cursor: pointer; opacity: .85; font-family: inherit; }
+        .inv-yes:disabled, .inv-no:disabled { opacity: .55; }
+        .inv .msg { text-align: left; }
         .shots { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
         .shot { flex: 1; min-width: 130px; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; text-align: center; font-size: 13px; color: #374151; background: #f8fafc; cursor: pointer; font: inherit; }
         .shot img { width: 100%; max-height: 150px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 6px; }
@@ -202,17 +214,21 @@
                <label>${st.path === 'creator' ? T('តំណភ្ជាប់ឆានែល YouTube, TikTok ឬ Facebook (មិនបង្ខំ បើមានអ្នកតាមដានគ្រប់នៅ CamFeed)', 'Link of the YouTube, TikTok or Facebook channel (optional when you have enough followers on CamFeed)') : T('តំណភ្ជាប់ផេក ឬ Telegram ផ្លូវការ', 'Link of the official page or Telegram channel')}</label><input id="fLink" placeholder="https://">
                <label>${T('តំណភ្ជាប់អត្ថបទព័ត៌មានអំពីអ្នក (មិនបង្ខំ)', 'A news article about you (optional)')}</label><input id="fLink2" placeholder="https://">`;
 
+        const myName = esc(((currentUser.first_name || '') + ' ' + (currentUser.last_name || '')).trim() || 'CamFeed');
         $('root').innerHTML = `
+            ${d.invite ? `<div class="inv" id="invite">
+                <div class="inv-badge"><svg width="46" height="46" viewBox="0 0 24 24" fill="#fff"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg></div>
+                <div class="inv-t">${T('CamFeed អញ្ជើញអ្នក', 'CamFeed invites you')}</div>
+                <div class="inv-d">${T('គណនីរបស់អ្នកត្រូវបានជ្រើសឲ្យមានសញ្ញា ✔ គណនីផ្លូវការ។ ចុច «ទទួល» ហើយសញ្ញានេះនឹងបង្ហាញក្បែរឈ្មោះរបស់អ្នកភ្លាម។', 'Your account was chosen for the ✔ official mark. Press "Accept" and it shows next to your name at once.')}</div>
+                <div class="inv-name">${myName} <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1877f2"/><path d="M10 15.6 6.9 12.5l-1.1 1.1L10 17.8l8.2-8.2-1.1-1.1z" fill="#fff"/></svg></div>
+                <button class="inv-yes" type="button" id="invYes">✔ ${T('ទទួល', 'Accept')}</button>
+                <button class="inv-no" type="button" id="invNo">${T('មិនទទួល', 'No, thanks')}</button><div class="msg" id="invMsg"></div></div>` : ''}
             <div class="card"><h2>${T('ប្រភេទគណនី', 'Account type')}</h2>
                 <button type="button" class="opt ${st.type === 'personal' ? 'on' : ''}" data-type="personal"><span class="ic">👤</span><div><b>${T('ផ្ទាល់ខ្លួន', 'Personal')}</b><span>${T('ឈ្មោះត្រូវមាននាមខ្លួន និងនាមត្រកូល', 'The name has a first and a last name')}</span></div></button>
                 <button type="button" class="opt ${st.type === 'business' ? 'on' : ''}" data-type="business"><span class="ic">🏪</span><div><b>${T('អាជីវកម្ម ស្ថាប័ន ឬបុគ្គលល្បី', 'Business, organisation or public figure')}</b><span>${T('ឈ្មោះមួយពាក្យបាន (ឧ. ឈ្មោះហាង) និងបង្ហាញប្រភេទក្រោមឈ្មោះ', 'A one-word name is allowed (e.g. the shop name) and the kind shows under the name')}</span></div></button>
                 <div id="catBox" style="display:${st.type === 'business' ? '' : 'none'}"><label>${T('ប្រភេទ', 'Kind')}</label><select id="fCat"><option value="">—</option>${Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${st.cat === k ? 'selected' : ''}>${esc(T(v[0], v[1]))}</option>`).join('')}</select></div>
                 <button class="btn" id="saveType" type="button">${T('រក្សាទុក', 'Save')}</button><div class="msg" id="typeMsg"></div>
             </div>
-            ${d.invite ? `<div class="card" style="border:2px solid #1877f2;"><h2>✔ ${T('CamFeed អញ្ជើញអ្នក', 'CamFeed invites you')}</h2>
-                <div class="muted">${T('CamFeed អញ្ជើញគណនីរបស់អ្នកឲ្យមានសញ្ញា ✔ គណនីផ្លូវការ។ ចុច «ទទួល» ហើយសញ្ញា ✔ នឹងបង្ហាញក្បែរឈ្មោះរបស់អ្នកភ្លាម។', 'CamFeed invites your account to get the ✔ official mark. Press "Accept" and the ✔ shows next to your name at once.')}</div>
-                <button class="btn" type="button" id="invYes">✔ ${T('ទទួល', 'Accept')}</button>
-                <button class="btn btn2" type="button" id="invNo">${T('មិនទទួល', 'No, thanks')}</button><div class="msg" id="invMsg"></div></div>` : ''}
             <div class="card"><h2>✔ ${T('គណនីផ្លូវការ', 'Official account')}</h2>${status}</div>
             ${canAsk ? `<div class="card"><h2>${T('លក្ខខណ្ឌ', 'Conditions')}</h2>${checks}
                 ${d.canApply ? '' : `<div class="msg bad" style="display:block;">${T('លក្ខខណ្ឌខ្លះមិនទាន់គ្រប់។ សូមព្យាយាមម្ដងទៀតពេលគ្រប់។', 'Some conditions are not met yet. Please try again when they are.')}</div>`}</div>

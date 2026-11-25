@@ -367,7 +367,7 @@ module.exports = function ({ app, pool, adminGate, audit, sendNotice, tgAsk, saf
         const open = (await pool.query("SELECT id FROM verify_invites WHERE user_email = $1 AND status = 'pending'", [email])).rows[0];
         if (open) return res.json({ success: true, already: true });
         const id = (await pool.query('INSERT INTO verify_invites (user_email, invited_by) VALUES ($1, $2) RETURNING id', [email, a.adminEmail])).rows[0].id;
-        sendNotice('CamFeed', email, '✔ CamFeed អញ្ជើញគណនីរបស់អ្នកឲ្យមានសញ្ញា ✔ គណនីផ្លូវការ។ សូមចូល ការកំណត់ › ✔ គណនីផ្លូវការ ហើយចុច «ទទួល»។').catch(() => {});
+        sendNotice('CamFeed', email, '✔ CamFeed អញ្ជើញគណនីរបស់អ្នកឲ្យមានសញ្ញា ✔ គណនីផ្លូវការ។ ចុចទីនេះ ដើម្បីទទួល។', 'verify_invite').catch(() => {});
         audit(a.adminEmail, 'verify_invite', email, 'I' + id);
         return res.json({ success: true, id });
       }

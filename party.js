@@ -794,7 +794,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     const b = boards.get(room.id);
     if (b && room.status !== 'open') boards.delete(room.id);
     const mode = room.board_mode || 'seated';
-    return { mode, pic: b && room.status === 'open' ? { v: b.v, by: b.by, by_name: b.byName, at: new Date(b.at).toISOString() } : null };
+    return { mode, pic: b && room.status === 'open' ? { v: b.v, by_email: b.by, by_name: b.byName, at: new Date(b.at).toISOString() } : null };
   }
   const mayPost = (room, m) => {
     const mode = room.board_mode || 'seated';
