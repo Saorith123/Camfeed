@@ -28,7 +28,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 211;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 212;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2100,10 +2100,11 @@ app.get('/api/notifications', async (req, res) => {
     const query = `
       SELECT n.*, u.first_name, u.last_name, u.profile_pic, p.media_type as post_media_type
       FROM notifications n 
-      JOIN users u ON n.sender_email = u.email 
+      LEFT JOIN users u ON n.sender_email = u.email 
       LEFT JOIN posts p ON n.post_id = p.id
       WHERE n.recipient_email = $1 
         AND n.type <> ALL($2::text[])
+        AND (u.email IS NOT NULL OR n.type IN ('admin_notice', 'wallet_notice'))   -- 📣 notices sent as "CamFeed" (no person behind them) are shown too
       ORDER BY n.created_at DESC
       LIMIT 40
     `;
