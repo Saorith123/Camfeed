@@ -146,7 +146,7 @@ const PUBLIC_ROUTES = new Set(['POST /api/login', 'POST /api/register', 'POST /a
   'POST /api/tg-pay/hook', 'POST /api/tg-verify/hook', 'POST /api/payway/callback', 'GET /api/apk']);   // 💳 ABA PayWay tells us a payment (ad-wallet.js checks it with PayWay again)   // 💰 Telegram itself calls this (checked by its own secret header in tg-pay.js)
 const BODY_ACTOR_FIELDS = ['email', 'sender', 'userEmail', 'user_email', 'followerEmail', 'blockerEmail', 'reporterEmail', 'adminEmail'];
 // GET routes where ?email= is the profile being looked at (not the person asking)
-const QUERY_EMAIL_IS_TARGET = new Set(['/api/user-profile', '/api/follow-list', '/api/pins']);   // 📌 another person's pinned posts (ids only; each post is checked again)
+const QUERY_EMAIL_IS_TARGET = new Set(['/api/user-profile', '/api/follow-list', '/api/pins', '/api/series']);   // 📚 another person's series tab (its owner = ?email)   // 📌 another person's pinned posts (ids only; each post is checked again)
 
 // "Chrome on Android", masked address and (when Cloudflare provides it) the country / city of a request
 function describeRequest(req) {
