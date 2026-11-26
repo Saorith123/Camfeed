@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 218;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 219;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -5765,8 +5765,8 @@ app.post('/api/admin/wallet/credit', async (req, res) => {
     const note = String(b.note || '').replace(/\s+/g, ' ').trim().slice(0, 200); if (!note) return res.status(400).json({ success: false, error: 'Please write a reason.' });
     const kind = b.kind === 'adjustment' ? 'adjustment' : 'bonus';
     const u = await resolveIdentifier(b.identifier || b.targetEmail); if (!u) return res.status(404).json({ success: false, error: 'User not found.' });
-    // 👛 which pocket: the Admin chooses (a bonus for content goes to 🎬 by itself, a correction to 🎁)
-    const pocket = b.pocket === 'gift' || b.pocket === 'content' ? b.pocket : (kind === 'bonus' ? 'content' : 'gift');
+    // 👛 which pocket: the Admin chooses; by itself 🎁 gift money (can be withdrawn from $1 at once)
+    const pocket = b.pocket === 'gift' || b.pocket === 'content' ? b.pocket : 'gift';
     const pk = await walletPockets(u.email);
     if (cents < 0 && -cents > (pocket === 'content' ? pk.content : pk.gift)) return res.status(400).json({ success: false, error: 'That would make the ' + (pocket === 'content' ? 'content' : 'gift') + ' pocket negative.' });
     await pool.query('INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by, pocket) VALUES ($1, $2, $3, $4, $5, $6)', [u.email, cents, kind, note, a.adminEmail, pocket]);

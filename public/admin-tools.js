@@ -2030,7 +2030,7 @@
     var who = el('input', { class: 'at-in', id: 'mwWho', placeholder: 'Phone number, Gmail or 15-digit ID of the creator' });
     var amount = el('input', { class: 'at-in', id: 'mwAmount', type: 'number', step: '0.01', placeholder: 'Amount in $ (negative = take back)' });
     var kind = el('select', { class: 'at-in', id: 'mwKind' }, [el('option', { value: 'bonus', text: '🎁 Gift (creator gets a notification)' }), el('option', { value: 'adjustment', text: 'Correction' })]);
-    var pocket = el('select', { class: 'at-in', id: 'mwPocket' }, [el('option', { value: '', text: '👛 Pocket: by itself (gift → 🎬 content, correction → 🎁 gift)' }), el('option', { value: 'gift', text: '🎁 Gift money pocket' }), el('option', { value: 'content', text: '🎬 Content money pocket' })]);
+    var pocket = el('select', { class: 'at-in', id: 'mwPocket' }, [el('option', { value: 'gift', text: '🎁 Gift money pocket' }), el('option', { value: 'content', text: '🎬 Content money pocket' })]);
     var note = el('input', { class: 'at-in', id: 'mwNote', placeholder: 'Reason (the creator sees it), e.g. "Launch contest winner"' });
     var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px', text: 'Add to wallet', onclick: function () {
       if (!confirm('Change the wallet of ' + who.value + ' by ' + amount.value + ' $ ?')) return; btn.disabled = true;
