@@ -616,8 +616,14 @@
       wrap.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: src === 'invited' ? 'People YOU choose (Users → Manage → "Invite to earn"). No requirements.' : 'People who meet the requirements (⚙️ Conditions) and apply; you approve or refuse.' }));
       if (!d.success) { wrap.appendChild(empty(d.error || 'Could not load.')); return; }
       var dis = !d.isSuperAdmin, out = el('div', { style: 'display:none' });
-      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: d.rpm, placeholder: 'empty = common ($' + d.commonRpm + ')' });
-      var cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: d.dailyCap, placeholder: 'empty = common ($' + d.commonCap + ')' });
+      // 🔢 the boxes always show the value in use now (own value, or the common one from 💲 Pay per view)
+      var ownRpm = d.rpm !== '' && d.rpm !== null && d.rpm !== undefined, ownCap = d.dailyCap !== '' && d.dailyCap !== null && d.dailyCap !== undefined;
+      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: ownRpm ? d.rpm : d.effRpm, placeholder: 'empty = common ($' + d.commonRpm + ')' });
+      var cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: ownCap ? d.dailyCap : d.effCap, placeholder: 'empty = common ($' + d.commonCap + ')' });
+      var nowBox = el('div', { style: 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:10px 12px;margin:6px 0 4px;font-size:14px;font-weight:700' }, [
+        el('div', {}, [el('span', { text: '✅ Price per 1,000 views in use now: $' + d.effRpm }), el('span', { style: 'font-weight:500;margin-left:6px', text: ownRpm ? 'Own value' : 'Common value' })]),
+        el('div', {}, [el('span', { text: '📅 Daily limit in use now: $' + d.effCap }), el('span', { style: 'font-weight:500;margin-left:6px', text: ownCap ? 'Own value' : 'Common value' })])]);
+      wrap.appendChild(nowBox);
       var sw = el('input', { type: 'checkbox' }); sw.checked = src === 'invited' ? d.mustAccept : d.open;
       var tx = el('textarea', { class: 'at-in', rows: '3', placeholder: 'Text people see (empty = the standard text)' }); tx.value = d.text || '';
       [rpm, cap, sw, tx].forEach(function (x) { x.disabled = dis; });
@@ -627,7 +633,10 @@
       wrap.appendChild(el('div', { class: 'at-lbl', text: 'Text shown to people' })); wrap.appendChild(tx);
       if (!dis) {
         var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Save', onclick: function () {
-          var body2 = { source: src, set: true, rpm: rpm.value, dailyCap: cap.value, text: tx.value };
+          var r1 = rpm.value, c1 = cap.value;
+          if (!ownRpm && r1 !== '' && Number(r1) === Number(d.commonRpm)) r1 = '';   // unchanged common value: keep following 💲 Pay per view
+          if (!ownCap && c1 !== '' && Number(c1) === Number(d.commonCap)) c1 = '';
+          var body2 = { source: src, set: true, rpm: r1, dailyCap: c1, text: tx.value };
           if (src === 'invited') body2.mustAccept = sw.checked; else body2.open = sw.checked;
           btn.disabled = true; adm('/api/admin/creator-path', body2).then(function (x) { btn.disabled = false; if (x.success) { draw(x); } else msg(out, false, '❌ ' + (x.error || 'Failed')); });
         } });
