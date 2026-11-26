@@ -1,10 +1,11 @@
-// 🪙 Coins and 🎁 gifts (Party Room phase 2A).
+// 💎 Coins and 🎁 gifts (Party Room phase 2A).
 //  * People buy coins on the website (ABA / ACLEDA / Wing): they pick a pack, pay, send the receipt; CamFeed checks it in
 //    Admin > Coins and approves -> the coins arrive. (Google Play purchases inside the app come later, phase 2B.)
 //  * In a Party Room a person spends coins on a gift for somebody on a seat. The receiver gets a share of the gift's value
 //    (Admin sets the %, start 50%) in the same wallet as the creator money; it can be withdrawn after a few days (Admin sets).
 //  * 1 coin = 1 US cent. Packs, the share, the waiting days, the payment details and every gift are set in the Admin panel.
-module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents, starShare, starsOf, onTopup }) {
+const wallets = require('./wallet-pockets');
+module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice, publicIds, walletCents, contentHoldDays, starShare, starsOf, onTopup }) {
   const norm = (e) => String(e || '').trim().toLowerCase();
   const COIN_CENTS = 1;
   // 👑 levels by XP (like Bigo): XP comes from coins spent (gifts, frames, VIP), gift coins received, minutes in rooms and the
@@ -92,7 +93,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     }
     return ready;
   }
-  setTimeout(() => ensure().catch((e) => console.error('[coins] schema:', e.message)), 5000);
+  setTimeout(() => ensure().catch((e) => console.error('[diamonds] schema:', e.message)), 5000);
 
   // ---- settings (Admin panel) ----
   async function settings() {
@@ -103,7 +104,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     const num = (v, d, lo, hi) => { const n = Number(v); return v !== undefined && v !== '' && Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
     let levels = DEFAULT_LEVELS;
     try { const l = JSON.parse(m.xp_levels || 'null'); if (Array.isArray(l) && l.length) levels = l.map((x) => parseInt(x, 10)).filter((x) => x >= 0).sort((a, b) => a - b); } catch (e) { /* default */ }
-    return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 3, 0, 60), payinfo: m.payinfo || '', walletOn: m.wallet_on !== '0',
+    return { packs, share: num(m.share, 50, 0, 100), holdDays: num(m.hold, 0, 0, 60), payinfo: m.payinfo || '', walletOn: m.wallet_on !== '0',
       // 🎁 the check-in gift box, by the week: in every 7 check-ins the prizes are fixed (default 0 coins ×2, 1 coin ×3, 2 coins ×2
       // = 7 coins a week) and come in a shuffled order — Admin sets them
       checkinDeck: (() => { try { const l = JSON.parse(m.checkin_deck || 'null'); if (Array.isArray(l) && l.length) { const d = l.map((x) => ({ coins: Math.max(0, parseInt(x.coins, 10) || 0), times: Math.max(0, parseInt(x.times, 10) || 0) })).filter((x) => x.times > 0); if (d.length) return d; } } catch (e) { /* default */ }
@@ -122,6 +123,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     return r.rows[0].n;
   }
   // gift money still waiting (can not be withdrawn yet)
+  async function giftHoldDays() { await ensure(); return (await settings()).holdDays || 0; }
   async function heldCents(email) {
     try {
       await ensure();
@@ -143,10 +145,11 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const tops = await pool.query('SELECT id, usd, coins, method, status, note, created_at, decided_at FROM coin_topups WHERE user_email = $1 ORDER BY id DESC LIMIT 10', [e]);
       res.json({ success: true, balance: await balance(e), coinCents: COIN_CENTS, share: s.share, holdDays: s.holdDays,
         walletOn: s.walletOn, walletCents: walletCents ? await walletCents(e) : 0,
+        pockets: await (async () => { try { const p = await wallets.pockets(pool, e, { giftHoldDays: s.holdDays, contentHoldDays: contentHoldDays ? contentHoldDays() : 0 }); return { gift: p.gift, content: p.content, giftReady: p.giftReady, contentReady: p.contentReady }; } catch (x) { return null; } })(),
         packs: s.packs.map((p, i) => ({ i, usd: Number(p.usd) || 0, coins: Number(p.web) || 0, appCoins: Number(p.app) || 0, playId: playIdOf(p) })),
         play: gplay.on(), playAccount: gplay.accountIdOf(e),               // 🛒 Google Play in the Android app
         payinfo: s.payinfo, gifts: gifts.rows.map(giftOut), topups: tops.rows });
-    } catch (err) { console.error('[coins] get:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+    } catch (err) { console.error('[diamonds] get:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
   app.get('/api/coins/history', async (req, res) => {
@@ -185,10 +188,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         const admins = await pool.query("SELECT email FROM users WHERE role IN ('admin', 'super_admin')");
         const who = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [e]);
         const name = who.rows[0] ? (who.rows[0].first_name + ' ' + who.rows[0].last_name).trim() : 'a member';
-        for (const a of admins.rows) await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'admin_notice', $3, FALSE)", [a.email, e, '🪙 New coin top-up from ' + name + ': $' + Number(p.usd).toFixed(2) + ' (' + method + '). Open Admin → System → Coins to check it.']).catch(() => {});
+        for (const a of admins.rows) await pool.query("INSERT INTO notifications (recipient_email, sender_email, post_id, type, message, is_read) VALUES ($1, $2, NULL, 'admin_notice', $3, FALSE)", [a.email, e, '💎 New diamond top-up from ' + name + ': $' + Number(p.usd).toFixed(2) + ' (' + method + '). Open Admin → System → Diamonds to check it.']).catch(() => {});
       } catch (x) { /* best effort */ }
       res.json({ success: true, id: r.rows[0].id });
-    } catch (err) { console.error('[coins] topup:', err.message); res.status(500).json({ success: false, error: 'Could not send.' }); }
+    } catch (err) { console.error('[diamonds] topup:', err.message); res.status(500).json({ success: false, error: 'Could not send.' }); }
   });
 
   // ---- 🛒 Google Play (Android app): the app sends the purchase; CamFeed asks Google if it is real, then adds the coins ONCE ----
@@ -212,7 +215,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const old = (await pool.query('SELECT user_email, coins FROM play_purchases WHERE token = $1', [token])).rows[0];
       if (old) return old.user_email === e ? res.json({ success: true, already: true, coins: old.coins, balance: await balance(e) }) : res.status(409).json({ success: false, code: 'used' });
       const g = await gplay.checkProduct(productId, token);
-      if (!g.ok) { console.error('[coins] play check:', g.http, g.why); return res.status(502).json({ success: false, code: 'google', why: g.http }); }
+      if (!g.ok) { console.error('[diamonds] play check:', g.http, g.why); return res.status(502).json({ success: false, code: 'google', why: g.http }); }
       if (g.state === 2) return res.status(202).json({ success: false, code: 'pending' });              // paid later (e.g. cash at a shop): try again then
       if (g.state !== 0) return res.status(400).json({ success: false, code: 'cancelled' });
       if (g.account && g.account !== gplay.accountIdOf(e)) return res.status(409).json({ success: false, code: 'other' });
@@ -225,7 +228,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         await c.query('COMMIT');
       } catch (x) { try { await c.query('ROLLBACK'); } catch (y) {} throw x; } finally { c.release(); }
       res.json({ success: true, coins, balance: await balance(e) });
-    } catch (err) { console.error('[coins] play:', err.message); res.status(500).json({ success: false, error: 'Could not add the coins.' }); }
+    } catch (err) { console.error('[diamonds] play:', err.message); res.status(500).json({ success: false, error: 'Could not add the diamonds.' }); }
   });
 
   // ---- 💰 change money in my wallet (rewards, video earnings, gifts...) into coins: at once, no checking needed ----
@@ -243,18 +246,20 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       if (!(cents > 0 && coins > 0)) { c.release(); return res.status(400).json({ success: false }); }
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['wallet:' + e]);
-      const w = await c.query('SELECT COALESCE(SUM(amount_cents), 0)::int AS n FROM wallet_ledger WHERE LOWER(user_email) = $1', [e]);
+      // 👛 the person chooses the pocket: 🎁 gift money or 🎬 content money (all of it, waiting money too: it never leaves CamFeed)
+      const pocket = wallets.pocketOf((req.body || {}).pocket);
+      const w = await c.query(`SELECT COALESCE(SUM(amount_cents) FILTER (WHERE ${wallets.POCKET_SQL} = $2), 0)::int AS n, COALESCE(SUM(amount_cents), 0)::int AS t FROM wallet_ledger WHERE LOWER(user_email) = $1`, [e, pocket]);
       const have = w.rows[0].n;
-      if (have < cents) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'wallet', walletCents: have, needCents: cents, error: 'Your wallet does not have enough money.' }); }
-      const ins = await c.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'coins', $3, $1) RETURNING id", [e, -cents, 'Changed into ' + coins + ' coins']);
+      if (have < cents) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'wallet', pocket, walletCents: have, needCents: cents, error: 'This pocket does not have enough money.' }); }
+      const ins = await c.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by, pocket) VALUES ($1, $2, 'coins', $3, $1, $4) RETURNING id", [e, -cents, 'Changed into ' + coins + ' diamonds', pocket]);
       await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'wallet', $3, $4, $1)", [e, coins, 'From wallet $' + (cents / 100).toFixed(2), ins.rows[0].id]);
       await c.query('COMMIT');
       c.release();
-      res.json({ success: true, balance: await balance(e), walletCents: have - cents, coins });
+      res.json({ success: true, balance: await balance(e), walletCents: w.rows[0].t - cents, pocket, coins });
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();
-      console.error('[coins] wallet:', err.message);
+      console.error('[diamonds] wallet:', err.message);
       res.status(500).json({ success: false, error: 'Could not change.' });
     }
   });
@@ -282,7 +287,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
       const have = await balance(e, c);
-      if (have < cost) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, error: 'Not enough coins.' }); }
+      if (have < cost) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, error: 'Not enough diamonds.' }); }
       const ss = starShare ? await starShare(to) : null;             // ⭐ a CamFeed Star gets the Stars' share (Admin sets it)
       const share = cost * COIN_CENTS * (ss != null ? ss : s.share) / 100;   // cents for the receiver (may have a fraction)
       const ev = await c.query('INSERT INTO gift_events (room_id, from_email, to_email, gift_id, count, coins, receiver_cents) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [roomId, e, to, g.id, count, cost, share]);
@@ -304,7 +309,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();
-      console.error('[coins] gift:', err.message);
+      console.error('[diamonds] gift:', err.message);
       res.status(500).json({ success: false, error: 'Could not send the gift.' });
     }
   });
@@ -322,7 +327,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
   }
   app.get('/api/party/frames', async (req, res) => {
     const e = me(req, res); if (!e) return;
-    try { await ensure(); res.json(await frameShop(e)); } catch (err) { console.error('[coins] frames:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+    try { await ensure(); res.json(await frameShop(e)); } catch (err) { console.error('[diamonds] frames:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
   app.post('/api/party/frames/:id/buy', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -334,7 +339,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
       const have = await balance(e, c);
-      if (have < f.coins) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: f.coins, error: 'Not enough coins.' }); }
+      if (have < f.coins) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: f.coins, error: 'Not enough diamonds.' }); }
       await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'frame', $3, $4, $1)", [e, -f.coins, 'Frame ' + f.code + ' ' + f.days + 'd', f.id]);
       // bought again while still worn: the days are added on
       await c.query(`INSERT INTO user_frames (user_email, frame_id, expires_at) VALUES ($1, $2, NOW() + ($3 || ' days')::interval)
@@ -346,7 +351,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();
-      console.error('[coins] frame buy:', err.message);
+      console.error('[diamonds] frame buy:', err.message);
       res.status(500).json({ success: false, error: 'Could not buy the frame.' });
     }
   });
@@ -404,7 +409,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
           xp = u.xp + GREATEST(0, (CASE WHEN u.day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date THEN LEAST(u.day_room + ROUND(h.add)::int, $3) - u.day_room ELSE LEAST(ROUND(h.add)::int, $3) END)),
           day = (NOW() AT TIME ZONE 'Asia/Phnom_Penh')::date
         FROM here h WHERE u.user_email = h.user_email`, [s.xp.seat, s.xp.listen, s.xp.roomMax, s.vipOn ? s.xp.vipBonus : 0]);
-    } catch (e) { console.error('[coins] room xp:', e.message); }
+    } catch (e) { console.error('[diamonds] room xp:', e.message); }
   }
   setTimeout(() => { roomXpTick(); setInterval(roomXpTick, 60 * 1000); }, 80 * 1000);
   /// for party.js: Map email → {level, vip}
@@ -437,7 +442,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
   }
   app.get('/api/party/vip', async (req, res) => {
     const e = me(req, res); if (!e) return;
-    try { await ensure(); res.json(await vipInfo(e)); } catch (err) { console.error('[coins] vip:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+    try { await ensure(); res.json(await vipInfo(e)); } catch (err) { console.error('[diamonds] vip:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
   app.post('/api/party/vip/buy', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -449,7 +454,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);
       const have = await balance(e, c);
-      if (have < s.vipPrice) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: s.vipPrice, error: 'Not enough coins.' }); }
+      if (have < s.vipPrice) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: s.vipPrice, error: 'Not enough diamonds.' }); }
       await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'vip', $3, $1)", [e, -s.vipPrice, 'VIP ' + s.vipDays + 'd']);
       await c.query(`INSERT INTO user_vip (user_email, expires_at) VALUES ($1, NOW() + ($2 || ' days')::interval)
                      ON CONFLICT (user_email) DO UPDATE SET expires_at = GREATEST(user_vip.expires_at, NOW()) + ($2 || ' days')::interval`, [e, String(s.vipDays)]);
@@ -459,7 +464,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();
-      console.error('[coins] vip buy:', err.message);
+      console.error('[diamonds] vip buy:', err.message);
       res.status(500).json({ success: false, error: 'Could not buy VIP.' });
     }
   });
@@ -478,7 +483,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
   }
   app.get('/api/party/checkin', async (req, res) => {
     const e = me(req, res); if (!e) return;
-    try { await ensure(); res.json(await checkinInfo(e)); } catch (err) { console.error('[coins] checkin:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+    try { await ensure(); res.json(await checkinInfo(e)); } catch (err) { console.error('[diamonds] checkin:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
   app.post('/api/party/checkin', async (req, res) => {
     const e = me(req, res); if (!e) return;
@@ -530,7 +535,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();
-      console.error('[coins] checkin post:', err.message);
+      console.error('[diamonds] checkin post:', err.message);
       res.status(500).json({ success: false, error: 'Could not check in.' });
     }
   });
@@ -560,7 +565,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         return { rank: i + 1, email: u.email || x.email, first_name: u.first_name || '', last_name: u.last_name || '', profile_pic: u.profile_pic || '', coins: x.coins, title: x.title || '', level: b.level || 1, vip: !!b.vip }; });
       const mine = list.find((x) => norm(x.email) === e) || null;
       res.json({ success: true, type, period, list, me: mine ? { rank: mine.rank, coins: mine.coins } : null });
-    } catch (err) { console.error('[coins] ranking:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+    } catch (err) { console.error('[diamonds] ranking:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
   /// the frames people in a room wear now (for party.js): Map email → {colors, emoji, anim}
@@ -576,7 +581,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     return m;
   }
 
-  // ---- Admin › System › 🪙 Coins & gifts ----
+  // ---- Admin › System › 💎 Coins & gifts ----
   app.post('/api/admin/coins', async (req, res) => {
     const b = req.body || {};
     try {
@@ -589,7 +594,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (Array.isArray(b.packs)) {
           const packs = b.packs.map((p) => Object.assign({ usd: Math.round(Number(p.usd) * 100) / 100, web: parseInt(p.web, 10), app: parseInt(p.app, 10) }, /^[a-z0-9_.]{1,100}$/.test(String(p.play || '')) ? { play: String(p.play) } : {}))
             .filter((p) => p.usd > 0 && p.usd <= 1000 && p.web > 0 && p.web <= 1000000 && p.app >= 0 && p.app <= 1000000).slice(0, 8);
-          if (!packs.length) return res.status(400).json({ success: false, error: 'Add at least one pack (price > 0 and coins > 0).' });
+          if (!packs.length) return res.status(400).json({ success: false, error: 'Add at least one pack (price > 0 and diamonds > 0).' });
           await setSetting('packs', JSON.stringify(packs));
         }
         if (b.share !== undefined) { const v = Number(b.share); if (!(v >= 0 && v <= 100)) return res.status(400).json({ success: false, error: 'Share must be 0 to 100.' }); await setSetting('share', v); }
@@ -602,10 +607,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         const g = b.gift || {};
         const coins = parseInt(g.coins, 10), tier = Math.min(Math.max(parseInt(g.tier, 10) || 1, 1), 4);
         const emoji = String(g.emoji || '').trim().slice(0, 16), km = String(g.name_km || '').trim().slice(0, 60), en = String(g.name_en || '').trim().slice(0, 60);
-        if (!(coins > 0 && coins <= 1000000) || !emoji || !km || !en) return res.status(400).json({ success: false, error: 'Fill in the picture (emoji), both names and the price in coins.' });
+        if (!(coins > 0 && coins <= 1000000) || !emoji || !km || !en) return res.status(400).json({ success: false, error: 'Fill in the picture (emoji), both names and the price in diamonds.' });
         if (g.id) await pool.query('UPDATE gift_catalog SET emoji = $2, name_km = $3, name_en = $4, coins = $5, tier = $6, active = $7 WHERE id = $1', [parseInt(g.id, 10), emoji, km, en, coins, tier, g.active !== false]);
         else await pool.query('INSERT INTO gift_catalog (code, emoji, name_km, name_en, coins, tier, sort) VALUES ($1, $2, $3, $4, $5, $6, 999)', ['g' + Date.now(), emoji, km, en, coins, tier]);
-        audit(a.adminEmail, 'gift-catalog', String(g.id || 'new'), en + ' ' + coins + ' coins' + (g.active === false ? ' (off)' : ''));
+        audit(a.adminEmail, 'gift-catalog', String(g.id || 'new'), en + ' ' + coins + ' diamonds' + (g.active === false ? ' (off)' : ''));
       } else if (act === 'vip') {
         if (!superOnly()) return;
         if (Array.isArray(b.levels)) {
@@ -627,7 +632,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
             await setSetting(key, v);
           }
         }
-        if (b.vipPrice !== undefined) { const v = parseInt(b.vipPrice, 10); if (!(v > 0 && v <= 10000000)) return res.status(400).json({ success: false, error: 'VIP price must be more than 0 coins.' }); await setSetting('vip_price', v); }
+        if (b.vipPrice !== undefined) { const v = parseInt(b.vipPrice, 10); if (!(v > 0 && v <= 10000000)) return res.status(400).json({ success: false, error: 'VIP price must be more than 0 diamonds.' }); await setSetting('vip_price', v); }
         if (b.vipDays !== undefined) { const v = parseInt(b.vipDays, 10); if (!(v > 0 && v <= 365)) return res.status(400).json({ success: false, error: 'VIP days must be 1 to 365.' }); await setSetting('vip_days', v); }
         if (b.vipOn !== undefined) await setSetting('vip_on', b.vipOn ? '1' : '0');
         audit(a.adminEmail, 'vip-settings', 'settings', 'levels / VIP price / days changed');
@@ -635,7 +640,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (!superOnly()) return;
         if (Array.isArray(b.checkin) && b.checkin.length) {
           const l = b.checkin.map((x) => parseInt(x, 10));
-          if (l.length !== 7 || l.some((x) => !(x >= 0 && x <= 100000))) return res.status(400).json({ success: false, error: 'Write 7 numbers (coins for day 1 … day 7), 0 or more.' });
+          if (l.length !== 7 || l.some((x) => !(x >= 0 && x <= 100000))) return res.status(400).json({ success: false, error: 'Write 7 numbers (diamonds for day 1 … day 7), 0 or more.' });
           await setSetting('checkin', JSON.stringify(l));
         }
         if (Array.isArray(b.checkinDeck)) {                           // "coins:times" pairs for one round (a week)
@@ -646,7 +651,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (b.checkinWinners !== undefined) { const v = parseInt(b.checkinWinners, 10); if (!(v >= 0 && v <= 1000000)) return res.status(400).json({ success: false, error: 'Winners a day: 0 or more.' }); await setSetting('checkin_winners', v); }
         if (b.checkinCooldown !== undefined) { const v = parseInt(b.checkinCooldown, 10); if (!(v >= 0 && v <= 365)) return res.status(400).json({ success: false, error: 'Days before winning again: 0–365.' }); await setSetting('checkin_cooldown', v); }
         if (b.checkinOn !== undefined) await setSetting('checkin_on', b.checkinOn ? '1' : '0');
-        audit(a.adminEmail, 'checkin-settings', 'settings', 'check-in coins changed');
+        audit(a.adminEmail, 'checkin-settings', 'settings', 'check-in diamonds changed');
       } else if (act === 'frame') {
         if (!superOnly()) return;
         const g = b.frame || {};
@@ -654,10 +659,10 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         const km = String(g.name_km || '').trim().slice(0, 60), en = String(g.name_en || '').trim().slice(0, 60), emoji = String(g.emoji || '').trim().slice(0, 16);
         const colors = String(g.colors || '').split(',').map((x) => x.trim()).filter((x) => /^#[0-9a-fA-F]{6}$/.test(x)).slice(0, 4).join(',');
         const anim = ['none', 'pulse', 'spin'].includes(g.anim) ? g.anim : 'none';
-        if (!(coins > 0 && coins <= 1000000) || !(days > 0 && days <= 365) || !km || !en || !colors) return res.status(400).json({ success: false, error: 'Fill in both names, colours (#RRGGBB, comma between), price in coins and days.' });
+        if (!(coins > 0 && coins <= 1000000) || !(days > 0 && days <= 365) || !km || !en || !colors) return res.status(400).json({ success: false, error: 'Fill in both names, colours (#RRGGBB, comma between), price in diamonds and days.' });
         if (g.id) await pool.query('UPDATE party_frames SET name_km = $2, name_en = $3, colors = $4, emoji = $5, anim = $6, coins = $7, days = $8, active = $9 WHERE id = $1', [parseInt(g.id, 10), km, en, colors, emoji, anim, coins, days, g.active !== false]);
         else await pool.query('INSERT INTO party_frames (code, name_km, name_en, colors, emoji, anim, coins, days, sort) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 999)', ['f' + Date.now(), km, en, colors, emoji, anim, coins, days]);
-        audit(a.adminEmail, 'party-frame', String(g.id || 'new'), en + ' ' + coins + ' coins / ' + days + ' days' + (g.active === false ? ' (off)' : ''));
+        audit(a.adminEmail, 'party-frame', String(g.id || 'new'), en + ' ' + coins + ' diamonds / ' + days + ' days' + (g.active === false ? ' (off)' : ''));
       } else if (act === 'decide') {
         if (!superOnly()) return;
         const note = String(b.note || '').trim().slice(0, 300);
@@ -670,11 +675,11 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         const u = (await pool.query('SELECT email FROM users WHERE LOWER(email) = LOWER($1) OR public_id = $1 LIMIT 1', [who])).rows[0];
         if (!u) return res.status(404).json({ success: false, error: 'No such person (use their e-mail, phone account or 15-digit id).' });
         const coins = parseInt(b.coins, 10);
-        if (!coins || Math.abs(coins) > 10000000) return res.status(400).json({ success: false, error: 'Enter the number of coins (+ to add, - to take).' });
-        if (coins < 0 && (await balance(u.email)) + coins < 0) return res.status(400).json({ success: false, error: 'That would make the coins negative.' });
+        if (!coins || Math.abs(coins) > 10000000) return res.status(400).json({ success: false, error: 'Enter the number of diamonds (+ to add, - to take).' });
+        if (coins < 0 && (await balance(u.email)) + coins < 0) return res.status(400).json({ success: false, error: 'That would make the diamonds negative.' });
         await pool.query("INSERT INTO coin_ledger (user_email, coins, kind, note, created_by) VALUES ($1, $2, 'admin', $3, $4)", [norm(u.email), coins, String(b.note || '').slice(0, 200), a.adminEmail]);
-        if (coins > 0) await sendNotice(a.adminEmail, norm(u.email), '🪙 CamFeed បានបញ្ចូល ' + coins + ' កាក់ ទៅក្នុងគណនីរបស់អ្នក។').catch(() => {});
-        audit(a.adminEmail, 'coin-adjust', u.email, coins + ' coins ' + String(b.note || ''));
+        if (coins > 0) await sendNotice(a.adminEmail, norm(u.email), '💎 CamFeed បានបញ្ចូល ' + coins + ' ពេជ្រ ទៅក្នុងគណនីរបស់អ្នក។').catch(() => {});
+        audit(a.adminEmail, 'coin-adjust', u.email, coins + ' diamonds ' + String(b.note || ''));
       }
       const s = await settings();
       const gifts = await pool.query('SELECT * FROM gift_catalog ORDER BY tier, coins, sort');
@@ -690,7 +695,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const ckd = (await pool.query(`SELECT checkins, winners FROM checkin_days WHERE day = ${KH_DAY}`)).rows[0] || { checkins: 0, winners: 0 };
       const ck = await pool.query(`SELECT COUNT(*)::int AS n, COALESCE((SELECT SUM(coins) FROM coin_ledger WHERE kind = 'checkin' AND created_at > NOW() - INTERVAL '30 days'), 0)::int AS coins FROM party_checkin WHERE last_day = ${KH_DAY}`);
       res.json({ success: true, isSuperAdmin: a.isSuperAdmin, settings: s, vipNow: vips.rows[0].n, checkinToday: ck.rows[0].n, checkinCoins30: ck.rows[0].coins, checkinWinnersToday: ckd.winners, gifts: gifts.rows, frames: frames.rows, pending: pending.rows, recent: recent.rows, totals: tot.rows[0] });
-    } catch (err) { console.error('[coins] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
+    } catch (err) { console.error('[diamonds] admin:', err.message); if (!res.headersSent) res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
   // 🎯 challenges: everybody's XP right now
@@ -704,13 +709,13 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
     if (!t) return { ok: false, text: 'Already decided.' };
     if (approve) {
       await pool.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'topup', $3, $4, $5)", [t.user_email, t.coins, 'Top-up $' + Number(t.usd).toFixed(2) + ' ' + t.method, t.id, by]);
-      await sendNotice(by, t.user_email, '🪙 អបអរសាទរ! CamFeed បានបញ្ចូល ' + t.coins + ' កាក់ ទៅក្នុងគណនីរបស់អ្នករួចហើយ។ អរគុណ!').catch(() => {});
+      await sendNotice(by, t.user_email, '💎 អបអរសាទរ! CamFeed បានបញ្ចូល ' + t.coins + ' ពេជ្រ ទៅក្នុងគណនីរបស់អ្នករួចហើយ។ អរគុណ!').catch(() => {});
     } else {
-      await sendNotice(by, t.user_email, 'សំណើបញ្ចូលកាក់ $' + Number(t.usd).toFixed(2) + ' របស់អ្នកមិនត្រូវបានអនុម័តទេ។ មូលហេតុ៖ ' + (note || 'CamFeed មិនទាន់ឃើញប្រាក់ចូល') + '។ សូមទាក់ទង CamFeed បើមានចម្ងល់។').catch(() => {});
+      await sendNotice(by, t.user_email, 'សំណើបញ្ចូលពេជ្រ $' + Number(t.usd).toFixed(2) + ' របស់អ្នកមិនត្រូវបានអនុម័តទេ។ មូលហេតុ៖ ' + (note || 'CamFeed មិនទាន់ឃើញប្រាក់ចូល') + '។ សូមទាក់ទង CamFeed បើមានចម្ងល់។').catch(() => {});
     }
-    audit(by, 'coin-topup-' + st, t.user_email, '$' + Number(t.usd).toFixed(2) + ' ' + t.coins + ' coins ' + (note || ''));
-    return { ok: true, text: approve ? ('🪙 ' + t.coins + ' កាក់ បានបញ្ចូលហើយ') : 'បានបដិសេធ' };
+    audit(by, 'coin-topup-' + st, t.user_email, '$' + Number(t.usd).toFixed(2) + ' ' + t.coins + ' diamonds ' + (note || ''));
+    return { ok: true, text: approve ? ('💎 ' + t.coins + ' ពេជ្រ បានបញ្ចូលហើយ') : 'បានបដិសេធ' };
   }
 
-  return { heldCents, balance, framesOf, badgesOf, xpNowOf, settings, decideTopup };
+  return { heldCents, giftHoldDays, balance, framesOf, badgesOf, xpNowOf, settings, decideTopup };
 };

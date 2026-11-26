@@ -137,7 +137,7 @@ module.exports = function installPartyAccess({ app, pool, adminGate, audit, badg
       await c.query('BEGIN');
       await c.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['coins:' + e]);          // the same lock as the other coin spending
       const have = (await c.query('SELECT COALESCE(SUM(coins), 0)::int AS n FROM coin_ledger WHERE user_email = $1', [e])).rows[0].n;
-      if (have < p.coins) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: p.coins, error: 'Not enough coins.' }); }
+      if (have < p.coins) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'coins', balance: have, need: p.coins, error: 'Not enough diamonds.' }); }
       const up = await c.query(`INSERT INTO party_private_passes (user_email, until, coins_total) VALUES ($1, NOW() + ($2 || ' days')::interval, $3)
                                 ON CONFLICT (user_email) DO UPDATE SET until = GREATEST(party_private_passes.until, NOW()) + ($2 || ' days')::interval,
                                 coins_total = party_private_passes.coins_total + $3, updated_at = NOW() RETURNING until`, [e, String(p.days), p.coins]);

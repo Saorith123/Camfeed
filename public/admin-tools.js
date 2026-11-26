@@ -2,7 +2,7 @@
    Everything shown comes from the server as TEXT (never inserted as HTML). Uses the page's currentUser / savedAdminKey. */
 (function () {
   'use strict';
-  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '🪙 Coins & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check'], ['keywords', '🏷️ AI Keywords'], ['verify', '✔ Official accounts']];
+  var TABS = [['inbox', '🔔 Inbox'], ['overview', '📊 Overview'], ['umanage', '👥 Users'], ['chats', '💬 Chats'], ['content', '📝 Content'], ['audit', '🧾 Activity Log'], ['live', '🔴 Live'], ['sounds', '🎵 Sounds'], ['ads', '📢 Ads'], ['party', '🎉 Party Room'], ['coins', '💎 Diamonds & Gifts'], ['stars', '⭐ Stars'], ['challenges', '🎯 Challenges'], ['system', '⚙️ System'], ['appcfg', '🧩 App features & lists'], ['perms', '👮 Admins & rights'], ['copyright', '©️ Copyright'], ['views', '🔍 Views check'], ['keywords', '🏷️ AI Keywords'], ['verify', '✔ Official accounts']];
   // the menu, in groups (left side on a computer, on top on a phone)
   var GROUPS = [
     ['🏠 Start', ['inbox', 'overview', 'audit']],
@@ -435,7 +435,7 @@
     emailCodes: ['E-mail codes (Resend)', 'Needed for Gmail sign-up and forgot password. Check RESEND_API_KEY and the verified domain.'], phoneCodes: ['Phone codes (Telegram Gateway)', 'Paused when TELEGRAM_GATEWAY_TOKEN is not set: people use Gmail or message you on Telegram.'],
     telegramLogin: ['Telegram login', 'Off by decision (ENABLE_TELEGRAM_LOGIN).'], turnstile: ['Human check (Cloudflare Turnstile)', 'Set TURNSTILE_SECRET_KEY to stop bots on sign-up and login.'], mediaStorage: ['Photo / video storage (R2)', 'Needs R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.'],
     aiCategories: ['AI post categories (Gemini)', 'Without it every post is "General", so the feed can not learn what people like.'], supportTelegram: ['Support Telegram link', 'Set SUPPORT_TELEGRAM so people can message you from the sign-up page.'],
-    googlePlay: ['Coins by Google Play (app)', 'Set GOOGLE_PLAY_SERVICE_ACCOUNT (the JSON key of a service account added in Play Console › Users and permissions). Products: cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20.'], payway: ['Ad wallet by ABA PayWay', 'Set PAYWAY_MERCHANT_ID, PAYWAY_API_KEY and PAYWAY_API_URL.'] };
+    googlePlay: ['Diamonds by Google Play (app)', 'Set GOOGLE_PLAY_SERVICE_ACCOUNT (the JSON key of a service account added in Play Console › Users and permissions). Products: cf_coins_1, cf_coins_5, cf_coins_10, cf_coins_20.'], payway: ['Ad wallet by ABA PayWay', 'Set PAYWAY_MERCHANT_ID, PAYWAY_API_KEY and PAYWAY_API_URL.'] };
   // 📲 the Android app file for testers and family (camfeedkh.com/apk.html) — only the Super Admin uploads
   function apkCard(p) {
     var box = el('div', { class: 'at-card', style: 'margin:10px 0 14px' }); p.appendChild(box);
@@ -599,11 +599,11 @@
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Phone top-up'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
+    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
   }
   // the settings of one way to earn (its own price, daily limit, switch and text)
   function monPath(box, src) {
@@ -690,7 +690,7 @@
       })));
     });
   }
-  // ---------- 🪙 Coins & 🎁 gifts: top-ups waiting, packs, receiver share, waiting days, payment details, the gift list ----------
+  // ---------- 💎 Coins & 🎁 gifts: top-ups waiting, packs, receiver share, waiting days, payment details, the gift list ----------
   // ---------- 🚩 chat reports (on top of the Reports tab): see the reported message + the messages around it, delete at once,
   // message the person, limit their chat, suspend, dismiss; every report about the same person is counted (watch them) ----------
   function chatReportsAdmin() {
@@ -1249,18 +1249,18 @@
       function row(label, i) { return el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0' }, [el('span', { style: 'min-width:300px', text: label }), i]); }
       box.appendChild(el('div', { style: 'font-weight:800;margin:6px 0' , text: 'Rules' }));
       box.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700;margin:4px 0' }, [on, el('span', { text: 'Stars program open (applications + bigger share + bonus)' })]));
-      box.appendChild(row('Star share of gift value (%) — normal people get the Coins share', sh));
+      box.appendChild(row('Star share of gift value (%) — normal people get the Diamonds share', sh));
       box.appendChild(row('Days needed in a month (days with the minimum session)', md));
       box.appendChild(row('Minimum minutes for a day to count', ms));
       box.appendChild(row('Most minutes counted in one day', mx));
       box.appendChild(row('Listeners needed in the room for minutes to count', ml));
-      box.appendChild(row('Bonus % when coins are reached but hours / days are not', hf));
+      box.appendChild(row('Bonus % when diamonds are reached but hours / days are not', hf));
       box.appendChild(row('Trial days after approval (0 = star at once)', tr_));
-      box.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 4px', text: 'Monthly bonus tiers (hours + gift coins received → $)' }));
+      box.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 4px', text: 'Monthly bonus tiers (hours + gift diamonds received → $)' }));
       var tiers = (s.tiers || []).map(function (t) { return { h: num(t.hours), c: num(t.coins, 110), u: el('input', { class: 'at-in', value: (Number(t.cents || 0) / 100).toFixed(2), style: 'width:80px' }) }; });
       if (su) tiers.push({ h: num(''), c: num('', 110), u: el('input', { class: 'at-in', value: '', style: 'width:80px', placeholder: '$' }) });
       tiers.forEach(function (t) { ins.push(t.h, t.c, t.u); });
-      box.appendChild(table(['⭐', 'Hours', 'Gift coins received', 'Bonus $'], tiers.map(function (t, i) { return el('tr', {}, [el('td', { text: '⭐' + (i + 1) }), el('td', {}, [t.h]), el('td', {}, [t.c]), el('td', {}, [t.u])]); })));
+      box.appendChild(table(['⭐', 'Hours', 'Gift diamonds received', 'Bonus $'], tiers.map(function (t, i) { return el('tr', {}, [el('td', { text: '⭐' + (i + 1) }), el('td', {}, [t.h]), el('td', {}, [t.c]), el('td', {}, [t.u])]); })));
       if (!su) ins.forEach(function (i) { i.disabled = true; });
       if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin:8px 0', text: 'Save rules', onclick: function () {
         call({ action: 'settings', on: on.checked, share: sh.value, minDays: md.value, minSession: ms.value, maxDay: mx.value, minListeners: ml.value, half: hf.value, trialDays: tr_.value,
@@ -1290,8 +1290,8 @@
           var ru = r.rules || {}, m = r.month || {}, pm = r.prevMonth || {}, lv = r.live || {};
           daysBox.appendChild(el('div', { style: 'border:1px solid #ddd;border-radius:12px;padding:10px;margin:8px 0' }, [
             el('div', { style: 'font-weight:800', text: '📊 ' + nm(x) + ' — minutes counted day by day (a day counts with ≥ ' + ru.minSession + ' min, at most ' + ru.maxDay + ' a day)' }),
-            el('div', { text: 'This month: ' + m.hours + ' h · ' + m.days + ' / ' + ru.minDays + ' days · ' + m.coins + ' coins · tier ' + ((m.tier || {}).tier || '—') }),
-            el('div', { text: 'Last month: ' + pm.hours + ' h · ' + pm.days + ' days · ' + pm.coins + ' coins · tier ' + ((pm.tier || {}).tier || '—') }),
+            el('div', { text: 'This month: ' + m.hours + ' h · ' + m.days + ' / ' + ru.minDays + ' days · ' + m.coins + ' diamonds · tier ' + ((m.tier || {}).tier || '—') }),
+            el('div', { text: 'Last month: ' + pm.hours + ' h · ' + pm.days + ' days · ' + pm.coins + ' diamonds · tier ' + ((pm.tier || {}).tier || '—') }),
             el('div', { text: 'Now: ' + (lv.counting ? '🟢 counting' : (lv.inRoom ? (lv.seated ? '⏸ ' + lv.others + ' listeners (needs ' + ru.minListeners + ')' : '⏸ in a room, not on a seat') : '⏸ not in a room')) }),
             table(['Day', 'Minutes', 'Counts'], (r.days || []).slice().reverse().map(function (dd) {
               return el('tr', {}, [el('td', { text: dd.day }), el('td', { text: String(dd.minutes) }), el('td', { text: dd.minutes >= ru.minSession ? '✅' : '—' })]);
@@ -1301,7 +1301,7 @@
         });
       }
       box.appendChild(daysBox);
-      box.appendChild(table(['Name', 'Status', 'This month: hours / days / coins', 'Warnings', 'Note', ''], others.map(function (x) {
+      box.appendChild(table(['Name', 'Status', 'This month: hours / days / diamonds', 'Warnings', 'Note', ''], others.map(function (x) {
         var m = x.month || {};
         var acts = !su ? [el('button', { class: 'btn-sm', text: '📊 Days', onclick: function () { showDays(x); } })] : [
           el('button', { class: 'btn-sm', text: '📊 Days', onclick: function () { showDays(x); } }),
@@ -1310,11 +1310,11 @@
           x.status === 'star' || x.status === 'trial' ? el('button', { class: 'btn-sm', text: '⏸ Pause', onclick: function () { var r = prompt('Why paused (the person sees it):'); if (r !== null) call({ action: 'status', user: x.user_email, status: 'paused', note: r }); } }) : '',
           x.status !== 'removed' && x.status !== 'rejected' ? el('button', { class: 'btn-sm', text: '🗑 Remove', onclick: function () { var r = prompt('Why removed (the person sees it):'); if (r !== null && confirm('Remove ' + nm(x) + ' from Stars?')) call({ action: 'status', user: x.user_email, status: 'removed', note: r }); } }) : ''];
         return el('tr', {}, [el('td', { text: nm(x) }), el('td', { text: x.status + (x.trial_until && x.status === 'trial' ? ' (until ' + String(x.trial_until).slice(0, 10) + ')' : '') }),
-          el('td', { text: x.month ? (m.hours + ' h / ' + m.days + ' d / ' + m.coins + ' coins') : '—' }), el('td', { text: String(x.warnings || 0) }), el('td', { text: x.note || '' }), el('td', {}, acts)]);
+          el('td', { text: x.month ? (m.hours + ' h / ' + m.days + ' d / ' + m.coins + ' diamonds') : '—' }), el('td', { text: String(x.warnings || 0) }), el('td', { text: x.note || '' }), el('td', {}, acts)]);
       })));
       // bonuses
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: '💵 Monthly bonuses (worked out at the start of each month — check, then pay into the wallet)' }));
-      box.appendChild(table(['Name', 'Month', 'Hours / days / coins', 'Tier', 'Amount', 'Status', ''], (d.bonuses || []).map(function (b) {
+      box.appendChild(table(['Name', 'Month', 'Hours / days / diamonds', 'Tier', 'Amount', 'Status', ''], (d.bonuses || []).map(function (b) {
         return el('tr', {}, [el('td', { text: nm(b) }), el('td', { text: b.month }), el('td', { text: b.hours + ' h / ' + b.days + ' d / ' + b.coins }), el('td', { text: b.tier ? '⭐' + b.tier + (b.half ? ' (half)' : '') : '—' }),
           el('td', { text: '$' + (Number(b.amount_cents || 0) / 100).toFixed(2) }), el('td', { text: b.status }),
           el('td', {}, su && b.status === 'pending' ? [el('button', { class: 'btn-sm btn-blue', text: 'Pay', onclick: function () { if (confirm('Pay $' + (b.amount_cents / 100).toFixed(2) + ' to ' + nm(b) + '?')) call({ action: 'bonus', id: b.id, pay: true }); } }), ' ',
@@ -1325,19 +1325,19 @@
   }
 
   // ---------- 🎯 Challenges: goals for a time with steps (tier 1, 2, 3…) and/or Top N places; rewards = coins / frame / VIP / XP / a note / money ----------
-  var CH_METRIC = { gift_recv: '🎁 Gift coins received', gift_sent: '🎁 Gift coins sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', watch_minutes: '⏱️ Minutes people watched my videos (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
-  var CH_METRIC_KM = { gift_recv: 'កាក់អំណោយដែលបានទទួល', gift_sent: 'កាក់អំណោយដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់ខ្ញុំ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
-  var CH_UNIT = { gift_recv: 'coins · កាក់', gift_sent: 'coins · កាក់', room_minutes: 'min · នាទី', seat_minutes: 'min · នាទី', xp: 'XP', checkins: 'days · ថ្ងៃ', room_followers: 'people · នាក់', video_views: 'views · ដង', watch_minutes: 'min · នាទី', posts: 'posts · ដង', followers: 'people · នាក់' };
+  var CH_METRIC = { gift_recv: '🎁 Gift diamonds received', gift_sent: '🎁 Gift diamonds sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', watch_minutes: '⏱️ Minutes people watched my videos (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
+  var CH_METRIC_KM = { gift_recv: 'ពេជ្រអំណោយដែលបានទទួល', gift_sent: 'ពេជ្រអំណោយដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់ខ្ញុំ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
+  var CH_UNIT = { gift_recv: 'diamonds · ពេជ្រ', gift_sent: 'diamonds · ពេជ្រ', room_minutes: 'min · នាទី', seat_minutes: 'min · នាទី', xp: 'XP', checkins: 'days · ថ្ងៃ', room_followers: 'people · នាក់', video_views: 'views · ដង', watch_minutes: 'min · នាទី', posts: 'posts · ដង', followers: 'people · នាក់' };
   // which counts fit which place (the lists only show these; 'both' shows all)
   var CH_AREA = { party: ['gift_recv', 'gift_sent', 'room_minutes', 'seat_minutes', 'xp', 'checkins', 'room_followers'], monetize: ['video_views', 'watch_minutes', 'posts', 'followers'] };
   function chFit(sel, area) { var ok = CH_AREA[area]; Array.prototype.forEach.call(sel.options, function (o) { var show = !ok || ok.indexOf(o.value) >= 0 || o.selected; o.hidden = !show; o.disabled = !show; }); }
-  var CH_REWARD = { coins: '🪙 Coins', money: '💵 Money ($, Admin approves)', frame: '🖼️ Frame', vip: '👑 VIP days', xp: '⚡ XP', note: '📝 Note only (e.g. a chance to become a Star)' };
+  var CH_REWARD = { coins: '💎 Diamonds', money: '💵 Money ($, Admin approves)', frame: '🖼️ Frame', vip: '👑 VIP days', xp: '⚡ XP', note: '📝 Note only (e.g. a chance to become a Star)' };
   function challengesAdmin(body) {
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
     var frames = [], COIN_MONEY = null, DAILY_OK = [];
     function call(extra) { return adm('/api/admin/challenges', extra || {}).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; }); }
     function local(d) { if (!d) return ''; var x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); }
-    function rewardTxt(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '$' + (n / 100).toFixed(2) : r.type === 'coins' ? n + ' coins' : r.type === 'vip' ? 'VIP ' + n + ' days' : r.type === 'xp' ? n + ' XP' : r.type === 'frame' ? 'Frame #' + r.frame_id + ' ' + (r.days || 7) + ' days' : (r.label || '—'); }
+    function rewardTxt(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '$' + (n / 100).toFixed(2) : r.type === 'coins' ? n + ' diamonds' : r.type === 'vip' ? 'VIP ' + n + ' days' : r.type === 'xp' ? n + ' XP' : r.type === 'frame' ? 'Frame #' + r.frame_id + ' ' + (r.days || 7) + ' days' : (r.label || '—'); }
     function rewardEditor(r) {
       r = r || { type: 'coins', amount: 0 };
       var t = el('select', { class: 'at-in', style: 'width:150px;display:inline-block' }); Object.keys(CH_REWARD).forEach(function (k) { var o = el('option', { value: k, text: CH_REWARD[k] }); if (k === r.type) o.selected = true; t.appendChild(o); });
@@ -1448,14 +1448,14 @@
           var keep = cm.centsPerCoin - (cm.coinCents || 1) * cm.share / 100, coinsN = st.any ? Math.min.apply(null, gift) : Math.max.apply(null, gift);
           if (keep <= 0 || value >= coinsN * keep) {
             bad = true; x.warn.style.color = '#e41e3f';
-            x.warn.textContent = '⛔ CamFeed would lose money · CamFeed នឹងខាត — reward $' + (value / 100).toFixed(2) + (keep > 0 ? ', ask for more than ' + Math.ceil(value / keep) + ' coins · សូមដាក់លើស ' + Math.ceil(value / keep) + ' កាក់' : '') + ', or give a frame / VIP / XP · ឬផ្ដល់ស៊ុម VIP XP';
+            x.warn.textContent = '⛔ CamFeed would lose money · CamFeed នឹងខាត — reward $' + (value / 100).toFixed(2) + (keep > 0 ? ', ask for more than ' + Math.ceil(value / keep) + ' diamonds · សូមដាក់លើស ' + Math.ceil(value / keep) + ' ពេជ្រ' : '') + ', or give a frame / VIP / XP · ឬផ្ដល់ស៊ុម VIP XP';
           } else { x.warn.style.color = '#16a34a'; x.warn.textContent = '✅ Safe · មានសុវត្ថិភាព (CamFeed keeps $' + (coinsN * keep / 100 - value / 100).toFixed(2) + ' or more)'; }
         });
         if (saveBtn) { saveBtn.disabled = bad; saveBtn.style.opacity = bad ? '0.5' : ''; }
         if (costBox) {
           var mx = Number(mp.value) || 0, money = 0, coinsOut = 0;
           tiers.forEach(function (x) { x.read().rewards.forEach(function (r) { if (r.type === 'money') money += r.amount; if (r.type === 'coins') coinsOut += r.amount; }); });
-          costBox.textContent = (money || coinsOut) ? ('💰 Most CamFeed can give for the steps · ចំណាយច្រើនបំផុតសម្រាប់ជំហាន៖ ' + (money ? '$' + (money / 100).toFixed(2) : '') + (money && coinsOut ? ' + ' : '') + (coinsOut ? coinsOut.toLocaleString() + ' coins' : '') + (mx ? ' × ' + mx + ' people · នាក់ = ' + (money ? '$' + (money * mx / 100).toFixed(2) : '') + (money && coinsOut ? ' + ' : '') + (coinsOut ? (coinsOut * mx).toLocaleString() + ' coins' : '') : ' per person · ក្នុងម្នាក់ (no limit of people · គ្មានកំណត់ចំនួនមនុស្ស)')) : '';
+          costBox.textContent = (money || coinsOut) ? ('💰 Most CamFeed can give for the steps · ចំណាយច្រើនបំផុតសម្រាប់ជំហាន៖ ' + (money ? '$' + (money / 100).toFixed(2) : '') + (money && coinsOut ? ' + ' : '') + (coinsOut ? coinsOut.toLocaleString() + ' diamonds' : '') + (mx ? ' × ' + mx + ' people · នាក់ = ' + (money ? '$' + (money * mx / 100).toFixed(2) : '') + (money && coinsOut ? ' + ' : '') + (coinsOut ? (coinsOut * mx).toLocaleString() + ' diamonds' : '') : ' per person · ក្នុងម្នាក់ (no limit of people · គ្មានកំណត់ចំនួនមនុស្ស)')) : '';
         }
       }
       var saveBtn = null, costBox = el('div', { style: 'margin:8px 0;padding:8px 10px;background:#fff7ed;border-radius:8px;font-size:13px;font-weight:700' });
@@ -1488,8 +1488,8 @@
       f.appendChild(el('button', { class: 'btn-sm', text: '+ Place', onclick: function () { addRank(); } }));
       f.appendChild(row('Status / order', [stt, pair('order', 'លំដាប់', so)], 'ស្ថានភាព'));
       if (!c.id) f.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin:6px 0' }, [notify, el('span', { text: '🔔 Tell everybody active in the last 30 days (a notification)' })]));
-      f.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin:6px 0', text: 'Joining is always free. Coins, frames, VIP and XP are given at once; money waits here for a Super Admin to pay. Gifts between the same person\'s accounts should be checked before paying money.' }));
-      f.appendChild(el('div', { style: 'color:#1E4BFF;font-size:12.5px;margin:0 0 6px', text: 'ការចូលរួមឥតគិតថ្លៃជានិច្ច។ កាក់ ស៊ុម VIP និង XP ផ្ដល់ឲ្យភ្លាមៗ។ ប្រាក់ត្រូវរង់ចាំ Super Admin បង់។ មុនបង់ប្រាក់ សូមពិនិត្យអំណោយរវាងគណនីរបស់មនុស្សតែម្នាក់។' }));
+      f.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin:6px 0', text: 'Joining is always free. Diamonds, frames, VIP and XP are given at once; money waits here for a Super Admin to pay. Gifts between the same person\'s accounts should be checked before paying money.' }));
+      f.appendChild(el('div', { style: 'color:#1E4BFF;font-size:12.5px;margin:0 0 6px', text: 'ការចូលរួមឥតគិតថ្លៃជានិច្ច។ ពេជ្រ ស៊ុម VIP និង XP ផ្ដល់ឲ្យភ្លាមៗ។ ប្រាក់ត្រូវរង់ចាំ Super Admin បង់។ មុនបង់ប្រាក់ សូមពិនិត្យអំណោយរវាងគណនីរបស់មនុស្សតែម្នាក់។' }));
       f.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:8px' }, [
         saveBtn = el('button', { class: 'btn-sm btn-blue', text: c.id ? '💾 Save' : '✅ Create', onclick: function () {
           var data = { id: c.id, icon: icon.value, title_km: tk.value, title_en: te.value, body_km: bk.value, body_en: be.value, area: area.value, metric: metric.value,
@@ -1581,19 +1581,19 @@
     function call(extra) { return adm('/api/admin/coins', extra || {}).then(function (x) { if (x.success) draw(x); else alert(x.error || 'Failed'); return x; }); }
     function draw(d) {
       box.textContent = '';
-      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '🪙 Coins & 🎁 gifts (Party Room)' }));
+      box.appendChild(el('div', { style: 'font-size:16px;font-weight:800;margin-bottom:4px', text: '💎 Diamonds & 🎁 gifts (Party Room)' }));
       if (!d.success) { box.appendChild(empty(d.error || 'Could not load.')); return; }
       var tt = d.totals || {};
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: '1 coin = $0.01. Sold on the website so far: $' + Number(tt.sold_usd || 0).toFixed(2) + ' · coins spent on gifts: ' + Number(tt.gift_coins || 0).toLocaleString() + ' · paid to receivers: $' + (Number(tt.receiver_cents || 0) / 100).toFixed(2) + '. People buy on camfeedkh.com/coins.html.' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: '1 diamond = $0.01. Sold on the website so far: $' + Number(tt.sold_usd || 0).toFixed(2) + ' · diamonds spent on gifts: ' + Number(tt.gift_coins || 0).toLocaleString() + ' · paid to receivers: $' + (Number(tt.receiver_cents || 0) / 100).toFixed(2) + '. People buy on camfeedkh.com/coins.html.' }));
       var su = !!d.isSuperAdmin;
       // top-ups waiting
       box.appendChild(el('div', { style: 'font-weight:800;margin:10px 0 6px', text: 'Top-ups waiting (' + d.pending.length + ')' }));
       if (!d.pending.length) box.appendChild(empty('Nothing waiting.'));
       else box.appendChild(table(['Person', 'Pack', 'Paid with', 'Transaction', 'Receipt', 'Sent', ''], d.pending.map(function (x) {
-        return el('tr', {}, [el('td', { text: nm(x) + ' · ' + x.user_email }), el('td', { text: '$' + Number(x.usd).toFixed(2) + ' → ' + x.coins + ' coins' }), el('td', { text: x.method }), el('td', { text: x.payer_ref || '—' }),
+        return el('tr', {}, [el('td', { text: nm(x) + ' · ' + x.user_email }), el('td', { text: '$' + Number(x.usd).toFixed(2) + ' → ' + x.coins + ' diamonds' }), el('td', { text: x.method }), el('td', { text: x.payer_ref || '—' }),
           el('td', {}, [x.receipt_url ? el('a', { href: x.receipt_url, target: '_blank', text: '🖼️ Open' }) : el('span', { text: '—' })]), el('td', { text: ago(x.created_at) }),
           el('td', {}, su ? [
-            el('button', { class: 'btn-sm btn-blue', text: 'Approve', onclick: function () { if (confirm('Add ' + x.coins + ' coins to ' + nm(x) + '? Check that the money arrived first.')) call({ action: 'decide', id: x.id, status: 'approved' }); } }), ' ',
+            el('button', { class: 'btn-sm btn-blue', text: 'Approve', onclick: function () { if (confirm('Add ' + x.coins + ' diamonds to ' + nm(x) + '? Check that the money arrived first.')) call({ action: 'decide', id: x.id, status: 'approved' }); } }), ' ',
             el('button', { class: 'btn-sm btn-red', text: 'Reject', onclick: function () { var why = prompt('Reason (the person sees it):', ''); if (why) call({ action: 'decide', id: x.id, status: 'rejected', note: why }); } })
           ] : [el('span', { text: 'Super Admin' })])]);
       })));
@@ -1605,7 +1605,7 @@
         var u = el('input', { class: 'at-in', type: 'number', step: '0.01', value: String(p.usd), style: 'width:90px;display:inline-block' });
         var w = el('input', { class: 'at-in', type: 'number', value: String(p.web), style: 'width:110px;display:inline-block' });
         var a = el('input', { class: 'at-in', type: 'number', value: String(p.app || 0), style: 'width:110px;display:inline-block' });
-        var r = el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0' }, [el('span', { text: '$' }), u, el('span', { text: 'website coins' }), w, el('span', { text: 'in-app coins (later)' }), a,
+        var r = el('div', { style: 'display:flex;gap:8px;align-items:center;margin:4px 0' }, [el('span', { text: '$' }), u, el('span', { text: 'website diamonds' }), w, el('span', { text: 'in-app diamonds (later)' }), a,
           el('button', { class: 'btn-sm btn-gray', text: '✕', onclick: function () { r.remove(); } })]);
         r._get = function () { return { usd: u.value, web: w.value, app: a.value }; };
         rows.appendChild(r);
@@ -1616,7 +1616,7 @@
       var share = el('input', { class: 'at-in', type: 'number', value: String(s.share) }), hold = el('input', { class: 'at-in', type: 'number', value: String(s.holdDays) });
       var pay = el('textarea', { class: 'at-in', rows: '5', style: 'width:100%' }); pay.value = s.payinfo || '';
       var wOn = el('input', { type: 'checkbox' }); wOn.checked = s.walletOn !== false; if (!su) wOn.disabled = true;
-      box.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin:10px 0;font-weight:700' }, [wOn, el('span', { text: '💰 People can change wallet money into coins (same coins as the website packs, at once)' })]));
+      box.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin:10px 0;font-weight:700' }, [wOn, el('span', { text: '💰 People can change wallet money into diamonds (same diamonds as the website packs, at once)' })]));
       box.appendChild(el('div', { class: 'at-lbl', text: 'Receiver gets … % of a gift\'s value (start 50)' })); box.appendChild(share);
       box.appendChild(el('div', { class: 'at-lbl', text: 'Gift money can be withdrawn after … days' })); box.appendChild(hold);
       box.appendChild(el('div', { class: 'at-lbl', text: 'Payment details shown on the website (ABA / ACLEDA / Wing account name and number, KHQR …)' })); box.appendChild(pay);
@@ -1643,7 +1643,7 @@
       // 🖼️ Party Room picture frames (our own designs: 2–4 colours + one emoji, the app draws them)
       var frames = d.frames || [];
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '🖼️ Party Room frames (' + frames.length + ')' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'People buy a frame with coins for some days; it shows around their picture on the seats, in the room chat and the room list. Colours: #RRGGBB, comma between (2–4). Move: none / pulse / spin.' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'People buy a frame with diamonds for some days; it shows around their picture on the seats, in the room chat and the room list. Colours: #RRGGBB, comma between (2–4). Move: none / pulse / spin.' }));
       function frameRow(g) {
         var km = el('input', { class: 'at-in', value: g.name_km || '' }), en = el('input', { class: 'at-in', value: g.name_en || '' });
         var co = el('input', { class: 'at-in', value: g.colors || '', style: 'width:150px', placeholder: '#FDE047,#B45309' }), em = el('input', { class: 'at-in', value: g.emoji || '', style: 'width:55px' });
@@ -1665,15 +1665,15 @@
       // 👑 VIP + levels
       var st = d.settings || {};
       box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '👑 VIP & levels (VIP now: ' + (d.vipNow || 0) + ')' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Level = XP (like Bigo). XP comes from: coins spent (gifts, frames, VIP), gift coins received, minutes in rooms (a seat gives more, up to a daily limit) and the daily check-in; VIP gets extra XP for time and check-in. Write the XP where each level starts, comma between, first is 0 (Level 1). VIP: N days bought with coins: 👑 badge, golden name, a big "VIP came in" banner, first in the ✋ list, a helper can not send them out.' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Level = XP (like Bigo). XP comes from: diamonds spent (gifts, frames, VIP), gift diamonds received, minutes in rooms (a seat gives more, up to a daily limit) and the daily check-in; VIP gets extra XP for time and check-in. Write the XP where each level starts, comma between, first is 0 (Level 1). VIP: N days bought with coins: 👑 badge, golden name, a big "VIP came in" banner, first in the ✋ list, a helper can not send them out.' }));
       var lv = el('input', { class: 'at-in', value: (st.levels || []).join(','), style: 'width:100%' });
       var xr = st.xp || {}, pk = st.perks || {};
       function xin(v) { var i = el('input', { class: 'at-in', type: 'number', value: String(v == null ? '' : v), style: 'width:80px' }); if (!su) i.disabled = true; return i; }
       var xSpend = xin(xr.spend), xRecv = xin(xr.receive), xListen = xin(xr.listen), xSeat = xin(xr.seat), xMax = xin(xr.roomMax), xCk = xin(xr.checkin), xVip = xin(xr.vipBonus), pName = xin(pk.nameColor), pEntry = xin(pk.entry);
       function xrow(label, i) { return el('div', { style: 'display:flex;gap:8px;align-items:center;margin:3px 0' }, [el('span', { style: 'min-width:330px', text: label }), i]); }
       box.appendChild(el('div', { style: 'font-weight:700;margin:8px 0 4px', text: 'How much XP' }));
-      box.appendChild(xrow('XP for 1 coin spent', xSpend));
-      box.appendChild(xrow('XP for 1 gift coin received', xRecv));
+      box.appendChild(xrow('XP for 1 diamond spent', xSpend));
+      box.appendChild(xrow('XP for 1 gift diamond received', xRecv));
       box.appendChild(xrow('XP per minute listening in a room', xListen));
       box.appendChild(xrow('XP per minute on a seat', xSeat));
       box.appendChild(xrow('Most XP from rooms in one day', xMax));
@@ -1687,12 +1687,12 @@
       if (!su) [lv, vp, vd, vo].forEach(function (i) { i.disabled = true; });
       box.appendChild(el('div', { class: 'at-lbl', text: 'Levels (XP where each level starts — ' + (st.levels || []).length + ' levels)' })); box.appendChild(lv);
       box.appendChild(el('div', { style: 'display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap' }, [el('label', { style: 'display:flex;gap:6px;align-items:center;font-weight:700' }, [vo, el('span', { text: 'VIP open' })]),
-        el('span', { text: 'VIP price (coins)' }), vp, el('span', { text: 'days' }), vd,
+        el('span', { text: 'VIP price (diamonds)' }), vp, el('span', { text: 'days' }), vd,
         su ? el('button', { class: 'btn-sm btn-blue', text: 'Save VIP & levels', onclick: function () { call({ action: 'vip', levels: lv.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean), vipPrice: vp.value, vipDays: vd.value, vipOn: vo.checked,
           xp: { spend: xSpend.value, receive: xRecv.value, listen: xListen.value, seat: xSeat.value, roomMax: xMax.value, checkin: xCk.value, vipBonus: xVip.value }, perks: { nameColor: pName.value, entry: pEntry.value } }); } }) : '']));
       // 📅 daily check-in
-      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '📅 Daily check-in (today: ' + (d.checkinToday || 0) + ' people · coins given in 30 days: ' + Number(d.checkinCoins30 || 0).toLocaleString() + ')' }));
-      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Once a day people open a 🎁 gift box (+ the check-in XP set in VIP & levels). Coins go round between people: only N winners a day get coins (picked by chance through the whole day), a winner waits some days before winning again, everybody else finds the box empty. Prize of a winner: coins:weight, e.g. 1:3,2:2 = 1 coin (3 of 5) or 2 coins (2 of 5). Careful: coins can be gifted, and gifts turn into real money for the receiver — keep them small.' }));
+      box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 2px', text: '📅 Daily check-in (today: ' + (d.checkinToday || 0) + ' people · diamonds given in 30 days: ' + Number(d.checkinCoins30 || 0).toLocaleString() + ')' }));
+      box.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:6px', text: 'Once a day people open a 🎁 gift box (+ the check-in XP set in VIP & levels). Diamonds go round between people: only N winners a day get diamonds (picked by chance through the whole day), a winner waits some days before winning again, everybody else finds the box empty. Prize of a winner: coins:weight, e.g. 1:3,2:2 = 1 diamond (3 of 5) or 2 diamonds (2 of 5). Careful: diamonds can be gifted, and gifts turn into real money for the receiver — keep them small.' }));
       var deckNow = st.checkinDeck || [{ coins: 0, times: 2 }, { coins: 1, times: 3 }, { coins: 2, times: 2 }];
       var ckv = el('input', { class: 'at-in', value: deckNow.map(function (x) { return x.coins + ':' + x.times; }).join(','), style: 'width:260px' });
       var ckW = el('input', { class: 'at-in', type: 'number', value: String(st.checkinWinners == null ? 20 : st.checkinWinners), style: 'width:90px' });
@@ -1706,11 +1706,11 @@
         su ? el('button', { class: 'btn-sm btn-blue', text: 'Save check-in', onclick: function () { call({ action: 'checkin', checkinWinners: ckW.value, checkinCooldown: ckC.value, checkinDeck: ckv.value.split(',').map(function (x) { var p = x.split(':'); return { coins: (p[0] || '').trim(), times: (p[1] || '').trim() }; }).filter(function (x) { return x.coins !== '' && x.times !== ''; }), checkinOn: cko.checked }); } }) : '']));
       // add / take coins by hand
       if (su) {
-        box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take coins by hand' }));
+        box.appendChild(el('div', { style: 'font-weight:800;margin:16px 0 6px', text: 'Give or take diamonds by hand' }));
         var who = el('input', { class: 'at-in', placeholder: 'e-mail, phone account or 15-digit id' }), n = el('input', { class: 'at-in', type: 'number', placeholder: '+100 or -100' }), why = el('input', { class: 'at-in', placeholder: 'Note (kept in the audit log)' });
         box.appendChild(who); box.appendChild(n); box.appendChild(why);
         box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Apply', onclick: function () {
-          if (!confirm('Change coins of ' + who.value + ' by ' + n.value + '?')) return;
+          if (!confirm('Change diamonds of ' + who.value + ' by ' + n.value + '?')) return;
           call({ action: 'adjust', user: who.value, coins: n.value, note: why.value }).then(function (x) { if (x.success) alert('✅ Done'); });
         } }));
       }
@@ -1830,7 +1830,7 @@
             } })] : [])]);
         }
         var rows = list.map(row); if (su) rows.push(row({ kind: kind, anim: (anims[kind] || [])[0], coins: 0 }));
-        box.appendChild(table(['Emoji', 'Khmer', 'English', 'Move', 'Coins (0 = free)', 'Order', 'On', ''], rows));
+        box.appendChild(table(['Emoji', 'Khmer', 'English', 'Move', 'Diamonds (0 = free)', 'Order', 'On', ''], rows));
       });
     }
     adm('/api/admin/party', {}).then(draw);
@@ -1861,17 +1861,17 @@
       var pOn = check('Private rooms are on', pv.on !== false);
       var pLv = field('Free from Level', pv.minLevel || 0, '0 = no free level');
       var pVip = check('VIP can make rooms private', pv.vip !== false);
-      var pRoom = field('Switch an open room to private — people WITHOUT the right (coins)', pv.roomPrice != null ? pv.roomPrice : 50, '0 = they can not · the room is not closed');
-      var pSwitch = field('Switch an open room to private — people WITH the right (coins)', pv.switchPrice != null ? pv.switchPrice : 10, '0 = free');
+      var pRoom = field('Switch an open room to private — people WITHOUT the right (diamonds)', pv.roomPrice != null ? pv.roomPrice : 50, '0 = they can not · the room is not closed');
+      var pSwitch = field('Switch an open room to private — people WITH the right (diamonds)', pv.switchPrice != null ? pv.switchPrice : 10, '0 = free');
       var packs = el('textarea', { class: 'at-in', rows: '4', style: 'width:100%;font-family:inherit' }); packs.disabled = !su;
       packs.value = (pv.packs || []).map(function (p) { return p.coins + ' = ' + p.days; }).join('\n');
-      box.appendChild(el('div', { style: 'margin:6px 0 2px;font-weight:700', text: '🪙 Coin packs (one per line: coins = days, e.g. 100 = 3)' })); box.appendChild(packs);
+      box.appendChild(el('div', { style: 'margin:6px 0 2px;font-weight:700', text: '💎 Diamond packs (one per line: diamonds = days, e.g. 100 = 3)' })); box.appendChild(packs);
       if (su) box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'margin-top:8px', text: '💾 Save', onclick: function () {
         var pk = packs.value.split('\n').map(function (l) { var m = l.split('='); return { coins: Number((m[0] || '').trim()), days: Number((m[1] || '').trim()) }; }).filter(function (p) { return p.coins > 0 && p.days > 0; });
         call({ set: { open: { mode: mode.value, minLevel: Number(oLv.value), minDays: Number(oDays.value), needPhone: oPhone.checked }, private: { on: pOn.checked, minLevel: Number(pLv.value), vip: pVip.checked, roomPrice: Number(pRoom.value), switchPrice: Number(pSwitch.value), packs: pk } } }).then(function (x) { if (x && x.success) alert('✅ Saved'); });
       } }));
       var sl = d.sales || {};
-      box.appendChild(el('div', { style: 'margin-top:10px;padding:8px 10px;background:#f7f8fa;border-radius:8px', text: '🪙 Private sold: ' + (sl.n || 0) + ' times to ' + (sl.people || 0) + ' people · ' + (sl.coins || 0) + ' coins in all · ' + (sl.coins30 || 0) + ' coins in the last 30 days · open private rooms now: ' + (d.privateRooms || 0) }));
+      box.appendChild(el('div', { style: 'margin-top:10px;padding:8px 10px;background:#f7f8fa;border-radius:8px', text: '💎 Private sold: ' + (sl.n || 0) + ' times to ' + (sl.people || 0) + ' people · ' + (sl.coins || 0) + ' diamonds in all · ' + (sl.coins30 || 0) + ' diamonds in the last 30 days · open private rooms now: ' + (d.privateRooms || 0) }));
       h('3. CamFeed\'s own permission (no rules needed)');
       var who = el('input', { class: 'at-in', placeholder: 'email or phone', style: 'width:220px;display:inline-block' });
       var kind = el('select', { class: 'at-in', style: 'width:200px;display:inline-block' }); [['private', '🔐 Make rooms private'], ['open', '🎉 Open rooms']].forEach(function (o) { kind.appendChild(el('option', { value: o[0], text: o[1] })); });
@@ -1883,18 +1883,18 @@
           el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'Take back', onclick: function () { if (confirm('Take back from ' + nm(g) + '?')) call({ revoke: { target: g.target, kind: g.kind } }); } })])]);
       });
       if (rows.length) box.appendChild(table(['Person', 'Right', 'Until', 'Given by', ''], rows)); else box.appendChild(empty('Nobody yet.'));
-      h('4. Bought with coins (still running)');
+      h('4. Bought with diamonds (still running)');
       var prow = (d.passes || []).map(function (p) {
         return el('tr', {}, [el('td', { text: nm(p) + ' · ' + p.target }), el('td', { text: when(p.until) }), el('td', { text: String(p.coins_total || 0) }),
-          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'End now', onclick: function () { if (confirm('End the private days of ' + nm(p) + '? (no coins are given back)')) call({ revoke: { target: p.target, kind: 'pass' } }); } })])]);
+          el('td', {}, [el('button', { class: 'btn-sm btn-gray', text: 'End now', onclick: function () { if (confirm('End the private days of ' + nm(p) + '? (no diamonds are given back)')) call({ revoke: { target: p.target, kind: 'pass' } }); } })])]);
       });
-      if (prow.length) box.appendChild(table(['Person', 'Until', 'Coins spent', ''], prow)); else box.appendChild(empty('Nobody yet.'));
+      if (prow.length) box.appendChild(table(['Person', 'Until', 'Diamonds spent', ''], prow)); else box.appendChild(empty('Nobody yet.'));
     }
     call();
   }
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {
-    CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: 'Smallest withdrawal ($)', WITHDRAW_DAY_MAX_USD: 'Most a person can withdraw in one day ($, 0 = no limit)', WITHDRAW_MONTH_MAX_USD: 'Most a person can withdraw in 30 days ($, 0 = no limit)', WITHDRAW_HOLD_HOURS: 'A first withdrawal / new account number waits … hours before it can be paid (0 = no wait)',
+    CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: '🎁 Gift money: smallest withdrawal ($)', CONTENT_MIN_WITHDRAW_USD: '🎬 Content money: smallest withdrawal ($)', CONTENT_HOLD_DAYS: '🎬 Content money waits … days before it can be withdrawn (0 = no wait)', WITHDRAW_DAY_MAX_USD: 'Most a person can withdraw in one day ($, 0 = no limit)', WITHDRAW_MONTH_MAX_USD: 'Most a person can withdraw in 30 days ($, 0 = no limit)', WITHDRAW_HOLD_HOURS: 'A first withdrawal / new account number waits … hours before it can be paid (0 = no wait)',
     COPYRIGHT_MAX_STRIKES: '©️ Copyright: upheld claims / removed copies in one year before the person\'s earnings stop (1–10)',
     NAME_CHANGE_DAYS: 'A person can change their name once every … days (0 = any time)', GROUP_CALL_MAX: 'People in one group call at most (2–16)', CHAT_MAX_MONTHS: 'Chat messages are deleted after … months at most, for everyone (1–24)',
     REFERRAL_REWARD_USD: 'Reward per invited friend ($)', REFERRAL_ACTIVE_DAYS: 'Friend must use CamFeed on … different days', REFERRAL_POSTS: 'Friend must post … public photos / videos', REFERRAL_WINDOW_DAYS: 'Within … days after signing up', REFERRAL_MAX_PER_MONTH: 'Paid automatically per inviter per month (more = waits for you)'
@@ -1979,8 +1979,50 @@
           warn.forEach(function (t) { kids.push(el('div', { style: 'font-size:12px;margin-top:4px;color:' + (/^⚠️/.test(t) ? '#b45309' : '#65676b') }, [el('span', { text: t.indexOf('⏳ Wait until ') === 0 ? '⏳ Wait until ' : t }), el('span', { text: t.indexOf('⏳ Wait until ') === 0 ? t.slice(13) : '' })])); });
         }
         var hot = w.reissue_requested_at ? 'background:#fff4e5' : (w.status === 'pending' && w.name_check === 'differ' ? 'background:#fffbeb' : '');
-        return el('tr', { style: hot }, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(w) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: w.public_id || '' })]), el('td', { style: 'font-weight:800', text: money(w.amount) }), el('td', { text: ML[w.method] || w.method }), el('td', { text: w.account_name || '' }), el('td', { text: w.account_number || '' }), el('td', { text: fmt(w.created_at) }), el('td', {}, [statusBadge(w.status)]), el('td', {}, kids)]);
+        return el('tr', { style: hot }, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(w) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: w.public_id || '' })]), el('td', {}, [el('div', { style: 'font-weight:800', text: money(w.amount) }), el('div', { style: 'font-size:11.5px;font-weight:700;color:' + (w.pocket === 'content' ? '#7c3aed' : '#e8590c'), text: w.pocket === 'content' ? '🎬 Content money' : '🎁 Gift money' })]), el('td', { text: ML[w.method] || w.method }), el('td', { text: w.account_name || '' }), el('td', { text: w.account_number || '' }), el('td', { text: fmt(w.created_at) }), el('td', {}, [statusBadge(w.status)]), el('td', {}, kids)]);
       })));
+    });
+  }
+  // 📱 the pictures of Smart / Metfone / Cellcard (people choose one for a phone top-up withdrawal). Empty = the picture CamFeed comes with.
+  function monCarrierLogos(body) {
+    body.textContent = 'Loading…';
+    adm('/api/admin/carrier-logo', { list: true }).then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      // 💵 the card amounts people can choose (cards come only in some amounts)
+      var am = el('input', { class: 'at-in', value: (d.amounts || []).join(', '), placeholder: '1, 1.5, 2, 5, 10, 20', style: 'max-width:320px' });
+      var amOut = el('div', { style: 'font-size:12.5px;margin-top:4px' });
+      body.appendChild(el('div', { style: 'margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #e4e6eb' }, [
+        el('div', { style: 'font-weight:800;margin-bottom:4px', text: '💵 Top-up card amounts ($)' }),
+        el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: 'People can only choose one of these amounts for a phone top-up. Write them with commas.' }),
+        am, d.isSuperAdmin ? el('button', { class: 'btn-sm btn-blue', style: 'margin-left:8px', text: 'Save', onclick: function () {
+          adm('/api/admin/carrier-logo', { amounts: am.value }).then(function (x) { amOut.style.color = x.success ? '#15803d' : '#b91c1c'; amOut.textContent = x.success ? '✅ ' + x.amounts.map(function (n) { return '$' + n; }).join(' · ') : '❌ ' + (x.error || 'Failed'); if (x.success) am.value = x.amounts.join(', '); });
+        } }) : null, amOut]));
+      body.appendChild(el('div', { style: 'font-weight:800;margin-bottom:4px', text: '📱 Phone company pictures' }));
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:12px', text: 'People see these pictures when they choose a phone top-up. Best: PNG with a clear or white background, about 300 × 120 pixels, smaller than 400 KB.' }));
+      (d.carriers || []).forEach(function (c) {
+        var url = (d.logos || {})[c] || ('/icons/carriers/' + c.toLowerCase() + '.png');
+        var img = el('img', { src: url, alt: c, style: 'max-width:100%;max-height:100%;object-fit:contain' });
+        var box = el('div', { style: 'width:130px;height:70px;border:1px solid #dadde1;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:6px;box-sizing:border-box' }, [img]);
+        var file = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', style: 'display:none' });
+        var out = el('div', { style: 'font-size:12.5px;margin-top:4px' });
+        file.addEventListener('change', function () {
+          var f = file.files && file.files[0]; if (!f) return;
+          if (f.size > 400 * 1024) { out.style.color = '#b91c1c'; out.textContent = '❌ The picture must be smaller than 400 KB.'; return; }
+          var r = new FileReader(); r.onload = function () {
+            out.style.color = '#65676b'; out.textContent = 'Uploading…';
+            adm('/api/admin/carrier-logo', { carrier: c, pic: r.result }).then(function (x) { if (x.success) { img.src = x.logos[c]; out.style.color = '#15803d'; out.textContent = '✅ Saved'; } else { out.style.color = '#b91c1c'; out.textContent = '❌ ' + (x.error || 'Failed'); } });
+          }; r.readAsDataURL(f); file.value = '';
+        });
+        var kids = [el('div', { style: 'font-weight:800;margin-bottom:6px', text: c }), box, file];
+        if (d.isSuperAdmin) kids.push(el('div', { style: 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap' }, [
+          el('button', { class: 'btn-sm btn-blue', text: '📤 Upload a new picture', onclick: function () { file.click(); } }),
+          (d.logos || {})[c] ? el('button', { class: 'btn-sm', text: '↩️ Back to the CamFeed picture', onclick: function () {
+            if (!confirm('Use the picture that comes with CamFeed for ' + c + ' again?')) return;
+            adm('/api/admin/carrier-logo', { carrier: c, reset: true }).then(function (x) { if (x.success) monCarrierLogos(body); else alert(x.error || 'Failed'); });
+          } }) : null].filter(Boolean)));
+        kids.push(out);
+        body.appendChild(el('div', { style: 'display:inline-block;vertical-align:top;margin:0 18px 18px 0' }, kids));
+      });
     });
   }
   function monWallet(body) {
@@ -1988,12 +2030,13 @@
     var who = el('input', { class: 'at-in', id: 'mwWho', placeholder: 'Phone number, Gmail or 15-digit ID of the creator' });
     var amount = el('input', { class: 'at-in', id: 'mwAmount', type: 'number', step: '0.01', placeholder: 'Amount in $ (negative = take back)' });
     var kind = el('select', { class: 'at-in', id: 'mwKind' }, [el('option', { value: 'bonus', text: '🎁 Gift (creator gets a notification)' }), el('option', { value: 'adjustment', text: 'Correction' })]);
+    var pocket = el('select', { class: 'at-in', id: 'mwPocket' }, [el('option', { value: '', text: '👛 Pocket: by itself (gift → 🎬 content, correction → 🎁 gift)' }), el('option', { value: 'gift', text: '🎁 Gift money pocket' }), el('option', { value: 'content', text: '🎬 Content money pocket' })]);
     var note = el('input', { class: 'at-in', id: 'mwNote', placeholder: 'Reason (the creator sees it), e.g. "Launch contest winner"' });
     var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px', text: 'Add to wallet', onclick: function () {
       if (!confirm('Change the wallet of ' + who.value + ' by ' + amount.value + ' $ ?')) return; btn.disabled = true;
-      adm('/api/admin/wallet/credit', { identifier: who.value, amount: amount.value, kind: kind.value, note: note.value }).then(function (d) { btn.disabled = false; msg(out, d.success, d.success ? '✅ ' + (d.name || 'The creator') + ' now has ' + money(d.balance) : '❌ ' + (d.error || 'Failed')); if (d.success) { amount.value = ''; note.value = ''; } });
+      adm('/api/admin/wallet/credit', { identifier: who.value, amount: amount.value, kind: kind.value, pocket: pocket.value, note: note.value }).then(function (d) { btn.disabled = false; msg(out, d.success, d.success ? '✅ ' + (d.name || 'The creator') + ' now has ' + money(d.balance) : '❌ ' + (d.error || 'Failed')); if (d.success) { amount.value = ''; note.value = ''; } });
     } });
-    body.appendChild(el('div', { style: 'max-width:520px' }, [el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Only a Super Admin can change a wallet. Use it for prizes and contest rewards. Every change is written to the Activity Log.' }), el('div', { class: 'at-lbl', text: 'Creator' }), who, el('div', { class: 'at-lbl', text: 'Amount' }), amount, el('div', { class: 'at-lbl', text: 'Type' }), kind, el('div', { class: 'at-lbl', text: 'Reason' }), note, el('div', { style: 'margin-top:12px' }, [btn]), out]));
+    body.appendChild(el('div', { style: 'max-width:520px' }, [el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:10px', text: 'Only a Super Admin can change a wallet. Use it for prizes and contest rewards. Every change is written to the Activity Log.' }), el('div', { class: 'at-lbl', text: 'Creator' }), who, el('div', { class: 'at-lbl', text: 'Amount' }), amount, el('div', { class: 'at-lbl', text: 'Type' }), kind, el('div', { class: 'at-lbl', text: 'Pocket' }), pocket, el('div', { class: 'at-lbl', text: 'Reason' }), note, el('div', { style: 'margin-top:12px' }, [btn]), out]));
   }
   window.loadMonetizationAdmin = loadMonetizationAdmin;
 
@@ -2086,7 +2129,7 @@
         if (d.lastError) box.appendChild(el('div', { style: 'font-size:12.5px;color:#b42318;margin-top:6px', text: AT('⚠️ បញ្ហាចុងក្រោយ៖ ', '⚠️ Last problem: ') + d.lastError }));
         // 📲 the simple way: CamFeed's own ABA link + ✅ in Telegram
         var lk = el('input', { class: 'at-in', type: 'url', value: d.abaLink || '', placeholder: 'https://link.payway.com.kh/…', style: 'flex:1;min-width:220px' });
-        box.appendChild(el('div', { style: 'font-weight:800;margin-top:12px', text: AT('📲 បង់តាម QR / link ABA (ពាណិជ្ជកម្ម និងទិញកាក់ · ពិនិត្យក្នុង Telegram)', '📲 Pay by ABA QR / link (ads and coins · checked in Telegram)') }));
+        box.appendChild(el('div', { style: 'font-weight:800;margin-top:12px', text: AT('📲 បង់តាម QR / link ABA (ពាណិជ្ជកម្ម និងទិញពេជ្រ · ពិនិត្យក្នុង Telegram)', '📲 Pay by ABA QR / link (ads and diamonds · checked in Telegram)') }));
         box.appendChild(el('div', { style: 'font-size:13px;color:#555;line-height:1.6', text: d.manual
           ? AT('✅ កំពុងប្រើ៖ អ្នកផ្សាយស្កេន QR ឬបើក link ហើយបង់ រួចដាក់រូបវិក្កយបត្រ។ Telegram ផ្ញើរូបវិក្កយបត្រ ✅ / ❌ មកអ្នក។ ដក link និងរូប QR ចេញ ដើម្បីប្រើ QR PayWay វិញ។', '✅ In use: advertisers scan the QR or open the link, pay, and add the receipt photo. Telegram sends you the receipt with ✅ / ❌. Remove the link and the QR picture to use the PayWay QR again.')
           : AT('ដាក់ link ABA និង/ឬ រូប QR ABA របស់អ្នក ដើម្បីឲ្យអ្នកផ្សាយបង់តាមវា (ប្រើជំនួស QR PayWay)។', 'Put your ABA link and/or ABA QR picture so advertisers pay by it (used instead of the PayWay QR).') }));
@@ -2183,8 +2226,8 @@
         if (!d.bot) box.appendChild(el('div', { style: 'font-size:13px;color:#b42318;margin-bottom:8px;white-space:pre-wrap', text: AT('⚠️ Telegram មិនទទួលស្គាល់ Bot ទេ។ ', '⚠️ Telegram did not accept the bot. ') + (d.botError || '') + '\nToken: ' + (d.tokenShape || '') + (/401/.test(d.botError || '') ? AT('\n→ 401 = Token ខុស។ ចម្លងម្ដងទៀតពី @BotFather › /mybots › Bot របស់អ្នក › API Token។', '\n→ 401 = the token is wrong. Copy it again from @BotFather › /mybots › your bot › API Token.') : '') }));
         if (d.hook && d.hook.lastError) box.appendChild(el('div', { style: 'font-size:12.5px;color:#92400e;margin-bottom:6px', text: AT('បញ្ហាចុងក្រោយ (Telegram → CamFeed)៖ ', 'Last problem (Telegram → CamFeed): ') + d.hook.lastError + (d.hook.pending ? ' · ' + d.hook.pending + AT(' កំពុងរង់ចាំ', ' waiting') : '') + AT(' (បាត់ទៅវិញពេលសារបន្ទាប់ដំណើរការ)', ' (it clears after the next message works)') }));
         box.appendChild(el('div', { style: 'font-size:13.5px;color:#444;margin-bottom:8px;line-height:1.6', text: 'Bot: @' + (d.bot || '?') + ' · ' + AT(
-          'ពេលអ្នកផ្សាយពាណិជ្ជកម្មចុច «ខ្ញុំបានបង់ហើយ» ឬមាននរណាម្នាក់ទិញកាក់ សារមួយនឹងមកដល់ Telegram ខាងក្រោម ជាមួយប៊ូតុង ✅ បានទទួលប្រាក់ / ❌ មិនទាន់ទទួល។ ចុច ✅ = ពាណិជ្ជកម្មចាប់ផ្ដើម ឬកាក់ចូលគណនីភ្លាម។',
-          'When an advertiser presses "I paid" or someone buys coins, a message comes to the Telegram accounts below with ✅ received / ❌ not received. Pressing ✅ starts the ad / adds the coins at once.') }));
+          'ពេលអ្នកផ្សាយពាណិជ្ជកម្មចុច «ខ្ញុំបានបង់ហើយ» ឬមាននរណាម្នាក់ទិញពេជ្រ សារមួយនឹងមកដល់ Telegram ខាងក្រោម ជាមួយប៊ូតុង ✅ បានទទួលប្រាក់ / ❌ មិនទាន់ទទួល។ ចុច ✅ = ពាណិជ្ជកម្មចាប់ផ្ដើម ឬពេជ្រចូលគណនីភ្លាម។',
+          'When an advertiser presses "I paid" or someone buys diamonds, a message comes to the Telegram accounts below with ✅ received / ❌ not received. Pressing ✅ starts the ad / adds the diamonds at once.') }));
         (d.chats || []).forEach(function (c) {
           box.appendChild(el('div', { class: 'at-row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid #eef0f2' }, [el('b', { text: '✅ ' + (c.name || c.chat_id) }), el('span', { style: 'font-size:12px;color:#65676b;flex:1', text: AT('ភ្ជាប់ដោយ ', 'linked by ') + (c.linked_by || '—') + ' · ' + ago(c.linked_at) }),
             el('button', { class: 'btn-sm btn-gray', text: AT('ផ្ដាច់', 'Unlink'), onclick: function () { if (confirm(AT('ផ្ដាច់ Telegram នេះមែនទេ?', 'Unlink this Telegram?'))) adm('/api/admin/tg-pay', { action: 'unlink', chat_id: c.chat_id }).then(draw); } })]));
@@ -2369,8 +2412,8 @@
   window.loadAdsAdmin = loadAdsAdmin;
 
   // ---------- Inbox: everything waiting for an admin, in one place ----------
-  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '🪙', party: '🎉', star: '⭐', challenge: '🎯' };
-  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '🪙 Coins & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars', 'tabBtn-challenges': '🎯 Challenges' };
+  var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '💎', party: '🎉', star: '⭐', challenge: '🎯' };
+  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '💎 Diamonds & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars', 'tabBtn-challenges': '🎯 Challenges' };
   var lastTotal = -1, baseTitle = document.title;
   function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
   function applyInbox(d) {
@@ -2388,7 +2431,7 @@
       if (!d.success) { p.appendChild(empty(d.error || 'Could not load.')); return; }
       applyInbox(d); var c = d.counts;
       p.appendChild(el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '↻ Refresh', onclick: loadInbox })]));
-      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['🪙 Coin top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges'], ['©️ Copyright claims', c.copyrightClaims || 0, 'copyright'], ['🔁 Possible copies', c.copyrightDups || 0, 'copyright'], ['🔍 Views to check', c.viewReviews || 0, 'views']];
+      var chips = [['💸 Withdrawals', c.withdrawals, 'monetization'], ['🔑 New payout code', c.reissue, 'monetization'], ['💰 Creator applications', c.creators, 'monetization'], ['🚩 Reports', c.reports, 'reports'], ['💬 Chat reports', c.chatReports || 0, 'reports'], ['📢 Ad requests', c.ads, 'ads'], ['🔴 Live requests', c.live, 'live'], ['💎 Diamond top-ups', c.coins || 0, 'coins'], ['🎉 Room reports', c.party || 0, 'party'], ['⭐ Star applications', c.stars || 0, 'stars'], ['💵 Star bonuses to pay', c.starBonus || 0, 'stars'], ['🎯 Challenge money to pay', c.challengeRewards || 0, 'challenges'], ['©️ Copyright claims', c.copyrightClaims || 0, 'copyright'], ['🔁 Possible copies', c.copyrightDups || 0, 'copyright'], ['🔍 Views to check', c.viewReviews || 0, 'views']];
       p.appendChild(el('div', { class: 'at-chips' }, chips.map(function (x) {          // 3 columns
         return el('button', { class: 'btn-sm ' + (x[1] > 0 ? '' : 'btn-gray'), style: x[1] > 0 ? 'background:#e41e3f;color:#fff' : '', text: x[0] + ': ' + x[1], onclick: function () { switchAdminTab(x[2]); } });
       })));
@@ -2498,7 +2541,7 @@
   var TAB_SECTION = { copyright: 'content', keywords: 'content', inbox: 'inbox', overview: 'overview', audit: 'audit', umanage: 'users', users: 'users', accounts: 'users', chats: 'chats', reports: 'content', content: 'content', posts: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', monetization: 'money', coins: 'coins', party: 'party', challenges: 'challenges', stars: 'stars', system: 'system', appcfg: 'system' };
   var SECTION_NAME = { inbox: '🔔 Inbox', overview: '📊 Overview', audit: '🧾 Activity Log', users: '👥 Users', chats: '💬 Chats', content: '🛡️ Content & reports', live: '🔴 Live', sounds: '🎵 Sounds', ads: '📢 Ads',
-    money: '💰 Money (withdrawals, creators, referrals)', coins: '🪙 Coins & Gifts', party: '🎉 Party Room', challenges: '🎯 Challenges', stars: '⭐ Stars', system: '⚙️ System' };
+    money: '💰 Money (withdrawals, creators, referrals)', coins: '💎 Diamonds & Gifts', party: '🎉 Party Room', challenges: '🎯 Challenges', stars: '⭐ Stars', system: '⚙️ System' };
   function applyPerms() {
     adm('/api/admin/my-perms', {}).then(function (d) {
       if (!d || !d.success) return;
@@ -2517,7 +2560,7 @@
   // ---------- 🧩 App features & lists: turn parts of the app on or off and change lists, without a new app ----------
   function appConfigAdmin(body) {
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
-    var FEAT = [['partyRoom', '🎉 Party Room'], ['challenge', '🎯 Challenge button'], ['wallet', '💰 My wallet (in the menu)'], ['coins', '🪙 Coins button (Party Room)'],
+    var FEAT = [['partyRoom', '🎉 Party Room'], ['challenge', '🎯 Challenge button'], ['wallet', '💰 My wallet (in the menu)'], ['coins', '💎 Diamonds button (Party Room)'],
       ['vip', '👑 VIP & levels button'], ['frames', '🖼️ Profile frames button'], ['checkin', '📅 Daily check-in'], ['stars', '⭐ Stars'], ['ranking', '🏆 Ranking'],
       ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)'], ['chatBubbles', '💬 Chat bubbles (new messages float over other apps)']];
     var cfgNow = {};

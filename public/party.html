@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="km">
 <head>
+<style id="camgem">/* 💎 CamFeed's own diamond: only the 💎 sign uses it */@font-face{font-family:'Battambang';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}@font-face{font-family:'Plus Jakarta Sans';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}@font-face{font-family:'CamGem';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}</style>
     <script src="auth-client.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -151,7 +152,7 @@ var T = {
     handWait: 'បានលើកដៃ — រង់ចាំម្ចាស់បន្ទប់អញ្ជើញ', sit: 'អង្គុយលើកៅអីនេះ', move: 'ប្ដូរទៅកៅអីលេខ {0}?', standUp: '⬇️ ចុះពីកៅអី', micOn: '🎤 បើកមីក្រូហ្វូន', micOff: '🔇 បិទមីក្រូហ្វូន', micDenied: 'សូមអនុញ្ញាតមីក្រូហ្វូនក្នុង browser',
     hostMuted: 'ម្ចាស់បន្ទប់បានបិទសំឡេងអ្នក', locked: '🔒 កៅអីនេះត្រូវបានចាក់សោ', askHand: 'លើកដៃ ✋ ហើយរង់ចាំម្ចាស់បន្ទប់អញ្ជើញ', profile: '👤 មើល Profile', sendGift: '🎁 ផ្ញើកាដូ', invite: '⬆️ អញ្ជើញឡើងកៅអី',
     unseat: '⬇️ យកចេញពីកៅអី', mute: '🔇 បិទសំឡេង', unmute: '🎤 បើកសំឡេង', kick: '👢 ឲ្យចេញពីបន្ទប់', kickQ: 'ឲ្យ {0} ចេញពីបន្ទប់? គេចូលវិញមិនបានទេ។', helper: '⭐ ដាក់ជាអ្នកជួយ', unhelper: '☆ ដកពីអ្នកជួយ',
-    hands: '✋ អ្នកលើកដៃ', giftTitle: '🎁 ផ្ញើកាដូ', giftTo: 'ផ្ញើទៅ', giftNone: 'មិនទាន់មាននរណាលើកៅអីដើម្បីទទួលកាដូទេ', myCoins: '🪙 កាក់របស់អ្នក៖ {0}', buy: 'បញ្ចូលកាក់', send: 'ផ្ញើ', noCoins: 'កាក់មិនគ្រប់គ្រាន់', giftSent: '🎁 បានផ្ញើហើយ',
+    hands: '✋ អ្នកលើកដៃ', giftTitle: '🎁 ផ្ញើកាដូ', giftTo: 'ផ្ញើទៅ', giftNone: 'មិនទាន់មាននរណាលើកៅអីដើម្បីទទួលកាដូទេ', myCoins: '💎 ពេជ្ររបស់អ្នក៖ {0}', buy: 'បញ្ចូលពេជ្រ', send: 'ផ្ញើ', noCoins: 'ពេជ្រមិនគ្រប់គ្រាន់', giftSent: '🎁 បានផ្ញើហើយ',
     settings: '⚙️ កំណត់បន្ទប់', freeSeats: 'អ្នកណាក៏ឡើងកៅអីទំនេរបាន', save: 'រក្សាទុក', saved: '✅ បានរក្សាទុក', report: '🚩 រាយការណ៍បន្ទប់នេះ', reported: 'បានរាយការណ៍ទៅ CamFeed ហើយ។ សូមអរគុណ!', copy: '🔗 ចម្លងតំណបន្ទប់', copied: '✅ បានចម្លងតំណ',
     musicOn: '🎵 បើកតន្ត្រី', musicOff: '🔇 បិទតន្ត្រីសម្រាប់ខ្ញុំ', age: 'បន្ទប់នេះសម្រាប់តែអាយុ {0}', ageNo: 'សូមដាក់ថ្ងៃខែឆ្នាំកំណើតក្នុងការកំណត់ Profile ជាមុនសិន', priv: 'បន្ទប់នេះសម្រាប់តែមិត្តភក្តិរបស់ម្ចាស់បន្ទប់',
     banned: 'អ្នកមិនអាចចូលបន្ទប់នេះបានទេ', bannedAll: 'CamFeed មិនទាន់អនុញ្ញាតឲ្យអ្នកចូល Party Room ទេ', noVoice: 'មិនអាចភ្ជាប់សំឡេងបានទេ សូមបើកទំព័រម្ដងទៀត', tapSound: '🔊 ចុចដើម្បីស្ដាប់សំឡេង', you: '(អ្នក)', lang: 'English', cancel: 'បោះបង់', yes: 'យល់ព្រម' },
@@ -164,7 +165,7 @@ var T = {
     handWait: 'Hand raised — wait for the owner to invite you', sit: 'Sit on this seat', move: 'Move to seat {0}?', standUp: '⬇️ Leave the seat', micOn: '🎤 Turn the mic on', micOff: '🔇 Turn the mic off', micDenied: 'Please allow the microphone in your browser',
     hostMuted: 'The room owner muted you', locked: '🔒 This seat is locked', askHand: 'Raise your hand ✋ and wait for the owner to invite you', profile: '👤 See profile', sendGift: '🎁 Send a gift', invite: '⬆️ Invite to a seat',
     unseat: '⬇️ Take off the seat', mute: '🔇 Mute', unmute: '🎤 Unmute', kick: '👢 Remove from the room', kickQ: 'Remove {0} from the room? They can not come back.', helper: '⭐ Make a helper', unhelper: '☆ Not a helper',
-    hands: '✋ Hands raised', giftTitle: '🎁 Send a gift', giftTo: 'To', giftNone: 'Nobody is on a seat to receive a gift yet', myCoins: '🪙 Your coins: {0}', buy: 'Buy coins', send: 'Send', noCoins: 'Not enough coins', giftSent: '🎁 Sent',
+    hands: '✋ Hands raised', giftTitle: '🎁 Send a gift', giftTo: 'To', giftNone: 'Nobody is on a seat to receive a gift yet', myCoins: '💎 Your coins: {0}', buy: 'Buy diamonds', send: 'Send', noCoins: 'Not enough diamonds', giftSent: '🎁 Sent',
     settings: '⚙️ Room settings', freeSeats: 'Anybody can take a free seat', save: 'Save', saved: '✅ Saved', report: '🚩 Report this room', reported: 'Reported to CamFeed. Thank you!', copy: '🔗 Copy the room link', copied: '✅ Link copied',
     musicOn: '🎵 Music on', musicOff: '🔇 Music off for me', age: 'This room is for ages {0}', ageNo: 'Please add your birthday in your profile settings first', priv: "This room is only for the owner's friends",
     banned: 'You can not enter this room', bannedAll: 'CamFeed does not let you into Party Rooms for now', noVoice: 'Could not connect the sound, please open the page again', tapSound: '🔊 Tap to hear the room', you: '(you)', lang: 'ខ្មែរ', cancel: 'Cancel', yes: 'OK' }
@@ -548,7 +549,7 @@ async function giftSheet(toId) {
     var tc = el('div', 'chips'); seated.forEach(function (p) { var b = el('button', 'chip' + (p.email === to ? ' on' : ''), nm(p)); b.onclick = function () { to = p.email; Array.prototype.forEach.call(tc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; tc.appendChild(b); }); s.appendChild(tc);
     s.appendChild(el('label', '', '🎁'));
     var gg = el('div', 'ggrid');
-    (gifts.gifts || []).forEach(function (g) { var b = el('button', 'g'); b.appendChild(el('span', 'e', g.emoji)); b.appendChild(el('div', '', lang === 'en' ? g.name_en : g.name_km)); b.appendChild(el('div', 'muted', '🪙 ' + g.coins)); b.onclick = function () { pick = g; Array.prototype.forEach.call(gg.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; gg.appendChild(b); });
+    (gifts.gifts || []).forEach(function (g) { var b = el('button', 'g'); b.appendChild(el('span', 'e', g.emoji)); b.appendChild(el('div', '', lang === 'en' ? g.name_en : g.name_km)); b.appendChild(el('div', 'muted', '💎 ' + g.coins)); b.onclick = function () { pick = g; Array.prototype.forEach.call(gg.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; gg.appendChild(b); });
     s.appendChild(gg);
     var cc = el('div', 'chips'); cc.style.marginTop = '12px'; giftCounts.forEach(function (n) { var b = el('button', 'chip' + (n === count ? ' on' : ''), '×' + n); b.onclick = function () { count = n; Array.prototype.forEach.call(cc.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); }; cc.appendChild(b); }); s.appendChild(cc);
     var go = el('button', 'big', t('send')); go.style.width = '100%'; go.style.marginTop = '14px';
@@ -557,7 +558,7 @@ async function giftSheet(toId) {
       go.disabled = true;
       var r = await api('/api/party/rooms/' + roomId + '/gift', { to_email: to, gift_id: pick.id, count: count });
       go.disabled = false;
-      if (!r.success) { toast(/coin/i.test(String(r.error || r.code || '')) ? t('noCoins') : (r.error || t('net'))); return; }
+      if (!r.success) { toast(/coin|diamond/i.test(String(r.error || r.code || '')) ? t('noCoins') : (r.error || t('net'))); return; }
       closeSheet(); toast(t('giftSent')); poll();
     };
     s.appendChild(go);

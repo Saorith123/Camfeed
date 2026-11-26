@@ -134,7 +134,7 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
   const rewardText = (rw) => {
     const n = Number(rw.amount) || 0;
     switch (rw.type) {
-      case 'coins': return '🪙 ' + n + ' កាក់';
+      case 'coins': return '💎 ' + n + ' ពេជ្រ';
       case 'money': return '💵 $' + (n / 100).toFixed(2);
       case 'frame': return '🖼️ ស៊ុមរូប ' + (Number(rw.days) || 7) + ' ថ្ងៃ';
       case 'vip': return '👑 VIP ' + n + ' ថ្ងៃ';
@@ -360,10 +360,10 @@ module.exports = function installChallenges({ app, pool, adminGate, audit, sendN
       const coinsNeeded = st.any ? Math.min(...gift) : Math.max(...gift);
       const value = st.rewards.reduce((a, r) => a + (r.type === 'money' ? Number(r.amount) || 0 : r.type === 'coins' ? (Number(r.amount) || 0) * cm.centsPerCoin : 0), 0);
       if (value > 0 && value >= coinsNeeded * keep) {
-        if (!(keep > 0)) return 'Step ' + (i + 1) + ': gift coins can not pay a money or coin reward (the receiver\'s share is as big as the coin price). Give a frame / VIP / XP instead. · ជាន់ទី ' + (i + 1) + '៖ សូមផ្ដល់ស៊ុម VIP ឬ XP ជំនួសប្រាក់ ឬកាក់។';
+        if (!(keep > 0)) return 'Step ' + (i + 1) + ': gift diamonds can not pay a money or diamond reward (the receiver\'s share is as big as the diamond price). Give a frame / VIP / XP instead. · ជាន់ទី ' + (i + 1) + '៖ សូមផ្ដល់ស៊ុម VIP ឬ XP ជំនួសប្រាក់ ឬពេជ្រ។';
         const safe = Math.ceil(value / keep);
-        return 'Step ' + (i + 1) + ': CamFeed would lose money. The reward is worth $' + (value / 100).toFixed(2) + ' but ' + coinsNeeded + ' gift coins leave CamFeed only $' + (coinsNeeded * keep / 100).toFixed(2)
-          + '. Ask for more than ' + safe + ' coins, or give a frame / VIP / XP instead. · ជាន់ទី ' + (i + 1) + '៖ CamFeed នឹងខាត។ សូមដាក់លើស ' + safe + ' កាក់ ឬផ្ដល់ស៊ុម VIP XP ជំនួស។';
+        return 'Step ' + (i + 1) + ': CamFeed would lose money. The reward is worth $' + (value / 100).toFixed(2) + ' but ' + coinsNeeded + ' gift diamonds leave CamFeed only $' + (coinsNeeded * keep / 100).toFixed(2)
+          + '. Ask for more than ' + safe + ' diamonds, or give a frame / VIP / XP instead. · ជាន់ទី ' + (i + 1) + '៖ CamFeed នឹងខាត។ សូមដាក់លើស ' + safe + ' ពេជ្រ ឬផ្ដល់ស៊ុម VIP XP ជំនួស។';
       }
     }
     return '';

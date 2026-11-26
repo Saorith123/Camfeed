@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<style id="camgem">/* 💎 CamFeed's own diamond: only the 💎 sign uses it */@font-face{font-family:'Battambang';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}@font-face{font-family:'Plus Jakarta Sans';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}@font-face{font-family:'CamGem';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}</style>
     <script src="auth-client.js"></script>
     <script src="i18n-dict.js"></script><script src="i18n.js"></script>
     <link rel="manifest" href="/manifest.webmanifest">
@@ -36,6 +37,22 @@
         /* Wallet Header */
         .wallet-box { background: linear-gradient(135deg, #1877f2 0%, #00c6ff 100%); color: #fff; border-radius: 12px; padding: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(24,119,242,0.3); }
         .wallet-amount { font-size: 28px; font-weight: 800; margin-top: 4px; }
+        /* 👛 the two pockets */
+        .pockets { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+        @media (max-width: 560px) { .pockets { grid-template-columns: 1fr; } }
+        .pk { color: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+        .pk.gift { background: linear-gradient(135deg, #f97316, #ec4899); }
+        .pk.content { background: linear-gradient(135deg, #4f46e5, #7c3aed 55%, #0ea5e9); }
+        .pk h4 { margin: 0; font-size: 15.5px; font-weight: 800; } .pk .sub { font-size: 12.5px; opacity: .88; margin-top: 2px; }
+        .pk .amt { font-size: 28px; font-weight: 900; margin: 6px 0 2px; } .pk .ln { font-size: 13.5px; font-weight: 700; line-height: 1.5; }
+        .pk button { margin-top: 10px; width: 100%; background: #fff; border: none; border-radius: 12px; padding: 11px; font-weight: 900; font-size: 15px; cursor: pointer; font-family: inherit; }
+        .pk.gift button { color: #ea580c; } .pk.content button { color: #4f46e5; } .pk button:active { transform: scale(.98); }
+        .pk .rule { font-size: 12px; font-weight: 600; opacity: .95; margin-top: 6px; }
+        .carriers { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
+        .carrier { width: 104px; height: 60px; background: #fff; border: 1.5px solid #dadde1; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 6px; box-sizing: border-box; position: relative; }
+        .carrier img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .carrier.on { border: 3px solid #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.15); }
+        .carrier.on::after { content: '✓'; position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; background: #16a34a; color: #fff; font-size: 13px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
         .withdraw-btn { background: #fff; color: #1877f2; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 800; cursor: pointer; font-size: 13.5px; transition: transform 0.1s; }
         .withdraw-btn:active { transform: scale(0.95); }
 
@@ -86,6 +103,7 @@
 <div><div style="font-size:13px;font-weight:700;opacity:.9" id="tWalletLbl"></div><div class="wallet-amount" id="walletBalance">$0.00</div></div>
 <button class="withdraw-btn" id="withdrawBtn" type="button"></button>
 </div>
+<div class="pockets" id="pockets" style="display:none"></div>
 <div class="mz-note" id="tNote"></div>
 
 <!-- 🎯 Challenges for earning (set in Admin › 🎯 Challenges; shown only when there is one) -->
@@ -153,6 +171,10 @@ var T = {
 T.km.note = 'ប្រាក់ក្នុងកាបូបមកពីរង្វាន់អញ្ជើញមិត្ត និងរង្វាន់ពិសេសរបស់ CamFeed។ ប្រាក់ចំណូលពីវីដេអូនឹងមកដល់ឆាប់ៗនេះ ហើយនៅពេលនោះ ផ្នែកមួយនៃចំណូលពាណិជ្ជកម្មនឹងត្រូវបានចែកតាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់ពីវីដេអូមិនត្រូវបានធានាទេ។';
 T.en.note = 'Wallet money comes from invitation rewards and special bonuses from CamFeed. Earning from videos is coming soon; when it starts, part of the advertising income will be shared at CamFeed\'s discretion. Amounts from videos are not guaranteed.';
 
+Object.assign(T.km, { pGift: '🎁 ប្រាក់ពីអំណោយ', pGiftSub: 'អំណោយ (Party Room, Live) ការណែនាំមិត្ត និងរង្វាន់', pContent: '🎬 ប្រាក់ពីការផលិតមាតិកា', pContentSub: 'ការមើលវីដេអូ និងប្រាក់លើកទឹកចិត្តពី CamFeed',
+  pReady: '✅ អាចដកបានឥឡូវ៖ ', pWait: '⏳ កំពុងរង់ចាំ៖ ', pFrom: ' (ដកបានចាប់ពី ', pGiftRule: 'ដកបានចាប់ពី {0} · CamFeed ពិនិត្យ ហើយបង់ឆាប់ៗ', pContentRule: 'ដកបានចាប់ពី {0} · ប្រាក់ថ្មីរង់ចាំ {1} ថ្ងៃ · CamFeed ពិនិត្យរាល់សំណើ', pTotal: 'សរុបក្នុងកាបូប', cardAmt: 'ជ្រើសតម្លៃកាត' });
+Object.assign(T.en, { pGift: '🎁 Money from gifts', pGiftSub: 'Gifts (Party Room, Live), inviting friends and prizes', pContent: '🎬 Money from your content', pContentSub: 'Video views and bonuses from CamFeed',
+  pReady: '✅ Available now: ', pWait: '⏳ Waiting: ', pFrom: ' (from ', pGiftRule: 'From {0} · CamFeed checks and pays soon', pContentRule: 'From {0} · new money waits {1} days · CamFeed checks every request', pTotal: 'Total in the wallet', cardAmt: 'Choose the card amount' });
 Object.assign(T.km, { mTopUp: '📱 កាតទូរស័ព្ទ (Top-up)', mWingCash: '🟢 Wing ដកសាច់ប្រាក់នៅភ្នាក់ងារ', mABA: '🏦 ABA', mACLEDA: '🏦 ACLEDA', mWing: '🟢 គណនី Wing', carrier: 'ក្រុមហ៊ុនទូរស័ព្ទ', phone: 'លេខទូរស័ព្ទ', phone2: 'វាយលេខទូរស័ព្ទម្តងទៀត', accNum2: 'វាយលេខគណនីម្តងទៀត', accNameFull: 'ឈ្មោះពេញដូចក្នុងគណនី', wingPhone: 'លេខទូរស័ព្ទដែលប្រើនៅភ្នាក់ងារ Wing', mismatch: 'លេខទាំងពីរមិនដូចគ្នា សូមពិនិត្យឡើងវិញ។', pickMethod: '— ជ្រើសរើស —', minFee: 'ដកអប្បបរមា $1។ ការផ្ទេរធនាគារអាចមានថ្លៃសេវា។', payoutTitle: '🔑 ការដកប្រាក់របស់ខ្ញុំ', showCode: 'បង្ហាញកូដ', hideCode: 'លាក់កូដ', copyCode: 'ចម្លង', codeTopUp: 'កូដបញ្ចូលទឹកប្រាក់ទូរស័ព្ទ', codeWing: 'កូដដកប្រាក់ Wing (ប្រើជាមួយលេខទូរស័ព្ទរបស់អ្នកនៅភ្នាក់ងារ)', keepSecret: 'កុំចែករំលែកកូដនេះជាមួយអ្នកណាឡើយ។', reissue: 'ស្នើកូដថ្មី', reissueSent: 'បានស្នើកូដថ្មីហើយ សូមរង់ចាំ។', reissueWait: '⏳ កំពុងរង់ចាំកូដថ្មីពី CamFeed', confirmReissue: 'ស្នើកូដថ្មីមែនទេ?', bankDone: 'ប្រាក់ត្រូវបានផ្ទេរទៅគណនីរបស់អ្នកហើយ។', copiedC: 'បានចម្លងកូដ' });
 Object.assign(T.en, { mTopUp: '📱 Phone top-up card', mWingCash: '🟢 Wing cash-out at an agent', mABA: '🏦 ABA', mACLEDA: '🏦 ACLEDA', mWing: '🟢 Wing account', carrier: 'Phone company', phone: 'Phone number', phone2: 'Type the phone number again', accNum2: 'Type the account number again', accNameFull: 'Full name exactly as on the account', wingPhone: 'Phone number you will use at the Wing agent', mismatch: 'The two numbers do not match. Please check.', pickMethod: '— choose —', minFee: 'Smallest withdrawal is $1. Bank transfers may have fees.', payoutTitle: '🔑 My withdrawals', showCode: 'Show code', hideCode: 'Hide code', copyCode: 'Copy', codeTopUp: 'Phone top-up code', codeWing: 'Wing cash-out code (use it with your phone number at the agent)', keepSecret: 'Never share this code with anyone.', reissue: 'Request a new code', reissueSent: 'New code requested. Please wait.', reissueWait: '⏳ Waiting for a new code from CamFeed', confirmReissue: 'Request a new code?', bankDone: 'The money was sent to your account.', copiedC: 'Code copied' });
 
@@ -170,7 +192,7 @@ Object.assign(T.en, { reqLbl: 'Write your request (who you are, what you post)',
 Object.assign(T.km, { invNone: 'CamFeed ជ្រើសរើសអ្នកបង្កើតមាតិកាល្អៗ ហើយអញ្ជើញឲ្យរកប្រាក់ដោយផ្ទាល់ ដោយមិនចាំបាច់បំពេញលក្ខខណ្ឌ។ ផ្លូវនេះដាច់ដោយឡែកពី «រកប្រាក់តាមលក្ខខណ្ឌ»។', invWait: 'មិនទាន់មានការអញ្ជើញពី CamFeed ទេ។ ពេលអ្នកត្រូវបានអញ្ជើញ អ្នកនឹងទទួលការជូនដំណឹង ហើយប៊ូតុងនេះនឹងប្រើបាន។', invTitle: '✉️ រកប្រាក់ដោយការអញ្ជើញពី CamFeed', invText: 'CamFeed បានអញ្ជើញអ្នកឲ្យរកប្រាក់ពីវីដេអូ និងរូបភាពដែលអ្នកបង្ហោះ ដោយមិនចាំបាច់បំពេញលក្ខខណ្ឌ។', invAccept: 'ទទួលយក', invDecline: 'បដិសេធ', invAccepted: '🎉 អបអរសាទរ! អ្នកបានទទួលយកការអញ្ជើញ ហើយអាចរកប្រាក់បានហើយ។', invDeclineQ: 'បដិសេធការអញ្ជើញនេះ?', invApproved: '🎉 អ្នកជា Creator ដែល CamFeed បានអញ្ជើញ។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នក ហើយប្រាក់ចូលកាបូប។', appText: 'បំពេញលក្ខខណ្ឌខាងក្រោមឲ្យគ្រប់ ហើយដាក់ពាក្យ។ CamFeed នឹងពិនិត្យ និងអនុម័ត។', appApproved: '🎉 អបអរសាទរ! ពាក្យសុំរបស់អ្នកត្រូវបានអនុម័ត។ អ្នករកប្រាក់ពីវីដេអូ និងរូបភាពរបស់អ្នកបានហើយ។', appClosed: 'ការដាក់ពាក្យត្រូវបានបិទជាបណ្ដោះអាសន្ន។' });
 Object.assign(T.en, { invNone: 'CamFeed picks good creators and invites them directly to earn, with no requirements. This way is separate from “Earn by meeting the requirements”.', invWait: 'No invitation from CamFeed yet. When you are invited you will get a notification, and this button will work.', invTitle: '✉️ Earn by invitation from CamFeed', invText: 'CamFeed has invited you to earn money from the videos and photos you post — no requirements needed.', invAccept: 'Accept', invDecline: 'Decline', invAccepted: '🎉 Congratulations! You accepted the invitation and can earn now.', invDeclineQ: 'Decline this invitation?', invApproved: '🎉 You are a Creator invited by CamFeed. You earn from your videos and photos, and the money goes into your wallet.', appText: 'Meet all the requirements below, then apply. CamFeed will review and approve.', appApproved: '🎉 Congratulations! Your application was approved. You can earn from your videos and photos now.', appClosed: 'Applying is closed for now.' });
 T.km.kGift = '🎁 កាដូក្នុង Party Room'; T.en.kGift = '🎁 Gifts in Party Room';
-T.km.kCoins = '🪙 ប្ដូរជាកាក់'; T.en.kCoins = '🪙 Changed into coins';
+T.km.kCoins = '💎 ប្ដូរជាពេជ្រ'; T.en.kCoins = '💎 Changed into diamonds';
 T.km.progTitle = '📋 រកប្រាក់តាមលក្ខខណ្ឌ'; T.en.progTitle = '📋 Earn by meeting the requirements';
 Object.assign(T.km, { notYet: 'អ្នកត្រូវបំពេញលក្ខខណ្ឌខាងលើឲ្យគ្រប់សិន ទើបអាចស្នើសុំបាន។' });
 Object.assign(T.en, { notYet: 'You must meet all the requirements above before you can apply.' });
@@ -212,7 +234,7 @@ function renderReferrals(d) {
   });
 }
 function render() {
-  var d = data; $('walletBalance').textContent = usd(d.walletBalance); $('referralCount').textContent = String(d.referralCount || 0) + (t('people') ? ' ' + t('people') : '');
+  var d = data; $('walletBalance').textContent = usd(d.walletBalance); renderPockets(d); $('referralCount').textContent = String(d.referralCount || 0) + (t('people') ? ' ' + t('people') : '');
   $('refLinkInput').value = d.referralCode ? location.origin + '/index.html?ref=' + d.referralCode : '';
   $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
@@ -326,18 +348,47 @@ async function load() { var d = await api('/api/monetization/status?email=' + en
 async function apply() { if ((($('applyMsg') || {}).value || '').trim().length < 10) return msg(false, t('reqShort')); if (!confirm(t('apply') + '?')) return; var b = $('applyMonetizeBtn'); b.disabled = true; b.textContent = t('applying'); var d = await api('/api/monetization/apply', { message: ($('applyMsg') || {}).value || '' }); if (d.success) { msg(true, t('sent')); } else msg(false, d.error || t('net')); load(); }
 $('copyBtn').addEventListener('click', function () { var i = $('refLinkInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copied')); });
 $('copyCodeBtn').addEventListener('click', function () { var i = $('refCodeInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copiedCode')); });
-$('withdrawBtn').addEventListener('click', function () {
+// 👛 the two pockets: 🎁 gift money (from $1, only CamFeed's check) and 🎬 content money (its own smallest amount, new money waits some days)
+function renderPockets(d) {
+  var box = $('pockets'), p = d.pockets; if (!p) { box.style.display = 'none'; return; }
+  box.style.display = ''; box.textContent = ''; $('withdrawBtn').style.display = 'none'; $('tWalletLbl').textContent = t('pTotal');
+  [['gift', t('pGift'), t('pGiftSub'), p.gift, p.giftReady, p.giftWait, null, t('pGiftRule').replace('{0}', usd(p.giftMin))],
+   ['content', t('pContent'), t('pContentSub'), p.content, p.contentReady, p.contentWait, p.contentReadyAt, t('pContentRule').replace('{0}', usd(p.contentMin)).replace('{1}', p.contentHoldDays)]].forEach(function (x) {
+    var c = el('div', { class: 'pk ' + x[0] });
+    c.appendChild(el('h4', {}, x[1])); c.appendChild(el('div', { class: 'sub' }, x[2]));
+    c.appendChild(el('div', { class: 'amt' }, usd(x[3])));
+    c.appendChild(el('div', { class: 'ln' }, t('pReady') + usd(x[4])));
+    if (x[5] > 0) c.appendChild(el('div', { class: 'ln', style: 'font-weight:600' }, t('pWait') + usd(x[5]) + (x[6] ? t('pFrom') + new Date(x[6]).toLocaleString() + ')' : '')));
+    var b = el('button', { type: 'button' }, t('withdraw')); b.addEventListener('click', function () { openWithdraw(x[0]); }); c.appendChild(b);
+    c.appendChild(el('div', { class: 'rule' }, x[7]));
+    box.appendChild(c);
+  });
+}
+$('withdrawBtn').addEventListener('click', function () { openWithdraw('gift'); });
+function openWithdraw(pocket) {
   if (!data) return;
-  if (data.walletBalance < data.minWithdraw) return msg(false, t('needMore') + Number(data.minWithdraw).toFixed(2));
+  var P = data.pockets, ready = P ? (pocket === 'content' ? P.contentReady : P.giftReady) : data.walletBalance, minW = P ? (pocket === 'content' ? P.contentMin : P.giftMin) : data.minWithdraw;
+  if (ready < minW) return msg(false, t('needMore') + Number(minW).toFixed(2));
   var modal = el('div', { class: 'mz-modal' }), box = el('div', { class: 'mz-box', style: 'max-height:90vh;overflow:auto' }); modal.appendChild(box); box.appendChild(el('h3', {}, t('wdTitle')));
+  if (P) box.appendChild(el('div', { style: 'font-weight:800;margin:-4px 0 8px;color:' + (pocket === 'content' ? '#6d28d9' : '#ea580c') }, pocket === 'content' ? t('pContent') : t('pGift')));
   function field(label, id, type, value, parent) { var w = el('div'); w.appendChild(el('div', { class: 'mz-lbl' }, label)); var i = el('input', { class: 'mz-in', id: id, type: type || 'text', autocomplete: 'off' }); if (value !== undefined) i.value = value; w.appendChild(i); (parent || box).appendChild(w); return i; }
-  field(t('amount') + ' (' + t('min') + Number(data.minWithdraw).toFixed(2) + ')', 'wdAmount', 'number', Math.min(data.walletBalance, Math.max(data.minWithdraw, 1)).toFixed(2));
+  field(t('amount') + ' (' + t('min') + Number(minW).toFixed(2) + ')', 'wdAmount', 'number', Number(ready).toFixed(2));
   box.appendChild(el('div', { class: 'mz-lbl' }, t('method'))); var sel = el('select', { class: 'mz-in', id: 'wdMethod' });
   sel.appendChild(el('option', { value: '' }, t('pickMethod'))); ['TopUp', 'WingCash', 'ABA', 'ACLEDA', 'Wing'].forEach(function (m) { sel.appendChild(el('option', { value: m }, t(MN[m]))); }); box.appendChild(sel);
   var dyn = el('div'); box.appendChild(dyn);
   function build() {
-    dyn.textContent = ''; var m = sel.value; if (!m) return;
-    if (m === 'TopUp') { dyn.appendChild(el('div', { class: 'mz-lbl' }, t('carrier'))); var c = el('select', { class: 'mz-in', id: 'wdCarrier' }); ['Cellcard', 'Smart', 'Metfone'].forEach(function (x) { c.appendChild(el('option', { value: x }, x)); }); dyn.appendChild(c); field(t('phone'), 'wdNumber', 'tel', undefined, dyn); field(t('phone2'), 'wdNumber2', 'tel', undefined, dyn); }
+    dyn.textContent = ''; var m = sel.value; if ($('wdAmount')) $('wdAmount').readOnly = false; if (!m) return;
+    if (m === 'TopUp') { dyn.appendChild(el('div', { class: 'mz-lbl' }, t('carrier'))); var c = el('input', { type: 'hidden', id: 'wdCarrier' }); dyn.appendChild(c);
+      var row = el('div', { class: 'carriers' }); ['Smart', 'Metfone', 'Cellcard'].forEach(function (x) {   // 📱 the phone companies, with their pictures
+        var tile = el('div', { class: 'carrier', role: 'button', tabindex: '0', title: x }); var img = el('img', { src: (data.carrierLogos && data.carrierLogos[x]) || ('/icons/carriers/' + x.toLowerCase() + '.png'), alt: x }); img.onerror = function () { tile.textContent = x; }; tile.appendChild(img);
+        tile.addEventListener('click', function () { c.value = x; Array.prototype.forEach.call(row.children, function (k) { k.classList.toggle('on', k === tile); }); });
+        row.appendChild(tile); }); dyn.appendChild(row);
+      // 💵 cards come only in some amounts: choose one (more than the money ready can not be chosen)
+      dyn.appendChild(el('div', { class: 'mz-lbl' }, t('cardAmt'))); var amts = el('div', { class: 'carriers' }), ai = $('wdAmount'); ai.readOnly = true; ai.value = '';
+      (data.topupAmounts || [1, 1.5, 2, 5, 10, 20]).forEach(function (n) {
+        var ok = n <= ready + 1e-9 && n >= minW - 1e-9, chip = el('div', { class: 'carrier', role: 'button', style: 'width:72px;height:44px;font-weight:900;font-size:16px;' + (ok ? '' : 'opacity:.35;cursor:not-allowed') }, '$' + n);
+        if (ok) chip.addEventListener('click', function () { ai.value = Number(n).toFixed(2); Array.prototype.forEach.call(amts.children, function (k) { k.classList.toggle('on', k === chip); }); });
+        amts.appendChild(chip); }); dyn.appendChild(amts); field(t('phone'), 'wdNumber', 'tel', undefined, dyn); field(t('phone2'), 'wdNumber2', 'tel', undefined, dyn); }
     else if (m === 'WingCash') { field(t('wingPhone'), 'wdNumber', 'tel', undefined, dyn); field(t('phone2'), 'wdNumber2', 'tel', undefined, dyn); }
     else { field(t('accNameFull'), 'wdName', 'text', undefined, dyn); field(t('accNum'), 'wdNumber', 'text', undefined, dyn); field(t('accNum2'), 'wdNumber2', 'text', undefined, dyn); }
   }
@@ -347,14 +398,16 @@ $('withdrawBtn').addEventListener('click', function () {
   cancel.addEventListener('click', function () { modal.remove(); });
   send.addEventListener('click', async function () {
     var m = sel.value; if (!m) return msg(false, t('pickMethod'));
+    if (m === 'TopUp' && !($('wdCarrier') && $('wdCarrier').value)) return msg(false, t('carrier'));
+    if (m === 'TopUp' && !$('wdAmount').value) return msg(false, t('cardAmt'));
     var n1 = $('wdNumber') ? $('wdNumber').value.replace(/\D/g, '') : '', n2 = $('wdNumber2') ? $('wdNumber2').value.replace(/\D/g, '') : '';
     if (n1 !== n2) return msg(false, t('mismatch'));
     send.disabled = true;
-    var d = await api('/api/monetization/withdraw', { amount: $('wdAmount').value, method: m, carrier: $('wdCarrier') ? $('wdCarrier').value : '', accountName: $('wdName') ? $('wdName').value : '', accountNumber: $('wdNumber') ? $('wdNumber').value : '' });
+    var d = await api('/api/monetization/withdraw', { amount: $('wdAmount').value, method: m, carrier: $('wdCarrier') ? $('wdCarrier').value : '', accountName: $('wdName') ? $('wdName').value : '', accountNumber: $('wdNumber') ? $('wdNumber').value : '', pocket: pocket });
     send.disabled = false; if (d.success) { modal.remove(); msg(true, t('wdSent')); load(); } else { msg(false, d.error || t('net')); }
   });
   document.body.appendChild(modal);
-});
+}
 applyTexts(); load();
 })();
 </script>
@@ -364,10 +417,10 @@ applyTexts(); load();
   var en = (function () { try { var l = localStorage.getItem('camfeed_lang'); return l === 'en' || (l && l !== 'km'); } catch (e) { return false; } })();
   var L = en ? { inv: '✉️ Only for the people CamFeed invites', invYou: '✉️ CamFeed invited you', join: '✅ Join (free)', joined: 'You joined', mine: 'Yours: ', left: ' left', ended: 'Ended', full: 'All places are taken', places: 'Places: ', of: ' of ', step: 'Step ', got: '🎉 received', net: 'Network problem. Please try again.', counts: 'Counts: ', top: '🏆 Top places (at the end): ', soon: 'Starts soon' }
     : { inv: '✉️ សម្រាប់តែអ្នកដែល CamFeed អញ្ជើញ', invYou: '✉️ CamFeed បានអញ្ជើញអ្នក', join: '✅ ចូលរួម (ឥតគិតថ្លៃ)', joined: 'អ្នកបានចូលរួមហើយ', mine: 'របស់អ្នក៖ ', left: '', ended: 'បានបញ្ចប់', full: 'កន្លែងពេញហើយ', places: 'កន្លែង៖ ', of: ' ក្នុងចំណោម ', step: 'ជាន់ទី ', got: '🎉 បានទទួលរង្វាន់ហើយ', net: 'បណ្ដាញមានបញ្ហា សូមព្យាយាមម្ដងទៀត', counts: 'រាប់៖ ', top: '🏆 រង្វាន់ចំណាត់ថ្នាក់ (ពេលបញ្ចប់)៖ ', soon: 'ចាប់ផ្ដើមឆាប់ៗ' };
-  var MET = en ? { gift_recv: 'Gift coins you received', gift_sent: 'Gift coins you sent', room_minutes: 'Time in Party Rooms', seat_minutes: 'Time on a seat', xp: 'XP you gained', checkins: 'Check-in days', room_followers: 'New room followers', video_views: 'Views of your videos', watch_minutes: 'Minutes people watched your videos', posts: 'Your posts', followers: 'New followers' }
-    : { gift_recv: 'កាក់កាដូដែលអ្នកទទួល', gift_sent: 'កាក់កាដូដែលអ្នកផ្ញើ', room_minutes: 'ពេលនៅក្នុងបន្ទប់ Party Room', seat_minutes: 'ពេលអង្គុយលើកៅអីក្នុងបន្ទប់', xp: 'XP ដែលអ្នកបាន', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នក Follow បន្ទប់ថ្មី', video_views: 'ចំនួនអ្នកមើលវីដេអូរបស់អ្នក', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់អ្នក', posts: 'ការបង្ហោះរបស់អ្នក', followers: 'អ្នកតាមដានថ្មី' };
+  var MET = en ? { gift_recv: 'Gift diamonds you received', gift_sent: 'Gift diamonds you sent', room_minutes: 'Time in Party Rooms', seat_minutes: 'Time on a seat', xp: 'XP you gained', checkins: 'Check-in days', room_followers: 'New room followers', video_views: 'Views of your videos', watch_minutes: 'Minutes people watched your videos', posts: 'Your posts', followers: 'New followers' }
+    : { gift_recv: 'ពេជ្រកាដូដែលអ្នកទទួល', gift_sent: 'ពេជ្រកាដូដែលអ្នកផ្ញើ', room_minutes: 'ពេលនៅក្នុងបន្ទប់ Party Room', seat_minutes: 'ពេលអង្គុយលើកៅអីក្នុងបន្ទប់', xp: 'XP ដែលអ្នកបាន', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នក Follow បន្ទប់ថ្មី', video_views: 'ចំនួនអ្នកមើលវីដេអូរបស់អ្នក', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់អ្នក', posts: 'ការបង្ហោះរបស់អ្នក', followers: 'អ្នកតាមដានថ្មី' };
   function val(m, n) { n = Math.round(n || 0); if (m === 'room_minutes' || m === 'seat_minutes' || m === 'watch_minutes') { var h = Math.floor(n / 60), mm = n % 60; return en ? (h ? h + 'h ' : '') + mm + 'm' : (h ? h + ' ម៉ោង ' : '') + mm + ' នាទី'; } return n.toLocaleString(); }
-  function rw(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '💵 $' + (n / 100).toFixed(2) : r.type === 'coins' ? '🪙 ' + n : r.type === 'vip' ? '👑 VIP ' + n + (en ? ' days' : ' ថ្ងៃ') : r.type === 'xp' ? '⚡ ' + n + ' XP' : r.type === 'frame' ? '🖼️ ' + (r.days || 7) + (en ? ' days' : ' ថ្ងៃ') : '🎁 ' + (r.label || ''); }
+  function rw(r) { r = r || {}; var n = Number(r.amount) || 0; return r.type === 'money' ? '💵 $' + (n / 100).toFixed(2) : r.type === 'coins' ? '💎 ' + n : r.type === 'vip' ? '👑 VIP ' + n + (en ? ' days' : ' ថ្ងៃ') : r.type === 'xp' ? '⚡ ' + n + ' XP' : r.type === 'frame' ? '🖼️ ' + (r.days || 7) + (en ? ' days' : ' ថ្ងៃ') : '🎁 ' + (r.label || ''); }
   function left(end) { var d = (new Date(end) - Date.now()) / 1000; if (d <= 0) return L.ended; var dd = Math.floor(d / 86400), h = Math.floor(d % 86400 / 3600), m = Math.floor(d % 3600 / 60); return en ? (dd ? dd + 'd ' : '') + h + 'h ' + m + 'm left' : 'នៅសល់ ' + (dd ? dd + ' ថ្ងៃ ' : '') + h + ' ម៉ោង ' + m + ' នាទី'; }
   function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
   function load() {

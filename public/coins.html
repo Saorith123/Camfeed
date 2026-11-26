@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="km">
 <head>
+<style id="camgem">/* 💎 CamFeed's own diamond: only the 💎 sign uses it */@font-face{font-family:'Battambang';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}@font-face{font-family:'Plus Jakarta Sans';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}@font-face{font-family:'CamGem';src:url('/fonts/CamGem.ttf') format('truetype');unicode-range:U+1F48E}</style>
     <script src="auth-client.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,7 +22,7 @@
         .wrap { max-width: 640px; margin: 16px auto; padding: 0 12px; display: flex; flex-direction: column; gap: 14px; }
         .card { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
         .h { font-size: 16.5px; font-weight: 800; margin-bottom: 10px; }
-        .bal { background: linear-gradient(135deg, #7c3aed, #ec4899); color: #fff; border-radius: 14px; padding: 20px; display: flex; align-items: center; gap: 14px; box-shadow: 0 6px 18px rgba(124,58,237,.3); }
+        .bal { display:flex; align-items:center; gap:12px; background: linear-gradient(135deg,#0E1033,#26206B 55%,#4B2E9E); color:#fff; border-radius:18px; padding:14px 18px 14px 14px; box-shadow:0 6px 18px rgba(59,46,158,.35); }
         .bal b { font-size: 30px; display: block; }
         .packs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .pack { border: 2px solid #e4e6eb; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; background: #fff; transition: .15s; }
@@ -49,7 +50,7 @@
 <body>
 <div class="top"><button class="back" onclick="history.length > 1 ? history.back() : (location.href = 'feed.html')">←</button><div class="title" id="tTitle"></div><button class="lang" id="langBtn"></button></div>
 <div class="wrap">
-    <div class="bal"><div style="font-size:42px">🪙</div><div style="flex:1"><span id="tBal"></span><b id="balNum">—</b></div><div style="text-align:right"><span id="tWallet" style="font-size:12.5px;opacity:.9"></span><div id="walletNum" style="font-weight:800;font-size:18px">—</div></div></div>
+    <div class="bal"><img src="/icons/diamond-big.webp" alt="" width="78" height="78" style="flex-shrink:0;margin:-6px 0 -6px -6px"><div style="flex:1"><span id="tBal"></span><b id="balNum">—</b></div><div style="text-align:right"><span id="tWallet" style="font-size:12.5px;opacity:.9"></span><div id="walletNum" style="font-weight:800;font-size:18px">—</div></div></div>
     <div class="msg" id="msg"></div>
     <div class="card">
         <div class="h" id="tStep1"></div>
@@ -82,19 +83,19 @@
 var currentUser = null; try { currentUser = JSON.parse(localStorage.getItem('camfeed_user')); } catch (e) {}
 if (!currentUser) { location.href = 'index.html'; return; }
 var T = {
-  km: { title: '🪙 បញ្ចូលកាក់', bal: 'កាក់របស់អ្នក', step1: '១. ជ្រើសកញ្ចប់កាក់', step2: '២. បង់ប្រាក់', step3: '៣. ផ្ញើវិក្កយបត្រ', ref: 'លេខប្រតិបត្តិការ (Transaction ID) ឬលេខចុងក្រោយ', receipt: 'ថតអេក្រង់វិក្កយបត្រ ហើយដាក់នៅទីនេះ', mQr: '📷 ស្កេន QR', mLink: '📱 បើកកម្មវិធី ABA', qrHint: 'ស្កេន QR នេះ ពីកម្មវិធីធនាគារណាក៏បាន ហើយបង់', linkHint: 'ចុចប៊ូតុងខាងក្រោម ដើម្បីបើក ABA ហើយបង់', openAba: 'បើក ABA ដើម្បីបង់',
-    send: 'ផ្ញើសំណើបញ្ចូលកាក់', note: 'CamFeed នឹងពិនិត្យការបង់ប្រាក់ ហើយបញ្ចូលកាក់ឲ្យអ្នក (ជាធម្មតាក្នុងថ្ងៃដដែល)។ អ្នកនឹងទទួលបានការជូនដំណឹងពេលកាក់ចូល។ កាក់ប្រើបានតែក្នុង CamFeed ប៉ុណ្ណោះ។',
-    mine: '🧾 សំណើរបស់ខ្ញុំ', none: 'មិនទាន់មានទេ', gifts: '🎁 កាដូក្នុង Party Room', coins: 'កាក់', pick: 'សូមជ្រើសកញ្ចប់កាក់', pickM: 'សូមជ្រើសវិធីបង់ប្រាក់', needRef: 'សូមដាក់លេខប្រតិបត្តិការ ឬរូបវិក្កយបត្រ',
-    uploading: 'កំពុងអាប់ឡូត...', uploaded: '✅ អាប់ឡូតរួចរាល់', upFail: '❌ អាប់ឡូតមិនបាន', sent: '✅ បានផ្ញើហើយ! CamFeed នឹងពិនិត្យ ហើយបញ្ចូលកាក់ឲ្យអ្នក។', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server',
-    wallet: 'លុយក្នុងកាបូប', mWallet: '💰 ពីកាបូបរបស់ខ្ញុំ', wNote: 'ប្រើលុយក្នុងកាបូប (រង្វាន់ ចំណូលវីដេអូ កាដូ...) ប្ដូរជាកាក់ — ចូលភ្លាម។ កាក់មិនអាចប្ដូរត្រឡប់ជាលុយវិញបានទេ។',
-    wNo: '⚠️ កាបូបរបស់អ្នកមិនមានលុយគ្រប់គ្រាន់ទេ', wHave: 'លុយក្នុងកាបូប៖', wNeed: 'កញ្ចប់នេះត្រូវការ៖', wSmaller: 'អ្នកអាចជ្រើសកញ្ចប់តូចជាងនេះ។', wBtn: '💰 ប្ដូរពីកាបូប', wDone: '✅ បានប្ដូរហើយ! កាក់បានចូលគណនីរបស់អ្នក។', wConfirm: 'ប្ដូរលុយក្នុងកាបូប {0} ជា 🪙 {1} កាក់?',
+  km: { title: '💎 បញ្ចូលពេជ្រ', bal: 'ពេជ្ររបស់អ្នក', step1: '១. ជ្រើសកញ្ចប់ពេជ្រ', step2: '២. បង់ប្រាក់', step3: '៣. ផ្ញើវិក្កយបត្រ', ref: 'លេខប្រតិបត្តិការ (Transaction ID) ឬលេខចុងក្រោយ', receipt: 'ថតអេក្រង់វិក្កយបត្រ ហើយដាក់នៅទីនេះ', mQr: '📷 ស្កេន QR', mLink: '📱 បើកកម្មវិធី ABA', qrHint: 'ស្កេន QR នេះ ពីកម្មវិធីធនាគារណាក៏បាន ហើយបង់', linkHint: 'ចុចប៊ូតុងខាងក្រោម ដើម្បីបើក ABA ហើយបង់', openAba: 'បើក ABA ដើម្បីបង់',
+    send: 'ផ្ញើសំណើបញ្ចូលពេជ្រ', note: 'CamFeed នឹងពិនិត្យការបង់ប្រាក់ ហើយបញ្ចូលពេជ្រឲ្យអ្នក (ជាធម្មតាក្នុងថ្ងៃដដែល)។ អ្នកនឹងទទួលបានការជូនដំណឹងពេលពេជ្រចូល។ ពេជ្រប្រើបានតែក្នុង CamFeed ប៉ុណ្ណោះ។',
+    mine: '🧾 សំណើរបស់ខ្ញុំ', none: 'មិនទាន់មានទេ', gifts: '🎁 កាដូក្នុង Party Room', coins: 'ពេជ្រ', pick: 'សូមជ្រើសកញ្ចប់ពេជ្រ', pickM: 'សូមជ្រើសវិធីបង់ប្រាក់', needRef: 'សូមដាក់លេខប្រតិបត្តិការ ឬរូបវិក្កយបត្រ',
+    uploading: 'កំពុងអាប់ឡូត...', uploaded: '✅ អាប់ឡូតរួចរាល់', upFail: '❌ អាប់ឡូតមិនបាន', sent: '✅ បានផ្ញើហើយ! CamFeed នឹងពិនិត្យ ហើយបញ្ចូលពេជ្រឲ្យអ្នក។', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server',
+    wallet: 'លុយក្នុងកាបូប', mWallet: '💰 ពីកាបូបរបស់ខ្ញុំ', wNote: 'ប្រើលុយក្នុងកាបូប (រង្វាន់ ចំណូលវីដេអូ កាដូ...) ប្ដូរជាពេជ្រ — ចូលភ្លាម។ ពេជ្រមិនអាចប្ដូរត្រឡប់ជាលុយវិញបានទេ។',
+    pkAsk: 'យកលុយពីថង់មួយណា?', pkGift: '🎁 ប្រាក់ពីអំណោយ', pkContent: '🎬 ប្រាក់ពីការផលិតមាតិកា', pkCancel: 'បោះបង់', wNo: '⚠️ កាបូបរបស់អ្នកមិនមានលុយគ្រប់គ្រាន់ទេ', wHave: 'លុយក្នុងកាបូប៖', wNeed: 'កញ្ចប់នេះត្រូវការ៖', wSmaller: 'អ្នកអាចជ្រើសកញ្ចប់តូចជាងនេះ។', wBtn: '💰 ប្ដូរពីកាបូប', wDone: '✅ បានប្ដូរហើយ! ពេជ្របានចូលគណនីរបស់អ្នក។', wConfirm: 'ប្ដូរលុយក្នុងកាបូប {0} ជា 💎 {1} ពេជ្រ?',
     pending: '⏳ រង់ចាំពិនិត្យ', approved: '✅ បានបញ្ចូល', rejected: '❌ មិនអនុម័ត', noPay: 'CamFeed មិនទាន់ដាក់ព័ត៌មានបង់ប្រាក់នៅឡើយទេ។ សូមទាក់ទង Telegram @Camfeed។', lang: 'English', bonus: 'ថែម' },
-  en: { title: '🪙 Buy coins', bal: 'Your coins', step1: '1. Choose a coin pack', step2: '2. Pay', step3: '3. Send the receipt', ref: 'Transaction ID (or the last digits)', receipt: 'Take a screenshot of the receipt and put it here', mQr: '📷 Scan the QR', mLink: '📱 Open the ABA app', qrHint: 'Scan this QR from any bank app and pay', linkHint: 'Tap the button below to open ABA and pay', openAba: 'Open ABA to pay',
-    send: 'Send top-up request', note: 'CamFeed checks the payment and adds the coins (usually the same day). You get a notification when they arrive. Coins can only be used inside CamFeed.',
-    mine: '🧾 My requests', none: 'Nothing yet', gifts: '🎁 Gifts in Party Room', coins: 'coins', pick: 'Please choose a coin pack', pickM: 'Please choose how you pay', needRef: 'Please add the transaction ID or a photo of the receipt',
-    uploading: 'Uploading...', uploaded: '✅ Uploaded', upFail: '❌ Upload failed', sent: '✅ Sent! CamFeed will check it and add your coins.', net: 'Could not reach the server',
-    wallet: 'Wallet money', mWallet: '💰 From my wallet', wNote: 'Use the money in your wallet (rewards, video earnings, gifts...) to get coins — at once. Coins can not be changed back into money.',
-    wNo: '⚠️ Your wallet does not have enough money', wHave: 'In your wallet:', wNeed: 'This pack needs:', wSmaller: 'You can choose a smaller pack.', wBtn: '💰 Change from my wallet', wDone: '✅ Done! The coins are in your account.', wConfirm: 'Change {0} from your wallet into 🪙 {1} coins?',
+  en: { title: '💎 Buy diamonds', bal: 'Your diamonds', step1: '1. Choose a diamond pack', step2: '2. Pay', step3: '3. Send the receipt', ref: 'Transaction ID (or the last digits)', receipt: 'Take a screenshot of the receipt and put it here', mQr: '📷 Scan the QR', mLink: '📱 Open the ABA app', qrHint: 'Scan this QR from any bank app and pay', linkHint: 'Tap the button below to open ABA and pay', openAba: 'Open ABA to pay',
+    send: 'Send top-up request', note: 'CamFeed checks the payment and adds the diamonds (usually the same day). You get a notification when they arrive. Diamonds can only be used inside CamFeed.',
+    mine: '🧾 My requests', none: 'Nothing yet', gifts: '🎁 Gifts in Party Room', coins: 'coins', pick: 'Please choose a diamond pack', pickM: 'Please choose how you pay', needRef: 'Please add the transaction ID or a photo of the receipt',
+    uploading: 'Uploading...', uploaded: '✅ Uploaded', upFail: '❌ Upload failed', sent: '✅ Sent! CamFeed will check it and add your diamonds.', net: 'Could not reach the server',
+    wallet: 'Wallet money', mWallet: '💰 From my wallet', wNote: 'Use the money in your wallet (rewards, video earnings, gifts...) to get diamonds — at once. Diamonds can not be changed back into money.',
+    wNo: '⚠️ Your wallet does not have enough money', wHave: 'In your wallet:', wNeed: 'This pack needs:', wSmaller: 'You can choose a smaller pack.', wBtn: '💰 Change from my wallet', wDone: '✅ Done! The diamonds are in your account.', pkAsk: 'Take the money from which pocket?', pkGift: '🎁 Money from gifts', pkContent: '🎬 Money from your content', pkCancel: 'Cancel', wConfirm: 'Change {0} from your wallet into 💎 {1} diamonds?',
     pending: '⏳ Waiting', approved: '✅ Added', rejected: '❌ Not approved', noPay: 'CamFeed has not added the payment details yet. Please contact Telegram @Camfeed.', lang: 'ខ្មែរ', bonus: 'bonus' }
 };
 var lang = (function () { var l = localStorage.getItem('camfeed_lang'); return l === 'en' ? 'en' : 'km'; })();
@@ -118,7 +119,7 @@ function draw() {
   data.packs.forEach(function (p) {
     var base = Math.round(p.usd * 100 / (data.coinCents || 1)), extra = p.coins - base;
     var d = document.createElement('div'); d.className = 'pack' + (st.pack === p.i ? ' on' : '');
-    d.innerHTML = '<div class="c">🪙 ' + p.coins.toLocaleString() + '</div><div class="u">$' + p.usd.toFixed(2) + '</div>' + (extra > 0 ? '<div class="muted" style="color:#7c3aed;font-weight:700">+' + extra.toLocaleString() + ' ' + t('bonus') + '</div>' : '');
+    d.innerHTML = '<div class="c">💎 ' + p.coins.toLocaleString() + '</div><div class="u">$' + p.usd.toFixed(2) + '</div>' + (extra > 0 ? '<div class="muted" style="color:#7c3aed;font-weight:700">+' + extra.toLocaleString() + ' ' + t('bonus') + '</div>' : '');
     d.onclick = function () { st.pack = p.i; draw(); };
     ps.appendChild(d);
   });
@@ -149,7 +150,7 @@ function draw() {
   } else if (useAba) pi.textContent = t('pickM');
   else pi.textContent = data.payinfo || t('noPay');
   if (isW) {
-    var pk = data.packs.filter(function (p) { return p.i === st.pack; })[0], have = Number(data.walletCents || 0);
+    var pk = data.packs.filter(function (p) { return p.i === st.pack; })[0], have = data.pockets ? Math.max(Number(data.pockets.gift) || 0, Number(data.pockets.content) || 0) : Number(data.walletCents || 0);   // 👛 the fuller pocket
     var wm = $('walletMsg'); wm.textContent = ''; $('wSend').textContent = t('wBtn');
     if (!pk) { wm.textContent = t('wNote'); $('wSend').disabled = true; }
     else {
@@ -169,7 +170,7 @@ function draw() {
   if (!data.topups.length) mine.innerHTML = '<div class="muted">' + t('none') + '</div>';
   data.topups.forEach(function (x) {
     var r = document.createElement('div'); r.className = 'row';
-    var left = document.createElement('div'); left.innerHTML = '<b>🪙 ' + Number(x.coins).toLocaleString() + '</b> · $' + Number(x.usd).toFixed(2) + ' · ' + x.method + '<div class="muted">' + new Date(x.created_at).toLocaleString() + '</div>';
+    var left = document.createElement('div'); left.innerHTML = '<b>💎 ' + Number(x.coins).toLocaleString() + '</b> · $' + Number(x.usd).toFixed(2) + ' · ' + x.method + '<div class="muted">' + new Date(x.created_at).toLocaleString() + '</div>';
     if (x.status === 'rejected' && x.note) { var n = document.createElement('div'); n.className = 'muted'; n.textContent = x.note; left.appendChild(n); }
     var right = document.createElement('div'); right.className = 'st-' + x.status; right.textContent = t(x.status);
     r.appendChild(left); r.appendChild(right); mine.appendChild(r);
@@ -177,7 +178,7 @@ function draw() {
   var gs = $('gifts'); gs.textContent = '';
   data.gifts.forEach(function (g) {
     var d = document.createElement('div'); d.className = 'gift';
-    d.innerHTML = '<div class="e"></div><div class="n"></div><div class="muted">🪙 ' + g.coins.toLocaleString() + '</div>';
+    d.innerHTML = '<div class="e"></div><div class="n"></div><div class="muted">💎 ' + g.coins.toLocaleString() + '</div>';
     d.querySelector('.e').textContent = g.emoji; d.querySelector('.n').textContent = lang === 'en' ? g.name_en : g.name_km;
     gs.appendChild(d);
   });
@@ -210,9 +211,27 @@ $('send').onclick = async function () {
 };
 $('wSend').onclick = async function () {
   var pk = data && data.packs.filter(function (p) { return p.i === st.pack; })[0]; if (!pk) return msg(false, t('pick'));
-  if (!confirm(t('wConfirm').replace('{0}', '$' + pk.usd.toFixed(2)).replace('{1}', pk.coins.toLocaleString()))) return;
+  var pocket = '';
+  if (data.pockets) {   // 👛 choose the pocket that pays (a pocket without enough money can not be chosen)
+    pocket = await new Promise(function (done) {
+      var need = Math.round(pk.usd * 100), ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px';
+      var bx = document.createElement('div'); bx.style.cssText = 'background:#fff;border-radius:16px;padding:18px;width:100%;max-width:360px;font-family:inherit';
+      var h = document.createElement('div'); h.style.cssText = 'font-weight:800;font-size:16px;margin-bottom:4px'; h.textContent = t('wConfirm').replace('{0}', '$' + pk.usd.toFixed(2)).replace('{1}', pk.coins.toLocaleString()); bx.appendChild(h);
+      var q = document.createElement('div'); q.style.cssText = 'color:#65676b;margin-bottom:12px'; q.textContent = t('pkAsk'); bx.appendChild(q);
+      [['gift', t('pkGift'), data.pockets.gift, '#ea580c'], ['content', t('pkContent'), data.pockets.content, '#7c3aed']].forEach(function (x) {
+        var ok = Number(x[2]) >= need, b = document.createElement('button'); b.type = 'button'; b.disabled = !ok;
+        b.style.cssText = 'display:flex;width:100%;justify-content:space-between;align-items:center;margin-bottom:8px;padding:12px 14px;border-radius:12px;background:#fff;font:inherit;font-weight:800;cursor:pointer;border:2px solid ' + (ok ? x[3] : '#dadde1') + ';color:' + (ok ? '#050505' : '#9aa0a6');
+        b.innerHTML = '<span></span><span></span>'; b.children[0].textContent = x[1]; b.children[1].textContent = '$' + (Number(x[2]) / 100).toFixed(2);
+        b.onclick = function () { ov.remove(); done(x[0]); }; bx.appendChild(b);
+      });
+      var c = document.createElement('button'); c.type = 'button'; c.textContent = t('pkCancel'); c.style.cssText = 'width:100%;padding:10px;border:none;background:none;font:inherit;color:#65676b;cursor:pointer';
+      c.onclick = function () { ov.remove(); done(null); }; bx.appendChild(c); ov.appendChild(bx); document.body.appendChild(ov);
+    });
+    if (!pocket) return;
+  } else if (!confirm(t('wConfirm').replace('{0}', '$' + pk.usd.toFixed(2)).replace('{1}', pk.coins.toLocaleString()))) return;
   $('wSend').disabled = true;
-  var d = await api('/api/coins/from-wallet', { pack: st.pack });
+  var d = await api('/api/coins/from-wallet', pocket ? { pack: st.pack, pocket: pocket } : { pack: st.pack });
   if (d.success) { msg(true, t('wDone')); load(); }
   else { msg(false, d.code === 'wallet' ? t('wNo') : (d.error || t('net'))); $('wSend').disabled = false; }
 };

@@ -974,7 +974,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const price = allowed ? st.private.switchPrice : st.private.roomPrice;
       if (price > 0 && (req.body || {}).pay !== true) return res.status(403).json({ success: false, code: allowed ? 'pay_switch' : 'private_locked', message: allowed ? 'pay_switch' : 'private_locked', price });
       const paid = await access.payRoomOnce(e, room.id, turn, allowed);
-      if (paid.code === 'coins') return res.status(402).json({ success: false, code: 'coins', balance: paid.balance, need: paid.need, error: 'Not enough coins.' });
+      if (paid.code === 'coins') return res.status(402).json({ success: false, code: 'coins', balance: paid.balance, need: paid.need, error: 'Not enough diamonds.' });
       if (paid.code) return res.status(403).json({ success: false, code: 'private_locked', message: 'private_locked' });
       sys(room.id, 'private_on', e);
       res.json({ success: true, paid: paid.price || 0, balance: paid.balance });
