@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 217;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 218;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -5380,7 +5380,7 @@ async function syncViewEarnings(email) {
 // ---- Rules the Super Admin can change at any time in Admin > Monetization (saved in creator_settings as 'r:<NAME>').
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {
-  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000], ['WITHDRAW_DAY_MAX_USD', 'wdDayMax', 0, 100000], ['WITHDRAW_MONTH_MAX_USD', 'wdMonthMax', 0, 1000000], ['WITHDRAW_HOLD_HOURS', 'wdHoldHours', 0, 168], ['CONTENT_MIN_WITHDRAW_USD', 'contentMin', 0, 1000], ['CONTENT_HOLD_DAYS', 'contentHoldDays', 0, 60]],
+  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000], ['WITHDRAW_DAY_MAX_USD', 'wdDayMax', 0, 100000], ['WITHDRAW_MONTH_MAX_USD', 'wdMonthMax', 0, 1000000], ['WITHDRAW_HOLD_HOURS', 'wdHoldHours', 0, 168], ['GIFT_MIN_WITHDRAW_USD', 'giftMin', 0, 1000], ['CONTENT_HOLD_DAYS', 'contentHoldDays', 0, 60]],
   app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16], ['CHAT_MAX_MONTHS', 'chatMaxMonths', 1, 24], ['COPYRIGHT_MAX_STRIKES', 'copyrightStrikes', 1, 10]],
   referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
 };
@@ -5405,7 +5405,8 @@ const creatorRules = () => {
     // 🛡️ withdrawals: the most a person can take in one day / one month (0 = no limit), and how long a first withdrawal or new account details wait
     wdDayMax: n('WITHDRAW_DAY_MAX_USD', 200), wdMonthMax: n('WITHDRAW_MONTH_MAX_USD', 1000), wdHoldHours: n('WITHDRAW_HOLD_HOURS', 24),
     // 🎬 content money: its own smallest withdrawal, and the days it waits after it comes in
-    contentMinCents: Math.round(n('CONTENT_MIN_WITHDRAW_USD', 5) * 100), contentHoldDays: Math.round(n('CONTENT_HOLD_DAYS', 2)) };
+    // 🎬 content money: the old "smallest withdrawal" (MIN_WITHDRAW_USD) + days it waits; 🎁 gift money: its own small amount ($1)
+    contentMinCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100), giftMinCents: Math.round(n('GIFT_MIN_WITHDRAW_USD', 1) * 100), contentHoldDays: Math.round(n('CONTENT_HOLD_DAYS', 2)) };
 };
 async function creatorStats(email) {
   const r = await pool.query(
@@ -5536,7 +5537,7 @@ app.get('/api/monetization/status', async (req, res) => {
       ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at, pocket: l.pocket })),
       // 👛 the two pockets: 🎁 gift money (from $1, only the Admin's check) and 🎬 content money (its own smallest amount, waits N days)
       pockets: await walletPockets(email).then((p) => ({ gift: p.gift / 100, giftReady: p.giftReady / 100, giftWait: p.giftWait / 100, content: p.content / 100, contentReady: p.contentReady / 100, contentWait: p.contentWait / 100, contentReadyAt: p.contentReadyAt,
-        giftMin: rules.minWithdrawCents / 100, contentMin: rules.contentMinCents / 100, contentHoldDays: rules.contentHoldDays })).catch(() => null),
+        giftMin: rules.giftMinCents / 100, contentMin: rules.contentMinCents / 100, contentHoldDays: rules.contentHoldDays })).catch(() => null),
       heldAmount: Math.min(held, cents) / 100, availableAmount: Math.max(0, cents - held) / 100, sources, payoutMethods: PAYOUT_METHODS, carriers: CARRIERS, carrierLogos: await carrierLogos(), topupAmounts: await topupAmounts() });
   } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
@@ -5606,7 +5607,7 @@ app.post('/api/monetization/withdraw', async (req, res) => {
     const cents = Math.round(Number(b.amount) * 100);
     if (!Number.isFinite(cents) || cents <= 0) return res.status(400).json({ success: false, error: 'Please enter an amount.' });
     const pocket = wallets.pocketOf(b.pocket);              // 👛 🎁 gift money (from $1) or 🎬 content money (its own smallest amount + waiting days)
-    const minCents = pocket === 'content' ? rules.contentMinCents : rules.minWithdrawCents;
+    const minCents = pocket === 'content' ? rules.contentMinCents : rules.giftMinCents;
     if (cents < minCents) return res.status(400).json({ success: false, code: 'min', error: `The smallest withdrawal is $${(minCents / 100).toFixed(2)}.` });
     const method = PAYOUT_METHODS.includes(b.method) ? b.method : '';
     let accountName = String(b.accountName || '').replace(/\s+/g, ' ').trim().slice(0, 80);
@@ -6036,7 +6037,7 @@ app.post('/api/admin/monetization-rules', async (req, res) => {
       if (changed.length) audit(a.adminEmail, group === 'referral' ? 'referral-rules' : group === 'app' ? 'app-settings' : 'creator-rules', 'settings', changed.join(', ').slice(0, 300));
     }
     const cur = group === 'referral' ? referralRules() : group === 'app' ? { nameDays: ruleNum('NAME_CHANGE_DAYS', NAME_CHANGE_COOLDOWN_DAYS), groupCallMax: ruleNum('GROUP_CALL_MAX', 8), chatMaxMonths: ruleNum('CHAT_MAX_MONTHS', parseInt(process.env.CHAT_MAX_MONTHS || '12', 10) || 12) } : creatorRules();
-    const val = (field) => field === 'minWithdraw' ? cur.minWithdrawCents / 100 : field === 'reward' ? cur.rewardCents / 100 : cur[field];
+    const val = (field) => field === 'minWithdraw' ? cur.minWithdrawCents / 100 : field === 'giftMin' ? cur.giftMinCents / 100 : field === 'reward' ? cur.rewardCents / 100 : cur[field];
     res.json({ success: true, isSuperAdmin: a.isSuperAdmin, group,
       rules: RULE_KEYS[group].map(([k, field, lo, hi]) => ({ key: k, field, value: val(field), min: lo, max: hi, saved: Object.prototype.hasOwnProperty.call(ruleOverride, k) })) });
   } catch (err) { console.error('[admin] rules error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
