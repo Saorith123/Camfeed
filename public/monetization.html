@@ -207,7 +207,7 @@ var $ = function (id) { return document.getElementById(id); };
 function el(tag, props, text) { var e = document.createElement(tag); if (props) Object.keys(props).forEach(function (k) { if (k === 'class') e.className = props[k]; else if (k === 'style') e.style.cssText = props[k]; else e.setAttribute(k, props[k]); }); if (text !== undefined) e.textContent = text; return e; }
 function msg(ok, text) { var b = $('mzMsg'); b.textContent = text; b.style.display = text ? 'block' : 'none'; b.style.background = ok ? '#e6f4ea' : '#fdecee'; b.style.color = ok ? '#176f35' : '#9b1229'; if (text) window.scrollTo({ top: 0, behavior: 'smooth' }); }
 var data = null;
-function usd(n) { return '$' + Number(n || 0).toFixed(2); }
+function usd(n) { n = Number(n || 0); return '$' + (n > 0 && n < 0.01 ? n.toFixed(4).replace(/0+$/, '') : n.toFixed(2)); }   // less than 1 ¢ (one video): $0.004, not $0.00
 function fmtDate(d) { var x = new Date(d); return isNaN(x) ? '' : x.toLocaleDateString(); }
 
 function applyTexts() {

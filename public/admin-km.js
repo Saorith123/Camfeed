@@ -157,5 +157,6 @@ window.ADMIN_KM = {
   'A first withdrawal / new account number waits … hours before it can be paid (0 = no wait)': 'ការដកលើកដំបូង / លេខគណនីថ្មី ត្រូវរង់ចាំ … ម៉ោង ទើបអាចបង់បាន (0 = មិនរង់ចាំ)', 'Smallest withdrawal ($)': 'ដកតិចបំផុត ($)',
   '⚠️ Name not the same as on CamFeed — check': '⚠️ ឈ្មោះមិនដូចក្នុង CamFeed — សូមពិនិត្យ', '✅ Same name as on CamFeed': '✅ ឈ្មោះដូចក្នុង CamFeed', '🆕 New account number': '🆕 លេខគណនីថ្មី', 'Wait until ': 'រង់ចាំដល់ ', '⏳ Wait until ': '⏳ រង់ចាំដល់ ',
   'Mark paid': 'សម្គាល់ថាបានបង់', 'Reject': 'បដិសេធ', 'No withdrawal request yet.': 'មិនទាន់មានសំណើដកប្រាក់ទេ។',
+  '🐞 App crashes (phones)': '🐞 កម្មវិធីគាំង (ទូរស័ព្ទ)', 'No crash reported.': 'មិនមានការគាំងទេ។', 'Details': 'ព័ត៌មានលម្អិត',
   'Logged in as:': 'ចូលជា៖', 'Logged in as: ': 'ចូលជា៖ '
 };

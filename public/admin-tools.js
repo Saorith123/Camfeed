@@ -559,6 +559,26 @@
     draw();
   }
 
+  // 🐞 why the phone app closed (sent by the app when it opens again)
+  function crashCard(p) {
+    var box = el('div', { style: 'margin:8px 0 14px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px' });
+    p.appendChild(box);
+    box.appendChild(el('div', { style: 'font-weight:800;font-size:16px;margin-bottom:6px', text: '🐞 App crashes (phones)' }));
+    var out = el('div', {}, [empty('Loading…')]); box.appendChild(out);
+    adm('/api/admin/app/crashes', {}).then(function (d) {
+      out.textContent = '';
+      if (!d || !d.success) { out.appendChild(empty((d && d.error) || 'Could not load.')); return; }
+      if (!d.crashes.length) { out.appendChild(empty('No crash reported.')); return; }
+      d.crashes.forEach(function (c) {
+        var t = el('pre', { style: 'display:none;white-space:pre-wrap;font-size:11.5px;background:#f8fafc;border-radius:8px;padding:8px;max-height:320px;overflow:auto', text: c.text || '' });
+        out.appendChild(el('div', { style: 'border-top:1px solid #eef0f3;padding:8px 0' }, [
+          el('div', { style: 'font-weight:700', text: new Date(c.created_at).toLocaleString() + ' · ' + nm(c) + ' · Build ' + c.build + (c.place ? ' · ' + c.place : '') }),
+          el('div', { style: 'font-size:12.5px;color:#65676b', text: c.device || '' }),
+          el('button', { class: 'btn-sm btn-gray', style: 'margin-top:4px', text: 'Details', onclick: function () { t.style.display = t.style.display === 'none' ? 'block' : 'none'; } }), t]));
+      });
+    });
+  }
+
   function loadSystem() {
     var p = document.getElementById('panel-system'); p.textContent = ''; p.appendChild(empty('Checking…'));
     adm('/api/admin/system').then(function (d) {
@@ -581,6 +601,7 @@
           out.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin-top:4px', text: 'Open this on the old site and on the new site: every line must be the same.' }));
         });
       } }));
+      crashCard(p);
       var appBox = el('div'); p.appendChild(appBox); monRules(appBox, 'app');      // settings the Super Admin changes here (name change days, group call size ...)
       Object.keys(HINTS).forEach(function (k) {
         var ok = k === 'supportTelegram' ? !!c[k] : !!c[k]; var extra = k === 'database' && c.databaseMs !== null ? ' (' + c.databaseMs + ' ms)' : (k === 'supportTelegram' && c[k] ? ' ' + c[k] : '');

@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 225;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 228;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2645,7 +2645,7 @@ function adminNeed(path, body) {
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
   const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
-  const READ_PATHS = /^(app\/home|app\/reports|app\/push|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
+  const READ_PATHS = /^(app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
@@ -5734,10 +5734,11 @@ app.get('/api/monetization/posts', async (req, res) => {
        FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL ORDER BY p.created_at DESC LIMIT 100`, [email]);
     const me = (await pool.query('SELECT first_name, last_name, profile_pic FROM users WHERE email = $1', [email])).rows[0] || {};
     const ca = (await pool.query("SELECT earn_suspended, suspend_reason FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0], isCreator = !!ca, suspended = !!(ca && ca.earn_suspended);
-    const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents)) / 100 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
+    // 💵 each video's money is not rounded to whole cents (a video with 0.4 ¢ showed $0.00 while the total showed 5 ¢)
+    const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents) * 100) / 10000 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
     const week = Date.now() - 7 * 86400000;
     res.json({ success: true, isCreator, suspended, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
-      totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 100) / 100, wallet: (await walletCents(email)) / 100 } });
+      totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 10000) / 10000, wallet: (await walletCents(email)) / 100 } });
   } catch (err) { console.error('[monetization] posts error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 

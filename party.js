@@ -379,13 +379,17 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       const u = await pool.query('SELECT first_name, last_name FROM users WHERE LOWER(email) = $1', [room.owner_email]);
       const name = u.rows[0] ? `${u.rows[0].first_name || ''} ${u.rows[0].last_name || ''}`.trim() : '';
       const title = room.title || name;
+      // 🎉 who opened it is always named (the room's title alone did not say who)
+      const msg = name && room.title && room.title.trim() !== name
+        ? `🎉 ${name} បានបើកបន្ទប់ "${room.title.trim()}" — ចូលរួមឥឡូវនេះ!`
+        : (name ? `🎉 ${name} បានបើកបន្ទប់ Party Room — ចូលរួមឥឡូវនេះ!` : `🎉 បន្ទប់ "${title}" បើកហើយ — ចូលរួមឥឡូវនេះ!`);
       const fs = await pool.query(`SELECT f.user_email FROM party_follows f WHERE f.owner_email = $1
                                     AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (LOWER(b.blocker_email) = f.user_email AND LOWER(b.blocked_email) = $1) OR (LOWER(b.blocker_email) = $1 AND LOWER(b.blocked_email) = f.user_email))
                                     LIMIT 5000`, [room.owner_email]);
       for (const f of fs.rows) {
         if (room.privacy === 'friends' && !(await isFriend(room.owner_email, f.user_email))) continue;
         await pool.query('INSERT INTO notifications (recipient_email, sender_email, type, message, is_read) VALUES ($1, $2, $3, $4, FALSE)',
-          [f.user_email, room.owner_email, 'party_open', `🎉 បន្ទប់ "${title}" បើកហើយ — ចូលរួមឥឡូវនេះ!`]).catch(() => {});
+          [f.user_email, room.owner_email, 'party_open', msg]).catch(() => {});
       }
     } catch (e) { console.error('[party] tell followers:', e.message); }
   }

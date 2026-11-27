@@ -63,7 +63,7 @@ var T = {
 var t = function (k) { return T[lang][k]; };
 var $ = function (id) { return document.getElementById(id); };
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
-function usd(n) { return '$' + Number(n || 0).toFixed(2); }
+function usd(n) { n = Number(n || 0); return '$' + (n > 0 && n < 0.01 ? n.toFixed(4).replace(/0+$/, '') : n.toFixed(2)); }   // less than 1 ¢ (one video): $0.004, not $0.00
 function when(d) { var x = new Date(d); return isNaN(x) ? '' : x.toLocaleString(lang === 'km' ? 'km-KH' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
 function safeSrc(u) { return /^https?:\/\//i.test(u || '') ? u : ''; }
 var data = null, tab = 'analytics', current = null;

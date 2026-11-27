@@ -10,6 +10,37 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
   const TODAY = `created_at >= (NOW() AT TIME ZONE ${KH})::date::timestamp AT TIME ZONE ${KH}`;
   const num = async (sql, p) => { try { const r = await pool.query(sql, p || []); const v = r.rows[0] && Object.values(r.rows[0])[0]; return Number(v) || 0; } catch (e) { return null; } };
 
+  // 🐞 the phone app tells us why it closed last time (Android: the error text, or "closed inside a Party Room" when Android
+  // gave no reason). Only the person's own crash, a few a day; the Admin sees them in ⚙️ System check.
+  let crashReady = null;
+  const crashTable = () => crashReady || (crashReady = pool.query(`CREATE TABLE IF NOT EXISTS app_crashes (
+      id SERIAL PRIMARY KEY, email TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), build INT, device TEXT, place TEXT, text TEXT)`)
+    .then(() => pool.query('CREATE INDEX IF NOT EXISTS app_crashes_at ON app_crashes (created_at DESC)')).catch((e) => { crashReady = null; throw e; }));
+  app.post('/api/app/crash', async (req, res) => {
+    const email = String(req.authEmail || '').toLowerCase();
+    if (!email) return res.status(401).json({ success: false });
+    const b = req.body || {};
+    const cut = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').slice(0, n);
+    try {
+      await crashTable();
+      const n = await num("SELECT COUNT(*) FROM app_crashes WHERE email = $1 AND created_at > NOW() - INTERVAL '1 day'", [email]);
+      if (n !== null && n >= 10) return res.json({ success: true, kept: false });
+      await pool.query('INSERT INTO app_crashes (email, build, device, place, text) VALUES ($1, $2, $3, $4, $5)',
+        [email, parseInt(b.build, 10) || 0, cut(b.device, 200), cut(b.place, 40), cut(b.log, 6000)]);
+      pool.query("DELETE FROM app_crashes WHERE created_at < NOW() - INTERVAL '60 days'").catch(() => {});
+      res.json({ success: true, kept: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+  });
+  app.post('/api/admin/app/crashes', async (req, res) => {
+    try {
+      const a = await adminGate(req, res); if (!a) return;
+      await crashTable();
+      const r = await pool.query(`SELECT c.id, c.created_at, c.build, c.device, c.place, c.text, u.first_name, u.last_name, u.public_id
+        FROM app_crashes c LEFT JOIN users u ON LOWER(u.email) = c.email ORDER BY c.created_at DESC LIMIT 100`);
+      res.json({ success: true, crashes: r.rows });
+    } catch (e) { res.status(500).json({ success: false, error: 'Could not load.' }); }
+  });
+
   app.post('/api/admin/app/home', async (req, res) => {
     try {
       const a = await adminGate(req, res); if (!a) return;
