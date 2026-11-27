@@ -223,7 +223,17 @@ module.exports = function createPush({ app, pool }) {
     res.json({ success: true });
   });
 
+  // 🛡 one phone by its token (the Admin app's alerts; the token list lives in admin-app.js)
+  async function sendToToken(token, { title, body, data = {}, channel = 'cf_admin' }) {
+    if (!enabled || !token) return false;
+    const strData = {}; for (const k of Object.keys(data)) strData[k] = String(data[k]);
+    try {
+      return await sendOne(token, { notification: { title: String(title || 'CamFeed Admin').slice(0, 80), body: String(body || '').slice(0, 180) }, data: strData,
+        android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: channel, sound: 'default' } } });
+    } catch (e) { console.error('[push] admin send failed:', e.message); return false; }
+  }
+
   let msgFilter = null;
   const setMessageFilter = (fn) => { msgFilter = fn; };
-  return { enabled, sendToUser, notifyCall, notifyCallEnd, setMessageFilter };
+  return { enabled, sendToUser, sendToToken, notifyCall, notifyCallEnd, setMessageFilter };
 };

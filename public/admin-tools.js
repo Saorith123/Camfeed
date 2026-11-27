@@ -675,7 +675,7 @@
     }
     function load() {
       fromIn.value = rep.from; toIn.value = rep.to; out.textContent = ''; out.appendChild(empty('Loading…'));
-      adm('/api/admin/earn-report', { from: rep.from, to: rep.to, email: rep.email }).then(function (d) {
+      adm('/api/admin/earn-report', { from: rep.from, to: rep.to, creator: rep.email }).then(function (d) {
         out.textContent = ''; if (!d.success) { out.appendChild(empty(d.error || 'Could not load.')); return; }
         rep.from = d.from; rep.to = d.to; fromIn.value = d.from; toIn.value = d.to;
         out.appendChild(el('div', { style: 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px' }, [

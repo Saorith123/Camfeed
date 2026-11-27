@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 224;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 225;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -67,7 +67,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|wallet-pockets|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|wallet-pockets|admin-app|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -2634,7 +2634,7 @@ async function adminPermsOf(email) {
 function adminNeed(path, body) {
   const p = path.replace(/^\/api\/admin\/?/, '');
   const first = p.split('/')[0];
-  const sec = ({ inbox: 'inbox', dashboard: 'overview', overview: 'overview', audit: 'audit', system: 'system',
+  const sec = ({ app: 'overview', inbox: 'inbox', dashboard: 'overview', overview: 'overview', audit: 'audit', system: 'system',
     users: 'users', 'ban-user': 'users', 'set-role': 'users', 'create-user': 'users', 'reset-password': 'users', notice: 'users',
     chat: 'chats', 'chat-reports': 'content', reports: 'content', posts: 'content', comments: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
@@ -2645,7 +2645,7 @@ function adminNeed(path, body) {
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
   const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
-  const READ_PATHS = /^(inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
+  const READ_PATHS = /^(app\/home|app\/reports|app\/push|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
   const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
@@ -2736,6 +2736,9 @@ const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGa
   deleteMedia: (u) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(u) : Promise.resolve()), payInfo: async () => { await Promise.resolve(adWallet.ensure && adWallet.ensure()).catch(() => {}); return adWallet.payInfo ? adWallet.payInfo() : {}; } });   // ✔ official accounts, 🏪 business accounts, name rules   // 🌏 each person's country: own country first in Feed / Reels / search; ads per country
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
+// 🛡 CamFeed Admin phone app: home numbers, reports, alerts to Admin phones only
+require('./admin-app')({ app, pool, adminGate: (req, res) => adminGate(req, res), push,
+  isAdminEmail: async (e) => { try { const r = (await pool.query('SELECT role, is_banned FROM users WHERE LOWER(email) = LOWER($1)', [e])).rows[0]; return SUPER_ADMIN_EMAILS.includes(String(e || '').toLowerCase()) || (!!r && !r.is_banned && (r.role === 'admin' || r.role === 'super_admin')); } catch (x) { return false; } } });
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
@@ -5424,12 +5427,13 @@ app.post('/api/admin/earn-report', async (req, res) => {
       email: x.email, public_id: x.public_id || '', first_name: x.first_name || '', last_name: x.last_name || '', profile_pic: x.profile_pic || '',
       paid: Number(x.paid) / 100, views: Number(x.views) || 0, earned: Math.round(Number(x.earned) || 0) / 100, videos: x.videos }));
     let videoList = null;
-    if (b.email) {
+    const who = String(b.creator || '').trim();
+    if (who) {
       videoList = (await pool.query(
         `SELECT l.post_id, SUM(l.views)::bigint AS views, SUM(l.cents)::float AS cents, MAX(l.created_at) AS last_at, p.content, p.media_type, p.thumb_url, p.created_at AS posted_at
            FROM earn_log l LEFT JOIN posts p ON p.id = l.post_id
           WHERE LOWER(l.user_email) = LOWER($3) AND ${inRange.replace(/created_at/g, 'l.created_at')}
-          GROUP BY l.post_id, p.content, p.media_type, p.thumb_url, p.created_at ORDER BY 3 DESC LIMIT 300`, [from, to, String(b.email)])).rows.map((x) => ({
+          GROUP BY l.post_id, p.content, p.media_type, p.thumb_url, p.created_at ORDER BY 3 DESC LIMIT 300`, [from, to, who])).rows.map((x) => ({
         post_id: x.post_id, views: Number(x.views) || 0, earned: Math.round(Number(x.cents) || 0) / 100, last_at: x.last_at, posted_at: x.posted_at,
         text: String(x.content || '').slice(0, 120), media_type: x.media_type || '', thumb: x.thumb_url || '', gone: !x.media_type && !x.content }));
     }
