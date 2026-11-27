@@ -190,5 +190,8 @@ window.ADMIN_KM = {
   'closed': 'បិទ',
   'open': 'បើក',
   'Website': 'វេបសាយ (មិនបានជ្រើសមូលហេតុ)',
+  '🧪 Weak phones: no music in Party Room': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានចម្រៀងក្នុង Party Room',
+  '🧪 Weak phones: no voice cleaning (noise/echo)': '🧪 ទូរស័ព្ទខ្សោយ៖ មិនលុបសំឡេងរំខាន/បន្ទរ',
+  '🧪 Weak phones: no voice at all (test only)': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានសំឡេងទាល់តែសោះ (សាកតែប៉ុណ្ណោះ)',
   'Logged in as:': 'ចូលជា៖', 'Logged in as: ': 'ចូលជា៖ '
 };

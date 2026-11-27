@@ -7,6 +7,8 @@ const DEFAULTS = {
     coins: true, saveSound: true, watchHistory: true, partyRoom: true, partyFollowers: true, roomClock: true, chatFiles: true,
     beauty: false,      // ✨ off until it is safe on every phone (it closed the app on some)
     chatBubbles: true,  // 💬 a new chat message pops up as a round picture over other apps (Android)
+    // 🧪 Party Room tests, only on weak phones (≤ 3 GB, or after the app closed in a room): to find what closes the app
+    liteNoMusic: false, liteNoVoiceFx: false, liteNoVoice: false,
   },
   reportReasons: {
     post: [
