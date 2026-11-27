@@ -4,7 +4,42 @@
 // 🔒 Chat messages are never read for this. A person can see and delete their keywords (/api/me/interests).
 'use strict';
 
-const CATS = ['Comedy', 'Music', 'Gaming', 'Food', 'Vehicles & Motorcycles', 'Technology', 'News', 'Sports', 'Education', 'Travel', 'Lifestyle', 'General'];
+// 🗂 24 kinds of posts (more than before, so fewer posts end up as "General")
+const CATS = ['Comedy', 'Music', 'Dance', 'Movies & Drama', 'Gaming', 'Food', 'Vehicles & Motorcycles', 'Technology', 'News', 'Sports', 'Education', 'Travel',
+  'Beauty & Fashion', 'Business & Selling', 'Home & DIY', 'Farming & Nature', 'Animals & Pets', 'Family & Kids', 'Love & Relationships', 'Health & Fitness',
+  'Religion & Culture', 'Motivation & Stories', 'Lifestyle', 'General'];
+// new keywords for the new kinds (added once to the list; Admin › 🏷️ AI Keywords can change them)
+const SEED2 = [
+  ['រាំ', 'រាំ និងច្រៀង', 'Dance', 'dance, dancing, រាំវង់, រាំក្បាច់, tiktok dance, choreography, រាំលេង'],
+  ['ច្រៀង Cover', 'តន្ត្រី', 'Music', 'cover, ច្រៀង, karaoke, ខារ៉ាអូខេ, singing, បទចម្រៀង'],
+  ['ក្បាច់ខ្មែរ', 'វប្បធម៌', 'Religion & Culture', 'apsara, អប្សរា, robam, ល្ខោន, ក្បាច់បុរាណ'],
+  ['ព្រះពុទ្ធសាសនា', 'វប្បធម៌', 'Religion & Culture', 'buddhism, វត្ត, pagoda, ព្រះសង្ឃ, monk, ធម៌, ទេសនា, សូត្រធម៌'],
+  ['បុណ្យជាតិ', 'វប្បធម៌', 'Religion & Culture', 'ភ្ជុំបិណ្ឌ, pchum ben, ចូលឆ្នាំ, khmer new year, បុណ្យអុំទូក, water festival'],
+  ['ប្រវត្តិសាស្ត្រខ្មែរ', 'វប្បធម៌', 'Religion & Culture', 'history, អង្គរ, angkor, ប្រាសាទ, temple'],
+  ['ហាត់ប្រាណ', 'សុខភាព', 'Health & Fitness', 'gym, workout, fitness, exercise, ហាត់ប្រាណ, យូហ្គា, yoga, រត់'],
+  ['សុខភាព និងថ្នាំ', 'សុខភាព', 'Health & Fitness', 'health, doctor, ពេទ្យ, ថ្នាំ, medicine, ជំងឺ, ព្យាបាល'],
+  ['សម្រកទម្ងន់', 'សុខភាព', 'Health & Fitness', 'diet, weight loss, ស្រកគីឡូ, ស្លឹម'],
+  ['ចិញ្ចឹមត្រី និងសត្វ', 'កសិកម្ម', 'Farming & Nature', 'fish farm, ចិញ្ចឹមត្រី, ចិញ្ចឹមជ្រូក, ចិញ្ចឹមគោ, ចិញ្ចឹមមាន់'],
+  ['ស្រែចម្ការ', 'កសិកម្ម', 'Farming & Nature', 'rice field, ស្រែ, ចម្ការ, ច្រូតកាត់, ដាំស្រូវ, harvest'],
+  ['ធម្មជាតិ', 'កសិកម្ម', 'Farming & Nature', 'nature, ព្រៃ, ភ្នំ, ទឹកជ្រោះ, waterfall, mountain, ទេសភាព'],
+  ['សត្វព្រៃ', 'សត្វ', 'Animals & Pets', 'wild animal, ដំរី, elephant, ស្វា, monkey, សត្វស្លាប, bird, ពស់, snake'],
+  ['ជួសជុល និង DIY', 'ផ្ទះ និង DIY', 'Home & DIY', 'diy, repair, ជួសជុល, សាងសង់, construction, handmade'],
+  ['ការរៀបចំផ្ទះ', 'ផ្ទះ និង DIY', 'Home & DIY', 'cleaning, organize, សម្អាតផ្ទះ, room tour'],
+  ['អាជីវកម្ម', 'អាជីវកម្ម', 'Business & Selling', 'business, startup, ចំណូល, income, លុយ, money, invest, វិនិយោគ, crypto'],
+  ['ការងារ', 'អាជីវកម្ម', 'Business & Selling', 'job, work, ការងារ, ជ្រើសរើសបុគ្គលិក, hiring'],
+  ['លើកទឹកចិត្ត', 'លើកទឹកចិត្ត', 'Motivation & Stories', 'motivation, inspire, ជីវិត, ពាក្យពេចន៍, quotes, success, ជោគជ័យ'],
+  ['រឿងពិត', 'លើកទឹកចិត្ត', 'Motivation & Stories', 'true story, រឿងពិត, life story, ទឹកចិត្ត, sad story, សោកសៅ'],
+  ['ក្មេងៗ', 'គ្រួសារ', 'Family & Kids', 'kids, children, ក្មេង, ទារក, baby, កូន'],
+  ['ឪពុកម្ដាយ', 'គ្រួសារ', 'Family & Kids', 'parents, ម៉ែ, ឪ, ប៉ា, ម៉ាក់, family'],
+  ['គូស្នេហ៍', 'ស្នេហា', 'Love & Relationships', 'couple, សង្សារ, ស្នេហ៍, girlfriend, boyfriend, បែកគ្នា, breakup, ប្ដីប្រពន្ធ'],
+  ['ភាពយន្តខ្មែរ', 'ភាពយន្ត', 'Movies & Drama', 'khmer movie, រឿងខ្មែរ, ខ្សែភាពយន្ត, short film, ភាពយន្តខ្លី'],
+  ['រឿងភាគចិន និងថៃ', 'ភាពយន្ត', 'Movies & Drama', 'chinese drama, thai drama, korean drama, kdrama, រឿងចិន, រឿងថៃ, រឿងកូរ៉េ'],
+];
+// old seed words that belong to a new kind now (only changed when the Admin has not changed them)
+const RECAT = [['ម៉ូដ និងសម្រស់', 'Beauty & Fashion'], ['ទិញ និងលក់', 'Business & Selling']];
+const RECAT_WORDS = [['ផ្ទះ និងដី', 'Home & DIY'], ['គ្រឿងសង្ហារឹម និងតុបតែងផ្ទះ', 'Home & DIY'], ['ឧបករណ៍ប្រើប្រាស់ក្នុងផ្ទះ', 'Home & DIY'], ['ដាំដុះ និងសួនច្បារ', 'Farming & Nature'],
+  ['កសិកម្ម និងចិញ្ចឹមសត្វ', 'Farming & Nature'], ['រឿងភាគ និងភាពយន្ត', 'Movies & Drama'], ['រឿង AI', 'Movies & Drama'], ['តុក្កតា និង Anime', 'Movies & Drama'],
+  ['គ្រួសារ និងកូនតូច', 'Family & Kids'], ['សត្វចិញ្ចឹម', 'Animals & Pets'], ['ស្នេហា', 'Love & Relationships'], ['មង្គលការ និងពិធីបុណ្យ', 'Religion & Culture']];
 const HL_SHORT = 3 * 86400, HL_LONG = 14 * 86400;
 const GROUP_SHARE = 0.3;          // a keyword of the same group counts 30 % (MacBook ↔ Dell laptop)
 
@@ -110,6 +145,13 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
         for (const [w, g, c, syn] of SEED) await pool.query('INSERT INTO kw_dict (word, grp, cat, synonyms) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [w, g, c, syn]);
         await pool.query("INSERT INTO kw_state (k, v) VALUES ('seeded', '1') ON CONFLICT (k) DO NOTHING");
       }
+      const seeded2 = (await pool.query("SELECT v FROM kw_state WHERE k = 'seeded2'")).rows[0];
+      if (!seeded2) {   // 🗂 once: the words of the new kinds, and old seed words moved to their new kind
+        for (const [w, g, c, syn] of SEED2) await pool.query('INSERT INTO kw_dict (word, grp, cat, synonyms) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [w, g, c, syn]);
+        for (const [g, c] of RECAT) await pool.query("UPDATE kw_dict SET cat = $2 WHERE grp = $1 AND source = 'seed' AND cat = 'Lifestyle'", [g, c]);
+        for (const [w, c] of RECAT_WORDS) await pool.query("UPDATE kw_dict SET cat = $2 WHERE word = $1 AND source = 'seed' AND cat = 'Lifestyle'", [w, c]);
+        await pool.query("INSERT INTO kw_state (k, v) VALUES ('seeded2', '1') ON CONFLICT (k) DO NOTHING");
+      }
       await loadDict(true);
       tablesOk = true;
     })().catch((e) => { ready = null; console.error('[keywords] setup:', e.message); throw e; });
@@ -118,6 +160,39 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
 
   // ---- the keyword list, kept in memory (refreshed when the Admin changes it) ----
   let dict = { at: 0, rows: [], byText: new Map(), byId: new Map() };
+  // ⚡ the kind of a post from its caption / hashtags, at once, without the AI (the AI may improve it a minute later)
+  function quickCategory(text) {
+    const t = ' ' + norm(text) + ' '; if (t.trim().length < 2) return null;
+    const score = new Map();
+    for (const r of dict.rows) {
+      if (!CATS.includes(r.cat) || r.cat === 'General') continue;
+      for (const raw of [r.word, ...String(r.synonyms || '').split(',')]) {
+        const n = norm(raw); if (!n || n.length < 2) continue;
+        const latin = /^[a-z0-9 &+\-]+$/.test(n);
+        const hit = latin ? (n.length >= 3 && t.includes(' ' + n + ' ')) : t.includes(n);   // English: whole words only; Khmer: anywhere (no spaces in Khmer)
+        if (hit) { score.set(r.cat, (score.get(r.cat) || 0) + n.length); break; }
+      }
+    }
+    let best = null, bs = 0; for (const [c, v] of score) if (v > bs) { best = c; bs = v; }
+    return best;
+  }
+  async function quickLabel(postId, text) {
+    try { await ensure(); await loadDict(); const c = quickCategory(text); if (c) await pool.query("UPDATE posts SET ai_category = $2 WHERE id = $1 AND (ai_category IS NULL OR ai_category = 'General')", [postId, c]); return c; } catch (e) { return null; }
+  }
+  // once, slowly: old "General" posts get a kind from their caption (200 every minute, no AI)
+  let backBusy = false;
+  async function quickBackfill() {
+    if (backBusy) return; backBusy = true;
+    try {
+      await ensure(); await loadDict();
+      const last = Number(((await pool.query("SELECT v FROM kw_state WHERE k = 'quick_last'")).rows[0] || {}).v || 0);
+      const r = await pool.query("SELECT id, content FROM posts WHERE id > $1 ORDER BY id LIMIT 200", [last]);
+      if (!r.rows.length) return;
+      for (const p of r.rows) { if (!p.content) continue; const c = quickCategory(p.content); if (c) await pool.query("UPDATE posts SET ai_category = $2 WHERE id = $1 AND (ai_category IS NULL OR ai_category = 'General')", [p.id, c]); }
+      await pool.query("INSERT INTO kw_state (k, v) VALUES ('quick_last', $1) ON CONFLICT (k) DO UPDATE SET v = $1", [String(r.rows[r.rows.length - 1].id)]);
+    } catch (e) { console.error('[keywords] quick backfill:', e.message); } finally { backBusy = false; }
+  }
+  setTimeout(() => { quickBackfill(); setInterval(quickBackfill, 60 * 1000); }, 75 * 1000);
   async function loadDict(force) {
     if (!force && Date.now() - dict.at < 5 * 60 * 1000) return dict;
     const rows = (await pool.query('SELECT id, word, grp, cat, synonyms, source, reviewed FROM kw_dict ORDER BY grp, word')).rows;
@@ -244,7 +319,7 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
     const list = dict.rows.map((r) => `${r.word} | ${r.grp}`).join('\n');
     const prompt = `You label posts of CamFeed, a Cambodian social app, so people see posts and ads they care about.
 Look at the ${frames.length} picture(s) (frames of the video or the photos) and the caption.
-1) "category": exactly ONE of: ${CATS.join(', ')}.
+1) "category": exactly ONE of: ${CATS.join(', ')}. Choose the closest kind; use "General" ONLY when nothing at all fits (a plain selfie, a blank picture).
 2) "keywords": 1 to 8 items {"word": ..., "weight": 0.3-1.0} chosen ONLY from the KEYWORD LIST below (copy the word exactly). weight 1.0 = the post is mainly about it, 0.3 = a small part.
    For something sold (a product), choose the product keywords AND "លក់ទំនិញអនឡាញ".
 3) "new": at most 2 important topics or product types that are clearly in the post but missing from the list: {"word": short Khmer word, "group": one existing group, "synonyms": "english, other spellings"}. Usually empty.
@@ -398,7 +473,8 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
             COUNT(*) FILTER (WHERE kw_at IS NOT NULL)::int AS labelled, COUNT(*) FILTER (WHERE kw_tries >= 3 AND kw_at IS NULL)::int AS failed,
             COUNT(*) FILTER (WHERE shared_post_id IS NULL)::int AS total FROM posts`)).rows[0];
         const groups = [...new Set(dict.rows.map((r) => r.grp))];
-        return res.json({ success: true, words, groups, cats: CATS, queue: Object.assign(st, { paused: await paused(), gemini: !!process.env.GEMINI_API_KEY, worker: stats, aiError: lastAi }) });
+        const cc = (await pool.query("SELECT COALESCE(NULLIF(ai_category, ''), 'General') AS c, COUNT(*)::int AS n FROM posts WHERE shared_post_id IS NULL GROUP BY 1 ORDER BY 2 DESC")).rows;
+        return res.json({ success: true, words, groups, cats: CATS, catCounts: cc, queue: Object.assign(st, { paused: await paused(), gemini: !!process.env.GEMINI_API_KEY, worker: stats, aiError: lastAi }) });
       }
       if (act === 'add' || act === 'edit') {
         const word = String(b.word || '').replace(/\s+/g, ' ').trim().slice(0, 60), grp = String(b.grp || '').trim().slice(0, 40) || 'ផ្សេងៗ';
@@ -508,7 +584,8 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
     return out.slice(0, 8);
   }
 
-  return { bumpPost, onSearch, onProfile, onWatch, onSkip, feedJoinSql, feedScoreSql, searchIds, kick: () => setTimeout(tick, 3000), ready: () => ensure().catch(() => {}),
+  return { quickLabel, CATS, bumpPost, onSearch, onProfile, onWatch, onSkip, feedJoinSql, feedScoreSql, searchIds, kick: () => setTimeout(tick, 3000), ready: () => ensure().catch(() => {}),
     resolveWords, wordsOf, allWords, userTop, interestedCount, suggest, loadDict, geminiJson, lastAiError: () => lastAi.err,
     framesOfUrls: async (urls) => { const out = []; for (const u of (urls || []).slice(0, 3)) { const b = await frame(u, /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u) ? '1' : null); if (b) out.push(b); } return out; } };
 };
+module.exports.CATS_LIST = CATS;

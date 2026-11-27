@@ -599,11 +599,11 @@
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Phone top-up'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Phone top-up'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus'], ['report', '📊 Spending report']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
+    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else if (mon.view === 'report') monReport(body); else monWallet(body);
   }
   // the settings of one way to earn (its own price, daily limit, switch and text)
   function monPath(box, src) {
@@ -645,6 +645,76 @@
       wrap.appendChild(out);
     }
     adm('/api/admin/creator-path', { source: src }).then(draw);
+  }
+  // 📊 money paid for views: by day, by creator, by video (Cambodia time). Money shows within 5 minutes of the views.
+  var rep = { from: '', to: '', email: '', name: '' };
+  function monReport(body) {
+    var pp = function (d) { return d.toISOString().slice(0, 10); };
+    var kh = function () { return new Date(Date.now() + 7 * 3600000); };
+    function range(k) {
+      var t = kh(), y = t.getUTCFullYear(), m = t.getUTCMonth();
+      if (k === 'today') return [pp(t), pp(t)];
+      if (k === 'yesterday') { var d = new Date(t.getTime() - 86400000); return [pp(d), pp(d)]; }
+      if (k === '7') return [pp(new Date(t.getTime() - 6 * 86400000)), pp(t)];
+      if (k === 'month') return [pp(new Date(Date.UTC(y, m, 1))), pp(t)];
+      return [pp(new Date(Date.UTC(y, m - 1, 1))), pp(new Date(Date.UTC(y, m, 0)))];
+    }
+    if (!rep.from) { var r0 = range('7'); rep.from = r0[0]; rep.to = r0[1]; }
+    var fromIn = el('input', { class: 'at-in', type: 'date', value: rep.from, style: 'max-width:170px' }), toIn = el('input', { class: 'at-in', type: 'date', value: rep.to, style: 'max-width:170px' });
+    var chips = el('div', { class: 'at-row', style: 'margin-bottom:8px' }, [['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['month', 'This month'], ['last', 'Last month']].map(function (v) {
+      return el('button', { class: 'btn-sm btn-gray', text: v[1], onclick: function () { var r = range(v[0]); rep.from = r[0]; rep.to = r[1]; rep.email = ''; load(); } });
+    }));
+    var pick = el('div', { class: 'at-row', style: 'align-items:center;margin-bottom:12px' }, [fromIn, el('span', { text: '→' }), toIn,
+      el('button', { class: 'btn-sm btn-blue', text: 'Show', onclick: function () { rep.from = fromIn.value; rep.to = toIn.value; rep.email = ''; load(); } })]);
+    var out = el('div'); body.appendChild(chips); body.appendChild(pick); body.appendChild(out);
+    function tile(icon, label, val) { return el('div', { style: 'flex:1;min-width:150px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:12px 14px' }, [el('div', { style: 'font-size:13px;color:#65676b', text: icon + ' ' + label }), el('div', { style: 'font-size:22px;font-weight:800;margin-top:4px', text: val })]); }
+    function csv(name, head, rows) {
+      var q = function (v) { v = String(v === null || v === undefined ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var txt = '﻿' + [head].concat(rows).map(function (r) { return r.map(q).join(','); }).join('\n');
+      var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    }
+    function load() {
+      fromIn.value = rep.from; toIn.value = rep.to; out.textContent = ''; out.appendChild(empty('Loading…'));
+      adm('/api/admin/earn-report', { from: rep.from, to: rep.to, email: rep.email }).then(function (d) {
+        out.textContent = ''; if (!d.success) { out.appendChild(empty(d.error || 'Could not load.')); return; }
+        rep.from = d.from; rep.to = d.to; fromIn.value = d.from; toIn.value = d.to;
+        out.appendChild(el('div', { style: 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px' }, [
+          tile('💵', 'Money paid', money(d.paid)), tile('👁', 'Paid views', String(d.views)), tile('👤', 'Creators paid', String(d.people)), tile('🎬', 'Videos', String(d.videos))]));
+        if (d.earned > d.paid + 0.005) out.appendChild(el('div', { style: 'color:#b45309;font-size:13px;margin:-6px 0 12px', text: 'Not paid because of the daily limit: ' + money(d.earned - d.paid) }));
+        // daily bars
+        var max = 0; d.days.forEach(function (x) { if (x.paid > max) max = x.paid; });
+        var bars = el('div', { style: 'display:flex;align-items:flex-end;gap:3px;height:120px;background:#fff;border:1px solid #e4e6eb;border-radius:12px;padding:10px 10px 4px;overflow-x:auto;margin-bottom:4px' }, d.days.map(function (x) {
+          var h = max > 0 ? Math.max(2, Math.round(x.paid / max * 100)) : 2;
+          return el('div', { title: x.day + ' · ' + money(x.paid) + ' · ' + x.views, style: 'flex:1;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center' }, [el('div', { style: 'width:100%;height:' + h + 'px;background:' + (x.paid > 0 ? '#1877f2' : '#e4e6eb') + ';border-radius:4px 4px 0 0' })]);
+        }));
+        out.appendChild(bars);
+        out.appendChild(el('div', { style: 'display:flex;justify-content:space-between;font-size:11.5px;color:#65676b;margin-bottom:16px' }, [el('span', { text: d.from }), el('span', { text: d.to })]));
+        // creators
+        out.appendChild(el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px' }, [el('div', { style: 'font-weight:800;font-size:16px', text: '👤 Creators' }),
+          el('button', { class: 'btn-sm btn-gray', text: '⬇️ Download CSV', onclick: function () { csv('camfeed-creators-' + d.from + '_' + d.to + '.csv', ['Name', 'ID', 'Paid views', 'Videos', 'Earned ($)', 'Paid ($)'], d.creators.map(function (c) { return [nm(c), c.public_id, c.views, c.videos, c.earned.toFixed(2), c.paid.toFixed(2)]; })); } })]));
+        if (!d.creators.length) out.appendChild(empty('No money paid for views in these days.'));
+        else out.appendChild(table(['Creator', 'Paid views', 'Videos', 'Earned', 'Paid', ''], d.creators.map(function (c) {
+          return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: nm(c) }), el('div', { style: 'font-size:11.5px;color:#65676b', text: c.public_id })]),
+            el('td', { text: String(c.views) }), el('td', { text: String(c.videos) }), el('td', { text: money(c.earned) }), el('td', { style: 'font-weight:800', text: money(c.paid) }),
+            el('td', {}, [el('button', { class: 'btn-sm btn-blue', text: 'Videos ›', onclick: function () { rep.email = c.email; rep.name = nm(c); load(); } })])]);
+        })));
+        // one creator's videos
+        if (rep.email && d.videoList) {
+          var vb = el('div', { style: 'margin-top:18px;background:#f7f8fa;border-radius:12px;padding:12px' }); out.appendChild(vb);
+          vb.appendChild(el('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px' }, [el('div', { style: 'font-weight:800;font-size:16px', text: '🎬 ' + rep.name }),
+            el('div', { class: 'at-row' }, [el('button', { class: 'btn-sm btn-gray', text: '⬇️ Download CSV', onclick: function () { csv('camfeed-videos-' + d.from + '_' + d.to + '.csv', ['Post', 'Text', 'Paid views', 'Earned ($)'], d.videoList.map(function (v) { return [v.post_id, v.text, v.views, v.earned.toFixed(2)]; })); } }),
+              el('button', { class: 'btn-sm btn-gray', text: '✕ Close', onclick: function () { rep.email = ''; load(); } })])]));
+          if (!d.videoList.length) vb.appendChild(empty('No video details in these days.'));
+          else vb.appendChild(table(['Video', 'Paid views', 'Earned', ''], d.videoList.map(function (v) {
+            return el('tr', {}, [el('td', {}, [el('div', { style: 'display:flex;gap:8px;align-items:center' }, [v.thumb ? el('img', { src: v.thumb, alt: '', style: 'width:44px;height:44px;object-fit:cover;border-radius:6px' }) : el('span', { text: v.gone ? '🗑' : '🎬' }), el('div', { style: 'max-width:260px;white-space:normal;font-size:13px', text: v.gone ? 'Deleted post' : (v.text || '#' + v.post_id) })])]),
+              el('td', { text: String(v.views) }), el('td', { style: 'font-weight:800', text: money(v.earned) }),
+              el('td', {}, [v.gone ? el('span') : el('a', { href: '/p/' + v.post_id, target: '_blank', rel: 'noopener', class: 'btn-sm btn-gray', text: 'Open post' })])]);
+          })));
+        }
+        out.appendChild(el('div', { style: 'margin-top:14px;font-size:12px;color:#65676b', text: 'Earned = views × price. Paid = what went into the wallet (after the daily limit). Video details start from the day this report was added.' }));
+      });
+    }
+    load();
   }
   function monApps(body, src) {
     var setBox = el('div'); body.appendChild(setBox); monPath(setBox, src);
@@ -1091,6 +1161,14 @@
           el('button', { class: 'btn-sm btn-gray', text: '🔁 Label ALL posts again', onclick: function () { if (confirm('Label all posts again, one by one in the background? Keywords written by hand are kept.')) call({ action: 'redo-all' }).then(load); } })
         ]));
         if (q.aiError && q.aiError.err) head.appendChild(el('div', { style: 'font-size:12.5px;color:#b42318;margin-top:6px', text: '⚠️ AI last problem: ' + q.aiError.err + (q.aiError.at ? ' · ' + ago(q.aiError.at) : '') }));
+        if (d.catCounts && d.catCounts.length) {   // 🗂 how many posts of each kind
+          var totC = 0; d.catCounts.forEach(function (c) { totC += c.n; });
+          head.appendChild(el('div', { style: 'font-weight:800;margin-top:12px;font-size:14px', text: '🗂 Posts by kind' }));
+          head.appendChild(el('div', { style: 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px' }, d.catCounts.map(function (c) {
+            var pc = totC ? Math.round(c.n * 100 / totC) : 0;
+            return el('span', { style: 'padding:5px 10px;border-radius:999px;font-size:12.5px;font-weight:700;background:' + (c.c === 'General' ? '#fff4e5' : '#eef3ff') + ';color:' + (c.c === 'General' ? '#b45309' : '#1d4ed8'), text: c.c + ' · ' + c.n + ' (' + pc + '%)' });
+          })));
+        }
         if (q.worker && q.worker.last) head.appendChild(el('div', { style: 'font-size:12px;color:#65676b;margin-top:6px', text: 'Last: post #' + q.worker.last.id + ' → ' + (q.worker.last.words || []).join(', ') }));
         drawList();
       });

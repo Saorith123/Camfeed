@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 222;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 224;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -439,6 +439,10 @@ pool.connect(async (err, client, release) => {
     await pool.query('CREATE TABLE IF NOT EXISTS creator_earn (user_email TEXT PRIMARY KEY, carry_cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS post_earn (post_id INTEGER PRIMARY KEY, user_email TEXT NOT NULL, views_seen INTEGER NOT NULL DEFAULT 0, cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_post_earn_user ON post_earn (user_email)').catch(() => {});
+    // 📊 every time views turn into money: which video, how many views, how much (Admin › Monetization › Spending report)
+    await pool.query('CREATE TABLE IF NOT EXISTS earn_log (id BIGSERIAL PRIMARY KEY, post_id INTEGER NOT NULL, user_email TEXT NOT NULL, views INTEGER NOT NULL, cents NUMERIC(14,6) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())').catch(() => {});
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_earn_log_time ON earn_log (created_at)').catch(() => {});
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_earn_log_user ON earn_log (user_email, created_at)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_email)');
     for (const col of ["status VARCHAR(20) NOT NULL DEFAULT 'progress'", 'days_done INTEGER NOT NULL DEFAULT 0', 'posts_done INTEGER NOT NULL DEFAULT 0', 'ip_hash VARCHAR(64)', 'completed_at TIMESTAMPTZ', 'rewarded_at TIMESTAMPTZ', 'note TEXT']) {
       await pool.query(`ALTER TABLE referrals ADD COLUMN IF NOT EXISTS ${col}`);
@@ -606,7 +610,7 @@ async function classifyPostWithGemini(content, mediaType, thumbnailBase64) {
   if (!apiKey) return { category: 'General', tags: '' };
 
   try {
-    const promptText = `Analyze this social media post (${mediaType}) and classify it into ONE primary category from: [Comedy, Music, Gaming, Food, Vehicles & Motorcycles, Technology, News, Sports, Education, Travel, Lifestyle, General]. Also extract 3-5 short comma-separated keywords/tags (in English and/or Khmer).
+    const promptText = `Analyze this social media post (${mediaType}) and classify it into ONE primary category from: [${require('./interests').CATS_LIST.join(', ')}]. Also extract 3-5 short comma-separated keywords/tags (in English and/or Khmer).
 Caption: "${content || ''}"
 Respond strictly in JSON format: {"category": "CategoryName", "tags": "tag1, tag2, tag3"}`;
 
@@ -1182,6 +1186,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     // with chosen people: saved as "only me" first, the people are written, then it opens to them (never shown to others for a moment)
     const result = await pool.query(query, [email, content, mediaType, mediaUrl, aud.people.length ? 'private' : privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, '']);
     const newId = result.rows[0].id;
+    interests.quickLabel(newId, content).then((c) => { if (c) result.rows[0].ai_category = c; }).catch(() => {});   // ⚡ a kind from the caption at once (the AI may improve it)
     if (req.body.allowDownload === false) { await pool.query('UPDATE posts SET allow_download = FALSE WHERE id = $1', [newId]); result.rows[0].allow_download = false; }
     if (aud.people.length) {
       await audience.save('post', newId, aud.people);
@@ -2634,7 +2639,7 @@ function adminNeed(path, body) {
     chat: 'chats', 'chat-reports': 'content', reports: 'content', posts: 'content', comments: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
-    'creator-earning': 'money', 'creator-path': 'money', 'creator-rate': 'money', referrals: 'money',
+    'creator-earning': 'money', 'creator-path': 'money', 'earn-report': 'money', 'creator-rate': 'money', referrals: 'money',
     coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads', verify: 'users', 'ad-wallet': 'money', apk: 'system' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
@@ -5365,7 +5370,7 @@ async function syncViewEarnings(email) {
     if (p.no_earn) { await pool.query('UPDATE post_earn SET views_seen = $2 WHERE post_id = $1', [p.id, views]).catch(() => {}); continue; }
     const cents = delta * cfg.rpm * 100 / 1000;
     const u = await pool.query('UPDATE post_earn SET views_seen = $3, cents = cents + $4 WHERE post_id = $1 AND views_seen = $2 RETURNING post_id', [p.id, Number(p.views_seen), views, cents]);   // only one request can claim these views
-    if (u.rows.length) gained += cents;
+    if (u.rows.length) { gained += cents; await pool.query('INSERT INTO earn_log (post_id, user_email, views, cents) VALUES ($1, $2, $3, $4)', [p.id, email, delta, cents]).catch(() => {}); }
   }
   if (gained <= 0) return 0;
   await pool.query('INSERT INTO creator_earn (user_email, carry_cents) VALUES ($1, 0) ON CONFLICT (user_email) DO NOTHING', [email]);
@@ -5377,6 +5382,63 @@ async function syncViewEarnings(email) {
   if (pay > 0) await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'revenue_share', 'Earnings from views', 'system')", [email, pay]);
   return pay;
 }
+// ⏱ every 5 minutes: turn new paid views into money for every earning creator (so the money shows without them opening a page)
+let earnSweepBusy = false;
+async function syncAllEarnings() {
+  if (earnSweepBusy) return; earnSweepBusy = true;
+  try {
+    const r = await pool.query("SELECT user_email FROM creator_applications WHERE status = 'approved' AND earn_suspended = FALSE");
+    for (const x of r.rows) await syncViewEarnings(x.user_email).catch((e) => console.error('[earn] sweep:', e.message));
+  } catch (e) { console.error('[earn] sweep error:', e.message); } finally { earnSweepBusy = false; }
+}
+setTimeout(() => { syncAllEarnings(); setInterval(syncAllEarnings, 5 * 60 * 1000); }, 2 * 60 * 1000);
+
+// 📊 Admin › Monetization › Spending report: money paid for views by day, by creator and by video (Cambodia time)
+app.post('/api/admin/earn-report', async (req, res) => {
+  const b = req.body || {};
+  try {
+    const a = await adminGate(req, res); if (!a) return;
+    const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '');
+    const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+    let to = day(b.to) || today, from = day(b.from) || new Date(Date.parse(to) - 6 * 86400000).toISOString().slice(0, 10);
+    if (from > to) [from, to] = [to, from];
+    if ((Date.parse(to) - Date.parse(from)) / 86400000 > 400) from = new Date(Date.parse(to) - 400 * 86400000).toISOString().slice(0, 10);
+    const TZ = "'Asia/Phnom_Penh'";
+    const inRange = `created_at >= ($1::date)::timestamp AT TIME ZONE ${TZ} AND created_at < ($2::date + 1)::timestamp AT TIME ZONE ${TZ}`;
+    const P = [from, to];
+    const tot = (await pool.query(`SELECT COALESCE(SUM(amount_cents), 0)::bigint AS paid, COUNT(DISTINCT user_email)::int AS people FROM wallet_ledger WHERE kind = 'revenue_share' AND ${inRange}`, P)).rows[0];
+    const etot = (await pool.query(`SELECT COALESCE(SUM(views), 0)::bigint AS views, COALESCE(SUM(cents), 0)::float AS earned, COUNT(DISTINCT post_id)::int AS videos FROM earn_log WHERE ${inRange}`, P)).rows[0];
+    const daysPaid = (await pool.query(`SELECT to_char((created_at AT TIME ZONE ${TZ})::date, 'YYYY-MM-DD') AS d, SUM(amount_cents)::bigint AS c FROM wallet_ledger WHERE kind = 'revenue_share' AND ${inRange} GROUP BY 1`, P)).rows;
+    const daysViews = (await pool.query(`SELECT to_char((created_at AT TIME ZONE ${TZ})::date, 'YYYY-MM-DD') AS d, SUM(views)::bigint AS v FROM earn_log WHERE ${inRange} GROUP BY 1`, P)).rows;
+    const dm = {}; daysPaid.forEach((x) => { dm[x.d] = { paid: Number(x.c) / 100, views: 0 }; });
+    daysViews.forEach((x) => { (dm[x.d] = dm[x.d] || { paid: 0, views: 0 }).views = Number(x.v) || 0; });
+    const days = [];
+    for (let t = Date.parse(from); t <= Date.parse(to); t += 86400000) { const d = new Date(t).toISOString().slice(0, 10); days.push({ day: d, paid: dm[d] ? dm[d].paid : 0, views: dm[d] ? dm[d].views : 0 }); }
+    const creators = (await pool.query(
+      `WITH pd AS (SELECT LOWER(user_email) AS e, SUM(amount_cents)::bigint AS paid FROM wallet_ledger WHERE kind = 'revenue_share' AND ${inRange} GROUP BY 1),
+            er AS (SELECT LOWER(user_email) AS e, SUM(views)::bigint AS views, SUM(cents)::float AS earned, COUNT(DISTINCT post_id)::int AS videos FROM earn_log WHERE ${inRange} GROUP BY 1)
+       SELECT COALESCE(pd.e, er.e) AS email, COALESCE(pd.paid, 0) AS paid, COALESCE(er.views, 0) AS views, COALESCE(er.earned, 0) AS earned, COALESCE(er.videos, 0) AS videos,
+              u.public_id, u.first_name, u.last_name, u.profile_pic
+         FROM pd FULL OUTER JOIN er ON er.e = pd.e LEFT JOIN users u ON LOWER(u.email) = COALESCE(pd.e, er.e)
+        ORDER BY COALESCE(pd.paid, 0) DESC, COALESCE(er.views, 0) DESC LIMIT 300`, P)).rows.map((x) => ({
+      email: x.email, public_id: x.public_id || '', first_name: x.first_name || '', last_name: x.last_name || '', profile_pic: x.profile_pic || '',
+      paid: Number(x.paid) / 100, views: Number(x.views) || 0, earned: Math.round(Number(x.earned) || 0) / 100, videos: x.videos }));
+    let videoList = null;
+    if (b.email) {
+      videoList = (await pool.query(
+        `SELECT l.post_id, SUM(l.views)::bigint AS views, SUM(l.cents)::float AS cents, MAX(l.created_at) AS last_at, p.content, p.media_type, p.thumb_url, p.created_at AS posted_at
+           FROM earn_log l LEFT JOIN posts p ON p.id = l.post_id
+          WHERE LOWER(l.user_email) = LOWER($3) AND ${inRange.replace(/created_at/g, 'l.created_at')}
+          GROUP BY l.post_id, p.content, p.media_type, p.thumb_url, p.created_at ORDER BY 3 DESC LIMIT 300`, [from, to, String(b.email)])).rows.map((x) => ({
+        post_id: x.post_id, views: Number(x.views) || 0, earned: Math.round(Number(x.cents) || 0) / 100, last_at: x.last_at, posted_at: x.posted_at,
+        text: String(x.content || '').slice(0, 120), media_type: x.media_type || '', thumb: x.thumb_url || '', gone: !x.media_type && !x.content }));
+    }
+    const logStart = (await pool.query('SELECT MIN(created_at) AS t FROM earn_log')).rows[0];
+    res.json({ success: true, from, to, paid: Number(tot.paid) / 100, people: tot.people, views: Number(etot.views) || 0, earned: Math.round(Number(etot.earned) || 0) / 100, videos: etot.videos,
+      days, creators, videoList, logSince: logStart && logStart.t });
+  } catch (err) { console.error('[admin] earn report error:', err.message); res.status(500).json({ success: false, error: 'Could not load the report.' }); }
+});
+
 // ---- Rules the Super Admin can change at any time in Admin > Monetization (saved in creator_settings as 'r:<NAME>').
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {

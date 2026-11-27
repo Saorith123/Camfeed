@@ -420,7 +420,7 @@
                 const allMatchedPosts = (postsData.posts || []).filter(p =>
                     (p.content || '').toLowerCase().includes(q) ||
                     `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase().includes(q) ||
-                    (p.ai_category || '').toLowerCase().includes(q)
+                    ((p.ai_category || '') + ' ' + (window.cfCat ? cfCat(p.ai_category || '') : '')).toLowerCase().includes(q)
                 );
 
                 const matchedPhotos = allMatchedPosts.filter(p =>

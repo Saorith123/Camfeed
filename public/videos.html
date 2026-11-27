@@ -940,7 +940,7 @@
                             </div>
 
                             <div class="reel-overlay">
-                                ${video.category ? `<div class="reel-category-badge">#${esc(video.category)}</div>` : ''}
+                                ${video.category ? `<div class="reel-category-badge">#${esc(window.cfCat ? cfCat(video.category) : video.category)}</div>` : ''}
                                 <div class="reel-author-row" onclick="goPage('profile.html?email=${encodeURIComponent(video.user_email)}')">
                                     <img src="${video.profile_pic}" class="reel-avatar">
                                     <div class="notranslate" translate="no" style="font-weight: 700; font-size: 15.5px;">${esc(video.author_name)}</div>

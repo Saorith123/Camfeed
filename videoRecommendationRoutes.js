@@ -448,7 +448,7 @@ Description: "${video.description || ''}"
 Tasks:
 1. Content Moderation: Check if the content promotes explicit pornography, severe violence, or illegal content. Set status to "rejected" if unsafe, otherwise "approved".
 2. Category: Classify into ONE primary category from:
-   ["Comedy", "Music", "Gaming", "Food", "Vehicles & Motorcycles", "Technology", "News", "Sports", "Education", "Travel", "Lifestyle", "General"]
+   ${JSON.stringify(require('./interests').CATS_LIST)}
 3. Tags: Extract 3 to 5 concise lowercase tags (English or Khmer).
 
 Respond ONLY with valid JSON:

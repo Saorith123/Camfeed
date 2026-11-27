@@ -145,3 +145,11 @@ D.km = Object.assign(D.km || {}, {
 'ចង់ចែករំលែកអ្វីថ្ងៃនេះ?': 'What would you like to share today?',
 'ចង់ចែករំលែកអ្វីថ្ងៃនេះ? សរសេររៀបរាប់នៅទីនេះ...': 'What would you like to share today? Write here...'
 }); })(window.CAM_DICT);
+
+/* 🗂 the kind of a post (the server keeps it in English); shown in the person's language */
+window.CF_CAT = { km: { 'Comedy': 'កំប្លែង', 'Music': 'តន្ត្រី', 'Dance': 'រាំ', 'Movies & Drama': 'ភាពយន្ត និងរឿងភាគ', 'Gaming': 'ហ្គេម', 'Food': 'ម្ហូប',
+  'Vehicles & Motorcycles': 'ឡាន និងម៉ូតូ', 'Technology': 'បច្ចេកវិទ្យា', 'News': 'ព័ត៌មាន', 'Sports': 'កីឡា', 'Education': 'អប់រំ', 'Travel': 'ដើរលេង',
+  'Beauty & Fashion': 'សម្រស់ និងម៉ូដ', 'Business & Selling': 'អាជីវកម្ម និងលក់ទំនិញ', 'Home & DIY': 'ផ្ទះ និងធ្វើដោយខ្លួនឯង', 'Farming & Nature': 'កសិកម្ម និងធម្មជាតិ',
+  'Animals & Pets': 'សត្វ', 'Family & Kids': 'គ្រួសារ និងកុមារ', 'Love & Relationships': 'ស្នេហា', 'Health & Fitness': 'សុខភាព និងហាត់ប្រាណ',
+  'Religion & Culture': 'សាសនា និងវប្បធម៌', 'Motivation & Stories': 'លើកទឹកចិត្ត និងរឿងពិត', 'Lifestyle': 'ជីវិតប្រចាំថ្ងៃ' } };
+window.cfCat = function (c) { var l = ''; try { l = localStorage.getItem('camfeed_lang') || 'km'; } catch (e) { l = 'km'; } return (window.CF_CAT[l] && window.CF_CAT[l][c]) || c; };

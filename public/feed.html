@@ -2109,7 +2109,7 @@
                 const allMatchedPosts = (postsData.posts || []).filter(p =>
                     (p.content || '').toLowerCase().includes(q) ||
                     `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase().includes(q) ||
-                    (p.ai_category || '').toLowerCase().includes(q)
+                    ((p.ai_category || '') + ' ' + (window.cfCat ? cfCat(p.ai_category || '') : '')).toLowerCase().includes(q)
                 );
 
                 const matchedPhotos = allMatchedPosts.filter(p =>
@@ -3115,7 +3115,7 @@
 
                 const mediaHtml = renderPostMediaHtml(post, dateStr, !append && idx < 2);
                 const categoryBadge = (post.ai_category && post.ai_category !== 'General')
-                    ? `<span class="ai-topic-pill">#${esc(post.ai_category)}</span>`
+                    ? `<span class="ai-topic-pill">#${esc(window.cfCat ? cfCat(post.ai_category) : post.ai_category)}</span>`
                     : '';
 
                 const isOwnPost = currentUser.email === post.user_email;
