@@ -512,7 +512,20 @@ $('moreBtn').onclick = function () {
     opt(t('copy'), async function () { var u = location.origin + '/party.html?room=' + roomId; if (st && st.room && st.room.privacy === 'private') { var lk = await api('/api/party/rooms/' + roomId + '/link', {}); if (!lk.success) { toast(lk.error || t('net')); return; } u = lk.url; } (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { toast(t('copied')); }).catch(function () { prompt('', u); }); });
     if (st && st.room && st.room.music) opt(musicOff ? t('musicOn') : t('musicOff'), function () { musicOff = !musicOff; music(st); });
     if (isOwner()) opt(t('settings'), settingsSheet);
-    if (!isOwner()) opt(t('report'), async function () { await api('/api/party/rooms/' + roomId + '/report', { reason: 'Website' }); toast(t('reported')); }, true);
+    if (!isOwner()) opt(t('report'), reportSheet, true);
+  });
+};
+// 🚩 report the room: the person chooses why (the same reasons as in the phone app; kept in Khmer as the id)
+function reportSheet() {
+  var en = (localStorage.getItem('camfeed_lang') === 'en');
+  var R = [['ពាក្យអាសអាភាស ឬជេរប្រមាថ', 'Rude or insulting words'], ['ខ្លឹមសារផ្លូវភេទ', 'Sexual content'], ['អំពើហិង្សា ឬគំរាមកំហែង', 'Violence or threats'], ['បោកប្រាស់', 'Scam'], ['ផ្សេងៗ', 'Other']];
+  sheet(function (s) {
+    s.appendChild(el('div', 'opt', en ? 'Report this room' : 'រាយការណ៍បន្ទប់នេះ')).style.cssText = 'font-weight:800;pointer-events:none';
+    R.forEach(function (r) {
+      var b = el('button', 'opt', en ? r[1] : r[0]);
+      b.onclick = async function () { closeSheet(); await api('/api/party/rooms/' + roomId + '/report', { reason: r[0] }); toast(t('reported')); };
+      s.appendChild(b);
+    });
   });
 };
 function settingsSheet() {

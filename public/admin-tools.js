@@ -2568,9 +2568,9 @@
 
   // ---------- Inbox: everything waiting for an admin, in one place ----------
   var KIND = { withdrawal: '💸', reissue: '🔑', creator: '💰', report: '🚩', ad: '📢', live: '🔴', coins: '💎', party: '🎉', star: '⭐', challenge: '🎯' };
-  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '💎 Diamonds & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars', 'tabBtn-challenges': '🎯 Challenges' };
+  var BASE = { 'tabBtn-monetization': '💰 Monetization', 'tabBtn-reports': '🚩 Reports Queue', 'tabBtn-ads': '📢 Ads', 'tabBtn-live': '🔴 Live', 'tabBtn-inbox': '🔔 Inbox', 'tabBtn-coins': '💎 Diamonds & Gifts', 'tabBtn-party': '🎉 Party Room', 'tabBtn-stars': '⭐ Stars', 'tabBtn-challenges': '🎯 Challenges', 'tabBtn-copyright': '©️ Copyright' };
   var lastTotal = -1, baseTitle = document.title;
-  function setBadge(id, n) { var b = document.getElementById(id); if (b) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }
+  function setBadge(id, n) { var b = document.getElementById(id); if (b && BASE[id]) b.textContent = BASE[id] + (n > 0 ? '  (' + n + ')' : ''); }   // (a name missing here showed "undefined")
   function applyInbox(d) {
     var c = d.counts;
     setBadge('tabBtn-inbox', d.total); setBadge('tabBtn-monetization', c.withdrawals + c.reissue + c.creators); setBadge('tabBtn-reports', (c.reports || 0) + (c.chatReports || 0)); setBadge('tabBtn-ads', c.ads); setBadge('tabBtn-live', c.live); setBadge('tabBtn-coins', c.coins || 0); setBadge('tabBtn-party', c.party || 0); setBadge('tabBtn-stars', (c.stars || 0) + (c.starBonus || 0)); setBadge('tabBtn-challenges', c.challengeRewards || 0); setBadge('tabBtn-copyright', (c.copyrightClaims || 0) + (c.copyrightDups || 0));
