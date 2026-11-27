@@ -620,11 +620,11 @@
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Phone top-up'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus'], ['report', '📊 Spending report']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Top-up & 🏦 bank pictures'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus'], ['report', '📊 Spending report'], ['months', '📅 Monthly approval']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else if (mon.view === 'report') monReport(body); else monWallet(body);
+    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else if (mon.view === 'report') monReport(body); else if (mon.view === 'months') monMonths(body); else monWallet(body);
   }
   // the settings of one way to earn (its own price, daily limit, switch and text)
   function monPath(box, src) {
@@ -666,6 +666,46 @@
       wrap.appendChild(out);
     }
     adm('/api/admin/creator-path', { source: src }).then(draw);
+  }
+  // 📅 money from views is approved month by month (early next month): until then the creator sees it but cannot withdraw it
+  var mm = { month: '' };
+  function monMonths(body) {
+    body.textContent = ''; body.appendChild(empty('Loading…'));
+    adm('/api/admin/earn-months', { month: mm.month }).then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      mm.month = d.month;
+      body.appendChild(el('div', { style: 'background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13.5px', text: 'Money from views comes into the creator\'s wallet at once, but it can be withdrawn only after you approve its month here (from the 1st of next month). You can take away money for bad views. Bonuses you give by hand can be withdrawn at once.' }));
+      // the months
+      body.appendChild(el('div', { class: 'at-row', style: 'margin-bottom:12px;flex-wrap:wrap' }, (d.months || []).map(function (m) {
+        return el('button', { class: 'btn-sm ' + (m.month === d.month ? 'btn-blue' : 'btn-gray'), text: m.label + ' · $' + Number(m.earned).toFixed(2) + (m.current ? ' · counting' : (Number(m.waiting) > 0 ? ' · ⏳ ' + m.waiting : ' · ✅')), onclick: function () { mm.month = m.month; monMonths(body); } });
+      })));
+      var waiting = d.creators.filter(function (c) { return !c.approved; });
+      var tot = d.creators.reduce(function (a, c) { return a + c.earned; }, 0);
+      body.appendChild(el('div', { style: 'font-weight:800;font-size:16px;margin-bottom:6px', text: d.label + ' · ' + d.creators.length + ' creators · $' + tot.toFixed(2) + (waiting.length ? ' · ⏳ ' + waiting.length + ' waiting' : '') }));
+      if (d.current) body.appendChild(el('div', { style: 'color:#b45309;font-size:13px;margin-bottom:8px', text: 'This month is still counting. You can approve it from the 1st of next month.' }));
+      var out = el('div', { style: 'font-size:13px;margin:6px 0' });
+      if (d.canApprove && d.isSuperAdmin && waiting.length) {
+        body.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-bottom:10px', text: '✅ Approve all ' + waiting.length + ' (no money taken away)', onclick: function () {
+          if (!confirm('Approve ' + d.label + ' for ' + waiting.length + ' creators? Their money can then be withdrawn.')) return;
+          this.disabled = true; adm('/api/admin/earn-months/approve', { month: d.month, all: true }).then(function (x) { if (x.success) monMonths(body); else { out.style.color = '#b91c1c'; out.textContent = '❌ ' + (x.error || 'Failed'); } });
+        } }));
+      }
+      body.appendChild(out);
+      if (!d.creators.length) { body.appendChild(empty('No money from views in this month.')); return; }
+      body.appendChild(table(['Creator', 'Views', 'Videos', 'Earned', 'Take away ($)', 'Reason', ''], d.creators.map(function (c) {
+        var cut = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', max: String(c.earned), value: c.approved ? String(c.cut || '') : '', placeholder: '0', style: 'max-width:90px' });
+        var why = el('input', { class: 'at-in', value: c.note || '', placeholder: 'e.g. fake views', style: 'max-width:160px' });
+        cut.disabled = why.disabled = c.approved || !d.canApprove || !d.isSuperAdmin;
+        var act = c.approved ? el('span', { style: 'color:#15803d;font-weight:700', text: '✅ Approved' + (c.approvedBy === 'system' ? ' (before)' : '') })
+          : (d.canApprove && d.isSuperAdmin ? el('button', { class: 'btn-sm btn-blue', text: 'Approve', onclick: function () {
+              var n = Number(cut.value || 0); if (n < 0 || n > c.earned) { alert('Take away between $0 and $' + c.earned.toFixed(2)); return; }
+              if (!confirm('Approve ' + (c.name || c.public_id) + ': $' + (c.earned - n).toFixed(2) + ' can be withdrawn' + (n > 0 ? ' ($' + n.toFixed(2) + ' taken away)' : '') + '?')) return;
+              this.disabled = true; adm('/api/admin/earn-months/approve', { month: d.month, creators: [{ creator: c.email, cut: n, note: why.value }] }).then(function (x) { if (x.success) monMonths(body); else alert(x.error || 'Failed'); });
+            } }) : el('span', { style: 'color:#b45309', text: '⏳ Waiting' }));
+        return el('tr', {}, [el('td', {}, [el('div', { style: 'font-weight:700', text: c.name || '(no name)' }), el('div', { style: 'font-size:11.5px;color:#65676b', text: c.public_id })]),
+          el('td', { text: String(c.views) }), el('td', { text: String(c.videos) }), el('td', { style: 'font-weight:800', text: money(c.earned) }), el('td', {}, [cut]), el('td', {}, [why]), el('td', {}, [act])]);
+      })));
+    });
   }
   // 📊 money paid for views: by day, by creator, by video (Cambodia time). Money shows within 5 minutes of the views.
   var rep = { from: '', to: '', email: '', name: '' };
@@ -1434,7 +1474,7 @@
 
   // ---------- 🎯 Challenges: goals for a time with steps (tier 1, 2, 3…) and/or Top N places; rewards = coins / frame / VIP / XP / a note / money ----------
   var CH_METRIC = { gift_recv: '🎁 Gift diamonds received', gift_sent: '🎁 Gift diamonds sent', room_minutes: '⏱️ Minutes in rooms (seat or listening)', seat_minutes: '🎤 Minutes on a seat', xp: '⚡ XP gained', checkins: '📅 Check-in days', room_followers: '❤️ New room followers', video_views: '▶️ Video views (Monetize)', watch_minutes: '⏱️ Minutes people watched my videos (Monetize)', posts: '📝 Posts made', followers: '👥 New followers' };
-  var CH_METRIC_KM = { gift_recv: 'ពេជ្រអំណោយដែលបានទទួល', gift_sent: 'ពេជ្រអំណោយដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់ខ្ញុំ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
+  var CH_METRIC_KM = { gift_recv: 'ពេជ្រកាដូដែលបានទទួល', gift_sent: 'ពេជ្រកាដូដែលបានផ្ញើ', room_minutes: 'នាទីក្នុងបន្ទប់', seat_minutes: 'នាទីលើកៅអី', xp: 'XP ដែលបានទទួល', checkins: 'ថ្ងៃ Check-in', room_followers: 'អ្នកតាមដានបន្ទប់ថ្មី', video_views: 'ការមើលវីដេអូ', watch_minutes: 'នាទីដែលគេមើលវីដេអូរបស់ខ្ញុំ', posts: 'ការបង្ហោះ', followers: 'អ្នកតាមដានថ្មី' };
   var CH_UNIT = { gift_recv: 'diamonds · ពេជ្រ', gift_sent: 'diamonds · ពេជ្រ', room_minutes: 'min · នាទី', seat_minutes: 'min · នាទី', xp: 'XP', checkins: 'days · ថ្ងៃ', room_followers: 'people · នាក់', video_views: 'views · ដង', watch_minutes: 'min · នាទី', posts: 'posts · ដង', followers: 'people · នាក់' };
   // which counts fit which place (the lists only show these; 'both' shows all)
   var CH_AREA = { party: ['gift_recv', 'gift_sent', 'room_minutes', 'seat_minutes', 'xp', 'checkins', 'room_followers'], monetize: ['video_views', 'watch_minutes', 'posts', 'followers'] };
@@ -1597,7 +1637,7 @@
       f.appendChild(row('Status / order', [stt, pair('order', 'លំដាប់', so)], 'ស្ថានភាព'));
       if (!c.id) f.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin:6px 0' }, [notify, el('span', { text: '🔔 Tell everybody active in the last 30 days (a notification)' })]));
       f.appendChild(el('div', { style: 'color:#65676b;font-size:12.5px;margin:6px 0', text: 'Joining is always free. Diamonds, frames, VIP and XP are given at once; money waits here for a Super Admin to pay. Gifts between the same person\'s accounts should be checked before paying money.' }));
-      f.appendChild(el('div', { style: 'color:#1E4BFF;font-size:12.5px;margin:0 0 6px', text: 'ការចូលរួមឥតគិតថ្លៃជានិច្ច។ ពេជ្រ ស៊ុម VIP និង XP ផ្ដល់ឲ្យភ្លាមៗ។ ប្រាក់ត្រូវរង់ចាំ Super Admin បង់។ មុនបង់ប្រាក់ សូមពិនិត្យអំណោយរវាងគណនីរបស់មនុស្សតែម្នាក់។' }));
+      f.appendChild(el('div', { style: 'color:#1E4BFF;font-size:12.5px;margin:0 0 6px', text: 'ការចូលរួមឥតគិតថ្លៃជានិច្ច។ ពេជ្រ ស៊ុម VIP និង XP ផ្ដល់ឲ្យភ្លាមៗ។ ប្រាក់ត្រូវរង់ចាំ Super Admin បង់។ មុនបង់ប្រាក់ សូមពិនិត្យកាដូរវាងគណនីរបស់មនុស្សតែម្នាក់។' }));
       f.appendChild(el('div', { style: 'display:flex;gap:8px;margin-top:8px' }, [
         saveBtn = el('button', { class: 'btn-sm btn-blue', text: c.id ? '💾 Save' : '✅ Create', onclick: function () {
           var data = { id: c.id, icon: icon.value, title_km: tk.value, title_en: te.value, body_km: bk.value, body_en: be.value, area: area.value, metric: metric.value,
@@ -2105,12 +2145,19 @@
         am, d.isSuperAdmin ? el('button', { class: 'btn-sm btn-blue', style: 'margin-left:8px', text: 'Save', onclick: function () {
           adm('/api/admin/carrier-logo', { amounts: am.value }).then(function (x) { amOut.style.color = x.success ? '#15803d' : '#b91c1c'; amOut.textContent = x.success ? '✅ ' + x.amounts.map(function (n) { return '$' + n; }).join(' · ') : '❌ ' + (x.error || 'Failed'); if (x.success) am.value = x.amounts.join(', '); });
         } }) : null, amOut]));
+      // 🏦 the bank / wallet pictures (ABA, ACLEDA …) people see when they choose how to be paid
+      body.appendChild(el('div', { style: 'font-weight:800;margin-bottom:4px', text: '🏦 Bank and wallet pictures' }));
+      body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:12px', text: 'People see these pictures when they choose how to be paid. Best: PNG with a clear or white background, about 300 × 120 pixels, smaller than 400 KB. No picture = the name is shown.' }));
+      (d.methods || []).forEach(function (c) { body.appendChild(logoBox(c, true)); });
+      body.appendChild(el('div', { style: 'border-top:1px solid #e4e6eb;margin:6px 0 14px' }));
       body.appendChild(el('div', { style: 'font-weight:800;margin-bottom:4px', text: '📱 Phone company pictures' }));
       body.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:12px', text: 'People see these pictures when they choose a phone top-up. Best: PNG with a clear or white background, about 300 × 120 pixels, smaller than 400 KB.' }));
-      (d.carriers || []).forEach(function (c) {
-        var url = (d.logos || {})[c] || ('/icons/carriers/' + c.toLowerCase() + '.png');
-        var img = el('img', { src: url, alt: c, style: 'max-width:100%;max-height:100%;object-fit:contain' });
-        var box = el('div', { style: 'width:130px;height:70px;border:1px solid #dadde1;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:6px;box-sizing:border-box' }, [img]);
+      (d.carriers || []).forEach(function (c) { body.appendChild(logoBox(c, false)); });
+      function logoBox(c, bank) {
+        var url = (d.logos || {})[c] || (bank ? '' : ('/icons/carriers/' + c.toLowerCase() + '.png'));
+        var img = el('img', { src: url || 'data:image/gif;base64,R0lGODlhAQABAAAAACw=', alt: c, style: 'max-width:100%;max-height:100%;object-fit:contain' + (url ? '' : ';display:none') });
+        var nameTx = el('span', { style: 'font-weight:800;color:#65676b' + (url ? ';display:none' : ''), text: c });
+        var box = el('div', { style: 'width:130px;height:70px;border:1px solid #dadde1;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:6px;box-sizing:border-box' }, [img, nameTx]);
         var file = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', style: 'display:none' });
         var out = el('div', { style: 'font-size:12.5px;margin-top:4px' });
         file.addEventListener('change', function () {
@@ -2118,19 +2165,19 @@
           if (f.size > 400 * 1024) { out.style.color = '#b91c1c'; out.textContent = '❌ The picture must be smaller than 400 KB.'; return; }
           var r = new FileReader(); r.onload = function () {
             out.style.color = '#65676b'; out.textContent = 'Uploading…';
-            adm('/api/admin/carrier-logo', { carrier: c, pic: r.result }).then(function (x) { if (x.success) { img.src = x.logos[c]; out.style.color = '#15803d'; out.textContent = '✅ Saved'; } else { out.style.color = '#b91c1c'; out.textContent = '❌ ' + (x.error || 'Failed'); } });
+            adm('/api/admin/carrier-logo', { carrier: c, pic: r.result }).then(function (x) { if (x.success) { img.src = x.logos[c]; img.style.display = ''; nameTx.style.display = 'none'; out.style.color = '#15803d'; out.textContent = '✅ Saved'; } else { out.style.color = '#b91c1c'; out.textContent = '❌ ' + (x.error || 'Failed'); } });
           }; r.readAsDataURL(f); file.value = '';
         });
         var kids = [el('div', { style: 'font-weight:800;margin-bottom:6px', text: c }), box, file];
         if (d.isSuperAdmin) kids.push(el('div', { style: 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap' }, [
           el('button', { class: 'btn-sm btn-blue', text: '📤 Upload a new picture', onclick: function () { file.click(); } }),
-          (d.logos || {})[c] ? el('button', { class: 'btn-sm', text: '↩️ Back to the CamFeed picture', onclick: function () {
-            if (!confirm('Use the picture that comes with CamFeed for ' + c + ' again?')) return;
+          (d.logos || {})[c] ? el('button', { class: 'btn-sm', text: bank ? '🗑 Remove the picture' : '↩️ Back to the CamFeed picture', onclick: function () {
+            if (!confirm(bank ? 'Remove the picture of ' + c + '? Its name is shown instead.' : 'Use the picture that comes with CamFeed for ' + c + ' again?')) return;
             adm('/api/admin/carrier-logo', { carrier: c, reset: true }).then(function (x) { if (x.success) monCarrierLogos(body); else alert(x.error || 'Failed'); });
           } }) : null].filter(Boolean)));
         kids.push(out);
-        body.appendChild(el('div', { style: 'display:inline-block;vertical-align:top;margin:0 18px 18px 0' }, kids));
-      });
+        return el('div', { style: 'display:inline-block;vertical-align:top;margin:0 18px 18px 0' }, kids);
+      }
     });
   }
   function monWallet(body) {

@@ -13,7 +13,7 @@
 <script src="pwa.js" defer></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CamFeed - Creator Dashboard</title>
+<title>CamFeed</title>
 <link rel="icon" type="image/png" href="logo-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@300;400;700;900&family=Noto+Color+Emoji&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -43,10 +43,17 @@ body{background:#fff;color:#050505;min-height:100vh;padding-bottom:40px}
 .empty{text-align:center;color:#65676b;padding:30px 10px}
 .btn{display:block;width:100%;border:0;border-radius:10px;padding:12px;font-weight:800;font-size:15px;background:#1877f2;color:#fff;cursor:pointer;margin-top:10px}
 .sec{font-size:22px;font-weight:800;margin:18px 0 8px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid #dadde1;background:#fff;color:#050505;font-weight:700;font-size:14px;padding:8px 14px;border-radius:18px;cursor:pointer;white-space:nowrap}.chip.on{background:#e7f1ff;border-color:#1877f2;color:#1877f2}
+.pick{display:flex;gap:8px;align-items:center;margin:4px 0 8px;flex-wrap:wrap}.pick input{border:1px solid #dadde1;border-radius:10px;padding:8px 10px;font-size:14px;font-family:inherit}.pick button{border:0;background:#1877f2;color:#fff;font-weight:800;border-radius:10px;padding:9px 14px;cursor:pointer}
+.range{color:#65676b;font-size:13px;margin:2px 0 6px}
+.chart{display:flex;align-items:flex-end;gap:3px;height:120px;border:1px solid #dadde1;border-radius:16px;padding:10px 10px 4px;overflow-x:auto}.bar{flex:1;min-width:7px;display:flex;flex-direction:column;justify-content:flex-end}.bar i{display:block;width:100%;border-radius:4px 4px 0 0;background:#1877f2}.bar i.z{background:#e4e6eb}
+.chartlbl{display:flex;justify-content:space-between;color:#65676b;font-size:11.5px;margin:4px 2px 0}
+.tile b.money{color:#15803d}
 </style>
 </head>
 <body>
-<div class="top"><button class="back" id="backBtn">←</button><h1 id="hTitle">Creator Dashboard</h1><span style="width:38px"></span></div>
+<div class="top"><button class="back" id="backBtn">←</button><h1 id="hTitle"></h1><span style="width:38px"></span></div>
 <div class="wrap">
   <div class="tabs" id="tabs"></div>
   <div id="view"></div>
@@ -57,8 +64,10 @@ var user = null; try { user = JSON.parse(localStorage.getItem('camfeed_user')); 
 if (!user) { location.href = 'index.html'; return; }
 var lang = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km';
 var T = {
- km: { title: 'ផ្ទាំងគ្រប់គ្រង Creator', details: 'ព័ត៌មានលម្អិតការបង្ហោះ', analytics: 'ទិន្នន័យ', content: 'មាតិកា', monetize: 'រកលុយ', posts7: 'ការបង្ហោះ (7 ថ្ងៃ)', views: 'ចំនួនមើល', eng: 'អន្តរកម្ម', earn: 'ប្រាក់ប៉ាន់ស្មាន', follows: 'អ្នកតាមដានថ្មី', likes: 'ចូលចិត្ត', comments: 'មតិ', shares: 'ចែករំលែក', all: 'ការបង្ហោះសរុប', wallet: 'កាបូប', none: 'មិនទាន់មានការបង្ហោះ។ ចូលមកវិញបន្ទាប់ពីអ្នកបង្ហោះ។', first: 'បង្កើតការបង្ហោះដំបូងរបស់អ្នក', firstTx: 'អ្នកនឹងអាចមើលទិន្នន័យនៅទីនេះ បន្ទាប់ពីបង្ហោះ។', noIssue: 'ការបង្ហោះរបស់អ្នកគ្មានបញ្ហាទេ។', pub: 'សាធារណៈ', fr: 'មិត្តភក្តិ', me: 'តែខ្ញុំ', video: 'វីដេអូ', photo: 'រូបភាព', text: 'អត្ថបទ', creatorOn: '✅ អ្នកមានសិទ្ធិរកលុយ។ ប្រាក់ពីចំនួនមើលថ្មីៗចូលកាបូបរបស់អ្នក។', susp: '⚠️ សិទ្ធិរកលុយត្រូវបានផ្អាកជាបណ្តោះអាសន្ន។', creatorOff: 'អ្នកមិនទាន់មានសិទ្ធិរកលុយទេ ដូច្នេះប្រាក់គឺ $0.00។ អ្នកអាចស្នើសុំនៅទំព័រ Monetization។', go: 'ទៅទំព័រ Monetization', approx: 'ប្រាក់ប៉ាន់ស្មាន ហើយមានកម្រិតអតិបរមាក្នុងមួយថ្ងៃ។', net: 'មិនទាន់មាន', err: 'មិនអាចទាញទិន្នន័យបាន', open: 'បើកការបង្ហោះ' },
- en: { title: 'Creator Dashboard', details: 'Post details', analytics: 'Analytics', content: 'Content', monetize: 'Monetize', posts7: 'Posts (7 days)', views: 'Views', eng: 'Engagement', earn: 'Approximate earnings', follows: 'Net follows', likes: 'Likes', comments: 'Comments', shares: 'Shares', all: 'Total posts', wallet: 'Wallet', none: 'No posts yet. Come back after you post.', first: 'Create your first post', firstTx: "You'll be able to view details and insights here once you share a post.", noIssue: 'Your post has no issues.', pub: 'Public', fr: 'Friends', me: 'Only me', video: 'Video', photo: 'Photo', text: 'Text', creatorOn: '✅ You can earn money. Money from new views goes into your wallet.', susp: '⚠️ Your earning is paused for now.', creatorOff: 'You cannot earn money yet, so earnings are $0.00. You can apply on the Monetization page.', go: 'Go to Monetization', approx: 'Approximate, with a daily limit.', net: 'Not yet', err: 'Could not load', open: 'Open post' }
+ km: { title: '📊 ផ្ទាំងអ្នកបង្កើតមាតិកា', details: 'ព័ត៌មានលម្អិតការបង្ហោះ', analytics: 'ទិន្នន័យ', content: 'មាតិកា', monetize: 'រកប្រាក់', posts7: 'ការបង្ហោះ (៧ ថ្ងៃ)', views: 'ចំនួនមើល', eng: 'អន្តរកម្ម', earn: 'ប្រាក់ប៉ាន់ស្មាន', follows: 'អ្នកតាមដានថ្មី', likes: 'ចូលចិត្ត', comments: 'មតិ', shares: 'ចែករំលែក', all: 'ការបង្ហោះសរុប', wallet: 'កាបូប', none: 'មិនទាន់មានការបង្ហោះ។ ចូលមកវិញបន្ទាប់ពីអ្នកបង្ហោះ។', first: 'បង្កើតការបង្ហោះដំបូងរបស់អ្នក', firstTx: 'អ្នកនឹងអាចមើលទិន្នន័យនៅទីនេះ បន្ទាប់ពីបង្ហោះ។', noIssue: 'ការបង្ហោះរបស់អ្នកគ្មានបញ្ហាទេ។', pub: 'សាធារណៈ', fr: 'មិត្តភក្តិ', me: 'តែខ្ញុំ', video: 'វីដេអូ', photo: 'រូបភាព', text: 'អត្ថបទ', creatorOn: '✅ អ្នកមានសិទ្ធិរកប្រាក់ពីការមើលវីដេអូ។', susp: '⚠️ សិទ្ធិរកប្រាក់ត្រូវបានផ្អាកជាបណ្តោះអាសន្ន។', creatorOff: 'អ្នកមិនទាន់មានសិទ្ធិរកប្រាក់ទេ ដូច្នេះប្រាក់គឺ $0.00។ អ្នកអាចស្នើសុំនៅទំព័ររកប្រាក់។', go: 'ទៅទំព័ររកប្រាក់', approx: 'ប្រាក់ប៉ាន់ស្មាន៖ CamFeed ពិនិត្យ និងអនុម័តនៅដើមខែក្រោយ ទើបអាចដកបាន។ មានកំណត់អតិបរមាក្នុងមួយថ្ងៃ។', net: 'មិនទាន់មាន', err: 'មិនអាចទាញទិន្នន័យបាន', open: 'បើកការបង្ហោះ',
+  today: 'ថ្ងៃនេះ', yday: 'ម្សិលមិញ', d7: '៧ ថ្ងៃ', d28: '២៨ ថ្ងៃ', month: 'ខែនេះ', last: 'ខែមុន', custom: '📅 ជ្រើសថ្ងៃ', show: 'បង្ហាញ', loading: 'កំពុងទាញ…', byMoney: '💵 ប្រាក់', byViews: '👁 ចំនួនមើល', byFollow: '👥 អ្នកតាមដាន', top: 'ការបង្ហោះដែលរកបានច្រើន', noTop: 'មិនមានការមើលក្នុងថ្ងៃទាំងនេះទេ', since: 'ប្រាក់តាមថ្ងៃ មានកំណត់ត្រាតាំងពី ', followNote: 'អ្នកតាមដានថ្មី រាប់តាំងពី ', allTime: 'សរុបទាំងអស់' },
+ en: { title: '📊 Creator dashboard', details: 'Post details', analytics: 'Analytics', content: 'Content', monetize: 'Earn', posts7: 'Posts (7 days)', views: 'Views', eng: 'Engagement', earn: 'Estimated earnings', follows: 'New followers', likes: 'Likes', comments: 'Comments', shares: 'Shares', all: 'Total posts', wallet: 'Wallet', none: 'No posts yet. Come back after you post.', first: 'Create your first post', firstTx: "You'll be able to view details and insights here once you share a post.", noIssue: 'Your post has no issues.', pub: 'Public', fr: 'Friends', me: 'Only me', video: 'Video', photo: 'Photo', text: 'Text', creatorOn: '✅ You can earn money from video views.', susp: '⚠️ Your earning is paused for now.', creatorOff: 'You cannot earn money yet, so earnings are $0.00. You can apply on the earning page.', go: 'Go to the earning page', approx: 'Estimated: CamFeed checks and approves it early next month, then it can be withdrawn. There is a daily limit.', net: 'Not yet', err: 'Could not load', open: 'Open post',
+  today: 'Today', yday: 'Yesterday', d7: '7 days', d28: '28 days', month: 'This month', last: 'Last month', custom: '📅 Pick days', show: 'Show', loading: 'Loading…', byMoney: '💵 Money', byViews: '👁 Views', byFollow: '👥 Followers', top: 'Posts that earned most', noTop: 'No views in these days', since: 'Money by day is kept since ', followNote: 'New followers are counted since ', allTime: 'All time' }
 };
 var t = function (k) { return T[lang][k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -66,56 +75,123 @@ function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.cl
 function usd(n) { n = Number(n || 0); return '$' + (n > 0 && n < 0.01 ? n.toFixed(4).replace(/0+$/, '') : n.toFixed(2)); }   // less than 1 ¢ (one video): $0.004, not $0.00
 function when(d) { var x = new Date(d); return isNaN(x) ? '' : x.toLocaleString(lang === 'km' ? 'km-KH' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
 function safeSrc(u) { return /^https?:\/\//i.test(u || '') ? u : ''; }
+var IN_APP = /CamFeedApp/.test(navigator.userAgent);
 var data = null, tab = 'analytics', current = null;
+// 📅 the days chosen (Cambodia time) and what came back for them
+var rng = { key: '7', from: '', to: '' }, stats = null, statsErr = false, chartBy = 'earned';
+function pp(d) { return d.toISOString().slice(0, 10); }
+function kh() { return new Date(Date.now() + 7 * 3600000); }
+function setRange(k) {
+  var n = kh(), y = n.getUTCFullYear(), m = n.getUTCMonth(); rng.key = k;
+  if (k === 'today') { rng.from = rng.to = pp(n); }
+  else if (k === 'yday') { var d = new Date(n.getTime() - 86400000); rng.from = rng.to = pp(d); }
+  else if (k === '7') { rng.from = pp(new Date(n.getTime() - 6 * 86400000)); rng.to = pp(n); }
+  else if (k === '28') { rng.from = pp(new Date(n.getTime() - 27 * 86400000)); rng.to = pp(n); }
+  else if (k === 'month') { rng.from = pp(new Date(Date.UTC(y, m, 1))); rng.to = pp(n); }
+  else if (k === 'last') { rng.from = pp(new Date(Date.UTC(y, m - 1, 1))); rng.to = pp(new Date(Date.UTC(y, m, 0))); }
+}
+function loadStats() {
+  stats = null; statsErr = false; render();
+  fetch('/api/monetization/stats?from=' + rng.from + '&to=' + rng.to).then(function (r) { return r.json(); }).then(function (d) { if (!d.success) throw 0; stats = d; rng.from = d.from; rng.to = d.to; render(); }).catch(function () { statsErr = true; render(); });
+}
 
 function thumb(p) {
   var th = el('div', 'th'); var u = safeSrc(p.image);
-  if (p.mediaType === 'video' && safeSrc(p.video)) { var v = el('video'); v.muted = true; v.preload = 'metadata'; v.playsInline = true; v.src = safeSrc(p.video) + '#t=0.3'; th.appendChild(v); th.appendChild(el('i', '', '▶')); }
+  if (p.mediaType === 'video' && u) { var im = el('img'); im.loading = 'lazy'; im.src = u; im.alt = ''; th.appendChild(im); th.appendChild(el('i', '', '▶')); }
+  else if (p.mediaType === 'video' && safeSrc(p.video)) { var v = el('video'); v.muted = true; v.preload = 'metadata'; v.playsInline = true; v.src = safeSrc(p.video) + '#t=0.3'; th.appendChild(v); th.appendChild(el('i', '', '▶')); }
   else if (u) { var i = el('img'); i.loading = 'lazy'; i.src = u; i.alt = ''; th.appendChild(i); }
-  else th.appendChild(el('div', '', '')), th.firstChild.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;font-size:24px', th.firstChild.textContent = '📝';
+  else { var e = el('div', '', '📝'); e.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;font-size:24px'; th.appendChild(e); }
   return th;
 }
-function tile(label, value) { var d = el('div', 'tile'); d.appendChild(el('span', '', label)); d.appendChild(el('b', '', String(value))); return d; }
+function tile(label, value, money) { var d = el('div', 'tile'); d.appendChild(el('span', '', label)); var b = el('b', money ? 'money' : '', String(value)); d.appendChild(b); return d; }
 function who() { var m = el('div', 'me'); if (safeSrc(data.pic)) { var i = el('img'); i.src = data.pic; m.appendChild(i); } else m.appendChild(el('img')); var b = el('div'); b.appendChild(el('b', '', data.name || '')); b.appendChild(el('small', '', data.suspended ? t('susp') : (data.isCreator ? t('creatorOn') : t('creatorOff')))); m.appendChild(b); return m; }
+function goEarn() { location.href = 'monetization.html' + (IN_APP ? '?app=1' : ''); }
+
+// the chips + the boxes for chosen days
+function rangeBar(v) {
+  var c = el('div', 'chips');
+  [['today', t('today')], ['yday', t('yday')], ['7', t('d7')], ['28', t('d28')], ['month', t('month')], ['last', t('last')], ['custom', t('custom')]].forEach(function (x) {
+    var b = el('button', 'chip' + (rng.key === x[0] ? ' on' : ''), x[1]);
+    b.onclick = function () { if (x[0] === 'custom') { rng.key = 'custom'; render(); return; } setRange(x[0]); loadStats(); };
+    c.appendChild(b);
+  });
+  v.appendChild(c);
+  if (rng.key === 'custom') {
+    var p = el('div', 'pick'), f = el('input'), to = el('input'); f.type = to.type = 'date'; f.value = rng.from; to.value = rng.to; to.max = f.max = pp(kh());
+    var go = el('button', '', t('show')); go.onclick = function () { if (!f.value || !to.value) return; rng.from = f.value; rng.to = to.value; loadStats(); };
+    p.appendChild(f); p.appendChild(el('span', '', '→')); p.appendChild(to); p.appendChild(go); v.appendChild(p);
+  }
+  v.appendChild(el('div', 'range', rng.from === rng.to ? rng.from : rng.from + ' → ' + rng.to));
+}
+function chart(v, days) {
+  var c = el('div', 'chips');
+  [['earned', t('byMoney')], ['views', t('byViews')], ['followers', t('byFollow')]].forEach(function (x) { var b = el('button', 'chip' + (chartBy === x[0] ? ' on' : ''), x[1]); b.onclick = function () { chartBy = x[0]; render(); }; c.appendChild(b); });
+  v.appendChild(c);
+  var max = 0; days.forEach(function (d) { if (d[chartBy] > max) max = d[chartBy]; });
+  var box = el('div', 'chart');
+  days.forEach(function (d) {
+    var b = el('div', 'bar'), i = el('i', d[chartBy] > 0 ? '' : 'z'); i.style.height = (max > 0 ? Math.max(2, Math.round(d[chartBy] / max * 100)) : 2) + 'px';
+    b.title = d.day + ' · ' + (chartBy === 'earned' ? usd(d.earned) : d[chartBy]); b.appendChild(i); box.appendChild(b);
+  });
+  v.appendChild(box);
+  var l = el('div', 'chartlbl'); l.appendChild(el('span', '', days[0].day)); l.appendChild(el('span', '', days[days.length - 1].day)); v.appendChild(l);
+}
 
 function viewAnalytics(v) {
   v.appendChild(who());
   var r = el('div', 'rings');
   [['', data.totals.postsWeek + '/7', t('posts7')], ['o', String(data.totals.posts), t('all')], ['p', usd(data.totals.wallet), t('wallet')]].forEach(function (x) { var w = el('div'); var c = el('div', 'ring ' + x[0], x[1]); w.appendChild(c); w.appendChild(el('div', 'ringlbl', x[2])); r.appendChild(w); });
   v.appendChild(r);
-  var g = el('div', 'tiles'); g.appendChild(tile(t('views'), data.totals.views.toLocaleString())); g.appendChild(tile(t('earn'), usd(data.totals.earnings))); g.appendChild(tile(t('eng'), data.totals.engagement.toLocaleString())); g.appendChild(tile(t('follows'), '--')); v.appendChild(g);
-  if (!data.posts.length) { var e = el('div', 'empty'); e.appendChild(el('b', '', t('first'))); e.appendChild(el('div', '', t('firstTx'))); v.appendChild(e); return; }
-  v.appendChild(el('div', 'sec', t('content')));
-  data.posts.slice(0, 5).forEach(function (p) { v.appendChild(item(p)); });
-  var more = el('button', 'btn', t('content')); more.onclick = function () { setTab('content'); }; v.appendChild(more);
+  rangeBar(v);
+  if (statsErr) { v.appendChild(el('div', 'empty', t('err'))); return; }
+  if (!stats) { v.appendChild(el('div', 'empty', t('loading'))); return; }
+  var g = el('div', 'tiles');
+  g.appendChild(tile(t('views'), stats.totals.views.toLocaleString())); g.appendChild(tile(t('earn'), usd(stats.totals.earned), true));
+  g.appendChild(tile(t('eng'), stats.totals.engagement.toLocaleString())); g.appendChild(tile(t('follows'), '+' + stats.totals.followers.toLocaleString()));
+  v.appendChild(g);
+  if (stats.days.length > 1) chart(v, stats.days);
+  var notes = [t('approx')];
+  if (stats.moneyLogSince && rng.from < stats.moneyLogSince) notes.push(t('since') + stats.moneyLogSince);
+  if (stats.followSince && rng.from < stats.followSince) notes.push(t('followNote') + stats.followSince);
+  v.appendChild(el('div', 'note', notes.join(' · ')));
+  v.appendChild(el('div', 'sec', t('top')));
+  if (!stats.posts.length) v.appendChild(el('div', 'empty', t('noTop')));
+  stats.posts.forEach(function (p) { v.appendChild(item(p, true)); });
 }
-function item(p) {
+// a post in a list; inRange = the views / money of the chosen days (else of all time)
+function item(p, inRange) {
   var it = el('div', 'item'); it.appendChild(thumb(p));
   var mid = el('div', 'it'); mid.appendChild(el('div', 'tx', p.text || (p.mediaType === 'video' ? t('video') : p.mediaType === 'image' ? t('photo') : t('text'))));
-  mid.appendChild(el('small', '', when(p.created_at) + ' · 👁 ' + p.views + ' · ❤ ' + (p.likes + p.comments + p.shares))); it.appendChild(mid);
-  it.appendChild(el('div', 'earn', usd(p.earnings))); it.onclick = function () { current = p; render(); window.scrollTo(0, 0); }; return it;
+  mid.appendChild(el('small', '', when(p.created_at) + ' · 👁 ' + p.views + (inRange ? '' : ' · ❤ ' + (p.likes + p.comments + p.shares)))); it.appendChild(mid);
+  it.appendChild(el('div', 'earn', usd(inRange ? p.earned : p.earnings)));
+  it.onclick = function () { var full = null; data.posts.forEach(function (x) { if (String(x.id) === String(p.id)) full = x; }); current = full || p; render(); window.scrollTo(0, 0); };
+  return it;
 }
 function viewContent(v) {
   if (!data.posts.length) { v.appendChild(el('div', 'empty', t('none'))); return; }
-  data.posts.forEach(function (p) { v.appendChild(item(p)); });
+  v.appendChild(el('div', 'range', t('allTime')));
+  data.posts.forEach(function (p) { v.appendChild(item(p, false)); });
 }
 function viewMonetize(v) {
   v.appendChild(who());
-  var g = el('div', 'tiles'); g.appendChild(tile(t('earn'), usd(data.totals.earnings))); g.appendChild(tile(t('wallet'), usd(data.totals.wallet))); v.appendChild(g);
+  var g = el('div', 'tiles'); g.appendChild(tile(t('earn') + ' · ' + t('allTime'), usd(data.totals.earnings), true)); g.appendChild(tile(t('wallet'), usd(data.totals.wallet))); v.appendChild(g);
   v.appendChild(el('div', 'note', t('approx')));
-  var b = el('button', 'btn', t('go')); b.onclick = function () { location.href = 'monetization.html'; }; v.appendChild(b);
+  var b = el('button', 'btn', t('go')); b.onclick = goEarn; v.appendChild(b);
 }
 function viewPost(v, p) {
   var h = el('div', 'hero'), m = el('div', 'm'); var th = thumb(p); th.style.cssText = 'width:100%;height:100%;border-radius:0'; m.appendChild(th); h.appendChild(m); if (p.text) h.appendChild(el('p', '', p.text)); v.appendChild(h);
   v.appendChild(el('div', 'meta', '👥 ' + ({ public: t('pub'), friends: t('fr'), only_me: t('me') }[p.privacy] || t('pub')) + ' · 📅 ' + when(p.created_at)));
   var ok = el('div', 'ok'); ok.appendChild(el('span', '', '✅')); ok.appendChild(el('span', '', t('noIssue'))); v.appendChild(ok);
-  var g = el('div', 'tiles'); g.appendChild(tile(t('views'), p.views.toLocaleString())); g.appendChild(tile(t('earn'), usd(p.earnings))); g.appendChild(tile(t('eng'), (p.likes + p.comments + p.shares).toLocaleString())); g.appendChild(tile(t('follows'), '--')); v.appendChild(g);
-  var g2 = el('div', 'tiles'); g2.appendChild(tile(t('likes'), p.likes)); g2.appendChild(tile(t('comments'), p.comments)); g2.appendChild(tile(t('shares'), p.shares)); v.appendChild(g2);
+  v.appendChild(el('div', 'range', t('allTime')));
+  var g = el('div', 'tiles'); g.appendChild(tile(t('views'), Number(p.views || 0).toLocaleString())); g.appendChild(tile(t('earn'), usd(p.earnings !== undefined ? p.earnings : p.earned), true));
+  if (p.likes !== undefined) { g.appendChild(tile(t('eng'), (p.likes + p.comments + p.shares).toLocaleString())); }
+  v.appendChild(g);
+  if (p.likes !== undefined) { var g2 = el('div', 'tiles'); g2.appendChild(tile(t('likes'), p.likes)); g2.appendChild(tile(t('comments'), p.comments)); g2.appendChild(tile(t('shares'), p.shares)); v.appendChild(g2); }
   v.appendChild(el('div', 'note', t('approx')));
 }
 function setTab(k) { tab = k; current = null; render(); }
 function render() {
-  document.title = 'CamFeed - ' + t('title');
+  document.title = 'CamFeed - ' + t('title').replace(/^\S+\s/, '');
   $('hTitle').textContent = current ? t('details') : t('title');
   var tabs = $('tabs'); tabs.textContent = ''; tabs.style.display = current ? 'none' : 'flex';
   [['analytics', t('analytics')], ['content', t('content')], ['monetize', t('monetize')]].forEach(function (x) { var b = el('button', 'tab' + (tab === x[0] ? ' on' : ''), x[1]); b.onclick = function () { setTab(x[0]); }; tabs.appendChild(b); });
@@ -124,6 +200,7 @@ function render() {
 }
 $('backBtn').onclick = function () { if (current) { current = null; render(); } else if (history.length > 1) history.back(); else location.href = 'feed.html'; };
 fetch('/api/monetization/posts').then(function (r) { return r.json(); }).then(function (d) { if (!d.success) throw 0; data = d; render(); }).catch(function () { $('view').textContent = t('err'); });
+setRange('7'); loadStats();
 render();
 })();
 </script>

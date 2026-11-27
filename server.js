@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 228;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 229;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -67,7 +67,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|wallet-pockets|admin-app|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|wallet-pockets|admin-app|earn-months|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -436,6 +436,12 @@ pool.connect(async (err, client, release) => {
     await pool.query('CREATE TABLE IF NOT EXISTS story_reactions (story_id INTEGER NOT NULL, viewer_email TEXT NOT NULL, emoji VARCHAR(12) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (story_id, viewer_email))').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_settings (key VARCHAR(40) PRIMARY KEY, value TEXT)').catch(() => {});
     await wallets.fixOldLines(pool).then((n) => { if (n) console.log('[wallet] two pockets: sorted old lines of ' + n + ' people'); }).catch((e) => console.error('[wallet] pockets:', e.message));
+    await wallets.ensureMonths(pool).catch((e) => console.error('[wallet] months:', e.message));   // 📅 view money approved by month
+    for (const tb of ['follows', 'likes']) {   // 📊 the day of each new follow / like (for the creator dashboard); older lines have no day
+      await pool.query(`ALTER TABLE ${tb} ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ`).catch(() => {});
+      await pool.query(`ALTER TABLE ${tb} ALTER COLUMN created_at SET DEFAULT NOW()`).catch(() => {});
+    }
+    await pool.query("INSERT INTO creator_settings (key, value) VALUES ('follow_days_since', to_char(NOW() AT TIME ZONE 'Asia/Phnom_Penh', 'YYYY-MM-DD')) ON CONFLICT (key) DO NOTHING").catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS creator_earn (user_email TEXT PRIMARY KEY, carry_cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS post_earn (post_id INTEGER PRIMARY KEY, user_email TEXT NOT NULL, views_seen INTEGER NOT NULL DEFAULT 0, cents NUMERIC(14,6) NOT NULL DEFAULT 0)').catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_post_earn_user ON post_earn (user_email)').catch(() => {});
@@ -2639,14 +2645,14 @@ function adminNeed(path, body) {
     chat: 'chats', 'chat-reports': 'content', reports: 'content', posts: 'content', comments: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
-    'creator-earning': 'money', 'creator-path': 'money', 'earn-report': 'money', 'creator-rate': 'money', referrals: 'money',
+    'creator-earning': 'money', 'creator-path': 'money', 'earn-report': 'money', 'earn-months': 'money', 'creator-rate': 'money', referrals: 'money',
     coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads', verify: 'users', 'ad-wallet': 'money', apk: 'system' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
   const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
-  const READ_PATHS = /^(app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
-  const MONEY = /^(withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
+  const READ_PATHS = /^(earn-months$|app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
+  const MONEY = /^(earn-months\/approve|withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
   const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules', 'verify', 'ad-wallet', 'apk'].includes(first);
@@ -2737,8 +2743,10 @@ const verify = require('./verify')({ app, pool, adminGate: (req, res) => adminGa
 const mediaReacts = require('./media-reacts')({ app, pool, visibility });   // 👍 💬 on one picture of an album
 const adRules = require('./ad-rules')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), interests: { framesOfUrls: (...a) => interests.framesOfUrls(...a), geminiJson: (...a) => interests.geminiJson(...a), lastAiError: () => interests.lastAiError() } });   // 📜 ⛔ / 🔞 rules + the AI check
 // 🛡 CamFeed Admin phone app: home numbers, reports, alerts to Admin phones only
-require('./admin-app')({ app, pool, adminGate: (req, res) => adminGate(req, res), push,
+const adminAppApi = require('./admin-app')({ app, pool, adminGate: (req, res) => adminGate(req, res), push,
   isAdminEmail: async (e) => { try { const r = (await pool.query('SELECT role, is_banned FROM users WHERE LOWER(email) = LOWER($1)', [e])).rows[0]; return SUPER_ADMIN_EMAILS.includes(String(e || '').toLowerCase()) || (!!r && !r.is_banned && (r.role === 'admin' || r.role === 'super_admin')); } catch (x) { return false; } } });
+require('./earn-months')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...x) => audit(...x),   // 📅 views money approved by month
+  notify: (to, text) => sendAdminNotice(SUPER_ADMIN_EMAILS[0] || to, to, text, 'wallet_notice'), remind: (t, b, d) => adminAppApi.sendToAdmins(t, b, d) });
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
@@ -5319,6 +5327,7 @@ liveReplay.ensureSchema().catch(() => {}); setInterval(() => liveReplay.processA
 
 // ---- payout codes (top-up PIN / Wing cash-out code): kept sealed (AES-256-GCM) and shown only to the owner ----
 const PAYOUT_METHODS = ['TopUp', 'WingCash', 'ABA', 'ACLEDA', 'Wing', 'KHQR', 'Other'], CODE_METHODS = ['TopUp', 'WingCash'], CARRIERS = ['Cellcard', 'Smart', 'Metfone'];
+const LOGO_METHODS = ['ABA', 'ACLEDA', 'Wing', 'WingCash', 'KHQR'];   // 🏦 ways to be paid that can show a picture (the Admin puts it in Monetization › 📱 Phone top-up)
 const payoutKey = () => { const k = process.env.PAYOUT_CODE_KEY || process.env.JWT_SECRET || ''; return String(k).length >= 16 ? require('crypto').createHash('sha256').update('camfeed-payout|' + k).digest() : null; };
 function sealCode(plain) {
   const k = payoutKey(); if (!k) throw new Error('NO_KEY');
@@ -5603,6 +5612,7 @@ app.get('/api/monetization/status', async (req, res) => {
       ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at, pocket: l.pocket })),
       // 👛 the two pockets: 🎁 gift money (from $1, only the Admin's check) and 🎬 content money (its own smallest amount, waits N days)
       pockets: await walletPockets(email).then((p) => ({ gift: p.gift / 100, giftReady: p.giftReady / 100, giftWait: p.giftWait / 100, content: p.content / 100, contentReady: p.contentReady / 100, contentWait: p.contentWait / 100, contentReadyAt: p.contentReadyAt,
+        contentMonth: p.contentMonth / 100, contentReview: p.contentReview / 100, monthly: true,   // 📅 views money: this month (counting) / past months waiting for CamFeed's approval
         giftMin: rules.giftMinCents / 100, contentMin: rules.contentMinCents / 100, contentHoldDays: rules.contentHoldDays })).catch(() => null),
       heldAmount: Math.min(held, cents) / 100, availableAmount: Math.max(0, cents - held) / 100, sources, payoutMethods: PAYOUT_METHODS, carriers: CARRIERS, carrierLogos: await carrierLogos(), topupAmounts: await topupAmounts() });
   } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
@@ -5692,7 +5702,7 @@ app.post('/api/monetization/withdraw', async (req, res) => {
     const pk = await walletPockets(email);
     const have = pocket === 'content' ? pk.content : pk.gift, ready = pocket === 'content' ? pk.contentReady : pk.giftReady;
     if (cents > have) return res.status(400).json({ success: false, code: 'balance', error: 'Your balance is not enough.' });
-    if (cents > ready) return res.status(400).json({ success: false, code: 'wait', error: (pocket === 'content' ? 'Money from your content waits ' + rules.contentHoldDays + ' days before it can be withdrawn.' : 'Gift money waits a few days before it can be withdrawn.') + ' You can withdraw $' + (ready / 100).toFixed(2) + ' now.' });
+    if (cents > ready) return res.status(400).json({ success: false, code: 'wait', error: (pocket === 'content' ? 'Money from views can be withdrawn after CamFeed approves the month (early next month).' : 'Gift money waits a few days before it can be withdrawn.') + ' You can withdraw $' + (ready / 100).toFixed(2) + ' now.' });
     // 🛡️ the most in one day / one month (Admin sets; 0 = no limit). Refused requests do not count.
     const used = (await pool.query(`SELECT COALESCE(SUM(amount_cents) FILTER (WHERE created_at > NOW() - INTERVAL '1 day'), 0)::int AS d, COALESCE(SUM(amount_cents) FILTER (WHERE created_at > NOW() - INTERVAL '30 days'), 0)::int AS m
       FROM withdrawal_requests WHERE user_email = $1 AND status <> 'rejected'`, [email])).rows[0];
@@ -5740,6 +5750,56 @@ app.get('/api/monetization/posts', async (req, res) => {
     res.json({ success: true, isCreator, suspended, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
       totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 10000) / 10000, wallet: (await walletCents(email)) / 100 } });
   } catch (err) { console.error('[monetization] posts error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+});
+
+// 📊 Creator dashboard by dates (Cambodia time): views, money (not rounded to whole cents), likes/comments/shares and new
+// followers in the days chosen, a bar per day, and the posts that earned most in those days.
+app.get('/api/monetization/stats', async (req, res) => {
+  try {
+    const email = req.authEmail; if (!email) return res.status(401).json({ success: false });
+    const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '');
+    const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
+    let to = day(req.query.to) || today, from = day(req.query.from) || new Date(Date.parse(to) - 6 * 86400000).toISOString().slice(0, 10);
+    if (from > to) [from, to] = [to, from];
+    if (to > today) to = today;
+    if ((Date.parse(to) - Date.parse(from)) / 86400000 > 400) from = new Date(Date.parse(to) - 400 * 86400000).toISOString().slice(0, 10);
+    await syncViewEarnings(email).catch(() => {});
+    const KH = "'Asia/Phnom_Penh'";
+    // ::timestamptz works for both kinds of column (a plain TIMESTAMP is read in the database's time zone, UTC)
+    const inR = (col) => `(${col})::timestamptz >= ($1::date)::timestamp AT TIME ZONE ${KH} AND (${col})::timestamptz < ($2::date + 1)::timestamp AT TIME ZONE ${KH}`;
+    const dayOf = (col) => `to_char((${col})::timestamptz AT TIME ZONE ${KH}, 'YYYY-MM-DD')`;
+    const P = [from, to, email];
+    const q = async (sql) => { try { return (await pool.query(sql, P)).rows; } catch (e) { console.error('[stats]', e.message); return []; } };
+    const [vDays, eDays, fDays, lDays, cDays, sDays] = await Promise.all([
+      q(`SELECT ${dayOf('v.created_at', true)} AS d, COUNT(*)::int AS n FROM post_views v JOIN posts p ON p.id = v.post_id WHERE p.user_email = $3 AND ${inR('v.created_at', true)} GROUP BY 1`),
+      q(`SELECT ${dayOf('created_at')} AS d, SUM(cents)::float AS c FROM earn_log WHERE LOWER(user_email) = LOWER($3) AND ${inR('created_at')} GROUP BY 1`),
+      q(`SELECT ${dayOf('created_at')} AS d, COUNT(*)::int AS n FROM follows WHERE following_email = $3 AND created_at IS NOT NULL AND ${inR('created_at')} GROUP BY 1`),
+      q(`SELECT ${dayOf('l.created_at')} AS d, COUNT(*)::int AS n FROM likes l JOIN posts p ON p.id = l.post_id WHERE p.user_email = $3 AND l.created_at IS NOT NULL AND ${inR('l.created_at')} GROUP BY 1`),
+      q(`SELECT ${dayOf('c.created_at', true)} AS d, COUNT(*)::int AS n FROM comments c JOIN posts p ON p.id = c.post_id WHERE p.user_email = $3 AND ${inR('c.created_at', true)} GROUP BY 1`),
+      q(`SELECT ${dayOf('s.created_at', true)} AS d, COUNT(*)::int AS n FROM posts s JOIN posts p ON p.id = s.shared_post_id WHERE p.user_email = $3 AND ${inR('s.created_at', true)} GROUP BY 1`),
+    ]);
+    const m = {};
+    const put = (rows, k, f) => rows.forEach((x) => { (m[x.d] = m[x.d] || { views: 0, earned: 0, followers: 0, engagement: 0 })[k] += f(x); });
+    put(vDays, 'views', (x) => Number(x.n) || 0); put(eDays, 'earned', (x) => (Number(x.c) || 0) / 100); put(fDays, 'followers', (x) => Number(x.n) || 0);
+    put(lDays, 'engagement', (x) => Number(x.n) || 0); put(cDays, 'engagement', (x) => Number(x.n) || 0); put(sDays, 'engagement', (x) => Number(x.n) || 0);
+    const days = [];
+    for (let t = Date.parse(from); t <= Date.parse(to); t += 86400000) { const d = new Date(t).toISOString().slice(0, 10); const x = m[d] || {}; days.push({ day: d, views: x.views || 0, earned: Math.round((x.earned || 0) * 10000) / 10000, followers: x.followers || 0, engagement: x.engagement || 0 }); }
+    const sum = (k) => days.reduce((a, x) => a + x[k], 0);
+    // the posts that earned most (or were watched most) in these days
+    const top = await q(`WITH e AS (SELECT post_id, SUM(cents)::float AS c FROM earn_log WHERE LOWER(user_email) = LOWER($3) AND ${inR('created_at')} GROUP BY 1),
+          v AS (SELECT v.post_id, COUNT(*)::int AS n FROM post_views v JOIN posts p ON p.id = v.post_id WHERE p.user_email = $3 AND ${inR('v.created_at', true)} GROUP BY 1)
+        SELECT p.id, p.content, p.media_type, p.media_url, p.thumb_url, p.created_at, COALESCE(v.n, 0) AS views, COALESCE(e.c, 0) AS cents
+          FROM posts p LEFT JOIN e ON e.post_id = p.id LEFT JOIN v ON v.post_id = p.id
+         WHERE p.user_email = $3 AND p.shared_post_id IS NULL AND (e.post_id IS NOT NULL OR v.post_id IS NOT NULL)
+         ORDER BY COALESCE(e.c, 0) DESC, COALESCE(v.n, 0) DESC LIMIT 50`);
+    const ca = (await pool.query("SELECT earn_suspended FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0];
+    const since = (await pool.query("SELECT to_char(MIN(created_at) AT TIME ZONE 'Asia/Phnom_Penh', 'YYYY-MM-DD') AS d FROM earn_log").catch(() => ({ rows: [] }))).rows[0];   // money by day is kept since this day
+    res.json({ success: true, from, to, isCreator: !!ca, suspended: !!(ca && ca.earn_suspended),
+      totals: { views: sum('views'), earned: Math.round(sum('earned') * 10000) / 10000, followers: sum('followers'), engagement: sum('engagement') },
+      days, moneyLogSince: since && since.d ? since.d : null,
+      followSince: ((await pool.query("SELECT value FROM creator_settings WHERE key = 'follow_days_since'").catch(() => ({ rows: [] }))).rows[0] || {}).value || null,
+      posts: top.map((x) => { const pm = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 200), mediaType: pm.video ? 'video' : (pm.images.length ? 'image' : ''), image: x.thumb_url || pm.images[0] || '', video: pm.video || '', created_at: x.created_at, views: Number(x.views) || 0, earned: Math.round(Number(x.cents) * 100) / 10000 }; }) });
+  } catch (err) { console.error('[monetization] stats error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 
 // the owner reads their own secret code (never sent in a notification or in the status list)
@@ -5922,7 +5982,7 @@ app.post('/api/admin/carrier-logo', async (req, res) => {
   const b = req.body || {};
   try {
     const a = await adminGate(req, res); if (!a) return;
-    if (b.list) return res.json({ success: true, carriers: CARRIERS, logos: await carrierLogos(), amounts: await topupAmounts(), isSuperAdmin: a.isSuperAdmin });
+    if (b.list) return res.json({ success: true, carriers: CARRIERS, methods: LOGO_METHODS, logos: await carrierLogos(), amounts: await topupAmounts(), isSuperAdmin: a.isSuperAdmin });
     if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
     if (b.amounts !== undefined) {                       // the card amounts, e.g. "1, 1.5, 2, 5, 10, 20"
       const list = String(b.amounts || '').split(/[,\s]+/).filter(Boolean).map(Number);
@@ -5931,7 +5991,7 @@ app.post('/api/admin/carrier-logo', async (req, res) => {
       audit(a.adminEmail, 'topup-amounts', 'settings', list.join(','));
       return res.json({ success: true, amounts: await topupAmounts() });
     }
-    const carrier = CARRIERS.includes(b.carrier) ? b.carrier : ''; if (!carrier) return res.status(400).json({ success: false, error: 'Unknown phone company.' });
+    const carrier = (CARRIERS.includes(b.carrier) || LOGO_METHODS.includes(b.carrier)) ? b.carrier : ''; if (!carrier) return res.status(400).json({ success: false, error: 'Unknown phone company.' });   // 🏦 banks / wallets too (ABA, ACLEDA …)
     if (b.reset) {
       await pool.query('DELETE FROM creator_settings WHERE key = $1', ['carrier_logo:' + carrier]);
       audit(a.adminEmail, 'carrier-logo', carrier, 'back to the CamFeed picture');
@@ -6004,7 +6064,7 @@ async function withdrawTelegram(id) {
   const w = (await pool.query(`SELECT w.*, u.first_name, u.last_name, (SELECT COALESCE(SUM(amount_cents), 0) FROM wallet_ledger l WHERE l.user_email = w.user_email)::int AS left_cents
     FROM withdrawal_requests w JOIN users u ON u.email = w.user_email WHERE w.id = $1 AND w.status = 'pending' AND w.tg_sent = FALSE`, [id])).rows[0];
   if (!w) return;
-  const lines = ['💵 ដកប្រាក់ W' + id + ' · ' + usdText(w.amount_cents) + (w.pocket === 'content' ? ' · 🎬 ពីមាតិកា' : ' · 🎁 ពីអំណោយ'), '👤 ' + ((w.first_name || '') + ' ' + (w.last_name || '')).trim(),
+  const lines = ['💵 ដកប្រាក់ W' + id + ' · ' + usdText(w.amount_cents) + (w.pocket === 'content' ? ' · 🎬 ពីមាតិកា' : ' · 🎁 ពីកាដូ'), '👤 ' + ((w.first_name || '') + ' ' + (w.last_name || '')).trim(),
     '🏦 ' + w.method + (CODE_METHODS.includes(w.method) ? ' · ' + (w.account_name || '') : '') + ' · ' + (w.account_number || ''),
     CODE_METHODS.includes(w.method) ? '' : '🪪 ' + (w.account_name || '') + (w.name_check === 'same' ? ' ✅ ឈ្មោះដូច CamFeed' : ' ⚠️ ឈ្មោះមិនដូច CamFeed — សូមពិនិត្យ'),
     w.new_details ? '🆕 លេខគណនីថ្មី (មិនដែលបង់ពីមុន)' : '', '💰 នៅសល់ក្នុងកាបូប ' + usdText(w.left_cents)].filter(Boolean);

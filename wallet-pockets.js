@@ -3,31 +3,54 @@
 //                  anyone can withdraw from $1; only the Admin's check before paying (+ the gift wait Admin may set, 0 = none)
 //   🎬 'content' = money from views (Creator Program) and content bonuses from CamFeed
 //                  checked before it comes in, then it waits N days (Admin sets) before it can be withdrawn; its own smallest withdrawal
+//                  📅 money from VIEWS (kind 'revenue_share') goes by month: this month = still counting; a past month waits
+//                  until CamFeed approves it (Admin › Monetization › Monthly approval, early next month); then it can leave.
+//                  Bonuses from CamFeed (given by the Admin by hand) can leave at once.
 // Old lines have no pocket written: views money → content, everything else → gift.
 const POCKET_SQL = "COALESCE(pocket, CASE WHEN kind = 'revenue_share' THEN 'content' ELSE 'gift' END)";
 const POCKETS = ['gift', 'content'];
 const pocketOf = (p) => (p === 'content' ? 'content' : 'gift');
 
 // how much is in each pocket, and how much can leave now
+const KH_MONTH = "to_char(created_at AT TIME ZONE 'Asia/Phnom_Penh', 'YYYY-MM')";
+const NOW_MONTH = "to_char(NOW() AT TIME ZONE 'Asia/Phnom_Penh', 'YYYY-MM')";
 async function pockets(q, email, opt) {
   const o = opt || {};
-  const giftDays = Math.max(0, Number(o.giftHoldDays) || 0), contentDays = Math.max(0, Number(o.contentHoldDays) || 0);
+  const giftDays = Math.max(0, Number(o.giftHoldDays) || 0);
   const r = await q.query(
     `SELECT COALESCE(SUM(amount_cents) FILTER (WHERE ${POCKET_SQL} = 'gift'), 0)::bigint AS gift,
             COALESCE(SUM(amount_cents) FILTER (WHERE ${POCKET_SQL} = 'content'), 0)::bigint AS content,
             COALESCE(SUM(amount_cents) FILTER (WHERE kind = 'gift' AND amount_cents > 0 AND $2::int > 0 AND created_at > NOW() - ($2::int || ' days')::interval), 0)::bigint AS gift_wait,
-            COALESCE(SUM(amount_cents) FILTER (WHERE ${POCKET_SQL} = 'content' AND kind = 'revenue_share' AND amount_cents > 0 AND $3::int > 0 AND created_at > NOW() - ($3::int || ' days')::interval), 0)::bigint AS content_wait,
-            MIN(created_at) FILTER (WHERE ${POCKET_SQL} = 'content' AND kind = 'revenue_share' AND amount_cents > 0 AND $3::int > 0 AND created_at > NOW() - ($3::int || ' days')::interval) AS content_first_wait
-       FROM wallet_ledger WHERE LOWER(user_email) = LOWER($1)`, [email, giftDays, contentDays]);
+            COALESCE(SUM(amount_cents) FILTER (WHERE kind = 'revenue_share' AND amount_cents > 0 AND ${KH_MONTH} = ${NOW_MONTH}), 0)::bigint AS content_month,
+            COALESCE(SUM(amount_cents) FILTER (WHERE kind = 'revenue_share' AND amount_cents > 0 AND ${KH_MONTH} < ${NOW_MONTH}
+                AND NOT EXISTS (SELECT 1 FROM earn_months m WHERE m.user_email = LOWER($1) AND m.month = ${KH_MONTH.replace('created_at', 'wallet_ledger.created_at')} AND m.approved_at IS NOT NULL)), 0)::bigint AS content_review
+       FROM wallet_ledger WHERE LOWER(user_email) = LOWER($1)`, [email, giftDays]);
   const x = r.rows[0] || {};
   const gift = Number(x.gift) || 0, content = Number(x.content) || 0;
-  const giftWait = Math.min(Math.max(0, gift), Number(x.gift_wait) || 0), contentWait = Math.min(Math.max(0, content), Number(x.content_wait) || 0);
-  const readyAt = x.content_first_wait ? new Date(new Date(x.content_first_wait).getTime() + contentDays * 86400000) : null;
+  const giftWait = Math.min(Math.max(0, gift), Number(x.gift_wait) || 0);
+  // what the pocket really holds comes first (a cut or a withdrawal can make it smaller than the locked months)
+  const contentMonth = Math.min(Math.max(0, content), Number(x.content_month) || 0);
+  const contentReview = Math.min(Math.max(0, content - contentMonth), Number(x.content_review) || 0);
+  const contentWait = contentMonth + contentReview;
   return {
     gift, content, total: gift + content,
     giftWait, giftReady: Math.max(0, gift - giftWait),
-    contentWait, contentReady: Math.max(0, content - contentWait), contentReadyAt: contentWait > 0 ? readyAt : null,
+    contentMonth, contentReview, contentWait, contentReady: Math.max(0, content - contentWait), contentReadyAt: null,
   };
+}
+
+// 📅 the table of months CamFeed approved (one line per creator and month; cut = money taken away for bad views)
+async function ensureMonths(pool) {
+  await pool.query(`CREATE TABLE IF NOT EXISTS earn_months (user_email TEXT NOT NULL, month TEXT NOT NULL, earned_cents BIGINT NOT NULL DEFAULT 0,
+      cut_cents BIGINT NOT NULL DEFAULT 0, note TEXT, approved_at TIMESTAMPTZ, approved_by TEXT, PRIMARY KEY (user_email, month))`);
+  // once: every month BEFORE this rule started is approved (that money was already free before), so nothing old gets locked
+  const done = await pool.query("SELECT 1 FROM creator_settings WHERE key = 'earn_months_v1'").catch(() => ({ rows: [] }));
+  if (done.rows.length) return;
+  await pool.query(`INSERT INTO earn_months (user_email, month, earned_cents, approved_at, approved_by, note)
+      SELECT LOWER(user_email), ${KH_MONTH}, SUM(amount_cents), NOW(), 'system', 'before monthly approval'
+        FROM wallet_ledger WHERE kind = 'revenue_share' AND amount_cents > 0 AND ${KH_MONTH} < ${NOW_MONTH}
+       GROUP BY 1, 2 ON CONFLICT (user_email, month) DO NOTHING`);
+  await pool.query("INSERT INTO creator_settings (key, value) VALUES ('earn_months_v1', $1) ON CONFLICT (key) DO NOTHING", [String(Date.now())]);
 }
 
 // once: old withdrawals / changes into diamonds were all written as 🎁. Where that made a pocket go below 0,
@@ -54,4 +77,4 @@ async function fixOldLines(pool) {
   return n;
 }
 
-module.exports = { POCKET_SQL, POCKETS, pocketOf, pockets, fixOldLines };
+module.exports = { POCKET_SQL, POCKETS, pocketOf, pockets, fixOldLines, ensureMonths, KH_MONTH, NOW_MONTH };

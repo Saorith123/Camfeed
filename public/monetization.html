@@ -13,7 +13,7 @@
     <script src="pwa.js" defer></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CamFeed - Monetization & Referral Program</title>
+    <title>CamFeed</title>
     <link rel="icon" type="image/png" href="logo-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,14 +92,14 @@
 
     <div class="top-nav">
         <button class="back-btn" onclick="window.location.href='feed.html'">←</button>
-        <div class="nav-title">Monetization & Referral</div>
+        <div class="nav-title" id="navTitle">រកប្រាក់ និងអញ្ជើញមិត្ត</div>
         <div style="width:38px;"></div>
     </div>
 
     <div class="container">
 <div id="mzMsg"></div>
-<!-- Wallet -->
-<div class="wallet-box">
+<!-- Wallet (not shown inside the phone app: the app has its own 💰 My wallet) -->
+<div class="wallet-box" id="walletBox">
 <div><div style="font-size:13px;font-weight:700;opacity:.9" id="tWalletLbl"></div><div class="wallet-amount" id="walletBalance">$0.00</div></div>
 <button class="withdraw-btn" id="withdrawBtn" type="button"></button>
 </div>
@@ -144,7 +144,7 @@
 </div>
 
 <!-- History -->
-<div class="card">
+<div class="card" id="histCard">
 <div class="card-title" id="tHistTitle"></div>
 <div id="historyBox"></div>
 </div>
@@ -157,13 +157,13 @@ var currentUser = null; try { currentUser = JSON.parse(localStorage.getItem('cam
 if (!currentUser) { location.href = 'index.html'; return; }
 var T = {
  km: { friendsTitle: 'មិត្តដែលអ្នកបានអញ្ជើញ', noFriends: 'មិនទាន់មានមិត្តទេ។ ចែករំលែកតំណខាងលើ!', pDays: 'ថ្ងៃ', pPosts: 'ការបង្ហោះ', rs_progress: 'កំពុងធ្វើ', rs_rewarded: 'បានទទួលរង្វាន់', rs_review: 'កំពុងត្រួតពិនិត្យ', rs_rejected: 'មិនរាប់', rs_expired: 'ហួសកំណត់', soon: '🎬 មុខងាររកលុយតាមវីដេអូនឹងមកដល់ឆាប់ៗនេះ។ នៅពេលមានអ្នកប្រើប្រាស់កម្មវិធីនេះច្រើន អ្នកនឹងអាចបង្កើតប្រាក់ចំណូលតាមរយៈវីដេអូរបស់អ្នក។', kReferral: 'រង្វាន់អញ្ជើញមិត្ត', earnedRef: 'រង្វាន់អញ្ជើញដែលបានទទួលសរុប៖', wallet: 'ប្រាក់ក្នុងកាបូប (Total Earnings)', withdraw: 'ដកប្រាក់', note: 'ប្រាក់ក្នុងកាបូបបច្ចុប្បន្នមកពីរង្វាន់ពិសេស និងការប្រកួតរបស់ CamFeed។ ពេល CamFeed មានចំណូលពីការផ្សាយពាណិជ្ជកម្មក្នុងស្រុក ផ្នែកមួយនៃចំណូលនឹងត្រូវបានចែកដល់សមាជិកកម្មវិធី Creator តាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់មិនត្រូវបានធានាទេ។',
-   refCodeLbl: 'ឬផ្តល់លេខណែនាំរបស់អ្នកនេះឱ្យមិត្ត (គេដាក់ក្នុងប្រអប់ "លេខណែនាំ" ពេលបង្កើតគណនី)៖', copiedCode: 'បានចម្លងលេខណែនាំ!', refTitle: '🎁 កម្មវិធីអញ្ជើញមិត្ត (Referral)', refText: 'ចែករំលែកតំណនេះឱ្យមិត្តភក្តិ។ ពេលគេបង្កើតគណនី អ្នកនឹងបានរាប់ជាអ្នកអញ្ជើញ។', copy: 'ចម្លង (Copy)', copied: 'បានចម្លងតំណអញ្ជើញ!', refCount: 'មិត្តដែលអ្នកបានអញ្ជើញ៖', people: 'នាក់',
+   refCodeLbl: 'ឬផ្តល់លេខណែនាំរបស់អ្នកនេះឱ្យមិត្ត (គេដាក់ក្នុងប្រអប់ "លេខណែនាំ" ពេលបង្កើតគណនី)៖', copiedCode: 'បានចម្លងលេខណែនាំ!', refTitle: '🎁 កម្មវិធីអញ្ជើញមិត្ត', refText: 'ចែករំលែកតំណនេះឱ្យមិត្តភក្តិ។ ពេលគេបង្កើតគណនី អ្នកនឹងបានរាប់ជាអ្នកអញ្ជើញ។', copy: 'ចម្លង', copied: 'បានចម្លងតំណអញ្ជើញ!', refCount: 'មិត្តដែលអ្នកបានអញ្ជើញ៖', people: 'នាក់',
    progTitle: '💰 កម្មវិធី Creator (Apply for Monetization)', cFollowers: 'អ្នកតាមដាន (Followers)', cViews: 'ចំនួន Views សរុប', cPosts: 'ចំនួនការបង្ហោះ', cAge: 'អាយុគណនី (ថ្ងៃ)', apply: 'ដាក់ពាក្យចូលរួម', applying: 'កំពុងផ្ញើ…',
    approved: '🎉 អបអរសាទរ! អ្នកជាសមាជិកកម្មវិធី Creator ហើយ។', pending: '⏳ ពាក្យសុំរបស់អ្នកកំពុងរង់ចាំការពិនិត្យពី CamFeed។', rejected: '❌ ពាក្យសុំរបស់អ្នកមិនត្រូវបានអនុម័តទេ។', reason: 'មូលហេតុ៖', again: 'អ្នកអាចដាក់ពាក្យម្តងទៀតក្រោយ 7 ថ្ងៃ។',
    histTitle: '🧾 ប្រវត្តិកាបូប', none: 'មិនទាន់មានប្រវត្តិ', wdTitle: 'ដកប្រាក់', amount: 'ចំនួន ($)', method: 'វិធីទទួលប្រាក់', accName: 'ឈ្មោះគណនី', accNum: 'លេខគណនី', send: 'ផ្ញើសំណើ', cancel: 'បោះបង់', min: 'ដកអប្បបរមា $', paidBy: 'យើងនឹងផ្ទេរប្រាក់ដោយដៃ ក្នុងរយៈពេលពីរបីថ្ងៃ។',
    wdSent: 'បានផ្ញើសំណើដកប្រាក់ហើយ។ យើងនឹងផ្ទេរប្រាក់ទៅគណនីរបស់អ្នក។', onlyCreators: 'មានតែសមាជិក Creator ទេដែលអាចដកប្រាក់បាន។', needMore: 'សមតុល្យមិនទាន់ដល់ចំនួនអប្បបរមា $', net: 'មានបញ្ហាក្នុងការភ្ជាប់ទៅ Server', sent: 'បានផ្ញើពាក្យសុំហើយ! CamFeed នឹងពិនិត្យ។', kBonus: 'រង្វាន់', kAdjustment: 'កែតម្រូវ', kWithdrawal: 'សំណើដកប្រាក់', kRefund: 'សងប្រាក់វិញ', kRev: 'ចំណែកចំណូល', st_pending: 'រង់ចាំ', st_paid: 'បានបង់', st_rejected: 'បដិសេធ' },
  en: { friendsTitle: 'Friends you invited', noFriends: 'No friend yet. Share the link above!', pDays: 'days', pPosts: 'posts', rs_progress: 'In progress', rs_rewarded: 'Rewarded', rs_review: 'Being checked', rs_rejected: 'Not counted', rs_expired: 'Expired', soon: '🎬 Earning money from videos is coming soon. When many people use CamFeed, you will be able to earn from your videos.', kReferral: 'Invitation reward', earnedRef: 'Invitation rewards earned in total:', wallet: 'Wallet balance (Total Earnings)', withdraw: 'Withdraw', note: 'Wallet money currently comes from special bonuses and contests run by CamFeed. When CamFeed earns from local advertising, part of that income will be shared with members of the Creator Program, at CamFeed\'s discretion. Amounts are not guaranteed.',
-   refCodeLbl: 'Or give your friend this referral number (they type it in the "Referral number" box when signing up):', copiedCode: 'Referral number copied!', refTitle: '🎁 Invite friends (Referral)', refText: 'Share this link with your friends. When they create an account you are counted as their inviter.', copy: 'Copy', copied: 'Invitation link copied!', refCount: 'Friends you invited:', people: '',
+   refCodeLbl: 'Or give your friend this referral number (they type it in the "Referral number" box when signing up):', copiedCode: 'Referral number copied!', refTitle: '🎁 Invite friends', refText: 'Share this link with your friends. When they create an account you are counted as their inviter.', copy: 'Copy', copied: 'Invitation link copied!', refCount: 'Friends you invited:', people: '',
    progTitle: '💰 Creator Program (Apply for Monetization)', cFollowers: 'Followers', cViews: 'Total views', cPosts: 'Posts', cAge: 'Account age (days)', apply: 'Apply to join', applying: 'Sending…',
    approved: '🎉 Congratulations! You are a member of the Creator Program.', pending: '⏳ Your application is waiting for CamFeed to review it.', rejected: '❌ Your application was not approved.', reason: 'Reason:', again: 'You can apply again after 7 days.',
    histTitle: '🧾 Wallet history', none: 'Nothing yet', wdTitle: 'Withdraw', amount: 'Amount ($)', method: 'Get paid with', accName: 'Account name', accNum: 'Account number', send: 'Send request', cancel: 'Cancel', min: 'Smallest withdrawal $', paidBy: 'We pay by hand, usually within a few days.',
@@ -171,10 +171,10 @@ var T = {
 T.km.note = 'ប្រាក់ក្នុងកាបូបមកពីរង្វាន់អញ្ជើញមិត្ត និងរង្វាន់ពិសេសរបស់ CamFeed។ ប្រាក់ចំណូលពីវីដេអូនឹងមកដល់ឆាប់ៗនេះ ហើយនៅពេលនោះ ផ្នែកមួយនៃចំណូលពាណិជ្ជកម្មនឹងត្រូវបានចែកតាមការសម្រេចរបស់ CamFeed។ ចំនួនប្រាក់ពីវីដេអូមិនត្រូវបានធានាទេ។';
 T.en.note = 'Wallet money comes from invitation rewards and special bonuses from CamFeed. Earning from videos is coming soon; when it starts, part of the advertising income will be shared at CamFeed\'s discretion. Amounts from videos are not guaranteed.';
 
-Object.assign(T.km, { pGift: '🎁 ប្រាក់ពីអំណោយ', pGiftSub: 'អំណោយ (Party Room, Live) ការណែនាំមិត្ត និងរង្វាន់', pContent: '🎬 ប្រាក់ពីការផលិតមាតិកា', pContentSub: 'ការមើលវីដេអូ និងប្រាក់លើកទឹកចិត្តពី CamFeed',
-  pReady: '✅ អាចដកបានឥឡូវ៖ ', pWait: '⏳ កំពុងរង់ចាំ៖ ', pFrom: ' (ដកបានចាប់ពី ', pGiftRule: 'ដកបានចាប់ពី {0} · CamFeed ពិនិត្យ ហើយបង់ឆាប់ៗ', pContentRule: 'ដកបានចាប់ពី {0} · ប្រាក់ថ្មីរង់ចាំ {1} ថ្ងៃ · CamFeed ពិនិត្យរាល់សំណើ', pTotal: 'សរុបក្នុងកាបូប', cardAmt: 'ជ្រើសតម្លៃកាត', kCoins: '💎 ប្ដូរជាពេជ្រ', kChallenge: '🎯 រង្វាន់ Challenge' });
+Object.assign(T.km, { pGift: '🎁 ប្រាក់ពីកាដូ', pGiftSub: 'កាដូ (Party Room, Live) ការណែនាំមិត្ត និងរង្វាន់', pContent: '🎬 ប្រាក់ពីការផលិតមាតិកា', pContentSub: 'ការមើលវីដេអូ និងប្រាក់លើកទឹកចិត្តពី CamFeed',
+  pReady: '✅ អាចដកបានឥឡូវ៖ ', pWait: '⏳ កំពុងរង់ចាំ៖ ', pFrom: ' (ដកបានចាប់ពី ', pGiftRule: 'ដកបានចាប់ពី {0} · CamFeed ពិនិត្យ ហើយបង់ឆាប់ៗ', pContentRule: 'ដកបានចាប់ពី {0} · ប្រាក់ថ្មីរង់ចាំ {1} ថ្ងៃ · CamFeed ពិនិត្យរាល់សំណើ', pTotal: 'សរុបក្នុងកាបូប', pMonth: '⏳ ខែនេះ (កំពុងរាប់)៖ ', pReview: '🛡 រង់ចាំ CamFeed អនុម័ត៖ ', pCan: '✅ អាចដកបាន៖ ', pMonthRule: 'ប្រាក់ពីការមើល៖ CamFeed ពិនិត្យ និងអនុម័តនៅដើមខែក្រោយ · ដកបានចាប់ពី {0}', cardAmt: 'ជ្រើសតម្លៃកាត', kCoins: '💎 ប្ដូរជាពេជ្រ', kChallenge: '🎯 រង្វាន់ Challenge' });
 Object.assign(T.en, { pGift: '🎁 Money from gifts', pGiftSub: 'Gifts (Party Room, Live), inviting friends and prizes', pContent: '🎬 Money from your content', pContentSub: 'Video views and bonuses from CamFeed',
-  pReady: '✅ Available now: ', pWait: '⏳ Waiting: ', pFrom: ' (from ', pGiftRule: 'From {0} · CamFeed checks and pays soon', pContentRule: 'From {0} · new money waits {1} days · CamFeed checks every request', pTotal: 'Total in the wallet', cardAmt: 'Choose the card amount', kCoins: '💎 Changed into diamonds', kChallenge: '🎯 Challenge prize' });
+  pReady: '✅ Available now: ', pWait: '⏳ Waiting: ', pFrom: ' (from ', pGiftRule: 'From {0} · CamFeed checks and pays soon', pContentRule: 'From {0} · new money waits {1} days · CamFeed checks every request', pTotal: 'Total in the wallet', pMonth: '⏳ This month (counting): ', pReview: '🛡 Waiting for CamFeed approval: ', pCan: '✅ Can withdraw: ', pMonthRule: 'Views money: CamFeed checks and approves it early next month · Withdraw from {0}', cardAmt: 'Choose the card amount', kCoins: '💎 Changed into diamonds', kChallenge: '🎯 Challenge prize' });
 Object.assign(T.km, { mTopUp: '📱 កាតទូរស័ព្ទ (Top-up)', mWingCash: '🟢 Wing ដកសាច់ប្រាក់នៅភ្នាក់ងារ', mABA: '🏦 ABA', mACLEDA: '🏦 ACLEDA', mWing: '🟢 គណនី Wing', carrier: 'ក្រុមហ៊ុនទូរស័ព្ទ', phone: 'លេខទូរស័ព្ទ', phone2: 'វាយលេខទូរស័ព្ទម្តងទៀត', accNum2: 'វាយលេខគណនីម្តងទៀត', accNameFull: 'ឈ្មោះពេញដូចក្នុងគណនី', wingPhone: 'លេខទូរស័ព្ទដែលប្រើនៅភ្នាក់ងារ Wing', mismatch: 'លេខទាំងពីរមិនដូចគ្នា សូមពិនិត្យឡើងវិញ។', pickMethod: '— ជ្រើសរើស —', minFee: 'ដកអប្បបរមា $1។ ការផ្ទេរធនាគារអាចមានថ្លៃសេវា។', payoutTitle: '🔑 ការដកប្រាក់របស់ខ្ញុំ', showCode: 'បង្ហាញកូដ', hideCode: 'លាក់កូដ', copyCode: 'ចម្លង', codeTopUp: 'កូដបញ្ចូលទឹកប្រាក់ទូរស័ព្ទ', codeWing: 'កូដដកប្រាក់ Wing (ប្រើជាមួយលេខទូរស័ព្ទរបស់អ្នកនៅភ្នាក់ងារ)', keepSecret: 'កុំចែករំលែកកូដនេះជាមួយអ្នកណាឡើយ។', reissue: 'ស្នើកូដថ្មី', reissueSent: 'បានស្នើកូដថ្មីហើយ សូមរង់ចាំ។', reissueWait: '⏳ កំពុងរង់ចាំកូដថ្មីពី CamFeed', confirmReissue: 'ស្នើកូដថ្មីមែនទេ?', bankDone: 'ប្រាក់ត្រូវបានផ្ទេរទៅគណនីរបស់អ្នកហើយ។', copiedC: 'បានចម្លងកូដ' });
 Object.assign(T.en, { mTopUp: '📱 Phone top-up card', mWingCash: '🟢 Wing cash-out at an agent', mABA: '🏦 ABA', mACLEDA: '🏦 ACLEDA', mWing: '🟢 Wing account', carrier: 'Phone company', phone: 'Phone number', phone2: 'Type the phone number again', accNum2: 'Type the account number again', accNameFull: 'Full name exactly as on the account', wingPhone: 'Phone number you will use at the Wing agent', mismatch: 'The two numbers do not match. Please check.', pickMethod: '— choose —', minFee: 'Smallest withdrawal is $1. Bank transfers may have fees.', payoutTitle: '🔑 My withdrawals', showCode: 'Show code', hideCode: 'Hide code', copyCode: 'Copy', codeTopUp: 'Phone top-up code', codeWing: 'Wing cash-out code (use it with your phone number at the agent)', keepSecret: 'Never share this code with anyone.', reissue: 'Request a new code', reissueSent: 'New code requested. Please wait.', reissueWait: '⏳ Waiting for a new code from CamFeed', confirmReissue: 'Request a new code?', bankDone: 'The money was sent to your account.', copiedC: 'Code copied' });
 
@@ -233,8 +233,11 @@ function renderReferrals(d) {
     box.appendChild(row);
   });
 }
+var IN_APP = /[?&]app=1\b/.test(location.search) || /CamFeedApp/.test(navigator.userAgent);
+try { if (localStorage.getItem('camfeed_lang') === 'en') { document.getElementById('navTitle').textContent = 'Earn money & invite friends'; } } catch (e) {}   // 📱 opened from the phone app: the wallet lives in the app's own 💰 My wallet
 function render() {
-  var d = data; $('walletBalance').textContent = usd(d.walletBalance); renderPockets(d); $('referralCount').textContent = String(d.referralCount || 0) + (t('people') ? ' ' + t('people') : '');
+  var d = data;
+  if (IN_APP) ['walletBox', 'pockets', 'tNote', 'histCard'].forEach(function (id) { var x = $(id); if (x) x.style.display = 'none'; }); $('walletBalance').textContent = usd(d.walletBalance); renderPockets(d); $('referralCount').textContent = String(d.referralCount || 0) + (t('people') ? ' ' + t('people') : '');
   $('refLinkInput').value = d.referralCode ? location.origin + '/index.html?ref=' + d.referralCode : '';
   $('refCodeInput').value = d.referralCode || '';
   renderReferrals(d);
@@ -242,7 +245,8 @@ function render() {
   // way 1: invited by CamFeed — its own card, only for people CamFeed invited
   var ic = $('inviteCard'), ib = $('inviteBox'); ib.textContent = '';
   var invitedWay = src === 'invited' && (stt === 'invited' || stt === 'approved');
-  ic.style.display = '';
+  // a creator who can already earn (by the requirements) does not see the invitation card
+  ic.style.display = (stt === 'approved' && !invitedWay) ? 'none' : '';
   if (invitedWay && stt === 'invited') {
     ib.appendChild(el('div', { class: 'status-banner status-pending', style: 'margin-bottom:12px;text-align:left' }, paths.textInvited || t('invText')));
     var row = el('div', { style: 'display:flex;gap:10px' });
@@ -350,15 +354,22 @@ $('copyBtn').addEventListener('click', function () { var i = $('refLinkInput'); 
 $('copyCodeBtn').addEventListener('click', function () { var i = $('refCodeInput'); i.select(); try { navigator.clipboard.writeText(i.value); } catch (e) { document.execCommand('copy'); } msg(true, t('copiedCode')); });
 // 👛 the two pockets: 🎁 gift money (from $1, only CamFeed's check) and 🎬 content money (its own smallest amount, new money waits some days)
 function renderPockets(d) {
-  var box = $('pockets'), p = d.pockets; if (!p) { box.style.display = 'none'; return; }
+  var box = $('pockets'), p = d.pockets; if (!p || IN_APP) { box.style.display = 'none'; return; }
   box.style.display = ''; box.textContent = ''; $('withdrawBtn').style.display = 'none'; $('tWalletLbl').textContent = t('pTotal');
   [['gift', t('pGift'), t('pGiftSub'), p.gift, p.giftReady, p.giftWait, null, t('pGiftRule').replace('{0}', usd(p.giftMin))],
    ['content', t('pContent'), t('pContentSub'), p.content, p.contentReady, p.contentWait, p.contentReadyAt, t('pContentRule').replace('{0}', usd(p.contentMin)).replace('{1}', p.contentHoldDays)]].forEach(function (x) {
     var c = el('div', { class: 'pk ' + x[0] });
     c.appendChild(el('h4', {}, x[1])); c.appendChild(el('div', { class: 'sub' }, x[2]));
     c.appendChild(el('div', { class: 'amt' }, usd(x[3])));
+    if (x[0] === 'content' && p.monthly) {   // 📅 views money by month: counting → waits for CamFeed's approval → can be withdrawn
+      c.appendChild(el('div', { class: 'ln', style: 'font-weight:600' }, t('pMonth') + usd(p.contentMonth)));
+      c.appendChild(el('div', { class: 'ln', style: 'font-weight:600' }, t('pReview') + usd(p.contentReview)));
+      c.appendChild(el('div', { class: 'ln' }, t('pCan') + usd(x[4])));
+      x[7] = t('pMonthRule').replace('{0}', usd(p.contentMin));
+    } else {
     c.appendChild(el('div', { class: 'ln' }, t('pReady') + usd(x[4])));
     if (x[5] > 0) c.appendChild(el('div', { class: 'ln', style: 'font-weight:600' }, t('pWait') + usd(x[5]) + (x[6] ? t('pFrom') + new Date(x[6]).toLocaleString() + ')' : '')));
+    }
     var b = el('button', { type: 'button' }, t('withdraw')); b.addEventListener('click', function () { openWithdraw(x[0]); }); c.appendChild(b);
     c.appendChild(el('div', { class: 'rule' }, x[7]));
     box.appendChild(c);
@@ -375,9 +386,20 @@ function openWithdraw(pocket) {
   field(t('amount') + ' (' + t('min') + Number(minW).toFixed(2) + ')', 'wdAmount', 'number', Number(ready).toFixed(2));
   box.appendChild(el('div', { class: 'mz-lbl' }, t('method'))); var sel = el('select', { class: 'mz-in', id: 'wdMethod' });
   sel.appendChild(el('option', { value: '' }, t('pickMethod'))); ['TopUp', 'WingCash', 'ABA', 'ACLEDA', 'Wing'].forEach(function (m) { sel.appendChild(el('option', { value: m }, t(MN[m]))); }); box.appendChild(sel);
+  // 🏦 the ways to be paid as pictures (CamFeed puts them in Admin); no picture = the name. The list above stays for keyboards.
+  var mrow = el('div', { class: 'carriers' }), LG = data.carrierLogos || {};
+  ['ABA', 'ACLEDA', 'Wing', 'WingCash', 'TopUp'].forEach(function (m) {
+    var tile = el('div', { class: 'carrier', role: 'button', tabindex: '0', title: t(MN[m]) });
+    if (LG[m]) { var im = el('img', { src: LG[m], alt: m }); im.onerror = function () { tile.textContent = t(MN[m]); }; tile.appendChild(im); }
+    else { tile.style.cssText = 'font-weight:800;font-size:12.5px;text-align:center;line-height:1.25'; tile.textContent = t(MN[m]); }
+    tile.addEventListener('click', function () { sel.value = m; build(); });
+    mrow.appendChild(tile);
+  });
+  box.insertBefore(mrow, sel);
+  function markMethod() { Array.prototype.forEach.call(mrow.children, function (k, i) { k.classList.toggle('on', ['ABA', 'ACLEDA', 'Wing', 'WingCash', 'TopUp'][i] === sel.value); }); }
   var dyn = el('div'); box.appendChild(dyn);
   function build() {
-    dyn.textContent = ''; var m = sel.value; if ($('wdAmount')) $('wdAmount').readOnly = false; if (!m) return;
+    dyn.textContent = ''; var m = sel.value; markMethod(); if ($('wdAmount')) $('wdAmount').readOnly = false; if (!m) return;
     if (m === 'TopUp') { dyn.appendChild(el('div', { class: 'mz-lbl' }, t('carrier'))); var c = el('input', { type: 'hidden', id: 'wdCarrier' }); dyn.appendChild(c);
       var row = el('div', { class: 'carriers' }); ['Smart', 'Metfone', 'Cellcard'].forEach(function (x) {   // 📱 the phone companies, with their pictures
         var tile = el('div', { class: 'carrier', role: 'button', tabindex: '0', title: x }); var img = el('img', { src: (data.carrierLogos && data.carrierLogos[x]) || ('/icons/carriers/' + x.toLowerCase() + '.png'), alt: x }); img.onerror = function () { tile.textContent = x; }; tile.appendChild(img);
