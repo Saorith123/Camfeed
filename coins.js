@@ -669,6 +669,13 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
         if (b.status !== 'approved' && !note) return res.status(400).json({ success: false, error: 'Please write the reason.' });
         const d = await decideTopup(parseInt(b.id, 10) || 0, b.status === 'approved', note, a.adminEmail);
         if (!d.ok) return res.status(409).json({ success: false, error: 'Already decided.' });
+      } else if (act === 'whois') {
+        // 🔎 before giving / taking diamonds by hand: who is this (name + id + diamonds now), so the Admin can check
+        if (!superOnly()) return;
+        const who = String(b.user || '').trim();
+        const u = (await pool.query('SELECT email, first_name, last_name, public_id FROM users WHERE LOWER(email) = LOWER($1) OR public_id = $1 LIMIT 1', [who])).rows[0];
+        if (!u) return res.status(404).json({ success: false, error: 'No such person (use their e-mail, phone account or 15-digit id).' });
+        return res.json({ success: true, person: { name: `${u.first_name || ''} ${u.last_name || ''}`.trim(), id: u.public_id || '', coins: await balance(u.email) } });
       } else if (act === 'adjust') {
         if (!superOnly()) return;
         const who = String(b.user || '').trim();

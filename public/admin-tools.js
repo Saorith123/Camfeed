@@ -1858,8 +1858,16 @@
         var who = el('input', { class: 'at-in', placeholder: 'e-mail, phone account or 15-digit id' }), n = el('input', { class: 'at-in', type: 'number', placeholder: '+100 or -100' }), why = el('input', { class: 'at-in', placeholder: 'Note (kept in the audit log)' });
         box.appendChild(who); box.appendChild(n); box.appendChild(why);
         box.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Apply', onclick: function () {
-          if (!confirm('Change diamonds of ' + who.value + ' by ' + n.value + '?')) return;
-          call({ action: 'adjust', user: who.value, coins: n.value, note: why.value }).then(function (x) { if (x.success) alert('✅ Done'); });
+          var amt = parseInt(n.value, 10); if (!amt) { alert('Enter the number of diamonds (+ to add, - to take).'); return; }
+          // 🔎 show WHO it is (name + id + diamonds now) before anything changes
+          adm('/api/admin/coins', { action: 'whois', user: who.value.trim() }).then(function (w) {
+            if (!w || !w.success) { alert(AT('រកមិនឃើញអ្នកប្រើនេះទេ។ សូមប្រើអ៊ីមែល គណនីទូរសព្ទ ឬលេខ ID ១៥ ខ្ទង់។', (w && w.error) || 'No such person.')); return; }
+            var p = w.person, after = p.coins + amt;
+            var q = AT((amt > 0 ? 'បញ្ចូល ' : 'ដក ') + Math.abs(amt) + ' 💎 ' + (amt > 0 ? 'ទៅ' : 'ពី') + '\n\n👤 ' + (p.name || '(គ្មានឈ្មោះ)') + '\n🆔 ' + p.id + '\n💎 ឥឡូវ៖ ' + p.coins + ' → ក្រោយ៖ ' + after + '\n\nបន្តឬ?',
+                       (amt > 0 ? 'Give ' : 'Take ') + Math.abs(amt) + ' 💎 ' + (amt > 0 ? 'to' : 'from') + '\n\n👤 ' + (p.name || '(no name)') + '\n🆔 ' + p.id + '\n💎 Now: ' + p.coins + ' → after: ' + after + '\n\nGo on?');
+            if (!confirm(q)) return;
+            call({ action: 'adjust', user: who.value.trim(), coins: n.value, note: why.value }).then(function (x) { if (x.success) alert(AT('✅ រួចរាល់៖ ', '✅ Done: ') + (p.name || p.id) + ' · 💎 ' + after); });
+          });
         } }));
       }
       // recent decisions
