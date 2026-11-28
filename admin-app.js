@@ -46,7 +46,7 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
   app.post('/api/admin/app/home', async (req, res) => {
     try {
       const a = await adminGate(req, res); if (!a) return;
-      const [users, usersToday, activeNow, active24, posts24, wdN, wdUsd, reports, chatReports, verify, ads, topups, creators, names, viewSpend, soldTopup, soldPlay, earnMonths] = await Promise.all([
+      const [users, usersToday, activeNow, active24, posts24, wdN, wdUsd, reports, chatReports, verify, ads, topups, creators, names, viewSpend, soldTopup, soldPlay, earnMonths, videoRating] = await Promise.all([
         num('SELECT COUNT(*) FROM users'),
         num(`SELECT COUNT(*) FROM users WHERE ${TODAY}`),
         num("SELECT COUNT(*) FROM users WHERE last_active >= NOW() - INTERVAL '5 minutes'"),
@@ -65,6 +65,7 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
         num(`SELECT COALESCE(SUM(usd), 0) FROM coin_topups WHERE status = 'approved' AND ${TODAY.replace('created_at', 'decided_at')}`),
         num(`SELECT COUNT(*) FROM play_purchases WHERE test = FALSE AND ${TODAY}`),
         num(EARN_MONTHS_SQL),
+        num('SELECT COUNT(*) FROM post_rating WHERE pct IS NULL'),
       ]);
       let signups = [];
       try {
@@ -75,7 +76,7 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
       res.json({
         success: true, isSuperAdmin: a.isSuperAdmin, push: !!(push && push.enabled),
         people: { users, usersToday, activeNow, active24, posts24 },
-        waiting: { withdrawals: wdN, withdrawalsUsd: wdUsd, reports, chatReports, verify, ads, topups, creators, names, earnMonths },
+        waiting: { withdrawals: wdN, withdrawalsUsd: wdUsd, reports, chatReports, verify, ads, topups, creators, names, earnMonths, videoRating },
         money: { viewSpendToday: viewSpend, topupsToday: soldTopup, playBuysToday: soldPlay },
         signups,
       });

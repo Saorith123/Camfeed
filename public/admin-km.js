@@ -193,5 +193,11 @@ window.ADMIN_KM = {
   '🧪 Weak phones: no music in Party Room': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានចម្រៀងក្នុង Party Room',
   '🧪 Weak phones: no voice cleaning (noise/echo)': '🧪 ទូរស័ព្ទខ្សោយ៖ មិនលុបសំឡេងរំខាន/បន្ទរ',
   '🧪 Weak phones: no voice at all (test only)': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានសំឡេងទាល់តែសោះ (សាកតែប៉ុណ្ណោះ)',
+  '🎬 Rate videos': '🎬 វាយតម្លៃវីដេអូ',
+  'No video waiting.': 'គ្មានវីដេអូរង់ចាំទេ។',
+  'Nothing rated yet.': 'មិនទាន់មានការវាយតម្លៃទេ។',
+  '✅ Rated': '✅ បានវាយតម្លៃ',
+  '🤖 The AI has not looked yet': '🤖 AI មិនទាន់មើលនៅឡើយ',
+  "Every new video of a person who earns from views waits here. It stays public and its views are counted; when you choose a %, the money for all its views since it was posted is added. The AI suggests (logo of another app = somebody else's video; a small or blurry picture). Videos posted before this started earn 100 %.": 'វីដេអូថ្មីរបស់អ្នករកប្រាក់ទាំងអស់ រង់ចាំនៅទីនេះ។ វីដេអូនៅតែបង្ហាញជាសាធារណៈ ហើយ views នៅតែរាប់។ ពេលអ្នកជ្រើស % ប្រាក់សម្រាប់ views ទាំងអស់តាំងពីពេលបង្ហោះ នឹងត្រូវបន្ថែម។ AI ណែនាំ (ឡូហ្គោកម្មវិធីផ្សេង = វីដេអូយកពីគេ · រូបតូច ឬមិនច្បាស់)។ វីដេអូមុនពេលចាប់ផ្ដើមរកបាន 100%។',
   'Logged in as:': 'ចូលជា៖', 'Logged in as: ': 'ចូលជា៖ '
 };

@@ -65,9 +65,9 @@ if (!user) { location.href = 'index.html'; return; }
 var lang = localStorage.getItem('camfeed_lang') === 'en' ? 'en' : 'km';
 var T = {
  km: { title: '📊 ផ្ទាំងអ្នកបង្កើតមាតិកា', details: 'ព័ត៌មានលម្អិតការបង្ហោះ', analytics: 'ទិន្នន័យ', content: 'មាតិកា', monetize: 'រកប្រាក់', posts7: 'ការបង្ហោះ (៧ ថ្ងៃ)', views: 'ចំនួនមើល', eng: 'អន្តរកម្ម', earn: 'ប្រាក់ប៉ាន់ស្មាន', follows: 'អ្នកតាមដានថ្មី', likes: 'ចូលចិត្ត', comments: 'មតិ', shares: 'ចែករំលែក', all: 'ការបង្ហោះសរុប', wallet: 'កាបូប', none: 'មិនទាន់មានការបង្ហោះ។ ចូលមកវិញបន្ទាប់ពីអ្នកបង្ហោះ។', first: 'បង្កើតការបង្ហោះដំបូងរបស់អ្នក', firstTx: 'អ្នកនឹងអាចមើលទិន្នន័យនៅទីនេះ បន្ទាប់ពីបង្ហោះ។', noIssue: 'ការបង្ហោះរបស់អ្នកគ្មានបញ្ហាទេ។', pub: 'សាធារណៈ', fr: 'មិត្តភក្តិ', me: 'តែខ្ញុំ', video: 'វីដេអូ', photo: 'រូបភាព', text: 'អត្ថបទ', creatorOn: '✅ អ្នកមានសិទ្ធិរកប្រាក់ពីការមើលវីដេអូ។', susp: '⚠️ សិទ្ធិរកប្រាក់ត្រូវបានផ្អាកជាបណ្តោះអាសន្ន។', creatorOff: 'អ្នកមិនទាន់មានសិទ្ធិរកប្រាក់ទេ ដូច្នេះប្រាក់គឺ $0.00។ អ្នកអាចស្នើសុំនៅទំព័ររកប្រាក់។', go: 'ទៅទំព័ររកប្រាក់', approx: 'ប្រាក់ប៉ាន់ស្មាន៖ CamFeed ពិនិត្យ និងអនុម័តនៅដើមខែក្រោយ ទើបអាចដកបាន។ មានកំណត់អតិបរមាក្នុងមួយថ្ងៃ។', net: 'មិនទាន់មាន', err: 'មិនអាចទាញទិន្នន័យបាន', open: 'បើកការបង្ហោះ',
-  today: 'ថ្ងៃនេះ', yday: 'ម្សិលមិញ', d7: '៧ ថ្ងៃ', d28: '២៨ ថ្ងៃ', month: 'ខែនេះ', last: 'ខែមុន', custom: '📅 ជ្រើសថ្ងៃ', show: 'បង្ហាញ', loading: 'កំពុងទាញ…', byMoney: '💵 ប្រាក់', byViews: '👁 ចំនួនមើល', byFollow: '👥 អ្នកតាមដាន', top: 'ការបង្ហោះដែលរកបានច្រើន', noTop: 'មិនមានការមើលក្នុងថ្ងៃទាំងនេះទេ', since: 'ប្រាក់តាមថ្ងៃ មានកំណត់ត្រាតាំងពី ', followNote: 'អ្នកតាមដានថ្មី រាប់តាំងពី ', allTime: 'សរុបទាំងអស់' },
+  today: 'ថ្ងៃនេះ', yday: 'ម្សិលមិញ', d7: '៧ ថ្ងៃ', d28: '២៨ ថ្ងៃ', month: 'ខែនេះ', last: 'ខែមុន', custom: '📅 ជ្រើសថ្ងៃ', show: 'បង្ហាញ', loading: 'កំពុងទាញ…', byMoney: '💵 ប្រាក់', byViews: '👁 ចំនួនមើល', byFollow: '👥 អ្នកតាមដាន', top: 'ការបង្ហោះដែលរកបានច្រើន', noTop: 'មិនមានការមើលក្នុងថ្ងៃទាំងនេះទេ', since: 'ប្រាក់តាមថ្ងៃ មានកំណត់ត្រាតាំងពី ', followNote: 'អ្នកតាមដានថ្មី រាប់តាំងពី ', allTime: 'សរុបទាំងអស់', rWait: '⏳ CamFeed កំពុងពិនិត្យ (ប្រាក់បន្ថែមពេលពិនិត្យរួច)', rFull: '⭐ រកបាន 100%', rPart: '🟡 រកបាន {0}%', rNone: '⛔ មិនរកប្រាក់' },
  en: { title: '📊 Creator dashboard', details: 'Post details', analytics: 'Analytics', content: 'Content', monetize: 'Earn', posts7: 'Posts (7 days)', views: 'Views', eng: 'Engagement', earn: 'Estimated earnings', follows: 'New followers', likes: 'Likes', comments: 'Comments', shares: 'Shares', all: 'Total posts', wallet: 'Wallet', none: 'No posts yet. Come back after you post.', first: 'Create your first post', firstTx: "You'll be able to view details and insights here once you share a post.", noIssue: 'Your post has no issues.', pub: 'Public', fr: 'Friends', me: 'Only me', video: 'Video', photo: 'Photo', text: 'Text', creatorOn: '✅ You can earn money from video views.', susp: '⚠️ Your earning is paused for now.', creatorOff: 'You cannot earn money yet, so earnings are $0.00. You can apply on the earning page.', go: 'Go to the earning page', approx: 'Estimated: CamFeed checks and approves it early next month, then it can be withdrawn. There is a daily limit.', net: 'Not yet', err: 'Could not load', open: 'Open post',
-  today: 'Today', yday: 'Yesterday', d7: '7 days', d28: '28 days', month: 'This month', last: 'Last month', custom: '📅 Pick days', show: 'Show', loading: 'Loading…', byMoney: '💵 Money', byViews: '👁 Views', byFollow: '👥 Followers', top: 'Posts that earned most', noTop: 'No views in these days', since: 'Money by day is kept since ', followNote: 'New followers are counted since ', allTime: 'All time' }
+  today: 'Today', yday: 'Yesterday', d7: '7 days', d28: '28 days', month: 'This month', last: 'Last month', custom: '📅 Pick days', show: 'Show', loading: 'Loading…', byMoney: '💵 Money', byViews: '👁 Views', byFollow: '👥 Followers', top: 'Posts that earned most', noTop: 'No views in these days', since: 'Money by day is kept since ', followNote: 'New followers are counted since ', allTime: 'All time', rWait: '⏳ CamFeed is checking (money is added when checked)', rFull: '⭐ Earns 100%', rPart: '🟡 Earns {0}%', rNone: '⛔ Does not earn' }
 };
 var t = function (k) { return T[lang][k]; };
 var $ = function (id) { return document.getElementById(id); };
@@ -105,6 +105,13 @@ function thumb(p) {
 }
 function tile(label, value, money) { var d = el('div', 'tile'); d.appendChild(el('span', '', label)); var b = el('b', money ? 'money' : '', String(value)); d.appendChild(b); return d; }
 function who() { var m = el('div', 'me'); if (safeSrc(data.pic)) { var i = el('img'); i.src = data.pic; m.appendChild(i); } else m.appendChild(el('img')); var b = el('div'); b.appendChild(el('b', '', data.name || '')); b.appendChild(el('small', '', data.suspended ? t('susp') : (data.isCreator ? t('creatorOn') : t('creatorOff')))); m.appendChild(b); return m; }
+// 🎬 how much of the price this video earns (CamFeed checks new videos)
+function rateText(r) {
+  if (!r) return '';
+  if (r.waiting) return t('rWait');
+  var x = r.pct >= 100 ? t('rFull') : r.pct <= 0 ? t('rNone') : t('rPart').replace('{0}', r.pct);
+  return x + (r.reason && r.pct < 100 ? ' · ' + r.reason : '');
+}
 function goEarn() { location.href = 'monetization.html' + (IN_APP ? '?app=1' : ''); }
 
 // the chips + the boxes for chosen days
@@ -162,7 +169,9 @@ function viewAnalytics(v) {
 function item(p, inRange) {
   var it = el('div', 'item'); it.appendChild(thumb(p));
   var mid = el('div', 'it'); mid.appendChild(el('div', 'tx', p.text || (p.mediaType === 'video' ? t('video') : p.mediaType === 'image' ? t('photo') : t('text'))));
-  mid.appendChild(el('small', '', when(p.created_at) + ' · 👁 ' + p.views + (inRange ? '' : ' · ❤ ' + (p.likes + p.comments + p.shares)))); it.appendChild(mid);
+  mid.appendChild(el('small', '', when(p.created_at) + ' · 👁 ' + p.views + (inRange ? '' : ' · ❤ ' + (p.likes + p.comments + p.shares))));
+  var rt = rateText(p.rating); if (rt) { var rs = el('small', '', rt); rs.style.cssText = 'display:block;font-weight:700;color:' + (p.rating.waiting ? '#b45309' : p.rating.pct >= 100 ? '#15803d' : '#b91c1c'); mid.appendChild(rs); }
+  it.appendChild(mid);
   it.appendChild(el('div', 'earn', usd(inRange ? p.earned : p.earnings)));
   it.onclick = function () { var full = null; data.posts.forEach(function (x) { if (String(x.id) === String(p.id)) full = x; }); current = full || p; render(); window.scrollTo(0, 0); };
   return it;
@@ -182,6 +191,7 @@ function viewPost(v, p) {
   var h = el('div', 'hero'), m = el('div', 'm'); var th = thumb(p); th.style.cssText = 'width:100%;height:100%;border-radius:0'; m.appendChild(th); h.appendChild(m); if (p.text) h.appendChild(el('p', '', p.text)); v.appendChild(h);
   v.appendChild(el('div', 'meta', '👥 ' + ({ public: t('pub'), friends: t('fr'), only_me: t('me') }[p.privacy] || t('pub')) + ' · 📅 ' + when(p.created_at)));
   var ok = el('div', 'ok'); ok.appendChild(el('span', '', '✅')); ok.appendChild(el('span', '', t('noIssue'))); v.appendChild(ok);
+  if (p.rating) { var rb = el('div', 'note', rateText(p.rating)); rb.style.fontWeight = '800'; v.appendChild(rb); }
   v.appendChild(el('div', 'range', t('allTime')));
   var g = el('div', 'tiles'); g.appendChild(tile(t('views'), Number(p.views || 0).toLocaleString())); g.appendChild(tile(t('earn'), usd(p.earnings !== undefined ? p.earnings : p.earned), true));
   if (p.likes !== undefined) { g.appendChild(tile(t('eng'), (p.likes + p.comments + p.shares).toLocaleString())); }

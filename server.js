@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 236;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 237;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -67,7 +67,7 @@ app.use((req, res, next) => {
 });
 
 // Server files must never be downloadable, even if one is dropped into /public by mistake
-const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|wallet-pockets|admin-app|earn-months|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
+const NEVER_SERVE = /^\/(server|auth|cleanup|mailer|signup-verification|telegram-login|telegram-gateway|tg-verify|phone-verification|public-ids|security|migrate-passwords|videoRecommendationRoutes|interests|tg-pay|coins|ad-rules|media-reacts|country|verify|gemini|ad-wallet|google-play|apk|cloudinary|wallet-pockets|admin-app|earn-months|video-rating|package(-lock)?)\.(js|json)$|^\/\.|\.(env|map|log|sql|bak)$/i;
 app.use((req, res, next) => (NEVER_SERVE.test(req.path) ? res.status(404).end() : next()));
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny' }));
 
@@ -1192,7 +1192,8 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     // with chosen people: saved as "only me" first, the people are written, then it opens to them (never shown to others for a moment)
     const result = await pool.query(query, [email, content, mediaType, mediaUrl, aud.people.length ? 'private' : privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, '']);
     const newId = result.rows[0].id;
-    interests.quickLabel(newId, content).then((c) => { if (c) result.rows[0].ai_category = c; }).catch(() => {});   // ⚡ a kind from the caption at once (the AI may improve it)
+    interests.quickLabel(newId, content).then((c) => { if (c) result.rows[0].ai_category = c; }).catch(() => {});
+    videoRate.onNewPost(newId);   // 🎬 a video of an earning person waits to be rated   // ⚡ a kind from the caption at once (the AI may improve it)
     if (req.body.allowDownload === false) { await pool.query('UPDATE posts SET allow_download = FALSE WHERE id = $1', [newId]); result.rows[0].allow_download = false; }
     if (aud.people.length) {
       await audience.save('post', newId, aud.people);
@@ -2645,14 +2646,14 @@ function adminNeed(path, body) {
     chat: 'chats', 'chat-reports': 'content', reports: 'content', posts: 'content', comments: 'content',
     live: 'live', sounds: 'sounds', ads: 'ads', 'ad-requests': 'ads',
     withdrawals: 'money', wallet: 'money', 'monetization-action': 'money', 'monetization-requests': 'money', 'monetization-rules': 'money',
-    'creator-earning': 'money', 'creator-path': 'money', 'earn-report': 'money', 'earn-months': 'money', 'creator-rate': 'money', referrals: 'money',
+    'creator-earning': 'money', 'creator-path': 'money', 'earn-report': 'money', 'earn-months': 'money', 'video-rating': 'money', 'creator-rate': 'money', referrals: 'money',
     coins: 'coins', party: 'party', 'party-access': 'party', 'view-guard': 'money', challenges: 'challenges', stars: 'stars', 'app-config': 'system', copyright: 'content', keywords: 'content', 'tg-pay': 'money', 'ad-rules': 'ads', verify: 'users', 'ad-wallet': 'money', apk: 'system' })[first];
   if (!sec) return null;
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
   const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
-  const READ_PATHS = /^(earn-months$|app\/withdrawal$|app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
-  const MONEY = /^(earn-months\/approve|withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
+  const READ_PATHS = /^(video-rating\/list|earn-months$|app\/withdrawal$|app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
+  const MONEY = /^(video-rating\/rate|earn-months\/approve|withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
   const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules', 'verify', 'ad-wallet', 'apk'].includes(first);
@@ -2748,6 +2749,11 @@ const adminAppApi = require('./admin-app')({ app, pool, adminGate: (req, res) =>
 require('./earn-months')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...x) => audit(...x),   // 📅 views money approved by month
   notify: (to, text) => sendAdminNotice(SUPER_ADMIN_EMAILS[0] || to, to, text, 'wallet_notice'), remind: (t, b, d) => adminAppApi.sendToAdmins(t, b, d) });
 const interests = require('./interests')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a), pubMedia, videoSecs });   // 🏷️ keywords: posts ↔ people ↔ ads   // 📚 videos grouped on a profile ("ស្នេហ៍អមតៈ" · ភាគ 1, 2, 3 …)
+const videoRate = require('./video-rating')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...x) => audit(...x), pubMedia, interests,   // 🎬 new videos of earners wait to be rated (% of the price)
+  rpmFor: async (src) => (await earnSettings(src)).rpm,
+  creditNow: (email) => syncViewEarnings(email, { noCap: true }),
+  notify: (to, text) => sendAdminNotice(SUPER_ADMIN_EMAILS[0] || to, to, text, 'wallet_notice'),
+  alertAdmins: (t, b, d) => adminAppApi.sendToAdmins(t, b, d) });
 // 🚩 reports from chats (a message / picture / person) → Admin › 🚩 Reports
 const chatReports = require('./chat-reports')({ app, pool, adminGate: (req, res) => adminGate(req, res), audit: (...a) => audit(...a),
   sendNotice: (from, to, text) => sendAdminNotice(from, to, text, 'admin_notice'), cleanup, extractMediaUrls, ensureChat: () => chatExtras.ensureSchema() });   // pin / archive / mute / restrict / delete chat / message requests
@@ -5364,7 +5370,8 @@ async function pathSettings() {
   const m = {}; r.rows.forEach((x) => { m[x.key] = x.value; });
   return { inviteAccept: m.invite_accept === '1', appliedOpen: m.applied_open !== '0', textInvited: m.text_invited || '', textApplied: m.text_applied || '' };
 }
-async function syncViewEarnings(email) {
+async function syncViewEarnings(email, opt) {
+  const noCap = !!(opt && opt.noCap);   // 🎬 a video was just rated: its money (views since it was posted) is not cut by the daily cap
   const ok = (await pool.query("SELECT decided_at, source FROM creator_applications WHERE user_email = $1 AND status = 'approved' AND earn_suspended = FALSE", [email])).rows[0]; if (!ok) return 0;
   const cfg = await earnSettings(ok.source); if (!(cfg.rpm > 0)) return 0;
   const st = (await pool.query("SELECT value FROM creator_settings WHERE key = 'earn_start'")).rows[0];
@@ -5372,15 +5379,19 @@ async function syncViewEarnings(email) {
   // ©️ a copy of somebody else's post, or a post under a copyright claim, earns nothing (its views are passed over)
   // 🔍 paid views only (watched ≥ 10 s, one per person, checked), and only once they are older than the hold time (Admin › Views check)
   const paid = await viewGuard.paidCounts(email);
-  const posts = (await pool.query("SELECT p.id, p.created_at, e.views_seen, COALESCE(p.no_earn, FALSE) AS no_earn FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
+  const posts = (await pool.query("SELECT p.id, p.created_at, p.media_type, p.media_url, e.views_seen, COALESCE(p.no_earn, FALSE) AS no_earn FROM posts p LEFT JOIN post_earn e ON e.post_id = p.id WHERE p.user_email = $1 AND p.shared_post_id IS NULL", [email])).rows;
   posts.forEach((p) => { p.views = paid.get(p.id) || 0; });
+  // 🎬 % of the price each video earns (CamFeed rates new videos); null = still waiting: its views wait too (paid when rated)
+  let rates = new Map(); try { rates = await videoRate.ratesFor(email, posts); } catch (e) { console.error('[earn] rates:', e.message); }
   let gained = 0;
   for (const p of posts) {
     const views = Number(p.views) || 0;
     if (p.views_seen === null || p.views_seen === undefined) { await pool.query('INSERT INTO post_earn (post_id, user_email, views_seen) VALUES ($1, $2, $3) ON CONFLICT (post_id) DO NOTHING', [p.id, email, new Date(p.created_at).getTime() > since ? 0 : views]); if (new Date(p.created_at).getTime() <= since) continue; p.views_seen = 0; }   // views before the start are not paid
+    const pct = rates.has(p.id) ? rates.get(p.id) : 100;
+    if (pct === null) continue;                                   // waiting to be rated: these views are paid later
     const delta = views - Number(p.views_seen); if (delta <= 0) continue;
-    if (p.no_earn) { await pool.query('UPDATE post_earn SET views_seen = $2 WHERE post_id = $1', [p.id, views]).catch(() => {}); continue; }
-    const cents = delta * cfg.rpm * 100 / 1000;
+    if (p.no_earn || pct === 0) { await pool.query('UPDATE post_earn SET views_seen = $2 WHERE post_id = $1', [p.id, views]).catch(() => {}); continue; }
+    const cents = delta * cfg.rpm * 100 / 1000 * pct / 100;
     const u = await pool.query('UPDATE post_earn SET views_seen = $3, cents = cents + $4 WHERE post_id = $1 AND views_seen = $2 RETURNING post_id', [p.id, Number(p.views_seen), views, cents]);   // only one request can claim these views
     if (u.rows.length) { gained += cents; await pool.query('INSERT INTO earn_log (post_id, user_email, views, cents) VALUES ($1, $2, $3, $4)', [p.id, email, delta, cents]).catch(() => {}); }
   }
@@ -5390,7 +5401,7 @@ async function syncViewEarnings(email) {
   const whole = Math.floor(Number(c.rows[0].carry_cents) || 0); if (whole < 1) return 0;
   const took = await pool.query('UPDATE creator_earn SET carry_cents = carry_cents - $2 WHERE user_email = $1 AND carry_cents >= $2 RETURNING carry_cents', [email, whole]); if (!took.rows.length) return 0;
   const today = Number((await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE user_email = $1 AND kind = 'revenue_share' AND created_at >= date_trunc('day', NOW())", [email])).rows[0].n) || 0;
-  const pay = Math.min(whole, Math.max(0, Math.round(cfg.dailyCap * 100) - today));   // over the daily cap: not paid
+  const pay = noCap ? whole : Math.min(whole, Math.max(0, Math.round(cfg.dailyCap * 100) - today));   // over the daily cap: not paid
   if (pay > 0) await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by) VALUES ($1, $2, 'revenue_share', 'Earnings from views', 'system')", [email, pay]);
   return pay;
 }
@@ -5747,6 +5758,7 @@ app.get('/api/monetization/posts', async (req, res) => {
     const ca = (await pool.query("SELECT earn_suspended, suspend_reason FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0], isCreator = !!ca, suspended = !!(ca && ca.earn_suspended);
     // 💵 each video's money is not rounded to whole cents (a video with 0.4 ¢ showed $0.00 while the total showed 5 ¢)
     const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents) * 100) / 10000 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
+    try { const lb = await videoRate.labelsFor(posts.map((p) => p.id)); posts.forEach((p) => { const x = lb.get(p.id); if (x) p.rating = x; }); } catch (e) { /* no labels */ }   // 🎬 ⏳ checking / 50 % …
     const week = Date.now() - 7 * 86400000;
     res.json({ success: true, isCreator, suspended, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
       totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 10000) / 10000, wallet: (await walletCents(email)) / 100 } });
@@ -5793,13 +5805,14 @@ app.get('/api/monetization/stats', async (req, res) => {
           FROM posts p LEFT JOIN e ON e.post_id = p.id LEFT JOIN v ON v.post_id = p.id
          WHERE p.user_email = $3 AND p.shared_post_id IS NULL AND (e.post_id IS NOT NULL OR v.post_id IS NOT NULL)
          ORDER BY COALESCE(e.c, 0) DESC, COALESCE(v.n, 0) DESC LIMIT 50`);
+    let lbl = new Map(); try { lbl = await videoRate.labelsFor(top.map((x) => x.id)); } catch (e) { /* no labels */ }
     const ca = (await pool.query("SELECT earn_suspended FROM creator_applications WHERE user_email = $1 AND status = 'approved'", [email])).rows[0];
     const since = (await pool.query("SELECT to_char(MIN(created_at) AT TIME ZONE 'Asia/Phnom_Penh', 'YYYY-MM-DD') AS d FROM earn_log").catch(() => ({ rows: [] }))).rows[0];   // money by day is kept since this day
     res.json({ success: true, from, to, isCreator: !!ca, suspended: !!(ca && ca.earn_suspended),
       totals: { views: sum('views'), earned: Math.round(sum('earned') * 10000) / 10000, followers: sum('followers'), engagement: sum('engagement') },
       days, moneyLogSince: since && since.d ? since.d : null,
       followSince: ((await pool.query("SELECT value FROM creator_settings WHERE key = 'follow_days_since'").catch(() => ({ rows: [] }))).rows[0] || {}).value || null,
-      posts: top.map((x) => { const pm = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 200), mediaType: pm.video ? 'video' : (pm.images.length ? 'image' : ''), image: x.thumb_url || pm.images[0] || '', video: pm.video || '', created_at: x.created_at, views: Number(x.views) || 0, earned: Math.round(Number(x.cents) * 100) / 10000 }; }) });
+      posts: top.map((x) => { const pm = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 200), mediaType: pm.video ? 'video' : (pm.images.length ? 'image' : ''), image: x.thumb_url || pm.images[0] || '', video: pm.video || '', created_at: x.created_at, views: Number(x.views) || 0, earned: Math.round(Number(x.cents) * 100) / 10000, rating: lbl.get(x.id) || null }; }) });
   } catch (err) { console.error('[monetization] stats error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 

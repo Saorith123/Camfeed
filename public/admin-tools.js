@@ -620,11 +620,11 @@
   function loadMonetizationAdmin() {
     var p = document.getElementById('panel-monetization'); if (!p) return;
     p.textContent = '';
-    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Top-up & 🏦 bank pictures'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus'], ['report', '📊 Spending report'], ['months', '📅 Monthly approval']].map(function (v) {
+    var bar = el('div', { class: 'at-row' }, [['inv', '✉️ Invited by CamFeed'], ['apps', '📋 Applications (requirements)'], ['rules', '⚙️ Conditions'], ['ref', '🎁 Friend invitations'], ['wd', '💵 Withdrawals'], ['logos', '📱 Top-up & 🏦 bank pictures'], ['rate', '💲 Pay per view'], ['wallet', '👛 Wallet bonus'], ['rate', '🎬 Rate videos'], ['report', '📊 Spending report'], ['months', '📅 Monthly approval']].map(function (v) {
       return el('button', { class: 'btn-sm ' + (mon.view === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mon.view = v[0]; loadMonetizationAdmin(); } });
     }));
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
-    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else if (mon.view === 'report') monReport(body); else if (mon.view === 'months') monMonths(body); else monWallet(body);
+    if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else if (mon.view === 'report') monReport(body); else if (mon.view === 'months') monMonths(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
   }
   // the settings of one way to earn (its own price, daily limit, switch and text)
   function monPath(box, src) {
@@ -666,6 +666,41 @@
       wrap.appendChild(out);
     }
     adm('/api/admin/creator-path', { source: src }).then(draw);
+  }
+  // 🎬 new videos of earning people wait here: choose how much of the price they earn (the money for their views is added then)
+  var mr = { status: 'pending' };
+  function monRate(body) {
+    body.textContent = ''; body.appendChild(empty('Loading…'));
+    adm('/api/admin/video-rating/list', { status: mr.status, limit: 60 }).then(function (d) {
+      body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
+      body.appendChild(el('div', { style: 'background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13.5px', text: 'Every new video of a person who earns from views waits here. It stays public and its views are counted; when you choose a %, the money for all its views since it was posted is added. The AI suggests (logo of another app = somebody else\'s video; a small or blurry picture). Videos posted before this started earn 100 %.' }));
+      body.appendChild(el('div', { class: 'at-row', style: 'margin-bottom:10px' }, [['pending', '⏳ Waiting (' + d.waiting + ')'], ['rated', '✅ Rated']].map(function (v) {
+        return el('button', { class: 'btn-sm ' + (mr.status === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mr.status = v[0]; monRate(body); } });
+      })));
+      if (!d.items.length) { body.appendChild(empty(mr.status === 'pending' ? 'No video waiting.' : 'Nothing rated yet.')); return; }
+      d.items.forEach(function (x) {
+        var card = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;background:#fff' });
+        var vid = x.video ? el('video', { src: x.video, controls: 'controls', preload: 'metadata', style: 'width:180px;max-height:320px;border-radius:10px;background:#000' }) : el('div', { text: '🎬' });
+        if (x.video && x.thumb) vid.setAttribute('poster', x.thumb);
+        var info = el('div', { style: 'flex:1;min-width:220px' });
+        info.appendChild(el('div', { style: 'font-weight:800', text: (x.name || '(no name)') + ' · ' + x.public_id }));
+        info.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b', text: new Date(x.posted_at).toLocaleString() + ' · 👁 ' + x.views + (x.height ? ' · ' + Math.min(x.width || x.height, x.height) + 'p' : '') }));
+        if (x.text) info.appendChild(el('div', { style: 'margin:6px 0;font-size:13.5px', text: x.text }));
+        var ai = x.ai_flag === 'reupload' ? ['#fef2f2', '#991b1b', '🤖 ' + x.ai_note] : x.ai_flag === 'lowq' ? ['#fffbeb', '#92400e', '🤖 ' + x.ai_note] : x.ai_flag === 'ok' ? ['#f0fdf4', '#166534', '🤖 ' + x.ai_note] : ['#f8fafc', '#475569', x.ai_done ? '🤖 —' : '🤖 The AI has not looked yet'];
+        info.appendChild(el('div', { style: 'background:' + ai[0] + ';color:' + ai[1] + ';border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;margin:6px 0', text: ai[2] + (x.suggest !== null && x.suggest !== undefined ? ' → suggests ' + x.suggest + '%' : '') }));
+        if (x.pct !== null) info.appendChild(el('div', { style: 'font-weight:800;color:#15803d;margin-bottom:6px', text: '✅ ' + x.pct + '% · $' + (x.rpm * x.pct / 100).toFixed(2) + ' / 1,000 views' + (x.reason ? ' · ' + x.reason : '') }));
+        var why = el('input', { class: 'at-in', placeholder: 'Reason (e.g. from TikTok, blurry)', value: x.reason || (x.ai_flag === 'reupload' ? 'យកពីគេ' : x.ai_flag === 'lowq' ? 'មិនសូវច្បាស់' : ''), style: 'max-width:260px;margin-bottom:6px' });
+        info.appendChild(why);
+        var row = el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' });
+        [100, 75, 50, 25, 10, 0].forEach(function (pc) {
+          row.appendChild(el('button', { class: 'btn-sm ' + (pc === 100 ? 'btn-blue' : pc === 0 ? 'btn-red' : 'btn-gray'), title: '$' + (x.rpm * pc / 100).toFixed(2) + ' / 1,000 views', text: pc + '% · $' + (x.rpm * pc / 100).toFixed(2), onclick: function () {
+            this.disabled = true; adm('/api/admin/video-rating/rate', { post_id: x.post_id, pct: pc, reason: pc >= 100 ? '' : why.value }).then(function (r) { if (r.success) monRate(body); else alert(r.error || 'Failed'); });
+          } }));
+        });
+        info.appendChild(row);
+        card.appendChild(vid); card.appendChild(info); body.appendChild(card);
+      });
+    });
   }
   // 📅 money from views is approved month by month (early next month): until then the creator sees it but cannot withdraw it
   var mm = { month: '' };

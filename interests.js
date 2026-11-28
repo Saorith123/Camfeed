@@ -585,7 +585,7 @@ Answer only JSON: {"category": "...", "keywords": [{"word": "...", "weight": 1.0
   }
 
   return { quickLabel, CATS, bumpPost, onSearch, onProfile, onWatch, onSkip, feedJoinSql, feedScoreSql, searchIds, kick: () => setTimeout(tick, 3000), ready: () => ensure().catch(() => {}),
-    resolveWords, wordsOf, allWords, userTop, interestedCount, suggest, loadDict, geminiJson, lastAiError: () => lastAi.err,
+    resolveWords, wordsOf, allWords, userTop, interestedCount, suggest, loadDict, geminiJson, framesOf, ffbin, lastAiError: () => lastAi.err,
     framesOfUrls: async (urls) => { const out = []; for (const u of (urls || []).slice(0, 3)) { const b = await frame(u, /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u) ? '1' : null); if (b) out.push(b); } return out; } };
 };
 module.exports.CATS_LIST = CATS;
