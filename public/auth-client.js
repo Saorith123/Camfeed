@@ -74,6 +74,12 @@
     if (!(p === '/' || /\/index\.html$/.test(p))) window.location.href = 'index.html';
   }
 
+  // 🔄 the server renews a login older than 7 days (X-CamFeed-Token): keep it, or the website logged people out after 30 days
+  function keepRenewed(sentToken, newToken) {
+    if (!newToken || newToken.split('.').length !== 3 || !sentToken || sentToken !== getToken() || newToken === sentToken) return;
+    setToken(newToken);
+  }
+
   // ---- fetch ----
   var origFetch = window.fetch.bind(window);
   window.fetch = async function (input, init) {
@@ -89,8 +95,11 @@
     if (input instanceof Request && !init) res = await origFetch(new Request(input, { headers: headers }));
     else res = await origFetch(input, Object.assign({}, init, { headers: headers }));
 
+    try { keepRenewed(token, res.headers.get('X-CamFeed-Token')); } catch (e) {}
     if (res.status === 401 && NO_REDIRECT_PATHS.indexOf(path) === -1) {
-      onLoggedOut();
+      // only the server's "please log in again" logs out (another 401 of one page is not a reason to lose the login)
+      var why = null; try { why = await res.clone().json(); } catch (e) {}
+      if (!why || why.code === 'AUTH_REQUIRED') onLoggedOut();
     } else if (res.ok && TOKEN_PATHS.indexOf(path) !== -1) {
       try {
         var d = await res.clone().json();   // awaited so the token is saved before the page's next call
@@ -110,7 +119,10 @@
     if (this.__camApi) {
       var t = getToken();
       if (t) { try { this.setRequestHeader('Authorization', 'Bearer ' + t); } catch (e) {} }
-      this.addEventListener('load', function () { if (this.status === 401) onLoggedOut(); });
+      this.addEventListener('load', function () {
+        try { keepRenewed(t, this.getResponseHeader('X-CamFeed-Token')); } catch (e) {}
+        if (this.status === 401) { var why = null; try { why = JSON.parse(this.responseText); } catch (e) {} if (!why || why.code === 'AUTH_REQUIRED') onLoggedOut(); }
+      });
     }
     return xSend.apply(this, arguments);
   };

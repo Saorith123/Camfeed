@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const scrypt = promisify(crypto.scrypt);
 
-const TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+const TOKEN_TTL_SECONDS = 365 * 24 * 60 * 60; // a year, and renewed every week while CamFeed is used: like Facebook, nobody is logged out just because time passed (log-out / password change / 'log out other devices' still end it at once)
 const SCRYPT_N = 16384, SCRYPT_R = 8, SCRYPT_P = 1, KEY_LEN = 64;
 
 let SECRET = process.env.JWT_SECRET || '';
@@ -257,7 +257,7 @@ function createAuth(pool) {
           return res.status(401).json({ success: false, code: 'AUTH_REQUIRED', error: 'This device was logged out. Please log in again.' });
         }
         req.sid = payload.sid;
-        // the login renews itself while the phone is used (a token is good for 30 days): after 7 days a fresh one is sent back,
+        // the login renews itself while the phone is used (a token is good for a year): after 7 days a fresh one is sent back,
         // the app keeps it — so a person who uses CamFeed is never logged out just because a month went by
         if (payload.iat && Math.floor(Date.now() / 1000) - payload.iat > 7 * 24 * 3600) {
           try { res.setHeader('X-CamFeed-Token', signToken({ sub: payload.sub, pv: payload.pv, sid: payload.sid })); } catch (e) { /* not this time */ }
