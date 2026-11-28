@@ -637,10 +637,10 @@
       wrap.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: src === 'invited' ? 'People YOU choose (Users → Manage → "Invite to earn"). No requirements.' : 'People who meet the requirements (⚙️ Conditions) and apply; you approve or refuse.' }));
       if (!d.success) { wrap.appendChild(empty(d.error || 'Could not load.')); return; }
       var dis = !d.isSuperAdmin, out = el('div', { style: 'display:none' });
-      // 🔢 the boxes always show the value in use now (own value, or the common one from 💲 Pay per view)
+      // 🔢 a box shows only this way's OWN value; empty = it follows the common price (💲 Pay per view), so saving never freezes a copy of the common price
       var ownRpm = d.rpm !== '' && d.rpm !== null && d.rpm !== undefined, ownCap = d.dailyCap !== '' && d.dailyCap !== null && d.dailyCap !== undefined;
-      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: ownRpm ? d.rpm : d.effRpm, placeholder: 'empty = common ($' + d.commonRpm + ')' });
-      var cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: ownCap ? d.dailyCap : d.effCap, placeholder: 'empty = common ($' + d.commonCap + ')' });
+      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: ownRpm ? d.rpm : '', placeholder: 'empty = common ($' + d.commonRpm + ')' });
+      var cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: ownCap ? d.dailyCap : '', placeholder: 'empty = common ($' + d.commonCap + ')' });
       var nowBox = el('div', { style: 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:10px 12px;margin:6px 0 4px;font-size:14px;font-weight:700' }, [
         el('div', {}, [el('span', { text: '✅ Price per 1,000 views in use now: $' + d.effRpm }), el('span', { style: 'font-weight:500;margin-left:6px', text: ownRpm ? 'Own value' : 'Common value' })]),
         el('div', {}, [el('span', { text: '📅 Daily limit in use now: $' + d.effCap }), el('span', { style: 'font-weight:500;margin-left:6px', text: ownCap ? 'Own value' : 'Common value' })])]);
