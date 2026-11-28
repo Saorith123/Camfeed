@@ -65,7 +65,7 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
         num(`SELECT COALESCE(SUM(usd), 0) FROM coin_topups WHERE status = 'approved' AND ${TODAY.replace('created_at', 'decided_at')}`),
         num(`SELECT COUNT(*) FROM play_purchases WHERE test = FALSE AND ${TODAY}`),
         num(EARN_MONTHS_SQL),
-        num('SELECT COUNT(*) FROM post_rating WHERE pct IS NULL'),
+        num("SELECT COUNT(*) FROM post_rating WHERE rated_by IS NULL OR rated_by = 'ai'"),
       ]);
       let signups = [];
       try {

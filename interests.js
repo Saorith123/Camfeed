@@ -7,8 +7,15 @@
 // 🗂 24 kinds of posts (more than before, so fewer posts end up as "General")
 const CATS = ['Comedy', 'Music', 'Dance', 'Movies & Drama', 'Gaming', 'Food', 'Vehicles & Motorcycles', 'Technology', 'News', 'Sports', 'Education', 'Travel',
   'Beauty & Fashion', 'Business & Selling', 'Home & DIY', 'Farming & Nature', 'Animals & Pets', 'Family & Kids', 'Love & Relationships', 'Health & Fitness',
-  'Religion & Culture', 'Motivation & Stories', 'Lifestyle', 'General'];
+  'Religion & Culture', 'Motivation & Stories', 'Cartoons & Animation', 'Lifestyle', 'General'];
 // new keywords for the new kinds (added once to the list; Admin › 🏷️ AI Keywords can change them)
+// 🧸 once more: the cartoon / animation kind and more animal words
+const SEED3 = [
+  ['តុក្កតា', 'តុក្កតា', 'Cartoons & Animation', 'cartoon, cartoons, តុក្កតាគំនូរ, គំនូរជីវចល, animation, animated, anime, អានីមេ, 3d animation, ai animation, kids cartoon, រឿងតុក្កតា'],
+  ['រឿងនិទានតុក្កតា', 'តុក្កតា', 'Cartoons & Animation', 'fairy tale, រឿងនិទាន, bedtime story, និទានកុមារ'],
+  ['សត្វចិញ្ចឹម', 'សត្វ', 'Animals & Pets', 'pet, pets, ឆ្កែ, dog, puppy, ឆ្មា, cat, kitten, សត្វចិញ្ចឹម'],
+  ['សត្វកំប្លែង', 'សត្វ', 'Animals & Pets', 'funny animals, cute animals, សត្វគួរឲ្យស្រឡាញ់, animal video'],
+];
 const SEED2 = [
   ['រាំ', 'រាំ និងច្រៀង', 'Dance', 'dance, dancing, រាំវង់, រាំក្បាច់, tiktok dance, choreography, រាំលេង'],
   ['ច្រៀង Cover', 'តន្ត្រី', 'Music', 'cover, ច្រៀង, karaoke, ខារ៉ាអូខេ, singing, បទចម្រៀង'],
@@ -151,6 +158,13 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
         for (const [g, c] of RECAT) await pool.query("UPDATE kw_dict SET cat = $2 WHERE grp = $1 AND source = 'seed' AND cat = 'Lifestyle'", [g, c]);
         for (const [w, c] of RECAT_WORDS) await pool.query("UPDATE kw_dict SET cat = $2 WHERE word = $1 AND source = 'seed' AND cat = 'Lifestyle'", [w, c]);
         await pool.query("INSERT INTO kw_state (k, v) VALUES ('seeded2', '1') ON CONFLICT (k) DO NOTHING");
+      }
+      const seeded3 = (await pool.query("SELECT v FROM kw_state WHERE k = 'seeded3'")).rows[0];
+      if (!seeded3) {
+        for (const [w, g, c, syn] of SEED3) await pool.query('INSERT INTO kw_dict (word, grp, cat, synonyms) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [w, g, c, syn]);
+        // the AI looks again (one a minute) at recent videos it called "General": with the new kind they may fit better
+        await pool.query("UPDATE posts SET kw_at = NULL, kw_tries = 0 WHERE ai_category = 'General' AND kw_src = 'ai' AND media_type = 'video' AND created_at > NOW() - INTERVAL '30 days'").catch(() => {});
+        await pool.query("INSERT INTO kw_state (k, v) VALUES ('seeded3', '1') ON CONFLICT (k) DO NOTHING");
       }
       await loadDict(true);
       tablesOk = true;
@@ -320,6 +334,7 @@ module.exports = function ({ app, pool, adminGate, audit, pubMedia, videoSecs })
     const prompt = `You label posts of CamFeed, a Cambodian social app, so people see posts and ads they care about.
 Look at the ${frames.length} picture(s) (frames of the video or the photos) and the caption.
 1) "category": exactly ONE of: ${CATS.join(', ')}. Choose the closest kind; use "General" ONLY when nothing at all fits (a plain selfie, a blank picture).
+   Drawn / 3D / AI-made cartoon characters (talking animals, toy-like figures, kids' animation) = "Cartoons & Animation". Real animals or pets = "Animals & Pets".
 2) "keywords": 1 to 8 items {"word": ..., "weight": 0.3-1.0} chosen ONLY from the KEYWORD LIST below (copy the word exactly). weight 1.0 = the post is mainly about it, 0.3 = a small part.
    For something sold (a product), choose the product keywords AND "លក់ទំនិញអនឡាញ".
 3) "new": at most 2 important topics or product types that are clearly in the post but missing from the list: {"word": short Khmer word, "group": one existing group, "synonyms": "english, other spellings"}. Usually empty.

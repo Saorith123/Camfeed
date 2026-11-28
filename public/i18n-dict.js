@@ -151,5 +151,5 @@ window.CF_CAT = { km: { 'Comedy': 'កំប្លែង', 'Music': 'តន្�
   'Vehicles & Motorcycles': 'ឡាន និងម៉ូតូ', 'Technology': 'បច្ចេកវិទ្យា', 'News': 'ព័ត៌មាន', 'Sports': 'កីឡា', 'Education': 'អប់រំ', 'Travel': 'ដើរលេង',
   'Beauty & Fashion': 'សម្រស់ និងម៉ូដ', 'Business & Selling': 'អាជីវកម្ម និងលក់ទំនិញ', 'Home & DIY': 'ផ្ទះ និងធ្វើដោយខ្លួនឯង', 'Farming & Nature': 'កសិកម្ម និងធម្មជាតិ',
   'Animals & Pets': 'សត្វ', 'Family & Kids': 'គ្រួសារ និងកុមារ', 'Love & Relationships': 'ស្នេហា', 'Health & Fitness': 'សុខភាព និងហាត់ប្រាណ',
-  'Religion & Culture': 'សាសនា និងវប្បធម៌', 'Motivation & Stories': 'លើកទឹកចិត្ត និងរឿងពិត', 'Lifestyle': 'ជីវិតប្រចាំថ្ងៃ' } };
+  'Religion & Culture': 'សាសនា និងវប្បធម៌', 'Motivation & Stories': 'លើកទឹកចិត្ត និងរឿងពិត', 'Cartoons & Animation': 'តុក្កតា និងគំនូរជីវចល', 'Lifestyle': 'ជីវិតប្រចាំថ្ងៃ' } };
 window.cfCat = function (c) { var l = ''; try { l = localStorage.getItem('camfeed_lang') || 'km'; } catch (e) { l = 'km'; } return (window.CF_CAT[l] && window.CF_CAT[l][c]) || c; };

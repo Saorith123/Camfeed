@@ -659,16 +659,16 @@
     adm('/api/admin/creator-path', { source: src }).then(draw);
   }
   // 🎬 new videos of earning people wait here: choose how much of the price they earn (the money for their views is added then)
-  var mr = { status: 'pending' };
+  var mr = { status: 'ai' };
   function monRate(body) {
     body.textContent = ''; body.appendChild(empty('Loading…'));
     adm('/api/admin/video-rating/list', { status: mr.status, limit: 60 }).then(function (d) {
       body.textContent = ''; if (!d.success) { body.appendChild(empty(d.error || 'Could not load.')); return; }
-      body.appendChild(el('div', { style: 'background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13.5px', text: 'Every new video of a person who earns from views waits here. It stays public and its views are counted; when you choose a %, the money for all its views since it was posted is added. The AI suggests (logo of another app = somebody else\'s video; a small or blurry picture). Videos posted before this started earn 100 %.' }));
-      body.appendChild(el('div', { class: 'at-row', style: 'margin-bottom:10px' }, [['pending', '⏳ Waiting (' + d.waiting + ')'], ['rated', '✅ Rated']].map(function (v) {
+      body.appendChild(el('div', { style: 'background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13.5px', text: AT('🤖 AI វាយតម្លៃវីដេអូថ្មីនីមួយៗភ្លាម (ឡូហ្គោ/ឈ្មោះ · ភាពច្បាស់ · រយៈពេល) ហើយវីដេអូរកប្រាក់តាម % នោះតែម្ដង។ ពិនិត្យឡើងវិញនៅទីនេះពេលណាក៏បាន៖ % ថ្មីប្រើចំពោះការមើលចាប់ពីពេលនោះទៅ ប្រាក់ចាស់មិនដក មិនបន្ថែម។ អ្នកបង្កើតមាតិកាមិនដឹងអ្វីទាំងអស់។', '🤖 The AI rates each new video at once (logo/name · clarity · length) and it earns at that %. Check here any time: a new % counts for the views from then on; money already earned is not taken back or added. The creator is never told.') }));
+      body.appendChild(el('div', { class: 'at-row', style: 'margin-bottom:10px' }, [['ai', AT('🤖 AI បានវាយ (', '🤖 Rated by AI (') + d.waiting + ')'], ['rated', AT('✅ យើងបានពិនិត្យ', '✅ Checked by us')]].map(function (v) {
         return el('button', { class: 'btn-sm ' + (mr.status === v[0] ? 'btn-blue' : 'btn-gray'), text: v[1], onclick: function () { mr.status = v[0]; monRate(body); } });
       })));
-      if (!d.items.length) { body.appendChild(empty(mr.status === 'pending' ? 'No video waiting.' : 'Nothing rated yet.')); return; }
+      if (!d.items.length) { body.appendChild(empty(mr.status === 'ai' ? AT('គ្មានវីដេអូរង់ចាំពិនិត្យទេ', 'Nothing to check.') : AT('មិនទាន់មានទេ', 'Nothing yet.'))); return; }
       d.items.forEach(function (x) {
         var card = el('div', { style: 'border:1px solid #e4e6eb;border-radius:12px;padding:12px;margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap;background:#fff' });
         var vid = x.video ? el('video', { src: x.video, controls: 'controls', preload: 'metadata', style: 'width:180px;max-height:320px;border-radius:10px;background:#000' }) : el('div', { text: '🎬' });
@@ -678,7 +678,7 @@
         info.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b', text: new Date(x.posted_at).toLocaleString() + ' · 👁 ' + x.views + (x.height ? ' · ' + Math.min(x.width || x.height, x.height) + 'p' : '') }));
         if (x.text) info.appendChild(el('div', { style: 'margin:6px 0;font-size:13.5px', text: x.text }));
         var ai = x.ai_flag === 'reupload' ? ['#fef2f2', '#991b1b', '🤖 ' + x.ai_note] : x.ai_flag === 'lowq' ? ['#fffbeb', '#92400e', '🤖 ' + x.ai_note] : x.ai_flag === 'ok' ? ['#f0fdf4', '#166534', '🤖 ' + x.ai_note] : ['#f8fafc', '#475569', x.ai_done ? '🤖 —' : '🤖 The AI has not looked yet'];
-        info.appendChild(el('div', { style: 'background:' + ai[0] + ';color:' + ai[1] + ';border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;margin:6px 0', text: ai[2] + (x.suggest !== null && x.suggest !== undefined ? ' → suggests ' + x.suggest + '%' : '') }));
+        info.appendChild(el('div', { style: 'background:' + ai[0] + ';color:' + ai[1] + ';border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;margin:6px 0', text: ai[2] }));
         // 🏷 the kind the AI chose: check it, change it if wrong
         var catRow = el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px;font-size:13px' });
         catRow.appendChild(el('b', { text: AT('🏷 ប្រភេទ (AI)៖', '🏷 Kind (AI):') }));
@@ -690,10 +690,14 @@
         catRow.appendChild(catSel); catRow.appendChild(catMsg);
         info.appendChild(catRow);
         if (x.tags) info.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b;margin-bottom:6px', text: AT('ពាក្យគន្លឹះ៖ ', 'Keywords: ') + x.tags }));
-        if (x.pct !== null) info.appendChild(el('div', { style: 'font-weight:800;color:#15803d;margin-bottom:6px', text: '✅ ' + x.pct + '% · $' + (x.rpm * x.pct / 100).toFixed(2) + ' / 1,000 views' + (x.reason ? ' · ' + x.reason : '') }));
+        if (x.pct !== null) info.appendChild(el('div', { style: 'font-weight:800;color:' + (x.by_ai ? '#7c3aed' : '#15803d') + ';margin-bottom:6px', text: (x.by_ai ? AT('🤖 ឥឡូវ ', '🤖 Now ') : '✅ ') + x.pct + '% · $' + (x.rpm * x.pct / 100).toFixed(2) + ' / 1,000 views' + (x.reason ? ' · ' + x.reason : '') }));
         var why = el('input', { class: 'at-in', placeholder: 'Reason (e.g. from TikTok, blurry)', value: x.reason || (x.ai_flag === 'reupload' ? 'យកពីគេ' : x.ai_flag === 'lowq' ? 'មិនសូវច្បាស់' : ''), style: 'max-width:260px;margin-bottom:6px' });
         info.appendChild(why);
         var row = el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' });
+        // ✅ the AI was right: keep its % (the video moves to "Checked by us")
+        if (x.by_ai && x.pct !== null) row.appendChild(el('button', { class: 'btn-sm btn-blue', style: 'background:#16a34a', text: AT('✅ យល់ព្រមតាម AI (', '✅ Agree with AI (') + x.pct + '%)', onclick: function () {
+          this.disabled = true; adm('/api/admin/video-rating/rate', { post_id: x.post_id, pct: x.pct, reason: AT('យល់ព្រមតាម AI', 'agreed with AI') }).then(function (r) { if (r.success) monRate(body); else alert(r.error || 'Failed'); });
+        } }));
         [100, 75, 50, 25, 10, 0].forEach(function (pc) {
           row.appendChild(el('button', { class: 'btn-sm ' + (pc === 100 ? 'btn-blue' : pc === 0 ? 'btn-red' : 'btn-gray'), title: '$' + (x.rpm * pc / 100).toFixed(2) + ' / 1,000 views', text: pc + '% · $' + (x.rpm * pc / 100).toFixed(2), onclick: function () {
             this.disabled = true; adm('/api/admin/video-rating/rate', { post_id: x.post_id, pct: pc, reason: pc >= 100 ? '' : why.value }).then(function (r) { if (r.success) monRate(body); else alert(r.error || 'Failed'); });
