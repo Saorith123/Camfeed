@@ -8,7 +8,7 @@ const DEFAULTS = {
     beauty: false,      // ✨ off until it is safe on every phone (it closed the app on some)
     chatBubbles: true,  // 💬 a new chat message pops up as a round picture over other apps (Android)
     // 🧪 Party Room tests, only on weak phones (≤ 3 GB, or after the app closed in a room): to find what closes the app
-    liteNoMusic: false, liteNoVoiceFx: false, liteNoVoice: false, liteHwOff: false, liteMediaAudio: false, nativeCamera: true, cameraLong: true, cameraPhoto: true, mirrorFront: true, autoSound: true,
+    liteNoMusic: false, liteNoVoiceFx: false, liteNoVoice: false, liteHwOff: false, liteMediaAudio: false, nativeCamera: true, cameraLong: true, cameraPhoto: true, mirrorFront: false, autoSound: true,
   },
   reportReasons: {
     post: [

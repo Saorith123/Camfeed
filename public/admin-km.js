@@ -197,7 +197,7 @@ window.ADMIN_KM = {
   '🎥 CamFeed camera (➕ › Record a video, Android)': '🎥 កាមេរ៉ា CamFeed (➕ › ថតវីដេអូ, Android)',
   '🎥 CamFeed camera: 5-minute videos': '🎥 កាមេរ៉ា CamFeed៖ វីដេអូ ៥ នាទី',
   '📸 CamFeed camera: take photos': '📸 កាមេរ៉ា CamFeed៖ ថតរូប',
-  '🪞 Front camera: keep the picture as seen on the screen (not flipped)': '🪞 កាមេរ៉ាមុខ៖ រក្សារូបដូចឃើញលើអេក្រង់ (មិនត្រឡប់ឆ្វេងស្ដាំ)',
+  '🪞 Front camera: turn the picture left-right (only if phones save it the other way round)': '🪞 កាមេរ៉ាមុខ៖ ត្រឡប់រូបឆ្វេងស្ដាំ (បើកតែពេលទូរសព្ទរក្សាទុករូបបញ្ច្រាស)',
   '🎵 A sound is added by itself to a new photo': '🎵 ដាក់សំឡេងឱ្យរូបថតថ្មីដោយស្វ័យប្រវត្តិ',
   '⚡ Auto': '⚡ ដាក់ស្វ័យប្រវត្តិ',
   '⚡ Auto ✓': '⚡ ដាក់ស្វ័យប្រវត្តិ ✓',
