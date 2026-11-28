@@ -122,26 +122,88 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
     } catch (err) { console.error('[admin-app] push register error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
   });
 
-  async function sendToAdmins(title, body, data) {
+  // opt.urgent = the ringing alert (money waiting); opt.superOnly = only Super Admins (only they can pay)
+  async function sendToAdmins(title, body, data, opt) {
     if (!push || !push.enabled || !push.sendToToken) return 0;
+    const o = opt || {};
     await ensure();
     const rows = (await pool.query('SELECT token, admin_email FROM admin_push_tokens')).rows;
     let ok = 0;
     for (const r of rows) {
       if (!(await isAdminEmail(r.admin_email))) { await pool.query('DELETE FROM admin_push_tokens WHERE token = $1', [r.token]).catch(() => {}); continue; }   // no longer an Admin: no more alerts
-      if (await push.sendToToken(r.token, { title, body, data, channel: 'cf_admin' })) ok++;
+      if (o.superOnly) {
+        const role = (await pool.query('SELECT role FROM users WHERE LOWER(email) = LOWER($1)', [r.admin_email]).catch(() => ({ rows: [] }))).rows[0];
+        if (!role || role.role !== 'super_admin') continue;
+      }
+      if (await push.sendToToken(r.token, { title, body, data, channel: o.urgent ? 'cf_admin_urgent' : 'cf_admin', sound: o.urgent ? 'cf_alarm' : 'default' })) ok++;
     }
     return ok;
   }
 
+  const money = (n) => '$' + (Number(n) || 0).toFixed(2);
+  const POCKET_KM = { gift: '🎁 ប្រាក់ពីកាដូ', content: '🎬 ប្រាក់ពីការផលិតមាតិកា' };
+  const METHOD_KM = { TopUp: '📱 កាតទូរស័ព្ទ', WingCash: 'Wing Cash', ABA: 'ABA', ACLEDA: 'ACLEDA', Wing: 'Wing', KHQR: 'KHQR', Other: 'ផ្សេងៗ' };
+  // 💵 a new withdrawal: ring the Super Admins' phones at once (tap = open it)
+  async function newWithdrawal(id) {
+    try {
+      const w = (await pool.query(`SELECT w.id, w.amount_cents, w.method, w.pocket, w.hold_until, u.first_name, u.last_name FROM withdrawal_requests w
+          LEFT JOIN users u ON LOWER(u.email) = LOWER(w.user_email) WHERE w.id = $1`, [id])).rows[0];
+      if (!w) return;
+      const name = `${w.first_name || ''} ${w.last_name || ''}`.trim() || 'អ្នកប្រើ';
+      const wait = w.hold_until && new Date(w.hold_until) > new Date() ? ' · ⏳ ព័ត៌មានទទួលប្រាក់ថ្មី' : '';
+      await sendToAdmins('💵 ដកប្រាក់ ' + money(w.amount_cents / 100) + ' · ' + (METHOD_KM[w.method] || w.method),
+        name + ' · ' + (POCKET_KM[w.pocket] || '') + wait, { open: 'withdrawal', id: String(w.id) }, { urgent: true, superOnly: true });
+    } catch (e) { console.error('[admin-app] new withdrawal alert:', e.message); }
+  }
+
+  // 🔎 one withdrawal with where its money came from (gifts: who gave them, and how they got those diamonds)
+  app.post('/api/admin/app/withdrawal', async (req, res) => {
+    try {
+      const a = await adminGate(req, res); if (!a) return;
+      const id = parseInt((req.body || {}).id, 10) || 0;
+      const w = (await pool.query(`SELECT w.*, u.first_name, u.last_name, u.profile_pic, u.public_id, u.created_at AS joined, u.phone
+          FROM withdrawal_requests w LEFT JOIN users u ON LOWER(u.email) = LOWER(w.user_email) WHERE w.id = $1`, [id])).rows[0];
+      if (!w) return res.status(404).json({ success: false, error: 'Not found.' });
+      const who = String(w.user_email).toLowerCase(), pocket = w.pocket || 'gift';
+      const q = async (sql, p) => { try { return (await pool.query(sql, p)).rows; } catch (e) { console.error('[admin-app] withdrawal detail:', e.message); return []; } };
+      // what came into this pocket in the last 60 days, by kind
+      const POCKET_OF = "(CASE WHEN pocket IS NOT NULL THEN pocket WHEN kind IN ('gift', 'referral') THEN 'gift' ELSE 'content' END)";
+      const sources = await q(`SELECT kind, COUNT(*)::int AS n, SUM(amount_cents)::bigint AS cents FROM wallet_ledger
+          WHERE LOWER(user_email) = $1 AND amount_cents > 0 AND ${POCKET_OF} = $2 AND created_at > NOW() - INTERVAL '60 days' GROUP BY kind ORDER BY 3 DESC`, [who, pocket]);
+      const lines = await q(`SELECT kind, amount_cents, note, created_at FROM wallet_ledger WHERE LOWER(user_email) = $1 AND ${POCKET_OF} = $2 ORDER BY created_at DESC LIMIT 25`, [who, pocket]);
+      // the people who sent gifts (60 days), and where THEIR diamonds came from (bought / given by CamFeed / check-in …)
+      const senders = pocket === 'gift' ? await q(`SELECT g.from_email, COUNT(*)::int AS times, SUM(g.coins)::bigint AS coins, SUM(g.receiver_cents)::float AS cents, MAX(g.created_at) AS last,
+            u.first_name, u.last_name, u.profile_pic, u.public_id, u.created_at AS joined
+          FROM gift_events g LEFT JOIN users u ON LOWER(u.email) = LOWER(g.from_email)
+          WHERE LOWER(g.to_email) = $1 AND g.created_at > NOW() - INTERVAL '60 days'
+          GROUP BY g.from_email, u.first_name, u.last_name, u.profile_pic, u.public_id, u.created_at ORDER BY 4 DESC LIMIT 20`, [who]) : [];
+      for (const s of senders) {
+        s.diamondsFrom = await q(`SELECT kind, SUM(coins)::bigint AS coins FROM coin_ledger WHERE LOWER(user_email) = LOWER($1) AND coins > 0 GROUP BY kind ORDER BY 2 DESC`, [s.from_email]);
+        s.name = `${s.first_name || ''} ${s.last_name || ''}`.trim();
+        s.sameNetwork = false;
+        delete s.from_email;
+      }
+      // earlier withdrawals of this person
+      const past = await q(`SELECT id, amount_cents, method, status, created_at FROM withdrawal_requests WHERE LOWER(user_email) = $1 AND id <> $2 ORDER BY created_at DESC LIMIT 5`, [who, id]);
+      res.json({ success: true, isSuperAdmin: a.isSuperAdmin,
+        w: { id: w.id, email: w.user_email, amount: Number(w.amount_cents) / 100, method: w.method, account_name: w.account_name, account_number: w.account_number, status: w.status, pocket,
+             created_at: w.created_at, hold_until: w.hold_until, name_check: w.name_check, new_details: w.new_details, note: w.note || w.admin_note || '' },
+        person: { name: `${w.first_name || ''} ${w.last_name || ''}`.trim(), pic: w.profile_pic || '', public_id: w.public_id || '', joined: w.joined },
+        sources: sources.map((x) => ({ kind: x.kind, n: x.n, amount: Number(x.cents) / 100 })),
+        lines: lines.map((x) => ({ kind: x.kind, amount: Number(x.amount_cents) / 100, note: x.note || '', at: x.created_at })),
+        senders: senders.map((s) => ({ name: s.name, pic: s.profile_pic || '', public_id: s.public_id || '', joined: s.joined, times: s.times, coins: Number(s.coins) || 0, amount: Math.round((Number(s.cents) || 0)) / 100, last: s.last,
+          diamondsFrom: s.diamondsFrom.map((d) => ({ kind: d.kind, coins: Number(d.coins) || 0 })) })),
+        past: past.map((x) => ({ id: x.id, amount: Number(x.amount_cents) / 100, method: x.method, status: x.status, at: x.created_at })) });
+    } catch (err) { console.error('[admin-app] withdrawal detail error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
+  });
+
   // every minute: anything new that waits for the team? one alert per kind
   const KINDS = [
-    ['withdrawals', "SELECT COUNT(*) FROM withdrawal_requests WHERE status = 'pending' AND created_at > $1", '💵 សំណើដកប្រាក់ថ្មី', 'withdrawals'],
     ['reports', "SELECT COUNT(*) FROM reports WHERE status = 'pending' AND created_at > $1::timestamptz AT TIME ZONE 'UTC'", '🚩 របាយការណ៍ថ្មី', 'reports'],
     ['chatReports', "SELECT COUNT(*) FROM chat_reports WHERE status = 'pending' AND created_at > $1", '💬 របាយការណ៍ឆាតថ្មី', 'web'],
     ['verify', "SELECT COUNT(*) FROM verify_requests WHERE status = 'pending' AND created_at > $1", '✔️ ស្នើសញ្ញាផ្ទៀងផ្ទាត់ថ្មី', 'web'],
     ['ads', "SELECT COUNT(*) FROM ad_requests WHERE status = 'pending' AND created_at > $1", '📢 ស្នើផ្សាយពាណិជ្ជកម្មថ្មី', 'web'],
-    ['topups', "SELECT COUNT(*) FROM coin_topups WHERE status = 'pending' AND created_at > $1", '💎 ការទិញពេជ្ររង់ចាំពិនិត្យ', 'web'],
+    ['topups', "SELECT COUNT(*) FROM coin_topups WHERE status = 'pending' AND created_at > $1", '💎 ការទិញពេជ្ររង់ចាំពិនិត្យ', 'web', true],   // 🔔 rings: somebody paid and waits
     ['creators', "SELECT COUNT(*) FROM creator_applications WHERE status = 'pending' AND requested_at > $1", '🎬 ស្នើចូលកម្មវិធីអ្នកបង្កើតមាតិកា', 'web'],
   ];
   let since = null, busy = false;
@@ -155,14 +217,14 @@ module.exports = function adminApp({ app, pool, adminGate, push, isAdminEmail })
         const s = (await pool.query("SELECT value FROM creator_settings WHERE key = 'admin_alert_at'").catch(() => ({ rows: [] }))).rows[0];
         since = s ? new Date(Number(s.value) || now.getTime()) : now;
       }
-      for (const [, sql, title, open] of KINDS) {
+      for (const [, sql, title, open, urgent] of KINDS) {
         const n = await num(sql, [since.toISOString()]);
-        if (n > 0) await sendToAdmins(title, n === 1 ? 'មាន ១ ថ្មី កំពុងរង់ចាំ' : 'មាន ' + n + ' ថ្មី កំពុងរង់ចាំ', { open });
+        if (n > 0) await sendToAdmins(title, n === 1 ? 'មាន ១ ថ្មី កំពុងរង់ចាំ' : 'មាន ' + n + ' ថ្មី កំពុងរង់ចាំ', { open }, { urgent: !!urgent });
       }
       since = now;
       await pool.query("INSERT INTO creator_settings (key, value) VALUES ('admin_alert_at', $1) ON CONFLICT (key) DO UPDATE SET value = $1", [String(now.getTime())]).catch(() => {});
     } catch (e) { console.error('[admin-app] alert tick:', e.message); } finally { busy = false; }
   }
-  const t = setInterval(tick, 60 * 1000); if (t.unref) t.unref();
-  return { sendToAdmins };
+  const t = setInterval(tick, 20 * 1000); if (t.unref) t.unref();   // every 20 s (withdrawals ring at once, see newWithdrawal)
+  return { sendToAdmins, newWithdrawal };
 };

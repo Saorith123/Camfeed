@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 235;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 236;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2651,7 +2651,7 @@ function adminNeed(path, body) {
   const b = body || {}, act = String(b.action || '');
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
   const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
-  const READ_PATHS = /^(earn-months$|app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
+  const READ_PATHS = /^(earn-months$|app\/withdrawal$|app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
   const MONEY = /^(earn-months\/approve|withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
@@ -5728,6 +5728,7 @@ app.post('/api/monetization/withdraw', async (req, res) => {
     await pool.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, ref_id, created_by, pocket) VALUES ($1, $2, 'withdrawal', $3, $4, $1, $5)", [email, -cents, 'Withdrawal request #' + id, id, pocket]);   // the money is set aside at once
     res.json({ success: true, id, holdHours: holdH });
     if (!holdH) withdrawTelegram(id).catch(() => {});                            // 📲 the owner's Telegram (after the waiting time for new details)
+    if (adminAppApi && adminAppApi.newWithdrawal) adminAppApi.newWithdrawal(id).catch(() => {});   // 🔔 ring the Super Admins' CamFeed Admin app
   } catch (err) { console.error('[monetization] withdraw error:', err.message); res.status(500).json({ success: false, error: 'Could not send your request.' }); }
 });
 
@@ -6207,8 +6208,9 @@ app.delete('/api/admin/users/:targetEmail', async (req, res) => {
     if (SUPER_ADMIN_EMAILS.includes(targetEmail.toLowerCase())) {
       return res.status(400).json({ success: false, error: 'Cannot delete Super Admin.' });
     }
-    const target = await pool.query('SELECT email FROM users WHERE LOWER(email) = LOWER($1)', [targetEmail]);
+    const target = await pool.query('SELECT email FROM users WHERE LOWER(email) = LOWER($1) OR public_id = $1 LIMIT 1', [targetEmail]);   // e-mail or the 15-digit id
     if (!target.rows[0]) return res.status(404).json({ success: false, error: 'User not found.' });
+    if (SUPER_ADMIN_EMAILS.includes(String(target.rows[0].email).toLowerCase())) return res.status(400).json({ success: false, error: 'Cannot delete Super Admin.' });
     await cleanup.deleteUserCompletely(target.rows[0].email); // everything the user created, chats and files included
     audit(adminEmail, 'delete-account', targetEmail, '');
     res.json({ success: true });

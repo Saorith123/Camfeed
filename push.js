@@ -224,12 +224,13 @@ module.exports = function createPush({ app, pool }) {
   });
 
   // 🛡 one phone by its token (the Admin app's alerts; the token list lives in admin-app.js)
-  async function sendToToken(token, { title, body, data = {}, channel = 'cf_admin' }) {
+  async function sendToToken(token, { title, body, data = {}, channel = 'cf_admin', sound = 'default' }) {
     if (!enabled || !token) return false;
     const strData = {}; for (const k of Object.keys(data)) strData[k] = String(data[k]);
     try {
+      // 🔔 'cf_admin_urgent' = the Admin app's ringing channel (a 5-second ring: money waiting to be paid)
       return await sendOne(token, { notification: { title: String(title || 'CamFeed Admin').slice(0, 80), body: String(body || '').slice(0, 180) }, data: strData,
-        android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: channel, sound: 'default' } } });
+        android: { priority: 'HIGH', ttl: '86400s', notification: { channel_id: channel, sound, default_vibrate_timings: channel !== 'cf_admin_urgent', ...(channel === 'cf_admin_urgent' ? { vibrate_timings: ['0s', '0.8s', '0.4s', '0.8s', '0.4s', '0.8s'], notification_priority: 'PRIORITY_MAX', visibility: 'PRIVATE' } : {}) } } });
     } catch (e) { console.error('[push] admin send failed:', e.message); return false; }
   }
 
