@@ -8,16 +8,20 @@
 //   GET  /api/sounds/:id/page                → { sound, posts }
 //   POST /api/sounds/original/:postId        → { id }   (the video's own sound as a sound; made the first time)
 //   POST /api/posts/:id/sound-share { on }   → the owner allows / stops others using the sound of this video
+// 🎬 the edits of the CamFeed video editor (cut the start / end, text and stickers drawn by the phone as one see-through
+//    picture, my voice / music volume) are made into the video file here too, for posts AND for Stories (one at a time).
 'use strict';
 
 const { execFile } = require('child_process');
 
-module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsReady, deleteMedia, makeSoundAudio, soundTitleOf }) {
+module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsReady, deleteMedia, makeSoundAudio, soundTitleOf, mediaBase }) {
   let ready = null;
   const ensure = () => ready || (ready = (async () => {
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sound_voice BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS sound_mix VARCHAR(8), ADD COLUMN IF NOT EXISTS sound_share BOOLEAN NOT NULL DEFAULT TRUE`);
     await pool.query('CREATE INDEX IF NOT EXISTS posts_sound_id ON posts (sound_id) WHERE sound_id IS NOT NULL');
+    await pool.query('ALTER TABLE posts ADD COLUMN IF NOT EXISTS edit_json JSONB, ADD COLUMN IF NOT EXISTS sound_tries SMALLINT NOT NULL DEFAULT 0');
+    await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS edit_json JSONB, ADD COLUMN IF NOT EXISTS edit_state VARCHAR(8), ADD COLUMN IF NOT EXISTS edit_tries SMALLINT NOT NULL DEFAULT 0');
   })().catch((e) => { ready = null; throw e; }));
   setTimeout(() => ensure().catch((e) => console.error('[postsound] ensure:', e.message)), 20 * 1000);
 
@@ -29,60 +33,142 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
     return { id: s.id, title: fromVideo ? 'សំឡេងដើម' : s.title, owner: fromVideo ? ownerName(s) : (s.artist || ''), original: fromVideo };
   }
 
-  // 📥 a new post with a sound (called by POST /api/posts right after the row is made)
+  // ✅ the edits a phone sent, checked (anything strange is left out)
+  const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  function cleanEdit(b) {
+    const e = (b && typeof b.edit === 'object' && b.edit) || {};
+    const out = {
+      trimStart: Math.round(num(e.trimStart, 0, 3600000, 0)), trimEnd: Math.round(num(e.trimEnd, 0, 3600000, 0)),
+      voiceVol: num(e.voiceVol, 0, 2, 1), musicVol: num(e.musicVol, 0, 2, 1),
+      overlay: typeof e.overlay === 'string' && mediaBase && e.overlay.startsWith(mediaBase()) && e.overlay.length < 500 && !/[\s"'<>`\\]/.test(e.overlay) ? e.overlay : '',
+      soundId: parseInt(e.soundId || (b && b.soundId), 10) || 0,
+      soundStart: Math.round(num(e.soundStart !== undefined ? e.soundStart : (b && b.soundStart), 0, 3600, 0)),
+      soundVoice: e.soundVoice === true || (b && b.soundVoice === true),
+    };
+    if (out.trimEnd && out.trimEnd < out.trimStart + 500) out.trimEnd = 0;
+    return out;
+  }
+  const needsWork = (e) => !!(e.soundId || e.overlay || e.trimStart || e.trimEnd || e.voiceVol !== 1);
+  async function soundOk(id) {
+    if (!id) return null;
+    return (await pool.query(`SELECT s.id, s.audio_url FROM sounds s LEFT JOIN posts p ON p.id = s.post_id
+                              WHERE s.id = $1 AND s.active = TRUE AND COALESCE(p.sound_share, TRUE) = TRUE`, [id])).rows[0] || null;
+  }
+
+  // 📥 a new post made with a sound and / or edits (called by POST /api/posts right after the row is made)
   async function onNewPost(postId, b) {
     try {
       await ensure();
-      const sid = parseInt(b && b.soundId, 10) || 0; if (!sid) return;
-      const s = (await pool.query(`SELECT s.id, s.audio_url, s.post_id, COALESCE(p.sound_share, TRUE) AS share FROM sounds s LEFT JOIN posts p ON p.id = s.post_id
-                                   WHERE s.id = $1 AND s.active = TRUE`, [sid])).rows[0];
-      if (!s || !s.audio_url || s.share === false) return;
-      const start = Math.max(0, Math.min(parseInt(b.soundStart, 10) || 0, 3600));
+      const e = cleanEdit(b);
+      if (e.soundId && !(await soundOk(e.soundId))) e.soundId = 0;
+      if (!needsWork(e)) return;
       const p = (await pool.query('SELECT id, media_type, media_url FROM posts WHERE id = $1', [postId])).rows[0];
       if (!p || !pubMedia(p).video || p.media_type !== 'video') return;    // one video only (not a set of pictures)
-      await pool.query("UPDATE posts SET sound_id = $2, sound_start = $3, sound_voice = $4, sound_mix = 'wait', feed_url = '' WHERE id = $1", [postId, sid, start, b.soundVoice === true]);
-      await pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [sid]).catch(() => {});
+      await pool.query("UPDATE posts SET sound_id = $2, sound_start = $3, sound_voice = $4, edit_json = $5, sound_mix = 'wait', sound_tries = 0, feed_url = '' WHERE id = $1",
+        [postId, e.soundId || null, e.soundStart, e.soundVoice, JSON.stringify(e)]);
+      if (e.soundId) await pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [e.soundId]).catch(() => {});
       setTimeout(() => tick().catch(() => {}), 1500);
-    } catch (e) { console.error('[postsound] new post:', e.message); }
+    } catch (err) { console.error('[postsound] new post:', err.message); }
+  }
+  // 📖 a new Story video made in the CamFeed editor
+  async function onNewStory(storyId, b) {
+    try {
+      await ensure();
+      const e = cleanEdit(b);
+      if (e.soundId && !(await soundOk(e.soundId))) e.soundId = 0;
+      if (!needsWork(e)) return;
+      await pool.query("UPDATE stories SET edit_json = $2, edit_state = 'wait', edit_tries = 0, feed_url = '' WHERE id = $1 AND media_type = 'video'", [storyId, JSON.stringify(e)]);
+      if (e.soundId) await pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [e.soundId]).catch(() => {});
+      setTimeout(() => tick().catch(() => {}), 1500);
+    } catch (err) { console.error('[postsound] new story:', err.message); }
   }
 
-  // 🎛 put the sound into the video file (one at a time; the picture is copied, only the sound is made again)
+  // 🎛 make the edits into the video file (one at a time)
   let busy = false;
   function ff() { try { return require('ffmpeg-static') || 'ffmpeg'; } catch (e) { return 'ffmpeg'; } }
-  function run(args) {
-    return new Promise((ok, no) => execFile(ff(), args, { timeout: 10 * 60 * 1000, maxBuffer: 1024 * 1024 * 8 }, (e, so, se) => (e ? no(Object.assign(e, { log: String(se || '').slice(-400) })) : ok())));
+  function run(args, wantErr) {
+    return new Promise((ok, no) => execFile(ff(), args, { timeout: 15 * 60 * 1000, maxBuffer: 1024 * 1024 * 8 }, (e, so, se) => {
+      if (wantErr) return ok(String(se || ''));
+      return e ? no(Object.assign(e, { log: String(se || '').slice(-600) })) : ok();
+    }));
   }
+  // what ffmpeg says about a file: has it a sound, how long is it (seconds)
+  async function probe(u) {
+    const t = await run(['-hide_banner', '-i', u], true).catch(() => '');
+    const d = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(t);
+    return { audio: /Stream #[^\n]*Audio:/.test(t), secs: d ? Number(d[1]) * 3600 + Number(d[2]) * 60 + Number(d[3]) : 0 };
+  }
+
+  // the ffmpeg words for one job → a new mp4 file at [out]
+  async function make(src, e, musicUrl, out) {
+    const args = ['-y'];
+    if (e.trimStart) args.push('-ss', (e.trimStart / 1000).toFixed(3));
+    if (e.trimEnd) args.push('-t', ((e.trimEnd - e.trimStart) / 1000).toFixed(3));
+    args.push('-i', src);
+    let n = 1, mi = -1, oi = -1;
+    if (musicUrl) { args.push('-stream_loop', '-1', '-ss', String(e.soundStart || 0), '-i', musicUrl); mi = n++; }
+    if (e.overlay) { args.push('-loop', '1', '-i', e.overlay); oi = n++; }
+    const info = await probe(src);
+    const voice = (e.voiceVol > 0.001) && info.audio;
+    // the exact length of the new video (the music and the picture go round forever: they are cut here)
+    const len = e.trimEnd ? (e.trimEnd - e.trimStart) / 1000 : Math.max(0.5, info.secs - e.trimStart / 1000);
+    const fc = [];
+    let vmap = '0:v:0', amap = null;
+    if (oi >= 0) {
+      // the see-through picture of the text / stickers, stretched to the video's size, laid on top
+      fc.push(`[${oi}:v][0:v]scale2ref[ov][base]`, `[base][ov]overlay=0:0:shortest=1,format=yuv420p[v]`);
+      vmap = '[v]';
+    }
+    if (mi >= 0 && voice) { fc.push(`[0:a]volume=${e.voiceVol.toFixed(2)}[me]`, `[${mi}:a]volume=${e.musicVol.toFixed(2)}[mu]`, '[me][mu]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]'); amap = '[a]'; }
+    else if (mi >= 0) { fc.push(`[${mi}:a]volume=${e.musicVol.toFixed(2)}[a]`); amap = '[a]'; }
+    else if (voice && Math.abs(e.voiceVol - 1) > 0.01) { fc.push(`[0:a]volume=${e.voiceVol.toFixed(2)}[a]`); amap = '[a]'; }
+    else if (voice) amap = '0:a:0';
+    if (fc.length) args.push('-filter_complex', fc.join(';'));
+    args.push('-map', vmap);
+    if (amap) args.push('-map', amap);
+    // the picture is copied as it is (quick) unless text / stickers are drawn on it
+    if (oi >= 0) args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23'); else args.push('-c:v', 'copy');
+    if (amap) args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
+    if (mi >= 0 || oi >= 0) { if (len > 0) args.push('-t', len.toFixed(3)); else args.push('-shortest'); }
+    args.push('-movflags', '+faststart', '-threads', '1', out);
+    await run(args);
+  }
+
   async function tick() {
     if (busy || !thumbsReady()) return;
     busy = true;
     const fs = require('fs'), os = require('os'), path = require('path');
-    let out = '', curId = 0;
+    let out = '', job = null;
     try {
       await ensure();
-      const r = (await pool.query(`SELECT p.id, p.media_type, p.media_url, p.sound_start, p.sound_voice, s.audio_url FROM posts p JOIN sounds s ON s.id = p.sound_id
+      const p = (await pool.query(`SELECT p.id, p.media_type, p.media_url, p.sound_id, p.sound_start, p.sound_voice, p.edit_json, s.audio_url FROM posts p LEFT JOIN sounds s ON s.id = p.sound_id
                                    WHERE p.sound_mix = 'wait' ORDER BY p.id LIMIT 1`)).rows[0];
-      if (!r) return;
-      curId = r.id;
-      const v = pubMedia(r).video;
-      if (!v || !r.audio_url) { await pool.query("UPDATE posts SET sound_mix = 'skip', feed_url = NULL WHERE id = $1", [r.id]); return; }
-      out = path.join(os.tmpdir(), 'camfeed-mix-' + r.id + '-' + Date.now() + '.mp4');
-      const music = ['-stream_loop', '-1', '-ss', String(r.sound_start || 0), '-i', r.audio_url];   // the music goes round if the video is longer
-      const tail = ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-shortest', '-movflags', '+faststart', '-threads', '1', out];
-      const replace = ['-y', '-i', v, ...music, '-map', '0:v:0', '-map', '1:a:0', ...tail];
-      const mix = ['-y', '-i', v, ...music, '-filter_complex', '[0:a]volume=1.0[me];[1:a]volume=0.55[mu];[me][mu]amix=inputs=2:duration=first:dropout_transition=0[a]', '-map', '0:v:0', '-map', '[a]', ...tail];
-      try { await run(r.sound_voice ? mix : replace); }
-      catch (e) { if (!r.sound_voice) throw e; await run(replace); }                // a video with no sound of its own: only the music
+      if (p) job = { kind: 'post', id: p.id, src: pubMedia(p).video, music: p.sound_id ? p.audio_url : '', old: p.media_url,
+        e: Object.assign({ trimStart: 0, trimEnd: 0, voiceVol: 1, musicVol: 1, overlay: '', soundStart: p.sound_start || 0, soundVoice: !!p.sound_voice }, p.edit_json || {}) };
+      if (!job) {
+        const st = (await pool.query(`SELECT st.id, st.media_url, st.edit_json, s.audio_url FROM stories st LEFT JOIN sounds s ON s.id = (st.edit_json->>'soundId')::int
+                                      WHERE st.edit_state = 'wait' AND st.expires_at > NOW() ORDER BY st.id LIMIT 1`)).rows[0];
+        if (st) job = { kind: 'story', id: st.id, src: st.media_url, music: st.audio_url || '', old: st.media_url, e: Object.assign({ trimStart: 0, trimEnd: 0, voiceVol: 1, musicVol: 1, overlay: '', soundStart: 0, soundVoice: false }, st.edit_json || {}) };
+      }
+      if (!job) return;
+      if (!job.src) throw new Error('no video');
+      // a sound without "my voice too": only the music is heard
+      if (job.music && !job.e.soundVoice && job.e.voiceVol === 1) job.e.voiceVol = 0;
+      out = path.join(os.tmpdir(), 'camfeed-edit-' + job.kind + job.id + '-' + Date.now() + '.mp4');
+      await make(job.src, job.e, job.music, out);
       const size = fs.existsSync(out) ? fs.statSync(out).size : 0;
       if (size < 10000) throw new Error('empty result');
-      const url = await r2PutBuffer('posts/' + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.mp4', fs.readFileSync(out), 'video/mp4');
-      // the new file takes the old one's place (the light Feed copy is made again from it)
-      await pool.query("UPDATE posts SET media_url = $2, sound_mix = 'done', feed_url = NULL, feed_checked = FALSE WHERE id = $1", [r.id, url]);
-      if (deleteMedia) deleteMedia(r.media_url).catch(() => {});
-      console.log('[postsound] sound put into post', r.id);
-    } catch (e) {
-      console.error('[postsound] mix:', String(e.message || e).slice(0, 200), e.log || '');
-      // could not: the video stays as it was (its own sound), it is not tried again and again
-      if (curId) await pool.query("UPDATE posts SET sound_mix = 'fail', feed_url = NULL WHERE id = $1", [curId]).catch(() => {});
+      const url = await r2PutBuffer((job.kind === 'post' ? 'posts/' : 'stories/') + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.mp4', fs.readFileSync(out), 'video/mp4');
+      // the new file takes the old one's place (the light quick-start copy is made again from it)
+      if (job.kind === 'post') await pool.query("UPDATE posts SET media_url = $2, sound_mix = 'done', feed_url = NULL, feed_checked = FALSE WHERE id = $1", [job.id, url]);
+      else await pool.query("UPDATE stories SET media_url = $2, edit_state = 'done', feed_url = NULL WHERE id = $1", [job.id, url]);
+      if (deleteMedia && job.old && job.old !== url) deleteMedia(job.old).catch(() => {});
+      console.log('[postsound] ' + job.kind + ' ' + job.id + ' ready (' + Math.round(size / 1024) + ' KB)');
+    } catch (err) {
+      console.error('[postsound] ' + (job ? job.kind + ' ' + job.id : '') + ' failed:', String(err.message || err).slice(0, 200), err.log || '');
+      // tried 3 times: the video stays as it was (its own sound); before that it waits for the next round
+      if (job && job.kind === 'post') await pool.query("UPDATE posts SET sound_tries = sound_tries + 1, sound_mix = CASE WHEN sound_tries >= 2 THEN 'fail' ELSE 'wait' END, feed_url = CASE WHEN sound_tries >= 2 THEN NULL ELSE feed_url END WHERE id = $1", [job.id]).catch(() => {});
+      if (job && job.kind === 'story') await pool.query("UPDATE stories SET edit_tries = edit_tries + 1, edit_state = CASE WHEN edit_tries >= 2 THEN 'fail' ELSE 'wait' END, feed_url = CASE WHEN edit_tries >= 2 THEN NULL ELSE feed_url END WHERE id = $1", [job.id]).catch(() => {});
     } finally {
       busy = false;
       if (out) { try { require('fs').unlinkSync(out); } catch (e) { /* gone */ } }
@@ -172,5 +258,5 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
     } catch (err) { res.status(500).json({ success: false }); }
   });
 
-  return { onNewPost, attach };
+  return { onNewPost, onNewStory, attach, _make: make };
 };

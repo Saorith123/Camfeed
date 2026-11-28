@@ -195,7 +195,7 @@ window.ADMIN_KM = {
   '🧪 Weak phones: no voice at all (test only)': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានសំឡេងទាល់តែសោះ (សាកតែប៉ុណ្ណោះ)',
   '🧪 Weak phones: voice without the phone\'s own echo/noise chip': '🧪 ទូរស័ព្ទខ្សោយ៖ សំឡេង ដោយមិនប្រើបន្ទះលុបបន្ទររបស់ទូរស័ព្ទ',
   '🎥 CamFeed camera (➕ › Record a video, Android)': '🎥 កាមេរ៉ា CamFeed (➕ › ថតវីដេអូ, Android)',
-  '🎥 CamFeed camera: 10-minute videos': '🎥 កាមេរ៉ា CamFeed៖ វីដេអូ ១០ នាទី',
+  '🎥 CamFeed camera: 5-minute videos': '🎥 កាមេរ៉ា CamFeed៖ វីដេអូ ៥ នាទី',
   '🧪 Weak phones: voice played like music (not like a phone call)': '🧪 ទូរស័ព្ទខ្សោយ៖ សំឡេងដូចចាក់ចម្រៀង (មិនដូចការហៅទូរស័ព្ទ)',
   '🎬 Rate videos': '🎬 វាយតម្លៃវីដេអូ',
   'No video waiting.': 'គ្មានវីដេអូរង់ចាំទេ។',

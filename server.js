@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 249;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 250;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -559,7 +559,7 @@ app.use('/api/videos', videoRouter);
 // 🎵 sounds on videos: the 🎵 line under videos, the sound's page, a chosen sound put into the video file (post-sounds.js)
 const postSounds = require('./post-sounds')({ app, pool, pubMedia: (r) => pubMedia(r), r2PutBuffer: (k, b, t) => r2PutBuffer(k, b, t), thumbsReady: () => thumbsReady(),
   deleteMedia: (u) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(u) : Promise.resolve()),
-  makeSoundAudio: (id, src) => makeSoundAudio(id, src), soundTitleOf: (c) => soundTitleOf(c) });
+  makeSoundAudio: (id, src) => makeSoundAudio(id, src), soundTitleOf: (c) => soundTitleOf(c), mediaBase: () => storyMediaBase() });
 
 // Deletes database rows AND the files (R2 / Cloudinary) that belong to them, so storage never fills up.
 const { createCleanup, extractMediaUrls } = require('./cleanup');
@@ -1199,7 +1199,7 @@ app.post('/api/posts', formFields, authCore.forceActor, async (req, res) => {
     const result = await pool.query(query, [email, content, mediaType, mediaUrl, aud.people.length ? 'private' : privacy, aiResult.category, aiResult.tags, mediaAspect, thumbUrl, '']);
     const newId = result.rows[0].id;
     interests.quickLabel(newId, content).then((c) => { if (c) result.rows[0].ai_category = c; }).catch(() => {});
-    if (req.body.soundId) await postSounds.onNewPost(newId, req.body);   // 🎵 made with a sound: it goes into the video file in the background
+    if (req.body.soundId || req.body.edit) await postSounds.onNewPost(newId, req.body);   // 🎵🎬 a sound / edits: made into the video file in the background   // 🎵 made with a sound: it goes into the video file in the background
     videoRate.onNewPost(newId);   // 🎬 a video of an earning person waits to be rated   // ⚡ a kind from the caption at once (the AI may improve it)
     if (req.body.allowDownload === false) { await pool.query('UPDATE posts SET allow_download = FALSE WHERE id = $1', [newId]); result.rows[0].allow_download = false; }
     if (aud.people.length) {
@@ -4778,6 +4778,7 @@ app.post('/api/stories', async (req, res) => {
       await pool.query('UPDATE stories SET privacy = $1 WHERE id = $2', [aud.privacy, r.rows[0].id]);
     }
     if (soundId) pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [soundId]).catch(() => {});
+    if (type === 'video' && b.edit) await postSounds.onNewStory(r.rows[0].id, b);   // 🎬 made in the CamFeed video editor
     if (type === 'video') setTimeout(() => { backfillFeedVideos().catch(() => {}); }, 3000);   // its small quick-start copy is made right away
     tellStoryMentions(r.rows[0].id, email, type === 'text' ? [] : cleanOverlays(b.overlays, storyMediaBase())).catch(() => {});
     res.status(201).json({ success: true, id: r.rows[0].id });
@@ -4955,7 +4956,7 @@ app.get('/api/sounds', async (req, res) => {
   const me = req.authEmail, q = String(req.query.q || '').trim().slice(0, 60), tab = req.query.tab === 'saved' ? 'saved' : 'all';
   try {
     const r = await pool.query(
-      `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, sd.post_id, (ss.sound_id IS NOT NULL) AS saved, u.first_name, u.last_name
+      `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, sd.post_id, (ss.sound_id IS NOT NULL) AS saved, u.first_name, u.last_name, u.profile_pic
        FROM sounds sd LEFT JOIN saved_sounds ss ON ss.sound_id = sd.id AND ss.user_email = $1
          LEFT JOIN users u ON u.email = sd.created_by LEFT JOIN posts sp ON sp.id = sd.post_id
        WHERE sd.active = TRUE AND COALESCE(sp.sound_share, TRUE) = TRUE
@@ -4965,7 +4966,7 @@ app.get('/api/sounds', async (req, res) => {
          AND ($3 = 'all' OR ss.sound_id IS NOT NULL)
        ORDER BY (CASE WHEN $3 = 'saved' THEN ss.created_at ELSE NULL END) DESC NULLS LAST, sd.uses DESC, sd.created_at DESC, sd.id DESC LIMIT 80`, [me, likeEsc(q), tab]);
     // 🎵 a sound from a video = "original sound" + the person who posted it (its first owner)
-    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || ''), url: x.audio_url, cover: x.cover_url || '', duration: x.duration, uses: x.uses, saved: !!x.saved, original: !!x.post_id })) });
+    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || ''), url: x.audio_url, cover: x.post_id ? (x.profile_pic || '') : (x.cover_url || ''), duration: x.duration, uses: x.uses, saved: !!x.saved, original: !!x.post_id })) });
   } catch (err) { res.status(500).json({ success: false, sounds: [] }); }
 });
 app.post('/api/sounds/:id/save', async (req, res) => {
