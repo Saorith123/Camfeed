@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 239;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 244;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -2655,7 +2655,7 @@ function adminNeed(path, body) {
   const keys = Object.keys(b).filter((k) => !['adminEmail', 'adminKey', 'action'].includes(k));
   const FILTER = ['status', 'target', 'q', 'query', 'page', 'limit', 'offset', 'before', 'from', 'to', 'mode', 'kind', 'type', 'days', 'search', 'sort', 'user', 'id', 'email', 'targetEmail', 'filter'];
   const READ_PATHS = /^(video-rating\/list|earn-months$|app\/withdrawal$|app\/home|app\/reports|app\/push|app\/crashes|inbox|dashboard|overview|audit|system$|users\/search|users\/detail|posts\/search|comments\/search|chat\/conversations|chat\/thread|chat\/status|live\/requests|live$|ads\/list|ads\/report|ad-requests\/list|withdrawals$|monetization-requests|referrals$|sounds$)/;
-  const MONEY = /^(video-rating\/rate|earn-months\/approve|withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
+  const MONEY = /^(video-rating\/rate|video-rating\/category|earn-months\/approve|withdrawals\/decide|withdrawals\/reissue|wallet\/credit|referrals\/decide|ad-requests\/activate)/.test(p)
     || (sec === 'coins' && ['decide', 'adjust'].includes(act)) || (sec === 'stars' && act === 'bonus') || (sec === 'challenges' && act === 'pay');
   if (MONEY) return { sec, level: 'approve' };
   const single = ['coins', 'party', 'party-access', 'view-guard', 'challenges', 'stars', 'chat-reports', 'app-config', 'copyright', 'keywords', 'tg-pay', 'ad-rules', 'verify', 'ad-wallet', 'apk'].includes(first);
@@ -5463,7 +5463,7 @@ app.post('/api/admin/earn-report', async (req, res) => {
 // ---- Rules the Super Admin can change at any time in Admin > Monetization (saved in creator_settings as 'r:<NAME>').
 //      A saved value wins over the Render environment value; "empty" = back to the Render value / the default.
 const RULE_KEYS = {
-  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000], ['WITHDRAW_DAY_MAX_USD', 'wdDayMax', 0, 100000], ['WITHDRAW_MONTH_MAX_USD', 'wdMonthMax', 0, 1000000], ['WITHDRAW_HOLD_HOURS', 'wdHoldHours', 0, 168], ['GIFT_MIN_WITHDRAW_USD', 'giftMin', 0, 1000], ['CONTENT_HOLD_DAYS', 'contentHoldDays', 0, 60]],
+  creator: [['CREATOR_MIN_FOLLOWERS', 'followers', 0, 10000000], ['CREATOR_MIN_VIEWS', 'views', 0, 1000000000], ['CREATOR_MIN_POSTS', 'posts', 0, 100000], ['CREATOR_MIN_ACCOUNT_DAYS', 'ageDays', 0, 3650], ['MIN_WITHDRAW_USD', 'minWithdraw', 0, 1000], ['WITHDRAW_DAY_MAX_USD', 'wdDayMax', 0, 100000], ['WITHDRAW_MONTH_MAX_USD', 'wdMonthMax', 0, 1000000], ['WITHDRAW_HOLD_HOURS', 'wdHoldHours', 0, 168], ['GIFT_MIN_WITHDRAW_USD', 'giftMin', 0, 1000], ['CONTENT_HOLD_DAYS', 'contentHoldDays', 0, 60], ['WEEK_POST_GOAL', 'weekGoal', 1, 100]],
   app: [['NAME_CHANGE_DAYS', 'nameDays', 0, 365], ['GROUP_CALL_MAX', 'groupCallMax', 2, 16], ['CHAT_MAX_MONTHS', 'chatMaxMonths', 1, 24], ['COPYRIGHT_MAX_STRIKES', 'copyrightStrikes', 1, 10]],
   referral: [['REFERRAL_REWARD_USD', 'reward', 0, 100], ['REFERRAL_ACTIVE_DAYS', 'days', 0, 60], ['REFERRAL_POSTS', 'posts', 0, 100], ['REFERRAL_WINDOW_DAYS', 'windowDays', 1, 90], ['REFERRAL_MAX_PER_MONTH', 'maxPerMonth', 0, 100000]],
 };
@@ -5489,7 +5489,8 @@ const creatorRules = () => {
     wdDayMax: n('WITHDRAW_DAY_MAX_USD', 200), wdMonthMax: n('WITHDRAW_MONTH_MAX_USD', 1000), wdHoldHours: n('WITHDRAW_HOLD_HOURS', 24),
     // 🎬 content money: its own smallest withdrawal, and the days it waits after it comes in
     // 🎬 content money: the old "smallest withdrawal" (MIN_WITHDRAW_USD) + days it waits; 🎁 gift money: its own small amount ($1)
-    contentMinCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100), giftMinCents: Math.round(n('GIFT_MIN_WITHDRAW_USD', 1) * 100), contentHoldDays: Math.round(n('CONTENT_HOLD_DAYS', 2)) };
+    contentMinCents: Math.round(n('MIN_WITHDRAW_USD', n('CREATOR_MIN_WITHDRAW_USD', 1)) * 100), giftMinCents: Math.round(n('GIFT_MIN_WITHDRAW_USD', 1) * 100), contentHoldDays: Math.round(n('CONTENT_HOLD_DAYS', 2)),
+    weekGoal: Math.max(1, Math.round(n('WEEK_POST_GOAL', 7))) };   // 📊 creator dashboard: posts to make in 7 days (the first ring)
 };
 async function creatorStats(email) {
   const r = await pool.query(
@@ -5753,7 +5754,23 @@ app.get('/api/monetization/posts', async (req, res) => {
     const posts = r.rows.map((x) => { const m = pubMedia(x); return { id: x.id, text: String(x.content || '').slice(0, 300), mediaType: m.video ? 'video' : (m.images.length ? 'image' : ''), image: m.images[0] || '', video: m.video || '', privacy: x.privacy || 'public', created_at: x.created_at, views: Number(x.views), earnings: isCreator ? Math.round(Number(x.earn_cents) * 100) / 10000 : 0, likes: x.likes, comments: x.comments, shares: x.shares }; });
     try { const lb = await videoRate.labelsFor(posts.map((p) => p.id)); posts.forEach((p) => { const x = lb.get(p.id); if (x) p.rating = x; }); } catch (e) { /* no labels */ }   // 🎬 ⏳ checking / 50 % …
     const week = Date.now() - 7 * 86400000;
-    res.json({ success: true, isCreator, suspended, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
+    // 📊 the rings: 🎯 weekly post goal (set by Admin) and 💰 how far the person is on the way to earning (each condition counts up to 100 %)
+    const rules = creatorRules();
+    let earnPath = null;
+    if (!isCreator) {
+      const st = await creatorStats(email);
+      const part = (have, need) => (need > 0 ? Math.min(1, have / need) : 1);
+      const conds = [
+        { key: 'followers', have: st.followers, need: rules.followers },
+        { key: 'views', have: st.views, need: rules.views },
+        { key: 'posts', have: st.posts, need: rules.posts },
+        { key: 'ageDays', have: st.ageDays, need: rules.ageDays },
+      ];
+      const pct = Math.floor(conds.reduce((a, c) => a + part(c.have, c.need), 0) / conds.length * 100);
+      const app_ = (await pool.query('SELECT status FROM creator_applications WHERE user_email = $1', [email]).catch(() => ({ rows: [] }))).rows[0];
+      earnPath = { pct, ready: meetsRules(st, rules), applied: !!(app_ && app_.status === 'pending'), conds };
+    }
+    res.json({ success: true, isCreator, suspended, weekGoal: rules.weekGoal, earnPath, suspendReason: suspended ? (ca.suspend_reason || '') : '', name: `${me.first_name || ''} ${me.last_name || ''}`.trim(), pic: me.profile_pic || '', posts,
       totals: { posts: posts.length, postsWeek: posts.filter((p) => new Date(p.created_at).getTime() > week).length, views: posts.reduce((a, p) => a + p.views, 0), engagement: posts.reduce((a, p) => a + p.likes + p.comments + p.shares, 0), earnings: Math.round(posts.reduce((a, p) => a + p.earnings, 0) * 10000) / 10000, wallet: (await walletCents(email)) / 100 } });
   } catch (err) { console.error('[monetization] posts error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
 });

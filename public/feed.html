@@ -385,6 +385,12 @@
         .dropdown-menu { position: absolute; top: 48px; left: 0; background: white; border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); width: 235px; display: none; z-index: 1100; border: 1px solid #e4e6eb; overflow: hidden; }
         .dropdown-item { padding: 12px 16px; font-size: 14px; font-weight: 600; color: #050505; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; border-bottom: 1px solid #f0f2f5; }
         .dropdown-item:last-child { border-bottom: none; }
+        .menu-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; border-bottom: 1px solid #f0f2f5; }
+        .menu-tile { display: flex; flex-direction: column; gap: 3px; padding: 10px; border-radius: 10px; background: #f0f2f5; text-decoration: none; color: #050505; min-width: 0; }
+        .menu-tile:hover { background: #e4e6eb; }
+        .menu-tile b { font-size: 13px; line-height: 1.35; }
+        .menu-tile small { font-size: 11px; color: #65676b; line-height: 1.35; }
+        .mt-ic { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 4px; }
         .dropdown-item:hover { background: #f2f2f2; }
 
         /* Multi-Account Switcher (Up to 5 Saved Accounts) inside ☰ Menu */
@@ -1153,10 +1159,17 @@
                 <!-- Brand name protected with class="notranslate" so Google Translate never alters "CamFeed" -->
                 <div class="logo-nav notranslate" translate="no" onclick="switchTab('feed')">CamFeed</div>
                 <div class="dropdown-menu" id="menuDropdown" onclick="event.stopPropagation()">
+                    <!-- 👤 my profile, then 📊 / 💰 side by side, then 🎬 earning & inviting (the same order as the phone app) -->
+                    <div class="dropdown-item" onclick="window.location.href='profile.html'">
+                        <span style="display:flex;align-items:center;gap:10px;min-width:0"><span style="font-size:20px">👤</span><span style="display:flex;flex-direction:column;min-width:0"><span id="menuProfileText">ប្រូហ្វាលរបស់ខ្ញុំ</span><small id="menuProfileName" style="color:#65676b;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></small></span></span><span style="color:#8a8d91">›</span>
+                    </div>
+                    <div class="menu-tiles">
+                        <a class="menu-tile" href="creator-dashboard.html"><span class="mt-ic" style="background:#f3e8ff;color:#7c3aed">📊</span><b id="menuDashText">ផ្ទាំងអ្នកបង្កើតមាតិកា</b><small id="menuDashSub">ដងមើល ប្រាក់ និងអ្នកតាមដាន</small></a>
+                        <a class="menu-tile" href="monetization.html#walletBox"><span class="mt-ic" style="background:#dcfce7;color:#16a34a">💰</span><b id="menuWalletText">កាបូបរបស់ខ្ញុំ</b><small id="menuWalletSub">សមតុល្យ និងដកប្រាក់</small></a>
+                    </div>
+                    <div class="dropdown-item" onclick="window.location.href='monetization.html'"><span id="menuEarnText">🎬 រកប្រាក់ និងអញ្ជើញមិត្ត</span></div>
                     <div class="dropdown-item" id="menuSettingsText" onclick="window.location.href='settings.html'"><span>⚙️ Settings & Privacy</span></div>
-                    <div class="dropdown-item" onclick="window.location.href='creator-dashboard.html'"><span>📊 Creator Dashboard</span></div>
                     <div class="dropdown-item" onclick="window.location.href='party.html'"><span>🎉 Party Room</span></div>
-                    <div class="dropdown-item" onclick="window.location.href='monetization.html'"><span>💰 Monetization & Referral</span></div>
                     <div class="dropdown-item" onclick="window.location.href='advertise.html'"><span>📢 ផ្សាយពាណិជ្ជកម្ម (Advertise)</span></div>
                     <div class="dropdown-item hidden" id="menuAdminText" onclick="window.location.href='admin.html'"><span>🛡️ Admin Reports</span></div>
 
@@ -1664,6 +1677,13 @@
             if (optKm) optKm.classList.toggle('active-lang', currentLang === 'km');
             if (optEn) optEn.classList.toggle('active-lang', currentLang === 'en');
 
+            const km = currentLang === 'km', setT = (id, k, e) => { const x = document.getElementById(id); if (x) x.textContent = km ? k : e; };
+            setT('menuProfileText', 'ប្រូហ្វាលរបស់ខ្ញុំ', 'My profile');
+            setT('menuDashText', 'ផ្ទាំងអ្នកបង្កើតមាតិកា', 'Creator dashboard'); setT('menuDashSub', 'ដងមើល ប្រាក់ និងអ្នកតាមដាន', 'Views, money and followers');
+            setT('menuWalletText', 'កាបូបរបស់ខ្ញុំ', 'My wallet'); setT('menuWalletSub', 'សមតុល្យ និងដកប្រាក់', 'Balance and withdraw');
+            setT('menuEarnText', '🎬 រកប្រាក់ និងអញ្ជើញមិត្ត', '🎬 Earn & invite friends');
+            const pn = document.getElementById('menuProfileName');
+            try { if (pn && currentUser) pn.textContent = ((currentUser.first_name || '') + ' ' + (currentUser.last_name || '')).trim(); } catch (e) { /* not loaded yet */ }
             const mSet = document.getElementById('menuSettingsText');
             if (mSet) mSet.innerHTML = currentLang === 'km' ? '<span>⚙️ ការកំណត់ និងឯកជនភាព</span>' : '<span>⚙️ Settings & Privacy</span>';
             const mAdm = document.getElementById('menuAdminText');

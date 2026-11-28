@@ -679,6 +679,17 @@
         if (x.text) info.appendChild(el('div', { style: 'margin:6px 0;font-size:13.5px', text: x.text }));
         var ai = x.ai_flag === 'reupload' ? ['#fef2f2', '#991b1b', '🤖 ' + x.ai_note] : x.ai_flag === 'lowq' ? ['#fffbeb', '#92400e', '🤖 ' + x.ai_note] : x.ai_flag === 'ok' ? ['#f0fdf4', '#166534', '🤖 ' + x.ai_note] : ['#f8fafc', '#475569', x.ai_done ? '🤖 —' : '🤖 The AI has not looked yet'];
         info.appendChild(el('div', { style: 'background:' + ai[0] + ';color:' + ai[1] + ';border-radius:8px;padding:6px 8px;font-size:13px;font-weight:700;margin:6px 0', text: ai[2] + (x.suggest !== null && x.suggest !== undefined ? ' → suggests ' + x.suggest + '%' : '') }));
+        // 🏷 the kind the AI chose: check it, change it if wrong
+        var catRow = el('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px;font-size:13px' });
+        catRow.appendChild(el('b', { text: AT('🏷 ប្រភេទ (AI)៖', '🏷 Kind (AI):') }));
+        var catSel = el('select', { class: 'at-in', style: 'max-width:220px;padding:6px 8px' });
+        if (!x.cat) catSel.appendChild(el('option', { value: '', text: x.cat_done ? '—' : AT('AI មិនទាន់កំណត់', 'AI not done yet') }));
+        (d.cats || []).forEach(function (c) { var o = el('option', { value: c.v, text: c.km + ' · ' + c.v }); if (c.v === x.cat) o.selected = true; catSel.appendChild(o); });
+        var catMsg = el('span', { style: 'color:#15803d;font-weight:700' });
+        catSel.onchange = function () { if (!catSel.value) return; catMsg.textContent = '…'; adm('/api/admin/video-rating/category', { post_id: x.post_id, cat: catSel.value }).then(function (r) { catMsg.style.color = r.success ? '#15803d' : '#b91c1c'; catMsg.textContent = r.success ? AT('✅ បានកែ', '✅ Changed') : '❌ ' + (r.error || ''); }); };
+        catRow.appendChild(catSel); catRow.appendChild(catMsg);
+        info.appendChild(catRow);
+        if (x.tags) info.appendChild(el('div', { style: 'font-size:12.5px;color:#65676b;margin-bottom:6px', text: AT('ពាក្យគន្លឹះ៖ ', 'Keywords: ') + x.tags }));
         if (x.pct !== null) info.appendChild(el('div', { style: 'font-weight:800;color:#15803d;margin-bottom:6px', text: '✅ ' + x.pct + '% · $' + (x.rpm * x.pct / 100).toFixed(2) + ' / 1,000 views' + (x.reason ? ' · ' + x.reason : '') }));
         var why = el('input', { class: 'at-in', placeholder: 'Reason (e.g. from TikTok, blurry)', value: x.reason || (x.ai_flag === 'reupload' ? 'យកពីគេ' : x.ai_flag === 'lowq' ? 'មិនសូវច្បាស់' : ''), style: 'max-width:260px;margin-bottom:6px' });
         info.appendChild(why);
@@ -2077,6 +2088,7 @@
   // the rules: Creator Program (who may ask to earn) and, separately, the invitation reward. Super Admin can change them at any time.
   var RULE_LABEL = {
     CREATOR_MIN_FOLLOWERS: 'Followers at least', CREATOR_MIN_VIEWS: 'Total views at least', CREATOR_MIN_POSTS: 'Posts at least', CREATOR_MIN_ACCOUNT_DAYS: 'Account age at least (days)', MIN_WITHDRAW_USD: '🎬 Content money: smallest withdrawal ($)', GIFT_MIN_WITHDRAW_USD: '🎁 Gift money: smallest withdrawal ($)', CONTENT_HOLD_DAYS: '🎬 Content money waits … days before it can be withdrawn (0 = no wait)', WITHDRAW_DAY_MAX_USD: 'Most a person can withdraw in one day ($, 0 = no limit)', WITHDRAW_MONTH_MAX_USD: 'Most a person can withdraw in 30 days ($, 0 = no limit)', WITHDRAW_HOLD_HOURS: 'A first withdrawal / new account number waits … hours before it can be paid (0 = no wait)',
+    WEEK_POST_GOAL: AT('📊 ផ្ទាំងអ្នកបង្កើតមាតិកា៖ គោលដៅបង្ហោះក្នុង ៧ ថ្ងៃ (1–100)', '📊 Creator dashboard: posts to make in 7 days (1–100)'),
     COPYRIGHT_MAX_STRIKES: '©️ Copyright: upheld claims / removed copies in one year before the person\'s earnings stop (1–10)',
     NAME_CHANGE_DAYS: 'A person can change their name once every … days (0 = any time)', GROUP_CALL_MAX: 'People in one group call at most (2–16)', CHAT_MAX_MONTHS: 'Chat messages are deleted after … months at most, for everyone (1–24)',
     REFERRAL_REWARD_USD: 'Reward per invited friend ($)', REFERRAL_ACTIVE_DAYS: 'Friend must use CamFeed on … different days', REFERRAL_POSTS: 'Friend must post … public photos / videos', REFERRAL_WINDOW_DAYS: 'Within … days after signing up', REFERRAL_MAX_PER_MONTH: 'Paid automatically per inviter per month (more = waits for you)'
@@ -2751,7 +2763,7 @@
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
     var FEAT = [['partyRoom', '🎉 Party Room'], ['challenge', '🎯 Challenge button'], ['wallet', '💰 My wallet (in the menu)'], ['coins', '💎 Diamonds button (Party Room)'],
       ['vip', '👑 VIP & levels button'], ['frames', '🖼️ Profile frames button'], ['checkin', '📅 Daily check-in'], ['stars', '⭐ Stars'], ['ranking', '🏆 Ranking'],
-      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)'], ['chatBubbles', '💬 Chat bubbles (new messages float over other apps)'], ['liteNoMusic', '🧪 Weak phones: no music in Party Room'], ['liteNoVoiceFx', '🧪 Weak phones: no voice cleaning (noise/echo)'], ['liteNoVoice', '🧪 Weak phones: no voice at all (test only)']];
+      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)'], ['chatBubbles', '💬 Chat bubbles (new messages float over other apps)'], ['liteNoMusic', '🧪 Weak phones: no music in Party Room'], ['liteNoVoiceFx', '🧪 Weak phones: no voice cleaning (noise/echo)'], ['liteNoVoice', '🧪 Weak phones: no voice at all (test only)'], ['liteHwOff', '🧪 Weak phones: voice without the phone\'s own echo/noise chip'], ['liteMediaAudio', '🧪 Weak phones: voice played like music (not like a phone call)']];
     var cfgNow = {};
     var REASONS = [['post', '📝 Report a post or video'], ['chat', '💬 Report a chat message or person'], ['room', '🎉 Report a Party Room']];
     function call(extra) { return adm('/api/admin/app-config', extra || {}).then(function (x) { if (x && x.success) draw(x); else { box.textContent = ''; box.appendChild(empty((x && x.error) || 'Could not load.')); } return x; }); }

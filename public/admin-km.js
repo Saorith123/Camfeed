@@ -193,6 +193,8 @@ window.ADMIN_KM = {
   '🧪 Weak phones: no music in Party Room': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានចម្រៀងក្នុង Party Room',
   '🧪 Weak phones: no voice cleaning (noise/echo)': '🧪 ទូរស័ព្ទខ្សោយ៖ មិនលុបសំឡេងរំខាន/បន្ទរ',
   '🧪 Weak phones: no voice at all (test only)': '🧪 ទូរស័ព្ទខ្សោយ៖ គ្មានសំឡេងទាល់តែសោះ (សាកតែប៉ុណ្ណោះ)',
+  '🧪 Weak phones: voice without the phone\'s own echo/noise chip': '🧪 ទូរស័ព្ទខ្សោយ៖ សំឡេង ដោយមិនប្រើបន្ទះលុបបន្ទររបស់ទូរស័ព្ទ',
+  '🧪 Weak phones: voice played like music (not like a phone call)': '🧪 ទូរស័ព្ទខ្សោយ៖ សំឡេងដូចចាក់ចម្រៀង (មិនដូចការហៅទូរស័ព្ទ)',
   '🎬 Rate videos': '🎬 វាយតម្លៃវីដេអូ',
   'No video waiting.': 'គ្មានវីដេអូរង់ចាំទេ។',
   'Nothing rated yet.': 'មិនទាន់មានការវាយតម្លៃទេ។',

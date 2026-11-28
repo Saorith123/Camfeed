@@ -911,6 +911,22 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         const nm = u.rows[0] ? `${u.rows[0].first_name || ''} ${u.rows[0].last_name || ''}`.trim() : '';
         invites.set(k, { seat, by: e, byName: nm, exp: Date.now() + INVITE_MS });
         return res.json({ success: true, asked: true });
+      } else if (act === 'move') {
+        // 💺 owner / helper: move somebody who sits to another seat; a seat with somebody on it = the two swap
+        if (t.seat === null) return res.status(400).json({ success: false, error: 'This person is not on a seat.' });
+        const to = parseInt(b.seat, 10);
+        if (!(to >= 1 && to < room.seats)) return res.status(400).json({ success: false, error: 'This seat does not exist.' });
+        if (to === t.seat) return res.json({ success: true });
+        if ((room.locked_seats || []).includes(to)) return res.status(403).json({ success: false, code: 'locked', error: 'This seat is locked.' });
+        const other = (await pool.query("SELECT user_email, role FROM party_members WHERE room_id = $1 AND seat = $2 AND user_email <> $3 AND last_seen >= NOW() - ($4 || ' seconds')::interval", [room.id, to, who, String(STALE_SEC)])).rows[0];
+        if (other && other.role === 'owner') return res.status(403).json({ success: false, error: 'The owner stays on the first seat.' });
+        if (other && other.role === 'helper' && m.role !== 'owner') return res.status(403).json({ success: false, error: 'You can not do this to this person.' });
+        const from = t.seat;
+        await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND seat = $2 AND user_email <> $3', [room.id, to, other ? other.user_email : '']);   // somebody who went away
+        await pool.query('UPDATE party_members SET seat = NULL WHERE room_id = $1 AND user_email = $2', [room.id, who]);
+        if (other) await pool.query('UPDATE party_members SET seat = $3 WHERE room_id = $1 AND user_email = $2', [room.id, other.user_email, from]);
+        await pool.query('UPDATE party_members SET seat = $3 WHERE room_id = $1 AND user_email = $2', [room.id, who, to]);
+        return res.json({ success: true, swapped: !!other });
       } else if (act === 'unseat') {
         await pool.query('UPDATE party_members SET seat = NULL, host_muted = FALSE WHERE room_id = $1 AND user_email = $2', [room.id, who]);
         setTalk(room.id, who, false);

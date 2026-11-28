@@ -119,6 +119,27 @@ Answer only JSON: {"reupload": false, "platform": "", "quality": "good", "note":
     return out;
   }
 
+  // 🏷 the kind of video the AI chose (posts.ai_category): shown so the team can check it, and fix it
+  const CAT_KM = { 'Comedy': 'កំប្លែង', 'Music': 'តន្ត្រី', 'Dance': 'រាំ', 'Movies & Drama': 'ភាពយន្ត និងរឿងភាគ', 'Gaming': 'ហ្គេម', 'Food': 'ម្ហូប',
+    'Vehicles & Motorcycles': 'ឡាន និងម៉ូតូ', 'Technology': 'បច្ចេកវិទ្យា', 'News': 'ព័ត៌មាន', 'Sports': 'កីឡា', 'Education': 'អប់រំ', 'Travel': 'ដើរលេង',
+    'Beauty & Fashion': 'សម្រស់ និងម៉ូដ', 'Business & Selling': 'អាជីវកម្ម និងលក់ទំនិញ', 'Home & DIY': 'ផ្ទះ និងធ្វើដោយខ្លួនឯង', 'Farming & Nature': 'កសិកម្ម និងធម្មជាតិ',
+    'Animals & Pets': 'សត្វ', 'Family & Kids': 'គ្រួសារ និងកុមារ', 'Love & Relationships': 'ស្នេហា', 'Health & Fitness': 'សុខភាព និងហាត់ប្រាណ',
+    'Religion & Culture': 'សាសនា និងវប្បធម៌', 'Motivation & Stories': 'លើកទឹកចិត្ត និងរឿងពិត', 'Lifestyle': 'ជីវិតប្រចាំថ្ងៃ', 'General': 'ទូទៅ' };
+  const CAT_LIST = Object.keys(CAT_KM).map((v) => ({ v, km: CAT_KM[v] }));
+
+  app.post('/api/admin/video-rating/category', async (req, res) => {
+    const b = req.body || {};
+    try {
+      const a = await adminGate(req, res); if (!a) return;
+      const id = parseInt(b.post_id, 10) || 0, cat = String(b.cat || '');
+      if (!CAT_KM[cat]) return res.status(400).json({ success: false, error: 'Choose a kind.' });
+      const r = await pool.query('UPDATE posts SET ai_category = $2 WHERE id = $1 RETURNING id', [id, cat]);
+      if (!r.rows.length) return res.status(404).json({ success: false, error: 'Post not found.' });
+      if (audit) audit(a.adminEmail, 'video-category', String(id), cat);
+      res.json({ success: true, cat, cat_km: CAT_KM[cat] });
+    } catch (err) { console.error('[rating] category error:', err.message); res.status(500).json({ success: false, error: 'Could not save.' }); }
+  });
+
   app.post('/api/admin/video-rating/list', async (req, res) => {
     const b = req.body || {};
     try {
@@ -126,7 +147,7 @@ Answer only JSON: {"reupload": false, "platform": "", "quality": "good", "note":
       await ensure();
       const status = b.status === 'rated' ? 'rated' : 'pending';
       const limit = Math.min(Math.max(parseInt(b.limit, 10) || 50, 1), 200);
-      const rows = (await pool.query(`SELECT r.*, p.content, p.media_type, p.media_url, p.thumb_url, p.created_at AS posted_at, COALESCE(p.views_count, 0) AS views,
+      const rows = (await pool.query(`SELECT r.*, p.content, p.media_type, p.media_url, p.thumb_url, p.ai_category, p.ai_tags, p.kw_at, p.created_at AS posted_at, COALESCE(p.views_count, 0) AS views,
             u.first_name, u.last_name, u.profile_pic, u.public_id, ca.source
           FROM post_rating r JOIN posts p ON p.id = r.post_id LEFT JOIN users u ON u.email = r.user_email
           LEFT JOIN creator_applications ca ON ca.user_email = r.user_email AND ca.status = 'approved'
@@ -143,9 +164,10 @@ Answer only JSON: {"reupload": false, "platform": "", "quality": "good", "note":
         items.push({ post_id: x.post_id, text: String(x.content || '').slice(0, 200), video: m.video || '', thumb: x.thumb_url || '', posted_at: x.posted_at, views: Number(x.views) || 0,
           name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), pic: x.profile_pic || '', public_id: x.public_id || '',
           ai_flag: x.ai_flag || '', ai_note: x.ai_note || '', ai_done: !!x.ai_at, width: x.width, height: x.height, suggest,
-          pct: x.pct === null ? null : Number(x.pct), reason: x.reason || '', rated_at: x.rated_at, rpm: rpmCache[src] });
+          pct: x.pct === null ? null : Number(x.pct), reason: x.reason || '', rated_at: x.rated_at, rpm: rpmCache[src],
+          cat: x.ai_category || '', cat_km: CAT_KM[x.ai_category] || '', tags: String(x.ai_tags || '').slice(0, 200), cat_done: !!x.kw_at });
       }
-      res.json({ success: true, status, waiting, items });
+      res.json({ success: true, status, waiting, items, cats: CAT_LIST });
     } catch (err) { console.error('[rating] list error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }
   });
 
