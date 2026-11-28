@@ -43,6 +43,7 @@ module.exports = function postSounds({ soundCaption, app, pool, pubMedia, r2PutB
       overlay: typeof e.overlay === 'string' && mediaBase && e.overlay.startsWith(mediaBase()) && e.overlay.length < 500 && !/[\s"'<>`\\]/.test(e.overlay) ? e.overlay : '',
       soundId: parseInt(e.soundId || (b && b.soundId), 10) || 0,
       soundStart: Math.round(num(e.soundStart !== undefined ? e.soundStart : (b && b.soundStart), 0, 3600, 0)),
+      soundStartMs: e.soundStartMs !== undefined ? Math.round(num(e.soundStartMs, 0, 3600000, 0)) : null,   // 🎵 the exact point of the song when recording began
       soundVoice: e.soundVoice === true || (b && b.soundVoice === true),
       mirror: e.mirror === true,                                       // 🪞 front camera: kept as seen on the screen
       photo: e.photo === true,                                         // 📸 a photo + a sound → a short video
@@ -113,7 +114,10 @@ module.exports = function postSounds({ soundCaption, app, pool, pubMedia, r2PutB
     if (e.trimEnd) args.push('-t', ((e.trimEnd - e.trimStart) / 1000).toFixed(3));
     args.push('-i', src);
     let n = 1, mi = -1, oi = -1;
-    if (musicUrl) { args.push('-stream_loop', '-1', '-ss', String(e.soundStart || 0), '-i', musicUrl); mi = n++; }
+    // 🎵 the song from the exact point it had when the video began (lips in time), + the cut at the start
+    //    (a song chosen in the editor, not recorded with, simply starts at its chosen second where the cut video starts)
+    const at = e.soundStartMs != null ? e.soundStartMs / 1000 + (e.trimStart || 0) / 1000 : (e.soundStart || 0);
+    if (musicUrl) { args.push('-stream_loop', '-1', '-ss', at.toFixed(3), '-i', musicUrl); mi = n++; }
     if (e.overlay) { args.push('-loop', '1', '-i', e.overlay); oi = n++; }
     const info = await probe(src);
     const voice = (e.voiceVol > 0.001) && info.audio;
