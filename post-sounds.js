@@ -14,7 +14,7 @@
 
 const { execFile } = require('child_process');
 
-module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsReady, deleteMedia, makeSoundAudio, soundTitleOf, mediaBase }) {
+module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsReady, deleteMedia, makeSoundAudio, soundTitleOf, mediaBase, onBecameVideo }) {
   let ready = null;
   const ensure = () => ready || (ready = (async () => {
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0,
@@ -44,11 +44,14 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
       soundId: parseInt(e.soundId || (b && b.soundId), 10) || 0,
       soundStart: Math.round(num(e.soundStart !== undefined ? e.soundStart : (b && b.soundStart), 0, 3600, 0)),
       soundVoice: e.soundVoice === true || (b && b.soundVoice === true),
+      mirror: e.mirror === true,                                       // 🪞 front camera: kept as seen on the screen
+      photo: e.photo === true,                                         // 📸 a photo + a sound → a short video
+      photoSecs: Math.round(num(e.photoSecs, 3, 30, 10)),
     };
     if (out.trimEnd && out.trimEnd < out.trimStart + 500) out.trimEnd = 0;
     return out;
   }
-  const needsWork = (e) => !!(e.soundId || e.overlay || e.trimStart || e.trimEnd || e.voiceVol !== 1);
+  const needsWork = (e) => e.photo ? !!e.soundId : !!(e.soundId || e.overlay || e.trimStart || e.trimEnd || e.voiceVol !== 1 || e.mirror);
   async function soundOk(id) {
     if (!id) return null;
     return (await pool.query(`SELECT s.id, s.audio_url FROM sounds s LEFT JOIN posts p ON p.id = s.post_id
@@ -63,9 +66,12 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
       if (e.soundId && !(await soundOk(e.soundId))) e.soundId = 0;
       if (!needsWork(e)) return;
       const p = (await pool.query('SELECT id, media_type, media_url FROM posts WHERE id = $1', [postId])).rows[0];
-      if (!p || !pubMedia(p).video || p.media_type !== 'video') return;    // one video only (not a set of pictures)
-      await pool.query("UPDATE posts SET sound_id = $2, sound_start = $3, sound_voice = $4, edit_json = $5, sound_mix = 'wait', sound_tries = 0, feed_url = '' WHERE id = $1",
-        [postId, e.soundId || null, e.soundStart, e.soundVoice, JSON.stringify(e)]);
+      if (!p) return;
+      if (e.photo) { if (p.media_type !== 'image' || !pubMedia(p).images.length) return; }       // 📸 one photo + a sound (it becomes a short video)
+      else if (!pubMedia(p).video || p.media_type !== 'video') return;    // one video only (not a set of pictures)
+      // a photo stays seen as a photo until its video is ready; a video waits hidden (as before)
+      await pool.query("UPDATE posts SET sound_id = $2, sound_start = $3, sound_voice = $4, edit_json = $5, sound_mix = 'wait', sound_tries = 0, feed_url = CASE WHEN $6 THEN feed_url ELSE '' END WHERE id = $1",
+        [postId, e.soundId || null, e.soundStart, e.soundVoice, JSON.stringify(e), e.photo]);
       if (e.soundId) await pool.query('UPDATE sounds SET uses = uses + 1 WHERE id = $1', [e.soundId]).catch(() => {});
       setTimeout(() => tick().catch(() => {}), 1500);
     } catch (err) { console.error('[postsound] new post:', err.message); }
@@ -101,6 +107,7 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
 
   // the ffmpeg words for one job → a new mp4 file at [out]
   async function make(src, e, musicUrl, out) {
+    if (e.photo) return makePhoto(src, e, musicUrl, out);
     const args = ['-y'];
     if (e.trimStart) args.push('-ss', (e.trimStart / 1000).toFixed(3));
     if (e.trimEnd) args.push('-t', ((e.trimEnd - e.trimStart) / 1000).toFixed(3));
@@ -113,10 +120,15 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
     // the exact length of the new video (the music and the picture go round forever: they are cut here)
     const len = e.trimEnd ? (e.trimEnd - e.trimStart) / 1000 : Math.max(0.5, info.secs - e.trimStart / 1000);
     const fc = [];
-    let vmap = '0:v:0', amap = null;
+    let vmap = '0:v:0', amap = null, vin = '[0:v]';
+    if (e.mirror) {
+      // 🪞 front camera: turned left-right so it looks as it did on the screen (the text / stickers are laid on after, so they read normally)
+      fc.push(oi >= 0 ? '[0:v]hflip[fl]' : '[0:v]hflip,format=yuv420p[fl]');
+      vin = '[fl]'; vmap = '[fl]';
+    }
     if (oi >= 0) {
       // the see-through picture of the text / stickers, stretched to the video's size, laid on top
-      fc.push(`[${oi}:v][0:v]scale2ref[ov][base]`, `[base][ov]overlay=0:0:shortest=1,format=yuv420p[v]`);
+      fc.push(`[${oi}:v]${vin}scale2ref[ov][base]`, `[base][ov]overlay=0:0:shortest=1,format=yuv420p[v]`);
       vmap = '[v]';
     }
     if (mi >= 0 && voice) { fc.push(`[0:a]volume=${e.voiceVol.toFixed(2)}[me]`, `[${mi}:a]volume=${e.musicVol.toFixed(2)}[mu]`, '[me][mu]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]'); amap = '[a]'; }
@@ -127,10 +139,21 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
     args.push('-map', vmap);
     if (amap) args.push('-map', amap);
     // the picture is copied as it is (quick) unless text / stickers are drawn on it
-    if (oi >= 0) args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23'); else args.push('-c:v', 'copy');
+    if (oi >= 0 || e.mirror) args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23'); else args.push('-c:v', 'copy');
     if (amap) args.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
-    if (mi >= 0 || oi >= 0) { if (len > 0) args.push('-t', len.toFixed(3)); else args.push('-shortest'); }
+    if (mi >= 0 || oi >= 0 || e.mirror) { if (len > 0) args.push('-t', len.toFixed(3)); else args.push('-shortest'); }
     args.push('-movflags', '+faststart', '-threads', '1', out);
+    await run(args);
+  }
+
+  // 📸 a photo with a sound → a short video: the photo stands still, the sound plays (from its chosen second)
+  async function makePhoto(img, e, musicUrl, out) {
+    if (!musicUrl) throw new Error('no sound');
+    const secs = Math.max(3, Math.min(30, e.photoSecs || 10));
+    const args = ['-y', '-loop', '1', '-framerate', '30', '-i', img, '-stream_loop', '-1', '-ss', String(e.soundStart || 0), '-i', musicUrl,
+      '-filter_complex', `[0:v]scale='trunc(min(1080,iw)/2)*2':-2,format=yuv420p[v];[1:a]volume=${(e.musicVol || 1).toFixed(2)}[a]`,
+      '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'stillimage', '-crf', '23', '-r', '30',
+      '-c:a', 'aac', '-b:a', '128k', '-ac', '2', '-t', String(secs), '-movflags', '+faststart', '-threads', '1', out];
     await run(args);
   }
 
@@ -143,8 +166,11 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
       await ensure();
       const p = (await pool.query(`SELECT p.id, p.media_type, p.media_url, p.sound_id, p.sound_start, p.sound_voice, p.edit_json, s.audio_url FROM posts p LEFT JOIN sounds s ON s.id = p.sound_id
                                    WHERE p.sound_mix = 'wait' ORDER BY p.id LIMIT 1`)).rows[0];
-      if (p) job = { kind: 'post', id: p.id, src: pubMedia(p).video, music: p.sound_id ? p.audio_url : '', old: p.media_url,
-        e: Object.assign({ trimStart: 0, trimEnd: 0, voiceVol: 1, musicVol: 1, overlay: '', soundStart: p.sound_start || 0, soundVoice: !!p.sound_voice }, p.edit_json || {}) };
+      if (p) {
+        const e0 = Object.assign({ trimStart: 0, trimEnd: 0, voiceVol: 1, musicVol: 1, overlay: '', soundStart: p.sound_start || 0, soundVoice: !!p.sound_voice }, p.edit_json || {});
+        const m = pubMedia(p);
+        job = { kind: 'post', id: p.id, src: e0.photo ? (m.images[0] || '') : m.video, music: p.sound_id ? p.audio_url : '', old: p.media_url, photo: !!e0.photo, e: e0 };
+      }
       if (!job) {
         const st = (await pool.query(`SELECT st.id, st.media_url, st.edit_json, s.audio_url FROM stories st LEFT JOIN sounds s ON s.id = (st.edit_json->>'soundId')::int
                                       WHERE st.edit_state = 'wait' AND st.expires_at > NOW() ORDER BY st.id LIMIT 1`)).rows[0];
@@ -160,7 +186,12 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
       if (size < 10000) throw new Error('empty result');
       const url = await r2PutBuffer((job.kind === 'post' ? 'posts/' : 'stories/') + Date.now() + '-' + require('crypto').randomBytes(4).toString('hex') + '.mp4', fs.readFileSync(out), 'video/mp4');
       // the new file takes the old one's place (the light quick-start copy is made again from it)
-      if (job.kind === 'post') await pool.query("UPDATE posts SET media_url = $2, sound_mix = 'done', feed_url = NULL, feed_checked = FALSE WHERE id = $1", [job.id, url]);
+      if (job.kind === 'post' && job.photo) {
+        // 📸 the post is now a video; the photo stays as its cover picture (it is not deleted)
+        await pool.query("UPDATE posts SET media_url = $2, media_type = 'video', thumb_url = COALESCE(NULLIF(thumb_url, ''), $3), sound_mix = 'done', feed_url = NULL, feed_checked = FALSE WHERE id = $1", [job.id, url, job.src]);
+        job.old = '';
+        if (onBecameVideo) { try { onBecameVideo(job.id); } catch (e) { /* only the rating */ } }
+      } else if (job.kind === 'post') await pool.query("UPDATE posts SET media_url = $2, sound_mix = 'done', feed_url = NULL, feed_checked = FALSE WHERE id = $1", [job.id, url]);
       else await pool.query("UPDATE stories SET media_url = $2, edit_state = 'done', feed_url = NULL WHERE id = $1", [job.id, url]);
       if (deleteMedia && job.old && job.old !== url) deleteMedia(job.old).catch(() => {});
       console.log('[postsound] ' + job.kind + ' ' + job.id + ' ready (' + Math.round(size / 1024) + ' KB)');

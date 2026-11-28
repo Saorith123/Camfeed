@@ -2266,14 +2266,17 @@
           .catch(function (e) { btn.disabled = false; st.textContent = ''; msg(out, false, '❌ ' + (e.message || 'Upload failed')); });
       }, 600);
     } });
-    [title, artist, file, st, btn].forEach(function (x) { form.appendChild(x); }); p.appendChild(form); p.appendChild(out); p.appendChild(list); list.appendChild(empty('Loading…'));
+    [title, artist, file, st, btn].forEach(function (x) { form.appendChild(x); }); p.appendChild(form); p.appendChild(out);
+    p.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin:0 0 8px', text: '⚡ Auto = this sound may be added by itself to new photos (when none is marked, the most used sounds are chosen).' }));
+    p.appendChild(list); list.appendChild(empty('Loading…'));
     adm('/api/admin/sounds', {}).then(function (d) {
       list.textContent = ''; if (!d.success) { list.appendChild(empty(d.error || 'Could not load.')); return; } if (!d.sounds.length) { list.appendChild(empty('No sounds yet.')); return; }
       d.sounds.forEach(function (sn) {
         var tg = el('button', { class: 'btn-sm ' + (sn.active ? 'btn-red' : 'btn-blue'), text: sn.active ? 'Turn off' : 'Turn on', onclick: function () { adm('/api/admin/sounds/toggle', { id: sn.id, active: !sn.active }).then(function () { loadSoundsAdmin(); }); } });
+        var ab = el('button', { class: 'btn-sm ' + (sn.auto ? 'btn-blue' : ''), text: sn.auto ? '⚡ Auto ✓' : '⚡ Auto', onclick: function () { adm('/api/admin/sounds/auto', { id: sn.id, on: !sn.auto }).then(function () { loadSoundsAdmin(); }); } });
         var au = el('audio', { controls: 'controls', preload: 'none', src: sn.url, style: 'height:32px;max-width:220px' });
         list.appendChild(el('div', { style: 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #e4e6eb;border-radius:10px;padding:8px 12px;margin-bottom:6px' }, [
-          el('div', { style: 'flex:1;min-width:140px' }, [el('b', { text: (sn.active ? '' : '⛔ ') + sn.title }), el('div', { style: 'font-size:12px;color:#65676b', text: (sn.artist ? sn.artist + ' · ' : '') + sn.duration + 's · used ' + sn.uses + '×' })]), au, tg]));
+          el('div', { style: 'flex:1;min-width:140px' }, [el('b', { text: (sn.active ? '' : '⛔ ') + (sn.original ? 'From a video of ' + sn.owner : sn.title) }), el('div', { style: 'font-size:12px;color:#65676b', text: (sn.artist ? sn.artist + ' · ' : '') + sn.duration + 's · used ' + sn.uses + '×' })]), au, ab, tg]));
       });
     });
   }
@@ -2767,7 +2770,7 @@
     var box = el('div', { class: 'at-card' }); body.appendChild(box);
     var FEAT = [['partyRoom', '🎉 Party Room'], ['challenge', '🎯 Challenge button'], ['wallet', '💰 My wallet (in the menu)'], ['coins', '💎 Diamonds button (Party Room)'],
       ['vip', '👑 VIP & levels button'], ['frames', '🖼️ Profile frames button'], ['checkin', '📅 Daily check-in'], ['stars', '⭐ Stars'], ['ranking', '🏆 Ranking'],
-      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)'], ['chatBubbles', '💬 Chat bubbles (new messages float over other apps)'], ['liteNoMusic', '🧪 Weak phones: no music in Party Room'], ['liteNoVoiceFx', '🧪 Weak phones: no voice cleaning (noise/echo)'], ['liteNoVoice', '🧪 Weak phones: no voice at all (test only)'], ['liteHwOff', '🧪 Weak phones: voice without the phone\'s own echo/noise chip'], ['liteMediaAudio', '🧪 Weak phones: voice played like music (not like a phone call)'], ['nativeCamera', '🎥 CamFeed camera (➕ › Record a video, Android)'], ['cameraLong', '🎥 CamFeed camera: 5-minute videos']];
+      ['partyFollowers', '❤️ Room followers list'], ['roomClock', '⏱️ Room clock'], ['saveSound', '🎵 Use the sound of a video'], ['watchHistory', '🕘 Watch history'], ['chatFiles', '📎 Send files in chat'], ['beauty', '✨ Beauty in video calls (test: it closed the app on some phones)'], ['chatBubbles', '💬 Chat bubbles (new messages float over other apps)'], ['liteNoMusic', '🧪 Weak phones: no music in Party Room'], ['liteNoVoiceFx', '🧪 Weak phones: no voice cleaning (noise/echo)'], ['liteNoVoice', '🧪 Weak phones: no voice at all (test only)'], ['liteHwOff', '🧪 Weak phones: voice without the phone\'s own echo/noise chip'], ['liteMediaAudio', '🧪 Weak phones: voice played like music (not like a phone call)'], ['nativeCamera', '🎥 CamFeed camera (➕ › Record a video, Android)'], ['cameraLong', '🎥 CamFeed camera: 5-minute videos'], ['cameraPhoto', '📸 CamFeed camera: take photos'], ['mirrorFront', '🪞 Front camera: keep the picture as seen on the screen (not flipped)'], ['autoSound', '🎵 A sound is added by itself to a new photo']];
     var cfgNow = {};
     var REASONS = [['post', '📝 Report a post or video'], ['chat', '💬 Report a chat message or person'], ['room', '🎉 Report a Party Room']];
     function call(extra) { return adm('/api/admin/app-config', extra || {}).then(function (x) { if (x && x.success) draw(x); else { box.textContent = ''; box.appendChild(empty((x && x.error) || 'Could not load.')); } return x; }); }

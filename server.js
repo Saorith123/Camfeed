@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 250;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 251;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -559,7 +559,8 @@ app.use('/api/videos', videoRouter);
 // 🎵 sounds on videos: the 🎵 line under videos, the sound's page, a chosen sound put into the video file (post-sounds.js)
 const postSounds = require('./post-sounds')({ app, pool, pubMedia: (r) => pubMedia(r), r2PutBuffer: (k, b, t) => r2PutBuffer(k, b, t), thumbsReady: () => thumbsReady(),
   deleteMedia: (u) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(u) : Promise.resolve()),
-  makeSoundAudio: (id, src) => makeSoundAudio(id, src), soundTitleOf: (c) => soundTitleOf(c), mediaBase: () => storyMediaBase() });
+  makeSoundAudio: (id, src) => makeSoundAudio(id, src), soundTitleOf: (c) => soundTitleOf(c), mediaBase: () => storyMediaBase(),
+  onBecameVideo: (id) => videoRate.onNewPost(id) });   // 📸 a photo + sound became a video: it is rated like any video
 
 // Deletes database rows AND the files (R2 / Cloudinary) that belong to them, so storage never fills up.
 const { createCleanup, extractMediaUrls } = require('./cleanup');
@@ -4952,22 +4953,57 @@ app.post('/api/watch-history/clear', async (req, res) => {
 });
 
 // ---- Sounds (music for Stories): a library the admin fills, search, and "saved" sounds per person ----
+// 🎵 the sound picker: 🔥 hot (most used these 7 days) · ✨ for you · 🔖 saved · 🆕 new  (+ 🔍 search over all of them)
+//    The CamFeed library = the sounds the Admin added + every original sound of a video that somebody USED or SAVED
+//    (it joins by itself), except when its owner said "others may not use it" or the Admin turned it off.
 app.get('/api/sounds', async (req, res) => {
-  const me = req.authEmail, q = String(req.query.q || '').trim().slice(0, 60), tab = req.query.tab === 'saved' ? 'saved' : 'all';
+  const me = req.authEmail || '', q = String(req.query.q || '').trim().slice(0, 60);
+  const tab = ['hot', 'foryou', 'saved', 'new', 'all'].includes(String(req.query.tab)) ? String(req.query.tab) : 'all';
   try {
+    const order = {
+      saved: 'sd.saved_at DESC NULLS LAST, sd.id DESC',
+      hot: 'hot DESC, sd.uses DESC, sd.id DESC',
+      new: 'sd.created_at DESC, sd.id DESC',
+      foryou: 'fol DESC, hot DESC, sd.uses DESC, sd.id DESC',
+      all: 'hot DESC, sd.uses DESC, sd.created_at DESC, sd.id DESC',
+    }[tab];
     const r = await pool.query(
-      `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, sd.post_id, (ss.sound_id IS NOT NULL) AS saved, u.first_name, u.last_name, u.profile_pic
-       FROM sounds sd LEFT JOIN saved_sounds ss ON ss.sound_id = sd.id AND ss.user_email = $1
-         LEFT JOIN users u ON u.email = sd.created_by LEFT JOIN posts sp ON sp.id = sd.post_id
-       WHERE sd.active = TRUE AND COALESCE(sp.sound_share, TRUE) = TRUE
-         AND (sd.post_id IS NULL OR ss.sound_id IS NOT NULL OR ($2 <> '' AND sd.uses > 0))
-         AND ($2 = '' OR sd.title ILIKE '%' || $2 || '%' OR COALESCE(sd.artist, '') ILIKE '%' || $2 || '%'
-              OR (sd.post_id IS NOT NULL AND (COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE '%' || $2 || '%'))
-         AND ($3 = 'all' OR ss.sound_id IS NOT NULL)
-       ORDER BY (CASE WHEN $3 = 'saved' THEN ss.created_at ELSE NULL END) DESC NULLS LAST, sd.uses DESC, sd.created_at DESC, sd.id DESC LIMIT 80`, [me, likeEsc(q), tab]);
-    // 🎵 a sound from a video = "original sound" + the person who posted it (its first owner)
-    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || ''), url: x.audio_url, cover: x.post_id ? (x.profile_pic || '') : (x.cover_url || ''), duration: x.duration, uses: x.uses, saved: !!x.saved, original: !!x.post_id })) });
-  } catch (err) { res.status(500).json({ success: false, sounds: [] }); }
+      `SELECT * FROM (
+         SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, sd.post_id, sd.created_at, ss.created_at AS saved_at, (ss.sound_id IS NOT NULL) AS saved, u.first_name, u.last_name, u.profile_pic,
+           (SELECT COUNT(*) FROM posts hp WHERE hp.sound_id = sd.id AND hp.created_at > NOW() - INTERVAL '7 days')
+             + (SELECT COUNT(*) FROM saved_sounds hs WHERE hs.sound_id = sd.id AND hs.created_at > NOW() - INTERVAL '7 days') AS hot,
+           (CASE WHEN $1 <> '' AND sd.created_by IS NOT NULL AND EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = sd.created_by) THEN 1 ELSE 0 END)
+             + (CASE WHEN $1 <> '' AND EXISTS (SELECT 1 FROM posts fp JOIN follows f2 ON f2.following_email = fp.user_email AND f2.follower_email = $1 WHERE fp.sound_id = sd.id) THEN 1 ELSE 0 END) AS fol
+         FROM sounds sd LEFT JOIN saved_sounds ss ON ss.sound_id = sd.id AND ss.user_email = $1
+           LEFT JOIN users u ON u.email = sd.created_by LEFT JOIN posts sp ON sp.id = sd.post_id
+         WHERE sd.active = TRUE AND COALESCE(sp.sound_share, TRUE) = TRUE
+           AND (sd.post_id IS NULL OR ss.sound_id IS NOT NULL OR sd.uses > 0 OR EXISTS (SELECT 1 FROM saved_sounds xs WHERE xs.sound_id = sd.id))
+           AND ($2 = '' OR sd.title ILIKE '%' || $2 || '%' OR COALESCE(sd.artist, '') ILIKE '%' || $2 || '%'
+                OR (sd.post_id IS NOT NULL AND (COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) ILIKE '%' || $2 || '%'))
+           AND ($3 <> 'saved' OR ss.sound_id IS NOT NULL)
+       ) sd ORDER BY ${order} LIMIT 60`, [me, likeEsc(q), tab]);
+    // 🎵 a sound from a video = "original sound" + the person who posted it (its first owner, never removed)
+    res.json({ success: true, sounds: r.rows.map((x) => {
+      const owner = x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || '');
+      return { id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: owner, owner, url: x.audio_url, cover: x.post_id ? (x.profile_pic || '') : (x.cover_url || ''),
+        duration: x.duration, uses: x.uses, hot: Number(x.hot) || 0, saved: !!x.saved, original: !!x.post_id };
+    }) });
+  } catch (err) { console.error('[sounds] list:', err.message); res.status(500).json({ success: false, sounds: [] }); }
+});
+// ⚡ one sound for a new photo: one the Admin marked "Auto" (by chance), else one of the most used these 14 days
+app.get('/api/sounds/suggest', async (req, res) => {
+  try {
+    await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS auto_pick BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
+    const base = `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.post_id, u.first_name, u.last_name, u.profile_pic
+      FROM sounds sd LEFT JOIN users u ON u.email = sd.created_by LEFT JOIN posts sp ON sp.id = sd.post_id
+      WHERE sd.active = TRUE AND COALESCE(sp.sound_share, TRUE) = TRUE AND sd.duration >= 5`;
+    let x = (await pool.query(base + ' AND sd.auto_pick = TRUE ORDER BY RANDOM() LIMIT 1')).rows[0];
+    if (!x) x = (await pool.query(`SELECT * FROM (${base} AND (sd.post_id IS NULL OR sd.uses > 0)
+        ORDER BY (SELECT COUNT(*) FROM posts hp WHERE hp.sound_id = sd.id AND hp.created_at > NOW() - INTERVAL '14 days') DESC, sd.uses DESC LIMIT 20) t ORDER BY RANDOM() LIMIT 1`)).rows[0];
+    if (!x) return res.json({ success: true, sound: null });
+    const owner = x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || '');
+    res.json({ success: true, sound: { id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: owner, owner, url: x.audio_url, cover: x.post_id ? (x.profile_pic || '') : (x.cover_url || ''), duration: x.duration, original: !!x.post_id } });
+  } catch (err) { console.error('[sounds] suggest:', err.message); res.json({ success: true, sound: null }); }
 });
 app.post('/api/sounds/:id/save', async (req, res) => {
   try {
@@ -5054,8 +5090,13 @@ app.post('/api/sounds/from-post/:postId', async (req, res) => {
 });
 app.post('/api/admin/sounds', async (req, res) => {
   try { const a = await adminGate(req, res); if (!a) return;
-    const r = await pool.query('SELECT id, title, artist, audio_url, duration, active, uses, created_at FROM sounds ORDER BY id DESC LIMIT 200');
-    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.title, artist: x.artist || '', url: x.audio_url, duration: x.duration, active: x.active, uses: x.uses })) });
+    await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS auto_pick BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
+    const r = await pool.query(`SELECT s.id, s.title, s.artist, s.audio_url, s.duration, s.active, s.uses, s.created_at, s.post_id, COALESCE(s.auto_pick, FALSE) AS auto, u.first_name, u.last_name
+      FROM sounds s LEFT JOIN users u ON u.email = s.created_by
+      WHERE s.post_id IS NULL OR s.uses > 0 OR EXISTS (SELECT 1 FROM saved_sounds x WHERE x.sound_id = s.id)
+      ORDER BY s.auto_pick DESC, s.id DESC LIMIT 300`);
+    res.json({ success: true, sounds: r.rows.map((x) => ({ id: x.id, title: x.title, artist: x.post_id ? '' : (x.artist || ''), url: x.audio_url, duration: x.duration, active: x.active, uses: x.uses,
+      auto: !!x.auto, original: !!x.post_id, owner: `${x.first_name || ''} ${x.last_name || ''}`.trim() })) });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not load.' }); }
 });
 app.post('/api/admin/sounds/add', async (req, res) => {
@@ -5066,6 +5107,14 @@ app.post('/api/admin/sounds/add', async (req, res) => {
     const r = await pool.query('INSERT INTO sounds (title, artist, audio_url, duration, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id', [title, artist || null, url, dur, a.adminEmail]);
     audit(a.adminEmail, 'sound-add', String(r.rows[0].id), title); res.json({ success: true, id: r.rows[0].id });
   } catch (err) { res.status(500).json({ success: false, error: 'Could not save.' }); }
+});
+// ⚡ a sound that may be added by itself to a new photo (Admin chooses)
+app.post('/api/admin/sounds/auto', async (req, res) => {
+  try { const a = await adminGate(req, res); if (!a) return; const id = parseInt((req.body || {}).id, 10), on = (req.body || {}).on === true;
+    await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS auto_pick BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
+    const r = await pool.query('UPDATE sounds SET auto_pick = $2 WHERE id = $1 RETURNING id', [id, on]); if (!r.rows[0]) return res.status(404).json({ success: false });
+    audit(a.adminEmail, on ? 'sound-auto-on' : 'sound-auto-off', String(id), ''); res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false }); }
 });
 app.post('/api/admin/sounds/toggle', async (req, res) => {
   try { const a = await adminGate(req, res); if (!a) return; const id = parseInt((req.body || {}).id, 10), on = (req.body || {}).active === true;
