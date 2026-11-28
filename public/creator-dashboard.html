@@ -108,9 +108,7 @@ function who() { var m = el('div', 'me'); if (safeSrc(data.pic)) { var i = el('i
 // 🎬 how much of the price this video earns (CamFeed checks new videos)
 function rateText(r) {
   if (!r) return '';
-  if (r.waiting) return t('rWait');
-  var x = r.pct >= 100 ? t('rFull') : r.pct <= 0 ? t('rNone') : t('rPart').replace('{0}', r.pct);
-  return x + (r.reason && r.pct < 100 ? ' · ' + r.reason : '');
+  return r.waiting ? t('rWait') : '';   // only "checking"; the % is not shown
 }
 function goEarn() { location.href = 'monetization.html' + (IN_APP ? '?app=1' : ''); }
 
@@ -170,7 +168,7 @@ function item(p, inRange) {
   var it = el('div', 'item'); it.appendChild(thumb(p));
   var mid = el('div', 'it'); mid.appendChild(el('div', 'tx', p.text || (p.mediaType === 'video' ? t('video') : p.mediaType === 'image' ? t('photo') : t('text'))));
   mid.appendChild(el('small', '', when(p.created_at) + ' · 👁 ' + p.views + (inRange ? '' : ' · ❤ ' + (p.likes + p.comments + p.shares))));
-  var rt = rateText(p.rating); if (rt) { var rs = el('small', '', rt); rs.style.cssText = 'display:block;font-weight:700;color:' + (p.rating.waiting ? '#b45309' : p.rating.pct >= 100 ? '#15803d' : '#b91c1c'); mid.appendChild(rs); }
+  var rt = rateText(p.rating); if (rt) { var rs = el('small', '', rt); rs.style.cssText = 'display:block;font-weight:700;color:' + '#b45309'; mid.appendChild(rs); }
   it.appendChild(mid);
   it.appendChild(el('div', 'earn', usd(inRange ? p.earned : p.earnings)));
   it.onclick = function () { var full = null; data.posts.forEach(function (x) { if (String(x.id) === String(p.id)) full = x; }); current = full || p; render(); window.scrollTo(0, 0); };
@@ -191,7 +189,7 @@ function viewPost(v, p) {
   var h = el('div', 'hero'), m = el('div', 'm'); var th = thumb(p); th.style.cssText = 'width:100%;height:100%;border-radius:0'; m.appendChild(th); h.appendChild(m); if (p.text) h.appendChild(el('p', '', p.text)); v.appendChild(h);
   v.appendChild(el('div', 'meta', '👥 ' + ({ public: t('pub'), friends: t('fr'), only_me: t('me') }[p.privacy] || t('pub')) + ' · 📅 ' + when(p.created_at)));
   var ok = el('div', 'ok'); ok.appendChild(el('span', '', '✅')); ok.appendChild(el('span', '', t('noIssue'))); v.appendChild(ok);
-  if (p.rating) { var rb = el('div', 'note', rateText(p.rating)); rb.style.fontWeight = '800'; v.appendChild(rb); }
+  if (p.rating && rateText(p.rating)) { var rb = el('div', 'note', rateText(p.rating)); rb.style.fontWeight = '800'; v.appendChild(rb); }
   v.appendChild(el('div', 'range', t('allTime')));
   var g = el('div', 'tiles'); g.appendChild(tile(t('views'), Number(p.views || 0).toLocaleString())); g.appendChild(tile(t('earn'), usd(p.earnings !== undefined ? p.earnings : p.earned), true));
   if (p.likes !== undefined) { g.appendChild(tile(t('eng'), (p.likes + p.comments + p.shares).toLocaleString())); }

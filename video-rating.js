@@ -110,12 +110,12 @@ Answer only JSON: {"reupload": false, "platform": "", "quality": "good", "note":
     return out;
   }
 
-  // the creator's own view (creator dashboard): post id → { pct, waiting, reason }
+  // the creator's own view (creator dashboard): post id → { waiting } (never the %)
   async function labelsFor(ids) {
     const out = new Map(); if (!ids.length) return out;
     await ensure();
     const rows = (await pool.query('SELECT post_id, pct, reason FROM post_rating WHERE post_id = ANY($1::int[])', [ids])).rows;
-    for (const r of rows) out.set(r.post_id, { pct: r.pct === null ? null : Number(r.pct), waiting: r.pct === null, reason: r.reason || '' });
+    for (const r of rows) if (r.pct === null) out.set(r.post_id, { waiting: true });   // only "⏳ checking": the % stays with CamFeed
     return out;
   }
 
@@ -164,9 +164,8 @@ Answer only JSON: {"reupload": false, "platform": "", "quality": "good", "note":
       // the money for all the views since it was posted is added now (not limited by the daily cap: it is money already earned)
       let added = 0; try { if (creditNow) added = await creditNow(r.user_email); } catch (e) { console.error('[rating] credit:', e.message); }
       if (notify) {
-        const msg = pct >= 100 ? '✅ CamFeed បានពិនិត្យវីដេអូរបស់អ្នក៖ រកប្រាក់បានពេញ 100%។'
-          : pct === 0 ? '⛔ CamFeed បានពិនិត្យវីដេអូរបស់អ្នក៖ វីដេអូនេះមិនរកប្រាក់ទេ' + (reason ? ' (' + reason + ')' : '') + '។ បង្ហោះវីដេអូផ្ទាល់ខ្លួន និងច្បាស់ ដើម្បីរកបានពេញ។'
-          : `🟡 CamFeed បានពិនិត្យវីដេអូរបស់អ្នក៖ រកប្រាក់បាន ${pct}%` + (reason ? ' (' + reason + ')' : '') + '។ វីដេអូផ្ទាល់ខ្លួន និងច្បាស់ រកបានពេញ 100%។';
+        // the creator is NOT told the % (only CamFeed knows it)
+        const msg = '✅ CamFeed បានពិនិត្យវីដេអូរបស់អ្នករួចហើយ។ សូមអរគុណ!';
         notify(r.user_email, msg, id).catch(() => {});
       }
       res.json({ success: true, added: added / 100 });
