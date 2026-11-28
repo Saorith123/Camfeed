@@ -14,7 +14,7 @@
 
 const { execFile } = require('child_process');
 
-module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsReady, deleteMedia, makeSoundAudio, soundTitleOf, mediaBase, onBecameVideo }) {
+module.exports = function postSounds({ soundCaption, app, pool, pubMedia, r2PutBuffer, thumbsReady, deleteMedia, makeSoundAudio, soundTitleOf, mediaBase, onBecameVideo }) {
   let ready = null;
   const ensure = () => ready || (ready = (async () => {
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0,
@@ -30,7 +30,7 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
   // the words shown for a sound: a sound made from a video = "original sound" + the name of the person who posted that video
   function label(s) {
     const fromVideo = !!s.post_id;
-    return { id: s.id, title: fromVideo ? 'សំឡេងដើម' : s.title, owner: fromVideo ? ownerName(s) : (s.artist || ''), original: fromVideo };
+    return { id: s.id, title: fromVideo ? 'សំឡេងដើម' : s.title, caption: fromVideo && soundCaption ? soundCaption(s.sp_content) : '', owner: fromVideo ? ownerName(s) : (s.artist || ''), original: fromVideo };
   }
 
   // ✅ the edits a phone sent, checked (anything strange is left out)
@@ -215,8 +215,8 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
       if (!vids.length) return;
       const idOf = (p) => Number(p.shared_post_id && p.orig_id ? p.orig_id : p.id);
       const ids = [...new Set(vids.map(idOf).filter((x) => x > 0))];
-      const rows = (await pool.query(`SELECT p.id AS pid, p.sound_id, p.sound_share, s.id, s.title, s.artist, s.post_id, u.first_name, u.last_name
-          FROM posts p LEFT JOIN sounds s ON s.id = p.sound_id AND s.active = TRUE LEFT JOIN users u ON u.email = s.created_by
+      const rows = (await pool.query(`SELECT p.id AS pid, p.sound_id, p.sound_share, s.id, s.title, s.artist, s.post_id, u.first_name, u.last_name, sp.content AS sp_content
+          FROM posts p LEFT JOIN sounds s ON s.id = p.sound_id AND s.active = TRUE LEFT JOIN users u ON u.email = s.created_by LEFT JOIN posts sp ON sp.id = s.post_id
           WHERE p.id = ANY($1::int[])`, [ids])).rows;
       const m = new Map(rows.map((x) => [Number(x.pid), x]));
       for (const p of vids) {
@@ -244,7 +244,7 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
     try {
       await ensure();
       const id = parseInt(req.params.id, 10) || 0, me = req.authEmail || '';
-      const s = (await pool.query(`SELECT s.*, u.first_name, u.last_name, u.profile_pic, u.public_id, COALESCE(sp.sound_share, TRUE) AS share,
+      const s = (await pool.query(`SELECT s.*, u.first_name, u.last_name, u.profile_pic, u.public_id, COALESCE(sp.sound_share, TRUE) AS share, sp.content AS sp_content, sp.thumb_url AS sp_thumb,
             EXISTS (SELECT 1 FROM saved_sounds ss WHERE ss.sound_id = s.id AND ss.user_email = $2) AS saved
           FROM sounds s LEFT JOIN users u ON u.email = s.created_by LEFT JOIN posts sp ON sp.id = s.post_id WHERE s.id = $1 AND s.active = TRUE`, [id, me])).rows[0];
       if (!s) return res.status(404).json({ success: false, error: 'This sound is not available.' });
@@ -253,7 +253,7 @@ module.exports = function postSounds({ app, pool, pubMedia, r2PutBuffer, thumbsR
           ORDER BY (p.id = $2) DESC, p.views_count DESC NULLS LAST, p.id DESC LIMIT 60`, [id, s.post_id || 0])).rows;
       const n = Number((await pool.query("SELECT COUNT(*) AS n FROM posts WHERE (sound_id = $1 OR id = $2) AND privacy = 'public' AND shared_post_id IS NULL", [id, s.post_id || 0])).rows[0].n) || 0;
       const l = label(s);
-      res.json({ success: true, sound: { ...l, url: s.audio_url, duration: s.duration, cover: s.post_id ? (s.profile_pic || '') : (s.cover_url || ''), ownerId: s.post_id ? (s.public_id || '') : '',
+      res.json({ success: true, sound: { ...l, url: s.audio_url, duration: s.duration, cover: s.post_id ? (s.sp_thumb || s.profile_pic || '') : (s.cover_url || ''), ownerId: s.post_id ? (s.public_id || '') : '',
           saved: !!s.saved, canUse: s.share !== false || (me && me === s.created_by), videos: n },
         posts: posts.map((p) => ({ id: p.id, thumb: p.thumb_url || '', views: Number(p.views) || 0 })) });
     } catch (err) { console.error('[postsound] page:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }

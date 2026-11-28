@@ -16,6 +16,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
   const SEAT_CHOICES = [4, 8, 12];
   const STALE_SEC = 40;                 // not heard from for this long = gone (the app asks every ~2 s)
   const OWNER_GONE_SEC = 180;           // the owner's phone disappeared for 3 minutes: the room closes
+  const awayHours = () => { const h = Number(((appCfg.cfg() || {}).party || {}).ownerAwayHours); return Number.isFinite(h) ? h : 6; };   // 🚪 0 = the owner can not step out
   // the moves the app knows how to draw (the Admin picks one for each action / emote)
   const ACTION_ANIMS = ['fly', 'arc', 'rain', 'burst'];
   const EMOTE_ANIMS = ['pop', 'wave', 'bow', 'shake', 'bounce', 'float', 'sway', 'drip', 'pulse', 'spin'];
@@ -90,6 +91,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_min INTEGER');      // who may see the room, by age (empty = everybody)
         await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS age_max INTEGER');
         await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS locked_seats INTEGER[] NOT NULL DEFAULT '{}'");   // 🔒 seats nobody may take
+        await pool.query('ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS owner_away_at TIMESTAMPTZ');   // 🚪 the owner stepped out; helpers keep the room going
         // 🖼️ the picture board under the seats: who may put a picture ('seated' = people on a seat + the owner, 'owner', 'off')
         await pool.query("ALTER TABLE party_rooms ADD COLUMN IF NOT EXISTS board_mode VARCHAR(8) NOT NULL DEFAULT 'seated'");
         // 🔐 a private room: only people let in (invited, the room's link, or a room card the owner / a helper sent in a chat)
@@ -231,9 +233,16 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     try {
       await pool.query(`DELETE FROM party_members m USING party_rooms r WHERE r.id = m.room_id AND m.user_email <> r.owner_email
                         AND m.last_seen < NOW() - ($1 || ' seconds')::interval`, [String(STALE_SEC)]);
-      const gone = await pool.query(`SELECT r.id FROM party_rooms r WHERE r.status = 'open' AND NOT EXISTS (
+      const gone = await pool.query(`SELECT r.id FROM party_rooms r WHERE r.status = 'open' AND r.owner_away_at IS NULL AND NOT EXISTS (
                                        SELECT 1 FROM party_members m WHERE m.room_id = r.id AND m.user_email = r.owner_email AND m.last_seen >= NOW() - ($1 || ' seconds')::interval)`, [String(OWNER_GONE_SEC)]);
       for (const g of gone.rows) await closeRoom(g.id, 'system', 'owner left');
+      // 🚪 the owner stepped out: the room closes when no helper is left in it (for 3 minutes), or after the hours CamFeed allows
+      const awayGone = await pool.query(`SELECT r.id FROM party_rooms r WHERE r.status = 'open' AND r.owner_away_at IS NOT NULL AND (
+                                           r.owner_away_at < NOW() - ($2::text || ' hours')::interval
+                                           OR (r.owner_away_at < NOW() - ($1 || ' seconds')::interval AND NOT EXISTS (
+                                             SELECT 1 FROM party_members m WHERE m.room_id = r.id AND m.role = 'helper' AND m.last_seen >= NOW() - ($1 || ' seconds')::interval)))`,
+                                         [String(OWNER_GONE_SEC), String(awayHours() || 0)]);
+      for (const g of awayGone.rows) await closeRoom(g.id, 'system', 'owner away');
       if (Date.now() - metAt > 60000) {                     // once a minute: who has been together ≥ 10 minutes
         metAt = Date.now();
         await pool.query(`INSERT INTO party_met (user_email, other_email, room_id, met_at)
@@ -315,7 +324,7 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     const mine = people.find((p) => norm(p.email) === email) || null;
     return {
       room: { id: room.id, title: room.title, privacy: room.privacy, can_share: room.privacy !== 'private' || norm(room.owner_email) === email || canManage(people.find((p) => norm(p.email) === email) || (norm(room.owner_email) === email ? { role: 'owner' } : null)), seats: room.seats, free_seats: room.free_seats, status: room.status, age_min: room.age_min, age_max: room.age_max, locked_seats: room.locked_seats || [],
-        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at, show_timer: gaps.showTimer,
+        owner: owner.rows[0] || { email: room.owner_email }, created_at: room.created_at, show_timer: gaps.showTimer, owner_away: !!room.owner_away_at, can_step_out: awayHours() > 0,
         followers: followersN, following: iFollowRoom,
         music: room.music_url ? { id: room.music_id, url: room.music_url, title: room.music_title || '', artist: room.music_artist || '', at: room.music_at, paused_at: room.music_paused_at || null } : null },
       now: new Date().toISOString(),                         // the server's clock: the phones play the music at the same point
@@ -579,6 +588,15 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       if (!title) { const lt = await pool.query("SELECT title FROM party_rooms WHERE owner_email = $1 AND title <> '' ORDER BY id DESC LIMIT 1", [e]); if (lt.rows[0]) title = lt.rows[0].title; }   // my room keeps its name
       let amin = ageArg(b.age_min), amax = ageArg(b.age_max);
       if (amin != null && amax != null && amin > amax) [amin, amax] = [amax, amin];
+      // 🚪 I only stepped out of my room: "open my room" takes me back into it (seat 1, the whole room again)
+      const back = (await pool.query("SELECT * FROM party_rooms WHERE owner_email = $1 AND status = 'open' AND owner_away_at IS NOT NULL ORDER BY id DESC LIMIT 1", [e])).rows[0];
+      if (back) {
+        await pool.query('UPDATE party_rooms SET owner_away_at = NULL WHERE id = $1', [back.id]); back.owner_away_at = null;
+        await pool.query('DELETE FROM party_members WHERE user_email = $1 AND room_id <> $2', [e, back.id]);
+        await pool.query(`INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, 'owner', 0)
+                          ON CONFLICT (room_id, user_email) DO UPDATE SET role = 'owner', seat = 0, last_seen = NOW()`, [back.id, e]);
+        return res.json({ success: true, id: back.id, back: true, live: await ticket(back, e, true, false), state: await stateOf(back, e, 0) });
+      }
       const old = await pool.query("SELECT id FROM party_rooms WHERE owner_email = $1 AND status = 'open'", [e]);
       for (const o of old.rows) await closeRoom(o.id, e, 'new room');
       await pool.query('DELETE FROM party_members WHERE user_email = $1', [e]);   // I can only be in one room at a time
@@ -619,10 +637,17 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
       if (gb0) return res.status(403).json({ success: false, code: 'banned_all', message: 'banned_all', until: gb0.until, error: 'CamFeed does not let you into Party Rooms for now.' });
       if (ob0) return res.status(403).json({ success: false, code: 'banned', error: 'You can not enter this room.' });
       // leaving any other room first (one room at a time)
-      const other = await pool.query('SELECT room_id, role FROM party_members WHERE user_email = $1 AND room_id <> $2', [e, room.id]);
-      for (const o of other.rows) { if (o.role === 'owner') await closeRoom(o.room_id, e, 'owner left'); }
-      await pool.query('DELETE FROM party_members WHERE user_email = $1 AND room_id <> $2', [e, room.id]);
+      // 🚪 my own room where I only stepped out stays open (helpers run it): it is neither closed nor left
+      const other = await pool.query(`SELECT m.room_id, m.role, (r.owner_away_at IS NOT NULL AND r.status = 'open') AS away FROM party_members m JOIN party_rooms r ON r.id = m.room_id
+                                      WHERE m.user_email = $1 AND m.room_id <> $2`, [e, room.id]);
+      for (const o of other.rows) { if (o.role === 'owner' && !o.away) await closeRoom(o.room_id, e, 'owner left'); }
+      await pool.query(`DELETE FROM party_members m WHERE m.user_email = $1 AND m.room_id <> $2
+                          AND NOT (m.role = 'owner' AND EXISTS (SELECT 1 FROM party_rooms r WHERE r.id = m.room_id AND r.owner_away_at IS NOT NULL AND r.status = 'open'))`, [e, room.id]);
       const isOwner = norm(room.owner_email) === e;
+      if (isOwner && room.owner_away_at) {                  // 🚪 the owner is back: seat 1 and the whole room again
+        await pool.query('UPDATE party_rooms SET owner_away_at = NULL WHERE id = $1', [room.id]);
+        room.owner_away_at = null;
+      }
       const ins = await pool.query(`INSERT INTO party_members (room_id, user_email, role, seat) VALUES ($1, $2, $3, $4)
                         ON CONFLICT (room_id, user_email) DO UPDATE SET last_seen = NOW() RETURNING (xmax = 0) AS fresh`, [room.id, e, isOwner ? 'owner' : 'member', isOwner ? 0 : null]);
       // somebody new came in: a "welcome" line in the chat (the app writes it in the reader's language; '👋' for older apps)
@@ -654,7 +679,20 @@ module.exports = function installParty({ app, pool, publicIds, adminGate, audit,
     try {
       await ensure();
       const room = await roomOf(req.params.id);
-      if (room && norm(room.owner_email) === e && room.status === 'open') { await closeRoom(room.id, e, 'owner ended'); return res.json({ success: true, closed: true }); }
+      if (room && norm(room.owner_email) === e && room.status === 'open') {
+        // 🚪 "step out": the room stays open while a helper is in it (the owner comes back to seat 1 and runs it again)
+        if ((req.body || {}).away === true && awayHours() > 0) {
+          const h = await pool.query("SELECT 1 FROM party_members WHERE room_id = $1 AND role = 'helper' AND last_seen >= NOW() - ($2 || ' seconds')::interval LIMIT 1", [room.id, String(STALE_SEC)]);
+          if (h.rows.length) {
+            await pool.query('UPDATE party_rooms SET owner_away_at = NOW() WHERE id = $1', [room.id]);
+            await pool.query("UPDATE party_members SET last_seen = NOW() - INTERVAL '1 hour' WHERE room_id = $1 AND user_email = $2", [room.id, e]);   // not shown in the room now
+            setTalk(room.id, e, false);
+            return res.json({ success: true, away: true });
+          }
+          return res.status(409).json({ success: false, code: 'no_helper', error: 'No helper is in the room now.' });
+        }
+        await closeRoom(room.id, e, 'owner ended'); return res.json({ success: true, closed: true });
+      }
       await pool.query('DELETE FROM party_members WHERE room_id = $1 AND user_email = $2', [parseInt(req.params.id, 10) || 0, e]);
       res.json({ success: true });
     } catch (err) { res.status(500).json({ success: false, error: 'Network problem.' }); }

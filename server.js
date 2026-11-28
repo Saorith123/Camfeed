@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 252;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 257;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -557,7 +557,7 @@ app.use((req, res, next) => {
 const videoRouter = createVideoRouter(pool);
 app.use('/api/videos', videoRouter);
 // 🎵 sounds on videos: the 🎵 line under videos, the sound's page, a chosen sound put into the video file (post-sounds.js)
-const postSounds = require('./post-sounds')({ app, pool, pubMedia: (r) => pubMedia(r), r2PutBuffer: (k, b, t) => r2PutBuffer(k, b, t), thumbsReady: () => thumbsReady(),
+const postSounds = require('./post-sounds')({ app, pool, soundCaption: (c) => soundCaption(c), pubMedia: (r) => pubMedia(r), r2PutBuffer: (k, b, t) => r2PutBuffer(k, b, t), thumbsReady: () => thumbsReady(),
   deleteMedia: (u) => (videoRouter.deleteR2ObjectsFromMedia ? videoRouter.deleteR2ObjectsFromMedia(u) : Promise.resolve()),
   makeSoundAudio: (id, src) => makeSoundAudio(id, src), soundTitleOf: (c) => soundTitleOf(c), mediaBase: () => storyMediaBase(),
   onBecameVideo: (id) => videoRate.onNewPost(id) });   // 📸 a photo + sound became a video: it is rated like any video
@@ -4970,6 +4970,7 @@ app.get('/api/sounds', async (req, res) => {
     const r = await pool.query(
       `SELECT * FROM (
          SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.uses, sd.post_id, sd.created_at, ss.created_at AS saved_at, (ss.sound_id IS NOT NULL) AS saved, u.first_name, u.last_name, u.profile_pic,
+           sp.content AS sp_content, sp.thumb_url AS sp_thumb,
            (SELECT COUNT(*) FROM posts hp WHERE hp.sound_id = sd.id AND hp.created_at > NOW() - INTERVAL '7 days')
              + (SELECT COUNT(*) FROM saved_sounds hs WHERE hs.sound_id = sd.id AND hs.created_at > NOW() - INTERVAL '7 days') AS hot,
            (CASE WHEN $1 <> '' AND sd.created_by IS NOT NULL AND EXISTS (SELECT 1 FROM follows f WHERE f.follower_email = $1 AND f.following_email = sd.created_by) THEN 1 ELSE 0 END)
@@ -4985,16 +4986,23 @@ app.get('/api/sounds', async (req, res) => {
     // 🎵 a sound from a video = "original sound" + the person who posted it (its first owner, never removed)
     res.json({ success: true, sounds: r.rows.map((x) => {
       const owner = x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || '');
-      return { id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: owner, owner, url: x.audio_url, cover: x.post_id ? (x.profile_pic || '') : (x.cover_url || ''),
+      // 🖼 an original sound shows the picture of ITS video (not the owner's face) and ITS video's words as its name
+      return { id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, caption: x.post_id ? soundCaption(x.sp_content) : '', artist: owner, owner, url: x.audio_url,
+        cover: x.post_id ? (x.sp_thumb || x.profile_pic || '') : (x.cover_url || ''),
         duration: x.duration, uses: x.uses, hot: Number(x.hot) || 0, saved: !!x.saved, original: !!x.post_id };
     }) });
   } catch (err) { console.error('[sounds] list:', err.message); res.status(500).json({ success: false, sounds: [] }); }
 });
+// the name of an original sound = the words of its video (no links, no #tags, short); empty = "original sound"
+function soundCaption(c) {
+  const t = String(c || '').replace(/https?:\/\/\S+/g, ' ').replace(/#[^\s#]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return t.length > 50 ? t.slice(0, 50).trim() + '…' : t;
+}
 // ⚡ one sound for a new photo: one the Admin marked "Auto" (by chance), else one of the most used these 14 days
 app.get('/api/sounds/suggest', async (req, res) => {
   try {
     await pool.query('ALTER TABLE sounds ADD COLUMN IF NOT EXISTS auto_pick BOOLEAN NOT NULL DEFAULT FALSE').catch(() => {});
-    const base = `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.post_id, u.first_name, u.last_name, u.profile_pic
+    const base = `SELECT sd.id, sd.title, sd.artist, sd.audio_url, sd.cover_url, sd.duration, sd.post_id, u.first_name, u.last_name, u.profile_pic, sp.content AS sp_content, sp.thumb_url AS sp_thumb
       FROM sounds sd LEFT JOIN users u ON u.email = sd.created_by LEFT JOIN posts sp ON sp.id = sd.post_id
       WHERE sd.active = TRUE AND COALESCE(sp.sound_share, TRUE) = TRUE AND sd.duration >= 5`;
     let x = (await pool.query(base + ' AND sd.auto_pick = TRUE ORDER BY RANDOM() LIMIT 1')).rows[0];
@@ -5002,7 +5010,7 @@ app.get('/api/sounds/suggest', async (req, res) => {
         ORDER BY (SELECT COUNT(*) FROM posts hp WHERE hp.sound_id = sd.id AND hp.created_at > NOW() - INTERVAL '14 days') DESC, sd.uses DESC LIMIT 20) t ORDER BY RANDOM() LIMIT 1`)).rows[0];
     if (!x) return res.json({ success: true, sound: null });
     const owner = x.post_id ? `${x.first_name || ''} ${x.last_name || ''}`.trim() : (x.artist || '');
-    res.json({ success: true, sound: { id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, artist: owner, owner, url: x.audio_url, cover: x.post_id ? (x.profile_pic || '') : (x.cover_url || ''), duration: x.duration, original: !!x.post_id } });
+    res.json({ success: true, sound: { id: x.id, title: x.post_id ? 'សំឡេងដើម' : x.title, caption: x.post_id ? soundCaption(x.sp_content) : '', artist: owner, owner, url: x.audio_url, cover: x.post_id ? (x.sp_thumb || x.profile_pic || '') : (x.cover_url || ''), duration: x.duration, original: !!x.post_id } });
   } catch (err) { console.error('[sounds] suggest:', err.message); res.json({ success: true, sound: null }); }
 });
 app.post('/api/sounds/:id/save', async (req, res) => {
@@ -5568,9 +5576,13 @@ async function walletPockets(email) {
   const giftHoldDays = await coins.giftHoldDays().catch(() => 0);
   return wallets.pockets(pool, email, { giftHoldDays, contentHoldDays: creatorRules().contentHoldDays });
 }
+// 👛 what is IN the wallet: views money comes in only after CamFeed approved its month
+//    (this month, still counting, and past months waiting for approval are NOT in the wallet: they are shown as estimates on the creator dashboard)
 async function walletCents(email) {
   const r = await pool.query('SELECT COALESCE(SUM(amount_cents), 0) AS cents FROM wallet_ledger WHERE user_email = $1', [email]);
-  return Number(r.rows[0] && r.rows[0].cents) || 0;
+  const all = Number(r.rows[0] && r.rows[0].cents) || 0;
+  const p = await walletPockets(email).catch(() => null);
+  return Math.max(0, all - (p ? p.contentWait : 0));
 }
 // ---- Invitation reward: $0.20 for the person who invited a friend, paid when the friend has used CamFeed on 3 different days AND posted 3 public photos / videos.
 //      (6 steps; the progress is shown step by step, the money is added to the wallet only when all steps are done)
@@ -5654,7 +5666,11 @@ app.get('/api/monetization/status', async (req, res) => {
       pool.query('SELECT COUNT(*) AS n FROM referrals WHERE referrer_email = $1', [email]),
       pool.query('SELECT public_id FROM users WHERE email = $1', [email]),
       pool.query('SELECT id, amount_cents, method, pocket, account_name, account_number, status, created_at, decided_at, note, (payout_code IS NOT NULL) AS has_code, code_issued_at, code_viewed_at, reissue_requested_at, reissue_count FROM withdrawal_requests WHERE user_email = $1 ORDER BY created_at DESC, id DESC LIMIT 20', [email]),
-      pool.query(`SELECT amount_cents, kind, note, created_at, ${wallets.POCKET_SQL} AS pocket FROM wallet_ledger WHERE user_email = $1 AND kind <> 'pocket_move' ORDER BY created_at DESC, id DESC LIMIT 50`, [email])
+      // 🧾 history: views money shows only once its month is approved (it is not in the wallet before)
+      pool.query(`SELECT amount_cents, kind, note, created_at, ${wallets.POCKET_SQL} AS pocket FROM wallet_ledger WHERE user_email = $1 AND kind <> 'pocket_move'
+          AND NOT (kind = 'revenue_share' AND amount_cents > 0 AND (${wallets.KH_MONTH} = ${wallets.NOW_MONTH}
+               OR NOT EXISTS (SELECT 1 FROM earn_months m WHERE m.user_email = LOWER($1) AND m.month = ${wallets.KH_MONTH.replace('created_at', 'wallet_ledger.created_at')} AND m.approved_at IS NOT NULL)))
+          ORDER BY created_at DESC, id DESC LIMIT 50`, [email])
     ]);
     const a = app_.rows[0] || null;
     const rr = referralRules(), steps = rr.days + rr.posts;
@@ -5664,7 +5680,9 @@ app.get('/api/monetization/status', async (req, res) => {
     const earned = Number((await pool.query("SELECT COALESCE(SUM(amount_cents), 0) AS n FROM wallet_ledger WHERE user_email = $1 AND kind = 'referral'", [email])).rows[0].n) || 0;
     // 💰 the native wallet page: money that still waits (Party Room gifts) and where the money came from
     const held = await coins.heldCents(email).catch(() => 0);
-    const sources = (await pool.query("SELECT kind, SUM(amount_cents)::bigint AS cents FROM wallet_ledger WHERE user_email = $1 AND amount_cents > 0 AND kind NOT IN ('withdrawal_refund') GROUP BY kind ORDER BY 2 DESC", [email])).rows.map((x) => ({ kind: x.kind, amount: Number(x.cents) / 100 }));
+    const pk = await walletPockets(email).catch(() => null);
+    const sources = (await pool.query("SELECT kind, SUM(amount_cents)::bigint AS cents FROM wallet_ledger WHERE user_email = $1 AND amount_cents > 0 AND kind NOT IN ('withdrawal_refund') GROUP BY kind ORDER BY 2 DESC", [email])).rows
+      .map((x) => ({ kind: x.kind, amount: (Number(x.cents) - (x.kind === 'revenue_share' && pk ? pk.contentWait : 0)) / 100 })).filter((x) => x.amount > 0);   // views money not yet approved is not counted
     res.json({ success: true, creatorProgramOpen: process.env.CREATOR_PROGRAM_OPEN === 'true', walletBalance: cents / 100, referralCount: Number(refs.rows[0] && refs.rows[0].n) || 0, referralCode: (me.rows[0] && me.rows[0].public_id) || '',
       referralRules: { reward: rr.rewardCents / 100, days: rr.days, posts: rr.posts, windowDays: rr.windowDays }, referralEarned: earned / 100,
       referrals: invited.map((x) => { const done = Math.min(steps, (x.days_done || 0) + (x.posts_done || 0)); return { name: `${x.first_name || ''} ${x.last_name || ''}`.trim(), status: x.status, daysDone: x.days_done || 0, postsDone: x.posts_done || 0, joined: x.created_at, note: x.status === 'review' || x.status === 'rejected' ? '' : '', progress: x.status === 'rewarded' ? rr.rewardCents / 100 : (x.status === 'progress' ? Math.round(rr.rewardCents * done / steps) / 100 : 0), reward: rr.rewardCents / 100 }; }),
@@ -5680,8 +5698,9 @@ app.get('/api/monetization/status', async (req, res) => {
       withdrawals: wd.rows.map((w) => ({ id: w.id, amount: w.amount_cents / 100, method: w.method, pocket: w.pocket || 'gift', accountName: w.account_name || '', accountNumber: w.account_number || '', status: w.status, created_at: w.created_at, decided_at: w.decided_at, note: w.note || '', hasCode: !!w.has_code, usesCode: CODE_METHODS.includes(w.method), codeIssuedAt: w.code_issued_at, codeSeen: !!w.code_viewed_at, reissuePending: !!w.reissue_requested_at, reissueLeft: Math.max(0, 3 - (w.reissue_count || 0)) })),
       ledger: led.rows.map((l) => ({ amount: l.amount_cents / 100, kind: l.kind, note: l.note || '', created_at: l.created_at, pocket: l.pocket })),
       // 👛 the two pockets: 🎁 gift money (from $1, only the Admin's check) and 🎬 content money (its own smallest amount, waits N days)
-      pockets: await walletPockets(email).then((p) => ({ gift: p.gift / 100, giftReady: p.giftReady / 100, giftWait: p.giftWait / 100, content: p.content / 100, contentReady: p.contentReady / 100, contentWait: p.contentWait / 100, contentReadyAt: p.contentReadyAt,
-        contentMonth: p.contentMonth / 100, contentReview: p.contentReview / 100, monthly: true,   // 📅 views money: this month (counting) / past months waiting for CamFeed's approval
+      // 🎬 the content pocket holds only APPROVED money (views money of this month / of months not approved yet is not in the wallet)
+      pockets: await walletPockets(email).then((p) => ({ gift: p.gift / 100, giftReady: p.giftReady / 100, giftWait: p.giftWait / 100, content: p.contentReady / 100, contentReady: p.contentReady / 100, contentWait: 0, contentReadyAt: p.contentReadyAt,
+        contentMonth: 0, contentReview: 0, monthly: true, notInWallet: p.contentWait / 100,
         giftMin: rules.giftMinCents / 100, contentMin: rules.contentMinCents / 100, contentHoldDays: rules.contentHoldDays })).catch(() => null),
       heldAmount: Math.min(held, cents) / 100, availableAmount: Math.max(0, cents - held) / 100, sources, payoutMethods: PAYOUT_METHODS, carriers: CARRIERS, carrierLogos: await carrierLogos(), topupAmounts: await topupAmounts() });
   } catch (err) { console.error('[monetization] status error:', err.message); res.status(500).json({ success: false, error: 'Could not load.' }); }

@@ -145,7 +145,7 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       const tops = await pool.query('SELECT id, usd, coins, method, status, note, created_at, decided_at FROM coin_topups WHERE user_email = $1 ORDER BY id DESC LIMIT 10', [e]);
       res.json({ success: true, balance: await balance(e), coinCents: COIN_CENTS, share: s.share, holdDays: s.holdDays,
         walletOn: s.walletOn, walletCents: walletCents ? await walletCents(e) : 0,
-        pockets: await (async () => { try { const p = await wallets.pockets(pool, e, { giftHoldDays: s.holdDays, contentHoldDays: contentHoldDays ? contentHoldDays() : 0 }); return { gift: p.gift, content: p.content, giftReady: p.giftReady, contentReady: p.contentReady }; } catch (x) { return null; } })(),
+        pockets: await (async () => { try { const p = await wallets.pockets(pool, e, { giftHoldDays: s.holdDays, contentHoldDays: contentHoldDays ? contentHoldDays() : 0 }); return { gift: p.gift, content: p.contentReady, giftReady: p.giftReady, contentReady: p.contentReady }; /* 🎬 only approved views money */ } catch (x) { return null; } })(),
         packs: s.packs.map((p, i) => ({ i, usd: Number(p.usd) || 0, coins: Number(p.web) || 0, appCoins: Number(p.app) || 0, playId: playIdOf(p) })),
         play: gplay.on(), playAccount: gplay.accountIdOf(e),               // 🛒 Google Play in the Android app
         payinfo: s.payinfo, gifts: gifts.rows.map(giftOut), topups: tops.rows });
@@ -249,13 +249,15 @@ module.exports = function installCoins({ app, pool, adminGate, audit, sendNotice
       // 👛 the person chooses the pocket: 🎁 gift money or 🎬 content money (all of it, waiting money too: it never leaves CamFeed)
       const pocket = wallets.pocketOf((req.body || {}).pocket);
       const w = await c.query(`SELECT COALESCE(SUM(amount_cents) FILTER (WHERE ${wallets.POCKET_SQL} = $2), 0)::int AS n, COALESCE(SUM(amount_cents), 0)::int AS t FROM wallet_ledger WHERE LOWER(user_email) = $1`, [e, pocket]);
-      const have = w.rows[0].n;
+      let have = w.rows[0].n;
+      // 🎬 views money that CamFeed has not approved yet is not in the wallet: it cannot be changed into diamonds either
+      if (pocket === 'content') { const pk = await wallets.pockets(c, e).catch(() => null); if (pk) have = Math.max(0, have - pk.contentWait); }
       if (have < cents) { await c.query('ROLLBACK'); c.release(); return res.status(402).json({ success: false, code: 'wallet', pocket, walletCents: have, needCents: cents, error: 'This pocket does not have enough money.' }); }
       const ins = await c.query("INSERT INTO wallet_ledger (user_email, amount_cents, kind, note, created_by, pocket) VALUES ($1, $2, 'coins', $3, $1, $4) RETURNING id", [e, -cents, 'Changed into ' + coins + ' diamonds', pocket]);
       await c.query("INSERT INTO coin_ledger (user_email, coins, kind, note, ref_id, created_by) VALUES ($1, $2, 'wallet', $3, $4, $1)", [e, coins, 'From wallet $' + (cents / 100).toFixed(2), ins.rows[0].id]);
       await c.query('COMMIT');
       c.release();
-      res.json({ success: true, balance: await balance(e), walletCents: w.rows[0].t - cents, pocket, coins });
+      res.json({ success: true, balance: await balance(e), walletCents: walletCents ? await walletCents(e) : w.rows[0].t - cents, pocket, coins });
     } catch (err) {
       try { await c.query('ROLLBACK'); } catch (x) { /* nothing open */ }
       c.release();

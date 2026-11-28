@@ -8,7 +8,7 @@ const DEFAULTS = {
     beauty: false,      // ✨ off until it is safe on every phone (it closed the app on some)
     chatBubbles: true,  // 💬 a new chat message pops up as a round picture over other apps (Android)
     // 🧪 Party Room tests, only on weak phones (≤ 3 GB, or after the app closed in a room): to find what closes the app
-    liteNoMusic: false, liteNoVoiceFx: false, liteNoVoice: false, liteHwOff: false, liteMediaAudio: false, nativeCamera: true, cameraLong: true, cameraPhoto: true, mirrorFront: false, autoSound: true,
+    liteNoMusic: false, liteNoVoiceFx: false, liteNoVoice: false, liteHwOff: false, liteMediaAudio: false, nativeCamera: true, cameraLong: true, cameraPhoto: true, mirrorFront: true, autoSound: true,
   },
   reportReasons: {
     post: [
@@ -37,7 +37,7 @@ const DEFAULTS = {
   chatTtlHours: [0, 24, 168, 720, 4380, 8760],
   giftCounts: [1, 10],
   storySoundSeconds: 15,
-  party: { metMinutes: 10, metDays: 30, followNotifyMinutes: 60, challengeMinOthers: 1 },
+  party: { metMinutes: 10, metDays: 30, followNotifyMinutes: 60, challengeMinOthers: 1, ownerAwayHours: 6 },
   watchHistoryDays: 90,
   feed: { reshowDays: 7, oldMax: 3, mix: { friends: 25, follow: 20, trending: 20, interest: 15, fresh: 10, discover: 10, freshHours: 24, trendMin: 3 } },
   people: { randomPct: 15 },   // "people you may know": this share of the list is chosen by chance (to meet new people)
@@ -123,6 +123,7 @@ function clean(raw) {
     if (p.metDays !== undefined) o.party.metDays = num(p.metDays, 1, 365, 30);
     if (p.followNotifyMinutes !== undefined) o.party.followNotifyMinutes = num(p.followNotifyMinutes, 0, 10080, 60);
     if (p.challengeMinOthers !== undefined) o.party.challengeMinOthers = num(p.challengeMinOthers, 0, 50, 1);
+    if (p.ownerAwayHours !== undefined) o.party.ownerAwayHours = num(p.ownerAwayHours, 0, 72, 6);
   }
   return o;
 }
