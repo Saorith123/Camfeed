@@ -29,7 +29,7 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind one proxy: needed for correct client IP (login rate limit)
 app.disable('x-powered-by');                       // do not announce the framework
 // light-weight check for uptime monitors (no database, no login) - keeps the server awake and shows if it is alive
-const DEPLOY_NO = 258;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
+const DEPLOY_NO = 259;   // 🔢 which DEPLOY zip is live: open camfeedkh.com/healthz
 app.get('/healthz', (req, res) => res.status(200).type('text/plain').send('ok · DEPLOY ' + DEPLOY_NO));
 // 🛠️ Maintenance (e.g. while the database moves): Render › Environment › MAINTENANCE_MODE = 1 → nothing is read or written.
 // The app shows "CamFeed is being improved" and tries again by itself; the website shows maintenance.html. Remove it (or 0) to open again.
@@ -4812,6 +4812,7 @@ app.get('/api/stories/feed', async (req, res) => {
        LEFT JOIN story_views v ON v.story_id = s.id AND v.viewer_email = $1
        LEFT JOIN story_reactions rx ON rx.story_id = s.id AND rx.viewer_email = $1
        WHERE s.expires_at > NOW() AND COALESCE(u.is_banned, FALSE) = FALSE AND ${NOT_BLOCKED('s.user_email', '$1')}
+         AND (to_jsonb(s) ->> 'edit_state') IS DISTINCT FROM 'wait'      -- ⏳ a Story video still getting its sound / edits is shown when ready
          AND ${audience.storyVisibleSql('s', '$1')}
        ORDER BY s.created_at ASC LIMIT 400`, [me || '']);
     const groups = new Map();

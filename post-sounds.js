@@ -44,6 +44,7 @@ module.exports = function postSounds({ soundCaption, app, pool, pubMedia, r2PutB
       soundId: parseInt(e.soundId || (b && b.soundId), 10) || 0,
       soundStart: Math.round(num(e.soundStart !== undefined ? e.soundStart : (b && b.soundStart), 0, 3600, 0)),
       soundStartMs: e.soundStartMs !== undefined ? Math.round(num(e.soundStartMs, 0, 3600000, 0)) : null,   // 🎵 the exact point of the song when recording began
+      recMs: e.recMs !== undefined ? Math.round(num(e.recMs, 0, 3600000, 0)) : null,                       // ⏱ how long the phone's clock says it recorded
       soundVoice: e.soundVoice === true || (b && b.soundVoice === true),
       mirror: e.mirror === true,                                       // 🪞 front camera: kept as seen on the screen
       photo: e.photo === true,                                         // 📸 a photo + a sound → a short video
@@ -116,10 +117,13 @@ module.exports = function postSounds({ soundCaption, app, pool, pubMedia, r2PutB
     let n = 1, mi = -1, oi = -1;
     // 🎵 the song from the exact point it had when the video began (lips in time), + the cut at the start
     //    (a song chosen in the editor, not recorded with, simply starts at its chosen second where the cut video starts)
-    const at = e.soundStartMs != null ? e.soundStartMs / 1000 + (e.trimStart || 0) / 1000 : (e.soundStart || 0);
+    const info = await probe(src);
+    // ⏱ a phone whose video starts late makes a file shorter than its clock: that much of the song had already played
+    //    when the first picture was taken, so the song starts that much later (only a sane amount: 0–2 s)
+    const lateBy = e.soundStartMs != null && e.recMs && info.secs > 0 ? Math.max(0, Math.min(2, e.recMs / 1000 - info.secs)) : 0;
+    const at = e.soundStartMs != null ? e.soundStartMs / 1000 + lateBy + (e.trimStart || 0) / 1000 : (e.soundStart || 0);
     if (musicUrl) { args.push('-stream_loop', '-1', '-ss', at.toFixed(3), '-i', musicUrl); mi = n++; }
     if (e.overlay) { args.push('-loop', '1', '-i', e.overlay); oi = n++; }
-    const info = await probe(src);
     const voice = (e.voiceVol > 0.001) && info.audio;
     // the exact length of the new video (the music and the picture go round forever: they are cut here)
     const len = e.trimEnd ? (e.trimEnd - e.trimStart) / 1000 : Math.max(0.5, info.secs - e.trimStart / 1000);
@@ -231,13 +235,26 @@ module.exports = function postSounds({ soundCaption, app, pool, pubMedia, r2PutB
     } catch (e) { /* the 🎵 line is extra: the posts still show */ }
   }
   // GET /api/posts and GET /api/posts/:id answers get the 🎵 line (without touching those big routes)
+  // ⏳ a video still being made (sound / edits going in) is not shown in lists yet — nobody should see (and keep in their phone)
+  //    the first, silent copy; one post asked by its number says "processing" (the owner's app waits for it, then shows it)
+  async function hideWaiting(body, list) {
+    try {
+      await ensure();
+      const ids = list.map((p) => Number(p && p.id)).filter((x) => x > 0);
+      if (!ids.length) return;
+      const w = new Set((await pool.query("SELECT id FROM posts WHERE id = ANY($1::int[]) AND sound_mix = 'wait'", [ids])).rows.map((x) => Number(x.id)));
+      if (!w.size) return;
+      if (body && body.post && !Array.isArray(body.posts)) { body.post.processing = true; return; }
+      for (let i = list.length - 1; i >= 0; i--) if (w.has(Number(list[i] && list[i].id))) list.splice(i, 1);
+    } catch (e) { /* lists still show */ }
+  }
   app.use((req, res, next) => {
     if (req.method !== 'GET' || !/^\/api\/posts(\/\d+)?$/.test(req.path)) return next();
     const send = res.json.bind(res);
     res.json = (body) => {
       const list = body && Array.isArray(body.posts) ? body.posts : (body && body.post ? [body.post] : (Array.isArray(body) ? body : null));
       if (!list || !list.length) return send(body);
-      attach(list).then(() => send(body), () => send(body));
+      hideWaiting(body, list).then(() => attach(list)).then(() => send(body), () => send(body));
       return res;
     };
     next();
