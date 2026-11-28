@@ -129,7 +129,8 @@
     <div class="actions"><button class="btn ghost" id="copy">📋 ចម្លង</button><button class="btn ghost" id="share">📤 ផ្ញើ</button></div>
     <button class="btn" id="again">➕ ចុះឈ្មោះម្នាក់ទៀត</button>
   </div>
-  <div class="hint" style="text-align:center">💡 ចុច ⋮ → «Add to Home screen» ដើម្បីដាក់ទំព័រនេះលើអេក្រង់ទូរសព្ទ</div>
+  <div class="hint" id="homeHint" style="text-align:center">💡 ចុច ⋮ → «Add to Home screen» ដើម្បីដាក់ទំព័រនេះលើអេក្រង់ទូរសព្ទ</div>
+<script>if (/CamFeedAdmin/.test(navigator.userAgent)) document.getElementById('homeHint').style.display = 'none';</script>
 </div>
 <div class="toast" id="toast"></div>
 <script>
