@@ -418,6 +418,8 @@ pool.connect(async (err, client, release) => {
     // two separate ways to earn: 'invited' (an admin invites the person, no requirements) and 'applied' (the person meets the requirements and applies)
     await pool.query('ALTER TABLE creator_applications ADD COLUMN IF NOT EXISTS source VARCHAR(10)').catch(() => {});
     await pool.query("UPDATE creator_applications SET source = CASE WHEN status = 'approved' THEN 'invited' ELSE 'applied' END WHERE source IS NULL").catch(() => {});
+    // 💲 one price for everybody: the old per-way prices / daily limits are removed
+    await pool.query("DELETE FROM creator_settings WHERE key IN ('rpm_usd_invited', 'daily_cap_usd_invited', 'rpm_usd_applied', 'daily_cap_usd_applied')").catch(() => {});
     await pool.query("CREATE TABLE IF NOT EXISTS sounds (id SERIAL PRIMARY KEY, title TEXT NOT NULL, artist TEXT, audio_url TEXT NOT NULL, cover_url TEXT, duration INTEGER NOT NULL DEFAULT 30, active BOOLEAN NOT NULL DEFAULT TRUE, uses INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())").catch(() => {});
     await pool.query('CREATE TABLE IF NOT EXISTS saved_sounds (user_email TEXT NOT NULL, sound_id INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_email, sound_id))').catch(() => {});
     await pool.query('ALTER TABLE stories ADD COLUMN IF NOT EXISTS sound_id INTEGER, ADD COLUMN IF NOT EXISTS sound_start INTEGER NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS sound_len INTEGER NOT NULL DEFAULT 15').catch(() => {});
@@ -5353,16 +5355,11 @@ const CODE_RE = /^[A-Za-z0-9][A-Za-z0-9 \-]{2,58}[A-Za-z0-9]$/;
 // ---- Pay per view: an admin-invited (approved) creator earns a small amount for each view that comes AFTER the approval / the day the rate was switched on.
 //      The Super Admin sets the price ($ per 1,000 views) and a daily cap per creator; 0 = switched off.
 async function earnSettings(source) {
-  const r = await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('rpm_usd', 'daily_cap_usd', 'rpm_usd_invited', 'daily_cap_usd_invited', 'rpm_usd_applied', 'daily_cap_usd_applied')");
+  const r = await pool.query("SELECT key, value FROM creator_settings WHERE key IN ('rpm_usd', 'daily_cap_usd')");
   const m = {}; r.rows.forEach((x) => { if (x.value !== '' && x.value !== null) m[x.key] = Number(x.value); });
   const pick = (k, env, d) => (Number.isFinite(m[k]) && m[k] >= 0 ? m[k] : (Number.isFinite(Number(process.env[env])) && process.env[env] !== undefined && process.env[env] !== '' ? Number(process.env[env]) : d));
   const base = { rpm: pick('rpm_usd', 'CREATOR_RPM_USD', 0), dailyCap: pick('daily_cap_usd', 'CREATOR_DAILY_CAP_USD', 1) };
-  // each way to earn may have its own price / daily limit (Admin > Monetization); empty = the common one
-  if (source === 'invited' || source === 'applied') {
-    const r2 = m['rpm_usd_' + source], c2 = m['daily_cap_usd_' + source];
-    return { rpm: Number.isFinite(r2) && r2 >= 0 ? r2 : base.rpm, dailyCap: Number.isFinite(c2) && c2 >= 0 ? c2 : base.dailyCap };
-  }
-  return base;
+  return base;   // 💲 ONE price and ONE daily limit for everybody (invited or applied): Admin › Pay per view
 }
 // the switches and texts of the two ways (Admin > Monetization > each tab)
 async function pathSettings() {
@@ -5670,15 +5667,11 @@ app.post('/api/admin/creator-path', async (req, res) => {
     if (b.set) {
       if (!a.isSuperAdmin) return res.status(403).json({ success: false, error: 'Only a Super Admin can change this.' });
       const put = (k, v) => (v === '' || v === null || v === undefined) ? pool.query('DELETE FROM creator_settings WHERE key = $1', [k]) : pool.query('INSERT INTO creator_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', [k, String(v)]);
-      const num = (v, hi) => { if (v === '' || v === null || v === undefined) return ''; const n = Number(v); if (!Number.isFinite(n) || n < 0 || n > hi) throw new Error('bad number'); return n; };
-      let rpm, cap;
-      try { rpm = num(b.rpm, 50); cap = num(b.dailyCap, 100); } catch (e) { return res.status(400).json({ success: false, error: 'Price must be $0–$50 and the daily limit $0–$100 (empty = the common value).' }); }
-      await put('rpm_usd_' + src, rpm); await put('daily_cap_usd_' + src, cap);
-      if (rpm !== '' && rpm > 0 && !(await pool.query("SELECT 1 FROM creator_settings WHERE key = 'earn_start'")).rows.length) await pool.query("INSERT INTO creator_settings (key, value) VALUES ('earn_start', $1)", [String(Date.now())]);
+      // the price and daily limit are no longer set per way (one common price: 💲 Pay per view)
       if (src === 'invited' && b.mustAccept !== undefined) await put('invite_accept', b.mustAccept ? '1' : '0');
       if (src === 'applied' && b.open !== undefined) await put('applied_open', b.open ? '1' : '0');
       if (b.text !== undefined) await put('text_' + src, String(b.text || '').slice(0, 600));
-      audit(a.adminEmail, 'creator-path-' + src, 'settings', 'rpm ' + rpm + ', cap ' + cap);
+      audit(a.adminEmail, 'creator-path-' + src, 'settings', 'switch/text');
     }
     const r = await pool.query('SELECT key, value FROM creator_settings WHERE key = ANY($1)', [['rpm_usd_' + src, 'daily_cap_usd_' + src]]);
     const m = {}; r.rows.forEach((x) => { m[x.key] = x.value; });

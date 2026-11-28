@@ -626,7 +626,7 @@
     p.appendChild(bar); var body = el('div', { id: 'monBody' }); p.appendChild(body);
     if (mon.view === 'inv') monApps(body, 'invited'); else if (mon.view === 'apps') monApps(body, 'applied'); else if (mon.view === 'rules') monRules(body, 'creator'); else if (mon.view === 'ref') monReferrals(body); else if (mon.view === 'wd') monWithdrawals(body); else if (mon.view === 'logos') monCarrierLogos(body); else if (mon.view === 'rate') monRate(body); else if (mon.view === 'report') monReport(body); else if (mon.view === 'months') monMonths(body); else if (mon.view === 'rate') monRate(body); else monWallet(body);
   }
-  // the settings of one way to earn (its own price, daily limit, switch and text)
+  // the settings of one way to earn (its switch and text; the price is the common one)
   function monPath(box, src) {
     box.appendChild(empty('Loading…'));
     function draw(d) {
@@ -637,27 +637,18 @@
       wrap.appendChild(el('div', { style: 'color:#65676b;font-size:13px;margin-bottom:8px', text: src === 'invited' ? 'People YOU choose (Users → Manage → "Invite to earn"). No requirements.' : 'People who meet the requirements (⚙️ Conditions) and apply; you approve or refuse.' }));
       if (!d.success) { wrap.appendChild(empty(d.error || 'Could not load.')); return; }
       var dis = !d.isSuperAdmin, out = el('div', { style: 'display:none' });
-      // 🔢 a box shows only this way's OWN value; empty = it follows the common price (💲 Pay per view), so saving never freezes a copy of the common price
-      var ownRpm = d.rpm !== '' && d.rpm !== null && d.rpm !== undefined, ownCap = d.dailyCap !== '' && d.dailyCap !== null && d.dailyCap !== undefined;
-      var rpm = el('input', { class: 'at-in', type: 'number', step: '0.01', min: '0', value: ownRpm ? d.rpm : '', placeholder: 'empty = common ($' + d.commonRpm + ')' });
-      var cap = el('input', { class: 'at-in', type: 'number', step: '0.1', min: '0', value: ownCap ? d.dailyCap : '', placeholder: 'empty = common ($' + d.commonCap + ')' });
-      var nowBox = el('div', { style: 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:10px 12px;margin:6px 0 4px;font-size:14px;font-weight:700' }, [
-        el('div', {}, [el('span', { text: '✅ Price per 1,000 views in use now: $' + d.effRpm }), el('span', { style: 'font-weight:500;margin-left:6px', text: ownRpm ? 'Own value' : 'Common value' })]),
-        el('div', {}, [el('span', { text: '📅 Daily limit in use now: $' + d.effCap }), el('span', { style: 'font-weight:500;margin-left:6px', text: ownCap ? 'Own value' : 'Common value' })])]);
-      wrap.appendChild(nowBox);
+      // 💲 ONE price and ONE daily limit for everybody: they are set only in 💲 Pay per view
+      wrap.appendChild(el('div', { style: 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:10px;padding:10px 12px;margin:6px 0 4px;font-size:14px;font-weight:700' }, [
+        el('div', { text: AT('✅ តម្លៃក្នុង ១,០០០ ដងមើល៖ $', '✅ Price per 1,000 views: $') + d.commonRpm + AT(' · កំណត់ប្រចាំថ្ងៃ៖ $', ' · Daily limit: $') + d.commonCap }),
+        el('div', { style: 'font-weight:500;font-size:13px', text: AT('ដូចគ្នាសម្រាប់អ្នកទាំងអស់។ ប្ដូរនៅ 💲 បង់តាមចំនួនមើល។', 'The same for everybody. Change it in 💲 Pay per view.') })]));
       var sw = el('input', { type: 'checkbox' }); sw.checked = src === 'invited' ? d.mustAccept : d.open;
       var tx = el('textarea', { class: 'at-in', rows: '3', placeholder: 'Text people see (empty = the standard text)' }); tx.value = d.text || '';
-      [rpm, cap, sw, tx].forEach(function (x) { x.disabled = dis; });
-      wrap.appendChild(el('div', { class: 'at-lbl', text: 'Price per 1,000 views ($) — now: $' + d.effRpm }));  wrap.appendChild(rpm);
-      wrap.appendChild(el('div', { class: 'at-lbl', text: 'Daily limit per creator ($) — now: $' + d.effCap })); wrap.appendChild(cap);
+      [sw, tx].forEach(function (x) { x.disabled = dis; });
       wrap.appendChild(el('label', { style: 'display:flex;gap:8px;align-items:center;margin-top:10px;font-size:14px' }, [sw, el('span', { text: src === 'invited' ? 'The person must ACCEPT the invitation first' : 'Applying is OPEN (off = the requirements card is hidden)' })]));
       wrap.appendChild(el('div', { class: 'at-lbl', text: 'Text shown to people' })); wrap.appendChild(tx);
       if (!dis) {
         var btn = el('button', { class: 'btn-sm btn-blue', style: 'padding:10px 16px;margin-top:10px', text: 'Save', onclick: function () {
-          var r1 = rpm.value, c1 = cap.value;
-          if (!ownRpm && r1 !== '' && Number(r1) === Number(d.commonRpm)) r1 = '';   // unchanged common value: keep following 💲 Pay per view
-          if (!ownCap && c1 !== '' && Number(c1) === Number(d.commonCap)) c1 = '';
-          var body2 = { source: src, set: true, rpm: r1, dailyCap: c1, text: tx.value };
+          var body2 = { source: src, set: true, text: tx.value };
           if (src === 'invited') body2.mustAccept = sw.checked; else body2.open = sw.checked;
           btn.disabled = true; adm('/api/admin/creator-path', body2).then(function (x) { btn.disabled = false; if (x.success) { draw(x); } else msg(out, false, '❌ ' + (x.error || 'Failed')); });
         } });
